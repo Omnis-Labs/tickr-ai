@@ -1,27 +1,16 @@
-# Security Policy
+# Security
 
-## Reporting a Vulnerability
+If you find a security issue in Hunch It, please report it privately instead of posting it publicly.
 
-If you discover a security vulnerability in Hunch It, **do not open a public issue**.
+Email the maintainers with:
 
-Instead, please report it privately:
+- What you found
+- Steps to reproduce it
+- Any relevant logs, screenshots, or transaction links
+- Why you think it matters
 
-1. Email the maintainers with a detailed description of the vulnerability.
-2. Include steps to reproduce, potential impact, and any suggested fixes.
-3. Allow reasonable time for a fix before public disclosure.
+## Notes
 
-We aim to acknowledge reports within 48 hours and provide a fix or mitigation plan within 7 days.
-
-## Scope
-
-This policy covers the Hunch It codebase including:
-
-- The Next.js web application (`apps/web`)
-- The WebSocket server (`apps/ws-server`)
-- Shared packages (`packages/shared`)
-
-## Known Considerations
-
-- **Private keys**: Hunch It uses Privy for embedded wallets and `@solana/wallet-adapter-react` for external wallets. Private keys never touch the server.
-- **API secrets**: `WS_CRON_SECRET` protects the cron endpoints. Keep it out of client bundles.
-- **LLM cost cap**: The `LLM_DAILY_USD_CAP` env var prevents runaway Anthropic spend.
+- Hunch uses Privy for authentication and wallet access. Private keys should never touch the Hunch server.
+- Keep API keys, database URLs, and `WS_CRON_SECRET` out of client bundles and public commits.
+- Use small amounts when testing live trading flows.

@@ -1,11 +1,11 @@
 # Contributing to Hunch It
 
-Thanks for your interest in contributing. This document covers the essentials.
+Thanks for your interest in Hunch It. The project is still early, so the contribution process is intentionally simple: make focused changes, keep the product easy to understand, and update docs when behavior changes.
 
 ## Prerequisites
 
 - Node.js >= 20
-- pnpm >= 9 (via corepack)
+- pnpm >= 9
 - Git
 
 ## Setup
@@ -17,56 +17,62 @@ pnpm install
 cp .env.example .env
 ```
 
-See [docs/getting-started.md](docs/getting-started.md) for full setup instructions including demo mode.
+For a quick local run, enable demo mode in `.env`:
 
-## Development Workflow
+```bash
+DEMO_MODE=true
+NEXT_PUBLIC_DEMO_MODE=true
+```
 
-1. **Create a branch** from `main`:
+Then:
+
+```bash
+cp .env apps/web/.env.local
+cp .env apps/ws-server/.env
+pnpm db:generate
+pnpm dev
+```
+
+See [docs/getting-started.md](docs/getting-started.md) for live setup.
+
+## How to Help
+
+Useful contributions right now are usually small and concrete:
+
+- Clarify product copy or documentation
+- Improve mandate setup, proposal review, portfolio, or position flows
+- Fix bugs in order state handling, realtime updates, or local setup
+- Add or refine supported asset metadata in the shared asset registry
+- Improve error messages so users understand what happened and what to do next
+
+## Development Basics
+
+1. Create a branch from `main`.
+2. Make a focused change.
+3. Run the relevant checks before sharing it:
    ```bash
-   git checkout -b feat/your-feature
+   pnpm typecheck
+   pnpm build
    ```
-
-2. **Make your changes.** Follow the existing code style and patterns.
-
-3. **Verify before pushing:**
-   ```bash
-   pnpm typecheck    # must pass
-   pnpm build        # must succeed
-   ```
-
-4. **Open a pull request** against `main`. Describe what changed and why.
-
-## Branch Naming
-
-| Prefix | Use |
-|---|---|
-| `feat/` | New feature |
-| `fix/` | Bug fix |
-| `refactor/` | Code restructuring (no behavior change) |
-| `docs/` | Documentation only |
-| `chore/` | Tooling, deps, CI |
+4. Update docs if setup, product behavior, API contracts, or user-facing flows changed.
 
 ## Code Style
 
-- **Language**: All code, comments, commit messages, and documentation in English.
-- **TypeScript**: Strict mode. No `as any`, no `@ts-ignore`.
-- **Formatting**: Prettier handles it — run `pnpm format` before committing.
-- **Imports**: Use workspace aliases (`@hunch-it/shared`, `@hunch-it/shared/constants`).
-- **Validation**: Use Zod for runtime validation of external data.
+- Use English for code, comments, commit messages, and docs.
+- Keep TypeScript strict. Do not use `as any`, `@ts-ignore`, or `@ts-expect-error`.
+- Prefer existing workspace patterns before introducing new dependencies.
+- Use Zod for external data validation.
+- Keep user-facing copy direct and practical; avoid exaggerated claims.
 
-## Commit Messages
+## Documentation Style
 
-Write concise messages that explain **why**, not just what. Examples:
+Docs should help a new user understand three things quickly:
 
-```
-feat: add position close button to portfolio page
-fix: prevent duplicate signal evaluation on cron overlap
-refactor: extract Jupiter swap logic into shared hook
-```
+1. What Hunch does.
+2. How to run it locally.
+3. How the mandate → proposal → order → position loop works.
 
-## Documentation
-
-When your changes affect setup, architecture, or user-facing behavior, update the corresponding file in `/docs`. See [agent.md](agent.md) for guidelines.
+When updating docs, prefer simple sections, short tables, and links to the deeper reference files in `/docs`.
 
 ## License
 
