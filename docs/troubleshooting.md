@@ -1,31 +1,54 @@
 # Troubleshooting
 
-Common issues and their fixes when running Hunch It locally.
+Common issues when running Hunch It locally.
 
 ## Quick Reference
 
-| Symptom | Likely Cause | Fix |
-|---|---|---|
-| `[constants] mint address for AAPL is empty` | Skipped Phase C.2 | Author `data/xstock-candidates.json`, run `verify:xstocks`, paste into `constants.ts` |
-| `[constants] pyth feed id for AAPL is empty` | Skipped Phase C.1 | Run `fetch:pyth-feeds`, paste into `constants.ts` |
-| Notifications don't appear when tab is hidden | Onboarding step 2 not completed | macOS: System Settings > Notifications > browser > Allow. Re-run `/onboarding` |
-| Smoke test prints `market=CLOSED`, no signals | US market is closed | Add `BYPASS_MARKET_HOURS=true` to `.env` and restart |
-| Modal "Yes" fails with `mint not verified` | Mint cell still empty in `constants.ts` | Re-check Phase C.2 in [Getting Started](./getting-started.md) |
-| Leaderboard agent banner stays `0/0` for hours | Signals need 1h+ before back-eval | Wait, or generate more signals; `pnpm db:studio` to inspect `Signal.evaluatedAt` |
-| First web page load is blank | Turbopack still compiling Shared Worker | Reload once |
-| `anthropic call failed` in smoke | API key invalid or out of credit | Double-check `ANTHROPIC_API_KEY`, top up Anthropic console |
+| Symptom                                     | Likely Cause                                                                             | Fix                                                                                        |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| App cannot connect to ws-server             | `apps/ws-server` is not running or `NEXT_PUBLIC_WS_URL` is wrong                         | Run `pnpm dev` or `pnpm dev:ws`; check `NEXT_PUBLIC_WS_URL=http://localhost:4000`          |
+| No proposals appear                         | No mandate, no USDC, market scanner has not produced a BUY, or ws-server is disconnected | Create a mandate, add USDC in live mode, check ws-server logs, and refresh the Home screen |
+| Deposit section never goes away             | Portfolio sync has not seen the wallet balance yet                                       | Confirm USDC is on Solana, then reload or trigger portfolio sync                           |
+| Order placement says insufficient USDC      | Available USDC excludes funds locked in open Jupiter trigger order vaults                | Check Open Orders and cancel/withdraw expired BUY orders if needed                         |
+| Order placement says SOL is required        | Wallet has USDC but no SOL for transaction fees                                          | Send a small amount of SOL to the Privy wallet                                             |
+| Proposal disappeared after editing mandate  | Active proposals are invalidated when the mandate changes                                | This is expected; wait for new proposals based on the updated mandate                      |
+| BUY order is open but no position is active | Trigger order has not filled yet                                                         | Check Open Orders; the position stays `BUY_PENDING` until fill                             |
+| Position is stuck in `ENTERING`             | BUY filled, but TP/SL placement is still retrying                                        | Keep ws-server running and check logs for Jupiter errors                                   |
+| TP/SL edit fails                            | The order or position is not editable                                                    | Only active TP/SL orders for an `ACTIVE` position can be edited                            |
+| Close Position fails before swap            | One of the exit-order cancellations failed                                               | The app should retry cancellation before attempting the market sell                        |
+| Price chart unavailable                     | Pyth Benchmarks or Hermes is unreachable                                                 | Retry later; trading state can still be inspected without chart data                       |
+| `anthropic call failed` in logs             | Missing, invalid, or unfunded Anthropic key                                              | Check `ANTHROPIC_API_KEY`, or use demo mode                                                |
+| Prisma cannot connect                       | `DATABASE_URL` is missing or database is unreachable                                     | Verify the connection string and run `pnpm db:generate` / `pnpm db:push`                   |
 
-## Browser Notifications Checklist
+## Demo Mode Checklist
 
-If OS notifications aren't firing, check each item:
+If demo mode does not behave as expected:
 
-| Check | How to Verify |
-|---|---|
-| Browser permission granted | `/onboarding` step 2 must read **Status: granted**. Re-check via Chrome lock icon > Notifications > Allow |
-| Tab is in the background | Switch to any other tab or window. Minimizing counts. Don't close the Hunch It tab — the Shared Worker dies with it |
-| ws-server still emitting | Look for `[demo] emitted ...` or `[signal] emitted ...` lines every interval in the dev console |
-| Shared Worker connected | Open Hunch It tab > DevTools > Console; look for a `connected` message |
-| macOS system notifications enabled | System Settings > Notifications > Chrome/Safari/Firefox > Allow Notifications |
-| Focus / Do Not Disturb off | macOS Control Centre (top-right) — check Focus is OFF |
+1. Confirm both flags are set:
+   ```bash
+   DEMO_MODE=true
+   NEXT_PUBLIC_DEMO_MODE=true
+   ```
+2. Copy the updated env file into both apps:
+   ```bash
+   cp .env apps/web/.env.local
+   cp .env apps/ws-server/.env
+   ```
+3. Restart `pnpm dev` after changing env vars.
+4. Check browser console and ws-server logs for connection errors.
 
-The two most common offenders are **"didn't allow notifications in onboarding step 2"** and **"macOS Do Not Disturb is on"**.
+## Browser Notifications
+
+Hunch uses browser notifications only while the app has an active tab or Shared Worker. It does not rely on remote mobile push notifications in v1.
+
+If notifications do not appear:
+
+| Check                    | How to Verify                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| Browser permission       | Browser site settings should allow notifications for localhost or the app domain |
+| Tab still open           | Do not close the Hunch tab; background tabs are fine                             |
+| ws-server connected      | Check ws-server logs and browser console                                         |
+| macOS / OS notifications | System Settings should allow notifications from your browser                     |
+| Focus / Do Not Disturb   | Turn off OS-level focus modes while testing                                      |
+
+Notifications are helpful, but the Home feed is the source of truth for proposals and order state.
