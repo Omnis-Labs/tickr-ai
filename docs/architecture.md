@@ -1,136 +1,160 @@
-Technical architecture of Hunch It.
+# Hunch — Architecture
 
-## Repo Layout
+> System architecture, monorepo structure, tech stack, infrastructure, and realtime communication design.
 
-```text
+---
+
+## Monorepo Structure
+
+```
 hunch-it/
 ├── apps/
-│   ├── web/           # Next.js 15 App Router (Vercel)
-│   └── ws-server/     # Node Socket.IO + signal engine (Railway)
+│   ├── web/           # Next.js 15 App Router (PWA frontend + REST API routes)
+│   └── ws-server/     # Signal Engine (Express + Socket.IO, standalone process)
 └── packages/
-    ├── shared/        # zod types, XSTOCKS, enums, helpers
-    └── config/        # shared tsconfig
+    ├── shared/        # Shared Zod schemas, asset registry, types, enums
+    └── config/        # Shared tsconfig
 ```
 
-## Infrastructure
+**apps/web**: Next.js PWA frontend. Handles all user-facing UI and exposes REST API routes under `/api/*`.
 
-| Layer | Service | Role |
-|---|---|---|
-| Web | Vercel | Next.js 15 App Router, Turbopack dev, Prisma client, Vercel Cron |
-| WS server | Railway | Express + Socket.IO, 2 cron loops (generate + evaluate), PrismaClient reads the same schema |
-| DB | Neon Postgres | Users / Signals / Approvals / Trades / Positions |
-| Cache | Upstash Redis | signal TTL cache, Pyth bar 60s cache, LLM daily spend counter |
-| Oracle | Pyth Hermes + Benchmarks | live prices + historical 5-min bars + back-eval +1h bar |
-| Swap | Jupiter Ultra (/order + /execute) | gas sponsored |
-| LLM | Anthropic claude-haiku-4-5 | JSON-mode analysis, rule-based fallback, daily USD cap |
-| Wallets | Phantom / Solflare / Backpack | @solana/wallet-adapter-react |
+**apps/ws-server**: Standalone Node.js backend. Responsible for market monitoring, proposal generation, WebSocket realtime push, back-evaluation, order tracking, and automatic TP/SL placement.
 
-## Event Lifecycle
+**packages/shared**: Zod schemas, asset registry (static TypeScript), and type definitions shared between both apps.
 
-```text
-[Vercel Cron */1]   OR   [ws-server signal loop, interval=60s, stagger=2s/ticker]
-        │                            │
-        ▼                            ▼
-POST /api/cron/generate  →  ws-server POST /cron/generate
-                                     │
-                                     ▼
-                     generator.ts ──► getLatestPrices           (Hermes)
-                                  └─► getHistoricalBars         (Benchmarks, 5min/24h)
-                                  └─► computeIndicators         (RSI / MACD / MA)
-                                  └─► runLlmSignal              (Anthropic Haiku 4.5
-                                        ├─ 288→48 bar downsample
-                                        ├─ JSON extraction + zod validation
-                                        ├─ track cost vs LLM_DAILY_USD_CAP
-                                        └─ degraded=true rule fallback)
-                                  └─► freshness gate            (market hours or BYPASS)
-                                  └─► drop if conf < 0.7 or HOLD
-                                  └─► persist                   (Postgres + Redis TTL)
-                                  └─► io.emit('signal:new', signal)
-                                            │
-                  ┌─────────────────────────┼─────────────────────────┐
-                  ▼                                                   ▼
-       Shared Worker (1 per browser)                        every other tab
-                  │                                                   │
-            BroadcastChannel  ────────────────────────────────────────┘
-                  │
-                  ▼
-       NotificationClient (mounted in providers.tsx)
-                  │
-                  ├─ visible tab → sonner toast + router.push(/signals/:id)
-                  │       └─► SignalModal (Framer Motion entrance)
-                  │            ├─ chart: GET /api/bars/:ticker
-                  │            ├─ TTL ring (green→yellow→red)
-                  │            └─ [Yes / No]
-                  │
-                  └─ hidden tab → Notification() + title flash + favicon dot + Web Audio ding
-                         │
-                         └─ on click → window.focus() + push(/signals/:id)
+Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through its own Prisma client instance.
 
-User clicks "Yes" in modal:
-    useJupiterSwap
-        │
-        ├─ BUY:  requestUltraOrder(USDC → xStock, $5 default)
-        ├─ SELL: getParsedTokenAccountsByOwner → sell whole xStock balance
-        ├─ wallet.signTransaction(VersionedTransaction)
-        ├─ executeUltraOrder                                 (gas sponsored)
-        │
-        ├─► POST /api/approvals  → upsert User + Approval
-        └─► POST /api/trades     → insert Trade, compute realizedPnl (SELL),
-                                   weighted-avg Position.avgCost (BUY)
+---
 
-[Vercel Cron */5]  OR  [ws-server eval loop, every 5 min, first run 30s after boot]
-        │                     │
-        ▼                     ▼
-POST /api/cron/evaluate → ws-server /cron/evaluate
-                               │
-                               ▼
-                     evaluator.ts: for each Signal where
-                       createdAt <= now-1h AND evaluatedAt IS NULL (batch 50)
-                          ├─ getBarsRange(bare, '5', t-600, t+900)
-                          ├─ bar.close covering createdAt+1h → priceAfter
-                          ├─ pctChange = (priceAfter - priceAtSignal) / priceAtSignal
-                          ├─ classify:
-                          │     HOLD or |Δ| < 0.1% → NEUTRAL
-                          │     BUY + Δ > 0   or SELL + Δ < 0 → WIN
-                          │     opposite                       → LOSS
-                          └─ UPDATE signal (idempotent via WHERE evaluatedAt IS NULL)
+## System Architecture Diagram
 
-Leaderboard reads the graded signals:
-  - agent stats    : winRate = wins / (wins + losses)
-  - user accuracy  : (Yes+WIN ∪ No+LOSS) / non-NEUTRAL evaluated approvals
 ```
-
-## Domain Model
-
-```text
-User  ─┬─ Approval ─── Signal ─┬─ evaluatedAt, priceAfter, pctChange, outcome
-       │                       │
-       └─ Trade (realizedPnl) ─┘
+┌──────────────────────────────────────────────────────────────┐
+│                    Frontend (apps/web)                        │
+│                    Next.js 15 PWA                             │
+│                                                              │
+│  ┌──────────┐  ┌────────────┐  ┌──────────┐  ┌───────────┐ │
+│  │ Mandate  │  │    Home    │  │ Proposal │  │ Position  │ │
+│  │  Setup   │→ │            │→ │  Detail  │  │  Detail   │ │
+│  └──────────┘  └────────────┘  └──────────┘  └───────────┘ │
+│                                                              │
+│  REST API Routes (/api/*)                                    │
+│  mandates | proposals | trades | orders | portfolio | bars   │
+└──────┬──────────┬──────────┬──────────┬─────────────────────┘
+       │          │          │          │
+  Socket.IO   Jupiter     Privy     Solana     Pyth
+  (realtime)  Trigger    (auth +    RPC     Benchmarks
+       │    Order v2   wallet)  (balances)  (charts)
+       │    + Swap
        │
-       └─ Position (weighted avgCost; unrealised P&L via Hermes at read time)
-
-Signal.action   : BUY | SELL | HOLD
-Signal.outcome  : WIN | LOSS | NEUTRAL
-Trade.status    : PENDING | CONFIRMED | FAILED
+┌──────┴──────────────────────────────────────────────────┐
+│                ws-server (apps/ws-server)                 │
+│                Signal Engine                             │
+│                                                          │
+│  ┌──────────────┐  ┌────────────────┐  ┌──────────────┐ │
+│  │   Market     │  │   Proposal     │  │   Order      │ │
+│  │   Scanner    │→ │   Generator    │  │   Tracker    │ │
+│  │ (per ticker) │  │  (per user)    │  │ (cron 30s)   │ │
+│  └──────────────┘  └────────────────┘  └──────────────┘ │
+│         │                  │                   │         │
+│    Pyth Hermes      Claude Sonnet/Opus    Jupiter API    │
+│   (live prices)    (LLM analysis)       (order status)   │
+│                                                          │
+│  ┌──────────────┐  ┌────────────────┐                   │
+│  │   Auto       │  │    Back-       │                   │
+│  │   TP/SL      │  │   Evaluator    │                   │
+│  │   Placer     │  │  (cron 5min)   │                   │
+│  └──────────────┘  └────────────────┘                   │
+└─────────────────────────┬───────────────────────────────┘
+                          │
+                   ┌──────┴──────┐
+                   │ GCP Cloud   │
+                   │ SQL (PG)    │
+                   │ via Prisma  │
+                   └─────────────┘
 ```
 
-## Runtime Safety Rails
+---
 
-*   **No silent placeholders**: `requireMint()` and `requirePythFeedId()` throw immediately if the constants are still empty.
-*   **Market-hours gate**: `evaluateFreshness()` skips generation when the price is older than 15 minutes and the NYSE/Nasdaq session is closed. Override with `BYPASS_MARKET_HOURS=true`.
-*   **LLM daily cap**: A per-day USD counter is maintained in Redis. Breaching `LLM_DAILY_USD_CAP` flips generation to the rule fallback and stamps the signal with `degraded = true`.
-*   **Schema validation**: Every WebSocket payload, HTTP body, and LLM response passes through Zod validation.
-*   **Idempotent evaluator**: The `WHERE evaluatedAt IS NULL` check ensures that updates are idempotent, meaning evaluator re-runs are side-effect free.
-*   **Prisma singleton**: Prevents Next.js hot-reload from leaking database connections.
+## Tech Stack
 
-## Tunable Env Flags
+| Layer                  | Tool                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Framework              | Next.js 15 (App Router)                                                                                              |
+| UI Components          | shadcn/ui                                                                                                            |
+| Styling                | Tailwind CSS v4                                                                                                      |
+| Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
+| State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
+| Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
+| Order Execution        | Jupiter Trigger Order API v2 (BUY, TP, SL) + Jupiter Swap API (Close Position)                                       |
+| Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
+| Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |
+| On-chain Data          | Solana RPC (@solana/web3.js)                                                                                         |
+| Realtime Communication | Socket.IO (server) + Shared Worker + BroadcastChannel (client)                                                       |
+| Signal Engine LLM      | Claude Sonnet or Opus (@anthropic-ai/sdk)                                                                            |
+| Technical Indicators   | technicalindicators library                                                                                          |
+| Database               | GCP Cloud SQL (PostgreSQL 15)                                                                                        |
+| ORM                    | Prisma                                                                                                               |
+| Schema Validation      | Zod                                                                                                                  |
+| Asset Registry         | Static TypeScript (packages/shared/src/constants.ts)                                                                 |
+| PWA                    | manifest.json + Service Worker (offline fallback page only; all trading, pricing, and auth features require network) |
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `BYPASS_MARKET_HOURS` | `false` | Emit signals outside US session (useful for demos). |
-| `LLM_ENABLED` | `true` | Flip to force the rule-based fallback. |
-| `LLM_DAILY_USD_CAP` | `10` | Haiku 4.5 cost ceiling. |
-| `SIGNAL_INTERVAL_SECONDS` | `60` | Time required for one full ticker sweep per interval. |
-| `TICKER_STAGGER_SECONDS` | `2` | Delay between per-ticker calls. |
-| `NEXT_PUBLIC_DEFAULT_TRADE_USD` | `5` | Default spend when modal "Yes" takes a BUY order. |
-| `WS_CRON_SECRET` | *(required)* | Shared secret for Vercel Cron ↔ ws-server communication. |
+---
+
+## Infrastructure (GCP)
+
+| Component                      | Deployment                | Notes                                                   |
+| ------------------------------ | ------------------------- | ------------------------------------------------------- |
+| Frontend (apps/web)            | GCP VM + Docker           | Next.js container                                       |
+| Signal Engine (apps/ws-server) | GCP VM + Docker           | Long-running Node.js process with WebSocket connections |
+| Database                       | Cloud SQL (PostgreSQL 15) | Single instance, both apps connect via Private IP       |
+| DNS                            | Cloud DNS                 | <app-domain>                                            |
+
+Both apps/web and ws-server are packaged as Docker images, deployed on the same (or two separate) GCP VMs. Environment variables (API keys, DB credentials) are configured directly in Docker Compose or `.env` on the VM.
+
+---
+
+## Realtime Communication Architecture
+
+The frontend uses a **Shared Worker** to manage the Socket.IO connection:
+
+- The Shared Worker maintains a single WebSocket connection across all browser tabs
+- BroadcastChannel distributes events to every tab
+- When a new proposal arrives and the tab is in the background, the system uses the HTML5 `Notification` API to show an in-session desktop notification (this is a local browser notification, not a remote push notification; it only works while the app has an active tab or Shared Worker)
+- This prevents multiple tabs from creating duplicate connections
+
+**Socket.IO room model**: After connecting, the client sends an `auth` event with `{ privyAccessToken }`. The server verifies the token, resolves the user, and joins the socket to `user:{userId}`. All proposal pushes and trade notifications are emitted to that user's room only (not broadcast globally).
+
+---
+
+## Related Documents
+
+For ws-server implementation, read alongside:
+
+1. **signal-engine.md** — Signal pipeline, Order Tracker, Back-Evaluator
+2. **data-model.md** — Prisma schema, enums, JSON field interfaces
+3. **api-contract.md** — WebSocket events, order state transitions
+
+For frontend implementation, read alongside:
+
+1. **screens-and-flows.md** — Screen specs, user flows, error states
+2. **api-contract.md** — REST endpoints with request/response contracts
+3. **data-model.md** — Data model, Asset Registry structure
+
+---
+
+## Local Development
+
+```bash
+git clone <repo>
+cd hunch-it
+pnpm install
+cp .env.example .env
+# Edit .env with your keys
+
+pnpm --filter @hunch-it/web exec prisma generate
+pnpm db:push
+pnpm dev   # Runs web + ws-server concurrently
+```
+
+**Demo Mode**: Set `DEMO_MODE=true` to run the full UX without any external API keys. The ws-server generates fake signals. By default, demo trades are persisted to PostgreSQL like real trades. Set `DEMO_IN_MEMORY=true` to skip DB persistence entirely.
