@@ -1,4 +1,4 @@
-// SignalDesk — shared Prisma schema (Neon Postgres)
+// SignalDesk — shared Prisma schema (GCP Cloud SQL / PostgreSQL 15)
 // Ships the five tables from the bootstrap spec: users, signals, approvals,
 // trades, positions.
 

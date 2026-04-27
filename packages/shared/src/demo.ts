@@ -1,5 +1,5 @@
 // Demo-mode fixtures. Used by both apps when DEMO_MODE=true so the full UX
-// loop can be showcased without Helius / Anthropic / Pyth / Neon / Upstash
+// loop can be showcased without Helius / Anthropic / Pyth / Cloud SQL
 // credentials (or even a wallet). All data synthetic.
 
 import type { Bar, IndicatorSnapshot, Signal } from './types';
