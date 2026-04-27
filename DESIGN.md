@@ -1,60 +1,60 @@
 ---
 name: Hunch It
 version: alpha
-description: AI trading signals with one-tap execution for tokenized stocks and crypto on Solana. A warm, rounded, mobile-first design system built on an ivory canvas with electric chartreuse accents, soft pastel data colors, pill-shaped controls, and floating circular navigation.
+description: AI trading signals with one-tap execution for tokenized stocks & crypto on Solana. A warm, rounded, mobile-first design system built on an ivory canvas with electric chartreuse accents, soft pastel data colors, pill-shaped controls, and floating circular navigation.
 colors:
-  background: "#F2EFE8"
-  on-background: "#1A1C1E"
-  surface: "#FFFFFA"
-  surface-dim: "#EEE9DF"
-  surface-bright: "#FFFFFA"
-  surface-container-lowest: "#FFFFFF"
-  surface-container-low: "#F8F6EF"
-  surface-container: "#F2EFE8"
-  surface-container-high: "#ECE9E2"
-  surface-container-highest: "#E6E3DC"
-  on-surface: "#1A1C1E"
-  on-surface-variant: "#6B6C64"
-  inverse-surface: "#1A1C1E"
-  inverse-on-surface: "#FFFFFA"
-  outline: "#D0CDC5"
-  outline-variant: "#E6E3DC"
-  primary: "#1A1C1E"
-  on-primary: "#FFFFFA"
-  primary-container: "#2B2C2E"
-  on-primary-container: "#FFFFFA"
-  inverse-primary: "#FFFFFA"
-  accent: "#D0E906"
-  accent-bright: "#D7F20A"
-  accent-soft: "#E8F780"
-  on-accent: "#1A1C1E"
-  accent-container: "#F0FBC0"
-  on-accent-container: "#1A1C1E"
-  secondary: "#BDEDF4"
-  on-secondary: "#1A1C1E"
-  secondary-container: "#D8F6FA"
-  on-secondary-container: "#25464B"
-  secondary-bar: "#A3D9F5"
-  tertiary: "#F5C896"
-  on-tertiary: "#1A1C1E"
-  tertiary-container: "#FCEACC"
-  on-tertiary-container: "#422B00"
-  positive: "#20BFC6"
-  on-positive: "#FFFFFF"
-  positive-container: "#CBF5F7"
-  negative: "#FF745D"
-  on-negative: "#FFFFFF"
-  negative-container: "#FFE0DA"
-  error: "#BA1A1A"
-  on-error: "#FFFFFF"
-  error-container: "#FFDAD6"
-  on-error-container: "#93000A"
-  chart-hatched: "#D8D5CC"
-  chart-selected: "#1A1C1E"
-  neutral-badge: "#1A1C1E"
-  on-neutral-badge: "#FFFFFA"
-  icon-muted: "#9A978D"
-  divider: "#ECE9E2"
+  background: '#F2EFE8'
+  on-background: '#1A1C1E'
+  surface: '#FFFFFA'
+  surface-dim: '#EEE9DF'
+  surface-bright: '#FFFFFA'
+  surface-container-lowest: '#FFFFFF'
+  surface-container-low: '#F8F6EF'
+  surface-container: '#F2EFE8'
+  surface-container-high: '#ECE9E2'
+  surface-container-highest: '#E6E3DC'
+  on-surface: '#1A1C1E'
+  on-surface-variant: '#6B6C64'
+  inverse-surface: '#1A1C1E'
+  inverse-on-surface: '#FFFFFA'
+  outline: '#D0CDC5'
+  outline-variant: '#E6E3DC'
+  primary: '#1A1C1E'
+  on-primary: '#FFFFFA'
+  primary-container: '#2B2C2E'
+  on-primary-container: '#FFFFFA'
+  inverse-primary: '#FFFFFA'
+  accent: '#D0E906'
+  accent-bright: '#D7F20A'
+  accent-soft: '#E8F780'
+  on-accent: '#1A1C1E'
+  accent-container: '#F0FBC0'
+  on-accent-container: '#1A1C1E'
+  secondary: '#BDEDF4'
+  on-secondary: '#1A1C1E'
+  secondary-container: '#D8F6FA'
+  on-secondary-container: '#25464B'
+  secondary-bar: '#A3D9F5'
+  tertiary: '#F5C896'
+  on-tertiary: '#1A1C1E'
+  tertiary-container: '#FCEACC'
+  on-tertiary-container: '#422B00'
+  positive: '#20BFC6'
+  on-positive: '#FFFFFF'
+  positive-container: '#CBF5F7'
+  negative: '#FF745D'
+  on-negative: '#FFFFFF'
+  negative-container: '#FFE0DA'
+  error: '#BA1A1A'
+  on-error: '#FFFFFF'
+  error-container: '#FFDAD6'
+  on-error-container: '#93000A'
+  chart-hatched: '#D8D5CC'
+  chart-selected: '#1A1C1E'
+  neutral-badge: '#1A1C1E'
+  on-neutral-badge: '#FFFFFA'
+  icon-muted: '#9A978D'
+  divider: '#ECE9E2'
 typography:
   display-lg:
     fontFamily: Plus Jakarta Sans
@@ -197,172 +197,172 @@ patterns:
   hatch-opacity: 0.18
 components:
   card-data:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.card-padding}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.lg}'
+    padding: '{spacing.card-padding}'
   card-data-compact:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.md}"
-    padding: "{spacing.card-padding-compact}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.md}'
+    padding: '{spacing.card-padding-compact}'
   card-chart-accent:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.chart-padding}"
+    backgroundColor: '{colors.accent}'
+    textColor: '{colors.on-accent}'
+    rounded: '{rounded.lg}'
+    padding: '{spacing.chart-padding}'
   card-chart-secondary:
-    backgroundColor: "{colors.secondary}"
-    textColor: "{colors.on-secondary}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.chart-padding}"
+    backgroundColor: '{colors.secondary}'
+    textColor: '{colors.on-secondary}'
+    rounded: '{rounded.lg}'
+    padding: '{spacing.chart-padding}'
   segmented-control:
-    backgroundColor: "{colors.surface-container-low}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.surface-container-low}'
+    rounded: '{rounded.full}'
     height: 44px
     padding: 4px
   segmented-item-active:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.label-lg}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.on-primary}'
+    typography: '{typography.label-lg}'
+    rounded: '{rounded.full}'
     height: 36px
     padding: 0 16px
   segmented-item-inactive:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    typography: "{typography.label-lg}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.on-surface}'
+    typography: '{typography.label-lg}'
+    rounded: '{rounded.full}'
     height: 36px
     padding: 0 16px
   icon-button-surface:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.primary}'
+    rounded: '{rounded.full}'
     size: 44px
   icon-button-accent:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.accent}'
+    textColor: '{colors.on-accent}'
+    rounded: '{rounded.full}'
     size: 44px
   icon-button-muted:
-    backgroundColor: "{colors.surface-container}"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.surface-container}'
+    textColor: '{colors.primary}'
+    rounded: '{rounded.full}'
     size: 44px
   bottom-nav-rail:
-    backgroundColor: "{colors.surface}"
-    rounded: "{rounded.full}"
-    height: "{spacing.nav-height}"
+    backgroundColor: '{colors.surface}'
+    rounded: '{rounded.full}'
+    height: '{spacing.nav-height}'
     padding: 8px
   bottom-nav-item-active:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.on-primary}'
+    rounded: '{rounded.full}'
     size: 48px
   bottom-nav-item-inactive:
     backgroundColor: transparent
-    textColor: "{colors.primary}"
-    rounded: "{rounded.full}"
+    textColor: '{colors.primary}'
+    rounded: '{rounded.full}'
     size: 48px
   stat-number:
-    textColor: "{colors.on-surface}"
-    typography: "{typography.number-xl}"
+    textColor: '{colors.on-surface}'
+    typography: '{typography.number-xl}'
   stat-label:
-    textColor: "{colors.on-surface-variant}"
-    typography: "{typography.body-md}"
+    textColor: '{colors.on-surface-variant}'
+    typography: '{typography.body-md}'
   chart-bar-accent:
-    backgroundColor: "{colors.accent-bright}"
-    textColor: "{colors.on-accent}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.accent-bright}'
+    textColor: '{colors.on-accent}'
+    rounded: '{rounded.full}'
     width: 28px
   chart-bar-secondary:
-    backgroundColor: "{colors.secondary-bar}"
-    textColor: "{colors.on-secondary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.secondary-bar}'
+    textColor: '{colors.on-secondary}'
+    rounded: '{rounded.full}'
     width: 28px
   chart-bar-tertiary:
-    backgroundColor: "{colors.tertiary}"
-    textColor: "{colors.on-tertiary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.tertiary}'
+    textColor: '{colors.on-tertiary}'
+    rounded: '{rounded.full}'
     width: 28px
   chart-bar-hatched:
-    backgroundColor: "{colors.chart-hatched}"
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.chart-hatched}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.full}'
     width: 28px
   chart-bar-selected:
-    backgroundColor: "{colors.chart-selected}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.chart-selected}'
+    textColor: '{colors.on-primary}'
+    typography: '{typography.label-md}'
+    rounded: '{rounded.full}'
     width: 28px
   chart-tooltip:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.on-primary}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.primary}'
+    textColor: '{colors.on-primary}'
+    typography: '{typography.label-md}'
+    rounded: '{rounded.full}'
     height: 28px
     padding: 0 12px
   badge-positive:
-    backgroundColor: "{colors.positive}"
-    textColor: "{colors.on-positive}"
-    typography: "{typography.label-sm}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.positive}'
+    textColor: '{colors.on-positive}'
+    typography: '{typography.label-sm}'
+    rounded: '{rounded.full}'
     padding: 4px 8px
   badge-negative:
-    backgroundColor: "{colors.negative}"
-    textColor: "{colors.on-negative}"
-    typography: "{typography.label-sm}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.negative}'
+    textColor: '{colors.on-negative}'
+    typography: '{typography.label-sm}'
+    rounded: '{rounded.full}'
     padding: 4px 8px
   badge-neutral:
-    backgroundColor: "{colors.neutral-badge}"
-    textColor: "{colors.on-neutral-badge}"
-    typography: "{typography.label-sm}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.neutral-badge}'
+    textColor: '{colors.on-neutral-badge}'
+    typography: '{typography.label-sm}'
+    rounded: '{rounded.full}'
     padding: 4px 8px
   badge-accent:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-    typography: "{typography.label-md}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.accent}'
+    textColor: '{colors.on-accent}'
+    typography: '{typography.label-md}'
+    rounded: '{rounded.full}'
     size: 28px
   modal-success:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.xl}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.xl}'
     padding: 40px 28px
   close-button:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.primary}"
-    rounded: "{rounded.full}"
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.primary}'
+    rounded: '{rounded.full}'
     size: 44px
   section-header-icon:
     backgroundColor: transparent
-    textColor: "{colors.on-surface}"
-    rounded: "{rounded.full}"
+    textColor: '{colors.on-surface}'
+    rounded: '{rounded.full}'
     size: 36px
   legend-swatch-accent:
-    backgroundColor: "{colors.accent}"
-    rounded: "{rounded.xs}"
+    backgroundColor: '{colors.accent}'
+    rounded: '{rounded.xs}'
     width: 12px
     height: 12px
   legend-swatch-secondary:
-    backgroundColor: "{colors.secondary-bar}"
-    rounded: "{rounded.xs}"
+    backgroundColor: '{colors.secondary-bar}'
+    rounded: '{rounded.xs}'
     width: 12px
     height: 12px
   legend-swatch-hatched:
-    backgroundColor: "{colors.chart-hatched}"
-    rounded: "{rounded.xs}"
+    backgroundColor: '{colors.chart-hatched}'
+    rounded: '{rounded.xs}'
     width: 12px
     height: 12px
 ---
 
 ## Brand & Style
 
-Hunch It is an AI-powered trading signals platform with one-tap execution for tokenized stocks and crypto on Solana. The design language communicates **confidence, clarity, and accessibility** — essential qualities for an app that asks users to act on financial signals in real time.
+Hunch It is an AI trading signals platform with one-tap execution for tokenized stocks & crypto on Solana. The design language communicates **confidence, clarity, and accessibility** — essential qualities for an app that asks users to act on financial signals in real time.
 
 The visual identity is built on a deliberate tension between a warm, calming canvas and moments of high-energy electric chartreuse. The overall style is **organic-modern**: soft rounded forms, generous whitespace, and a restrained neutral palette that lets data visualizations and action surfaces become the focal points. The personality is optimistic and approachable — closer to a well-crafted consumer app than a traditional trading terminal.
 
