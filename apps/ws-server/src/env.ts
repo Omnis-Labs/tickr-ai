@@ -11,7 +11,7 @@ const EnvSchema = z.object({
   UPSTASH_REDIS_REST_URL: z.string().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-  NEXT_PUBLIC_SOLANA_RPC_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SOLANA_RPC_URLS: z.string().optional(),
   SIGNAL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   TICKER_STAGGER_SECONDS: z.coerce.number().int().nonnegative().default(2),
   BYPASS_MARKET_HOURS: z

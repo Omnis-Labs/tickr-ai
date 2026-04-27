@@ -78,7 +78,7 @@ Fill in the root `.env` file, then copy it to both apps.
 
 | Variable                       | Purpose                                              |
 | ------------------------------ | ---------------------------------------------------- |
-| `NEXT_PUBLIC_SOLANA_RPC_URL`   | Solana RPC endpoint, for example Helius              |
+| `NEXT_PUBLIC_SOLANA_RPC_URLS`  | Solana RPC endpoints (comma-separated for failover)  |
 | `NEXT_PUBLIC_PRIVY_APP_ID`     | Privy app ID for auth and embedded wallet            |
 | `NEXT_PUBLIC_JUPITER_API_BASE` | Jupiter API base URL                                 |
 | `PYTH_HERMES_URL`              | Live Pyth price endpoint                             |

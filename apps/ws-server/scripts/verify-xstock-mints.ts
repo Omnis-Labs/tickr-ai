@@ -27,6 +27,7 @@ import {
   BARE_TICKERS,
   TOKEN_2022_PROGRAM_ID,
   XSTOCKS,
+  parseRpcUrls,
   type BareTicker,
 } from '@hunch-it/shared';
 import { env } from '../src/env.js';
@@ -61,14 +62,14 @@ async function main() {
     process.exit(1);
   }
 
-  const rpc = env.NEXT_PUBLIC_SOLANA_RPC_URL;
-  if (!rpc) {
-    console.error('[verify] NEXT_PUBLIC_SOLANA_RPC_URL not set (Helius RPC required).');
+  const rpcUrls = parseRpcUrls(env.NEXT_PUBLIC_SOLANA_RPC_URLS);
+  if (rpcUrls[0] === 'https://api.mainnet-beta.solana.com') {
+    console.error('[verify] NEXT_PUBLIC_SOLANA_RPC_URLS not set (Helius RPC required).');
     process.exit(1);
   }
 
   const candidates = JSON.parse(readFileSync(CANDIDATES_PATH, 'utf8')) as Record<string, string>;
-  const conn = new Connection(rpc, 'confirmed');
+  const conn = new Connection(rpcUrls[0]!, 'confirmed');
 
   const results: VerifiedMint[] = [];
   for (const ticker of BARE_TICKERS) {

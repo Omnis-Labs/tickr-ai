@@ -57,6 +57,8 @@ export {
 } from './constants';
 export type { BareTicker, XStockMeta, XStockTicker } from './constants';
 
+export { createRpcRoundRobin, parseRpcUrls } from './rpc';
+
 export {
   DEMO_FAKE_MINT,
   DEMO_LEADERBOARD,
