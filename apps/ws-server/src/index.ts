@@ -12,6 +12,7 @@ import {
 } from '@hunch-it/shared';
 import { env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
+import { runOrderTracker } from './orders/tracker.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 
@@ -71,6 +72,25 @@ app.post('/cron/evaluate', async (req: Request, res: Response) => {
   }
 });
 
+// Vercel Cron also hits this every 30s (Vercel min granularity is 1m so it's
+// realistically driven by the in-process setInterval below). Reconciles
+// Jupiter Trigger Order state into our DB.
+app.post('/cron/track-orders', async (req: Request, res: Response) => {
+  const auth = req.header('authorization') ?? '';
+  if (auth !== `Bearer ${env.WS_CRON_SECRET}`) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const p = getPrisma();
+  if (!p) return res.status(503).json({ error: 'DATABASE_URL not configured' });
+  try {
+    const summary = await runOrderTracker(p, io);
+    return res.json({ ok: true, ...summary });
+  } catch (err) {
+    console.warn('[tracker] cron run failed', err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 const httpServer = createServer(app);
 const io = new IoServer(httpServer, {
   cors: { origin: env.NEXT_PUBLIC_APP_URL, credentials: true },
@@ -117,6 +137,7 @@ io.on('connection', (socket) => {
 
 const stopFakeLoop = startSignalLoop(io);
 const stopEvalLoop = startEvaluatorLoop();
+const stopTrackerLoop = startOrderTrackerLoop();
 
 function startEvaluatorLoop(): () => void {
   if (env.DEMO_MODE) {
@@ -158,6 +179,45 @@ function startEvaluatorLoop(): () => void {
   };
 }
 
+function startOrderTrackerLoop(): () => void {
+  if (env.DEMO_MODE) {
+    console.log('[tracker] demo mode — order tracker disabled');
+    return () => {};
+  }
+  const intervalMs = 30_000;
+  let stopped = false;
+  let busy = false;
+
+  async function tick() {
+    if (busy || stopped) return;
+    const p = getPrisma();
+    if (!p) return;
+    busy = true;
+    try {
+      const s = await runOrderTracker(p, io);
+      if (s.fills > 0 || s.expirations > 0 || s.errors > 0) {
+        console.log(
+          `[tracker] wallets=${s.polledWallets} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} errors=${s.errors}`,
+        );
+      }
+    } catch (err) {
+      console.warn('[tracker] tick failed', err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  const kickoff = setTimeout(() => void tick(), 15_000);
+  const handle = setInterval(() => void tick(), intervalMs);
+  console.log(`[tracker] order tracker running every ${intervalMs / 1000}s`);
+
+  return () => {
+    stopped = true;
+    clearTimeout(kickoff);
+    clearInterval(handle);
+  };
+}
+
 httpServer.listen(env.WS_SERVER_PORT, () => {
   console.log(`[http] hunch-it ws-server listening on :${env.WS_SERVER_PORT}`);
 });
@@ -166,6 +226,7 @@ function shutdown(signal: string): void {
   console.log(`[ws] received ${signal}, shutting down`);
   stopFakeLoop();
   stopEvalLoop();
+  stopTrackerLoop();
   io.close();
   void shutdownPrisma();
   httpServer.close(() => process.exit(0));

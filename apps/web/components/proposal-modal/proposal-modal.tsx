@@ -14,6 +14,7 @@ import {
 } from '@hunch-it/shared';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
@@ -41,6 +42,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const { publicKey } = useWallet();
   const router = useRouter();
   const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
+  const { placeBuy, loading: triggerLoading } = useJupiterTrigger();
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [swapLoading, setSwapLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
@@ -140,48 +142,96 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       toast.error(`Unknown ticker ${proposal!.ticker}`);
       return;
     }
-    if (!demo) {
+    const mintForSwap = meta.mint || (demo ? DEMO_FAKE_MINT : '');
+    if (!mintForSwap) {
       toast.error(
-        'Live Jupiter Trigger Order v2 BUY + auto TP/SL OCO is wired in Phase D. Demo mode runs the full UX.',
+        `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
       );
       return;
     }
-    const mintForSwap = meta.mint || DEMO_FAKE_MINT;
-    if (!mintForSwap) {
-      toast.error(`${meta.symbol} mint is empty.`);
-      return;
-    }
+
     setExecuting(true);
     try {
-      // Demo simulates the BUY trigger order round-trip so the UX cadence
-      // matches what live Jupiter Trigger Order v2 will look like:
-      //   1) build deposit tx + initial order
-      //   2) wait for wallet signature
-      //   3) submit signed tx + order params
-      // Then we skip BUY_PENDING / ENTERING and snap to ACTIVE with TP/SL
-      // already attached, since there's no real chain to wait for.
-      setSwapLoading('order');
-      await sleep(600);
-      setSwapLoading('sign');
-      await sleep(900);
-      setSwapLoading('execute');
-      await sleep(700);
-      setSwapLoading(null);
+      // ─── DEMO MODE ──────────────────────────────────────────────────────
+      if (demo) {
+        setSwapLoading('order');
+        await sleep(600);
+        setSwapLoading('sign');
+        await sleep(900);
+        setSwapLoading('execute');
+        await sleep(700);
+        setSwapLoading(null);
 
-      const position = addPosition({
-        proposalId: proposal!.id,
-        ticker: proposal!.ticker,
-        sizeUsd: size,
-        entryPrice: trigger,
-        tpPrice: tp,
-        slPrice: sl,
+        const position = addPosition({
+          proposalId: proposal!.id,
+          ticker: proposal!.ticker,
+          sizeUsd: size,
+          entryPrice: trigger,
+          tpPrice: tp,
+          slPrice: sl,
+        });
+        toast.success(`BUY ${proposal!.ticker} placed (demo). TP/SL attached on fill.`, {
+          action: {
+            label: 'View position',
+            onClick: () => router.push(`/positions/${position.id}`),
+          },
+        });
+        onClose('placed');
+        return;
+      }
+
+      // ─── LIVE MODE — real Jupiter Trigger Order v2 ──────────────────────
+      // 1) build deposit + place trigger order via Jupiter
+      const placed = await placeBuy({
+        outputMint: meta.mint,
+        usdAmount: size,
+        triggerPriceUsd: trigger,
+        triggerCondition: trigger < proposal!.priceAtProposal ? 'below' : 'above',
+        slippageBps: 50,
+        expiresAt: Math.floor(new Date(proposal!.expiresAt).getTime() / 1000),
       });
 
-      toast.success(`BUY ${proposal!.ticker} placed (demo). TP/SL attached on fill.`, {
-        action: {
-          label: 'View position',
-          onClick: () => router.push(`/positions/${position.id}`),
-        },
+      // 2) persist Position(BUY_PENDING) + Order(BUY_TRIGGER, OPEN). The
+      // Order Tracker will update Position → ENTERING when Jupiter reports
+      // the BUY filled.
+      const persistRes = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: walletKey,
+          proposalId: proposal!.id,
+          ticker: proposal!.ticker,
+          kind: 'BUY_TRIGGER',
+          side: 'BUY',
+          triggerPriceUsd: trigger,
+          sizeUsd: size,
+          jupiterOrderId: placed.id,
+          txSignature: placed.txSignature,
+          slippageBps: 50,
+          createPosition: {
+            mint: meta.mint,
+            entryPriceEstimate: trigger,
+            tpPrice: tp,
+            slPrice: sl,
+          },
+        }),
+      });
+      const persistJson = (await persistRes.json().catch(() => ({}))) as {
+        ok?: boolean;
+        positionId?: string;
+        error?: string;
+      };
+      if (!persistRes.ok || !persistJson.ok) {
+        throw new Error(persistJson.error ?? `persist failed: ${persistRes.status}`);
+      }
+
+      toast.success(`BUY ${proposal!.ticker} trigger order placed. Vault deposit: ${placed.txSignature.slice(0, 8)}…`, {
+        action: persistJson.positionId
+          ? {
+              label: 'View position',
+              onClick: () => router.push(`/positions/${persistJson.positionId}`),
+            }
+          : undefined,
       });
       onClose('placed');
     } catch (err) {
@@ -393,14 +443,18 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
               onClick={() => void handlePlace()}
             >
               {executing
-                ? swapLoading === 'order'
-                  ? 'Quoting…'
-                  : swapLoading === 'sign'
-                    ? 'Awaiting signature…'
-                    : swapLoading === 'execute'
-                      ? 'Submitting…'
-                      : 'Placing…'
-                : 'Place order'}
+                ? triggerLoading === 'vault'
+                  ? 'Fetching vault…'
+                  : triggerLoading === 'craft'
+                    ? 'Building deposit…'
+                    : triggerLoading === 'sign' || swapLoading === 'sign'
+                      ? 'Awaiting signature…'
+                      : triggerLoading === 'submit' || swapLoading === 'execute'
+                        ? 'Submitting order…'
+                        : swapLoading === 'order'
+                          ? 'Quoting…'
+                          : 'Placing…'
+                : 'Place trigger order'}
             </button>
           </div>
         ) : (

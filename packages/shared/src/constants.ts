@@ -169,6 +169,16 @@ export const USDC_DECIMALS = 6;
 export const JUPITER_ULTRA_ORDER = '/ultra/v1/order';
 export const JUPITER_ULTRA_EXECUTE = '/ultra/v1/execute';
 
+// Jupiter Trigger Order v2 (vault-based, USD price trigger, off-chain private).
+// Docs: https://dev.jup.ag/docs/trigger-api
+export const JUPITER_TRIGGER_VAULT = '/trigger/v2/vault';
+export const JUPITER_TRIGGER_DEPOSIT_CRAFT = '/trigger/v2/deposit/craft';
+export const JUPITER_TRIGGER_ORDERS_PRICE = '/trigger/v2/orders/price';
+export const JUPITER_TRIGGER_ORDERS_HISTORY = '/trigger/v2/orders/history';
+export const JUPITER_TRIGGER_CANCEL_INITIATE = '/trigger/v2/orders/cancel/initiate';
+export const JUPITER_TRIGGER_CANCEL_CONFIRM = '/trigger/v2/orders/cancel/confirm';
+export const JUPITER_TRIGGER_EDIT = '/trigger/v2/orders/edit';
+
 // Pyth.
 export const PYTH_HERMES_DEFAULT_URL = 'https://hermes.pyth.network';
 export const PYTH_BENCHMARKS_BASE = 'https://benchmarks.pyth.network';
