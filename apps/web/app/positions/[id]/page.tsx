@@ -278,7 +278,7 @@ export default function PositionDetailPage() {
         }
         // Snapshot the old legs so we can rollback if re-placement fails.
         const snapshot = await cancelSiblingOrders();
-        let placed: Array<'TP' | 'SL'> = [];
+        const placed: Array<'TP' | 'SL'> = [];
         try {
           if (tp != null) {
             await placeSellExit({
