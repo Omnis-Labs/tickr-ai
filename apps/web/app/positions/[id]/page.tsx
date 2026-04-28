@@ -13,6 +13,11 @@ import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { PositionStats } from '@/components/positions/position-stats';
+import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
+import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
+import { ClosedSummary, CloseButton } from '@/components/positions/close-button';
+import { DemoSimulator } from '@/components/positions/demo-simulator';
 
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -31,52 +36,13 @@ export default function PositionDetailPage() {
   );
   const { placeSellExit, cancel: cancelTrigger } = useJupiterTrigger();
   const { swap } = useJupiterSwap();
-  const { address } = useWallet();
+  const { address: _address } = useWallet();
+  void _address;
   const authedFetch = useAuthedFetch();
-
-  // Fetch + cancel open SELL trigger orders attached to this Position. Returns
-  // a list of the {id, jupiterOrderId, kind} we cancelled. The persistence
-  // ack (POST /api/orders/[id]/cancel) is fire-and-forget on success — the
-  // Order Tracker will still reconcile via Jupiter History.
-  async function cancelSiblingOrders(): Promise<
-    Array<{ id: string; kind: string; jupiterOrderId: string }>
-  > {
-    if (!position) return [];
-    const ordersRes = await authedFetch(`/api/orders`);
-    const j = (await ordersRes.json().catch(() => ({}))) as {
-      orders?: Array<{
-        id: string;
-        positionId: string;
-        kind: string;
-        jupiterOrderId: string | null;
-      }>;
-    };
-    const open = (j.orders ?? []).filter(
-      (o) =>
-        o.positionId === position.id &&
-        (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
-        o.jupiterOrderId,
-    );
-    const cancelled: Array<{ id: string; kind: string; jupiterOrderId: string }> = [];
-    for (const o of open) {
-      try {
-        await cancelTrigger(o.jupiterOrderId!);
-        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
-        cancelled.push({ id: o.id, kind: o.kind, jupiterOrderId: o.jupiterOrderId! });
-      } catch (err) {
-        // Surface but don't bail — the user may want partial progress.
-        toast.error(
-          `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-    return cancelled;
-  }
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
   const [slDraft, setSlDraft] = useState('');
-  const [confirmClose, setConfirmClose] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -112,11 +78,7 @@ export default function PositionDetailPage() {
       0,
       Math.floor((Date.now() - new Date(position.firstEntryAt).getTime()) / (24 * 3600 * 1000)),
     );
-    const drawdownFromPeak =
-      position.markPrice >= position.entryPrice
-        ? 0
-        : ((position.markPrice - position.entryPrice) / position.entryPrice) * 100;
-    return { value, unrealized, unrealizedPct, days, drawdownFromPeak };
+    return { value, unrealized, unrealizedPct, days };
   }, [position]);
 
   if (!position) {
@@ -133,7 +95,6 @@ export default function PositionDetailPage() {
     );
   }
 
-  const markerColor = '#22c55e';
   const stateBadge =
     position.state === 'ACTIVE'
       ? { bg: 'rgba(34,197,94,0.18)', fg: 'var(--color-buy)', label: 'Active' }
@@ -145,7 +106,116 @@ export default function PositionDetailPage() {
             ? { bg: 'rgba(245,158,11,0.18)', fg: 'var(--color-warn)', label: 'Closing' }
             : { bg: 'rgba(144,153,173,0.18)', fg: 'var(--color-fg-muted)', label: 'Closed' };
 
-  async function submitTpSl() {
+  // Cancel any open TP/SL trigger orders attached to this Position. Shared
+  // between Adjust (re-place) and Close (then market-sell). Best-effort —
+  // surface failures but don't block partial progress.
+  async function cancelSiblingOrders(): Promise<void> {
+    if (!position) return;
+    const ordersRes = await authedFetch(`/api/orders`);
+    const j = (await ordersRes.json().catch(() => ({}))) as {
+      orders?: Array<{
+        id: string;
+        positionId: string;
+        kind: string;
+        jupiterOrderId: string | null;
+      }>;
+    };
+    const open = (j.orders ?? []).filter(
+      (o) =>
+        o.positionId === position.id &&
+        (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
+        o.jupiterOrderId,
+    );
+    for (const o of open) {
+      try {
+        await cancelTrigger(o.jupiterOrderId!);
+        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+      } catch (err) {
+        toast.error(
+          `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  async function handleConfirmExit() {
+    setBusy(true);
+    try {
+      if (demo) {
+        await new Promise((r) => setTimeout(r, 700));
+        confirmExitOrders(position!.id);
+        toast.success('TP / SL trigger orders placed.');
+        return;
+      }
+      if (!meta || !meta.mint) {
+        toast.error(`${position!.ticker} mint not configured.`);
+        return;
+      }
+      if (!position!.currentTpPrice || !position!.currentSlPrice) {
+        toast.error('TP / SL prices missing.');
+        return;
+      }
+      const legAmount = position!.tokenAmount;
+      const tp = await placeSellExit({
+        inputMint: meta.mint,
+        inputDecimals: meta.decimals,
+        tokenAmount: legAmount,
+        triggerPriceUsd: position!.currentTpPrice,
+        triggerCondition: 'above',
+      });
+      const sl = await placeSellExit({
+        inputMint: meta.mint,
+        inputDecimals: meta.decimals,
+        tokenAmount: legAmount,
+        triggerPriceUsd: position!.currentSlPrice,
+        triggerCondition: 'below',
+      });
+      toast.success(`TP ${tp.id.slice(0, 6)} + SL ${sl.id.slice(0, 6)} placed.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleWithdraw() {
+    setBusy(true);
+    try {
+      if (demo) {
+        await new Promise((r) => setTimeout(r, 600));
+        dismissCancelSibling(position!.id);
+        toast.success('Vault funds withdrawn.');
+        return;
+      }
+      const ordersRes = await authedFetch(`/api/orders`);
+      const j = (await ordersRes.json().catch(() => ({}))) as {
+        orders?: Array<{
+          id: string;
+          positionId: string;
+          kind: string;
+          jupiterOrderId: string | null;
+        }>;
+      };
+      const sibling = (j.orders ?? []).find(
+        (o) => o.positionId === position!.id && o.kind !== 'BUY_TRIGGER',
+      );
+      if (!sibling?.jupiterOrderId) {
+        toast.error('No open sibling order found to cancel.');
+        dismissCancelSibling(position!.id);
+        return;
+      }
+      const result = await cancelTrigger(sibling.jupiterOrderId);
+      await authedFetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
+      dismissCancelSibling(position!.id);
+      toast.success(`Vault withdrawn: ${result.txSignature.slice(0, 8)}…`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSubmitTpSl() {
     if (!position) return;
     const tp = tpDraft === '' ? null : Number(tpDraft);
     const sl = slDraft === '' ? null : Number(slDraft);
@@ -160,10 +230,6 @@ export default function PositionDetailPage() {
     setBusy(true);
     try {
       if (!demo) {
-        // Live: cancel the existing TP + SL trigger orders, then re-place at
-        // the new prices. Jupiter Trigger Order v2 has no "edit in place" so
-        // we have to round-trip cancel + place. A nullable price means
-        // "remove that leg" — skip placing it.
         if (!meta || !meta.mint) {
           toast.error(`${position.ticker} mint not configured.`);
           return;
@@ -187,7 +253,7 @@ export default function PositionDetailPage() {
             triggerCondition: 'below',
           });
         }
-        adjustTpSl(position.id, tp, sl); // mirror in client store for instant UI
+        adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');
         return;
       }
@@ -200,7 +266,7 @@ export default function PositionDetailPage() {
     }
   }
 
-  async function doClose() {
+  async function handleClose() {
     if (!position) return;
     setBusy(true);
     try {
@@ -209,8 +275,6 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        // Live close: cancel both exit orders (so vault funds return to the
-        // wallet), then market-sell the full xStock balance via Jupiter Ultra.
         await cancelSiblingOrders();
         const sell = await swap({
           direction: 'SELL',
@@ -218,10 +282,6 @@ export default function PositionDetailPage() {
           xStockDecimals: meta.decimals,
           sellAll: true,
         });
-        // Persist the close on the server so the Position row flips state +
-        // realizedPnl is recorded. The route now accepts {executionPrice,
-        // tokenAmount, txSignature} so the demo branch + live branch share a
-        // shape.
         const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
         const usdOut = Number(sell.outputAmount) / 1_000_000;
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : position.markPrice;
@@ -282,251 +342,46 @@ export default function PositionDetailPage() {
         </div>
       </motion.div>
 
-      {/* Banner: Place exit orders (state=ENTERING) */}
       {position.state === 'ENTERING' && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.04))',
-            border: '1px solid rgba(245,158,11,0.45)',
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: '0.06em',
-                  color: 'var(--color-warn)',
-                  marginBottom: 4,
-                }}
-              >
-                BUY FILLED · ACTION REQUIRED
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
-                Place exit orders to activate TP / SL protection
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
-                Your BUY filled at ${position.entryPrice.toFixed(2)}. Confirm below to attach
-                a take-profit at <strong style={{ color: 'var(--color-buy)' }}>
-                  ${(position.currentTpPrice ?? 0).toFixed(2)}
-                </strong>{' '}
-                and a stop-loss at{' '}
-                <strong style={{ color: 'var(--color-sell)' }}>
-                  ${(position.currentSlPrice ?? 0).toFixed(2)}
-                </strong>{' '}
-                — each runs as its own Jupiter trigger order.
-              </div>
-            </div>
-            <button
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  if (demo) {
-                    await new Promise((r) => setTimeout(r, 700));
-                    confirmExitOrders(position.id);
-                    toast.success('TP / SL trigger orders placed.');
-                    return;
-                  }
-
-                  // Live: place TP and SL as two separate Jupiter trigger orders.
-                  if (!meta || !meta.mint) {
-                    toast.error(`${position.ticker} mint not configured.`);
-                    return;
-                  }
-                  if (!position.currentTpPrice || !position.currentSlPrice) {
-                    toast.error('TP / SL prices missing.');
-                    return;
-                  }
-                  // Each leg = half the token amount (caller can split as desired).
-                  const legAmount = position.tokenAmount;
-                  const tp = await placeSellExit({
-                    inputMint: meta.mint,
-                    inputDecimals: meta.decimals,
-                    tokenAmount: legAmount,
-                    triggerPriceUsd: position.currentTpPrice,
-                    triggerCondition: 'above',
-                  });
-                  const sl = await placeSellExit({
-                    inputMint: meta.mint,
-                    inputDecimals: meta.decimals,
-                    tokenAmount: legAmount,
-                    triggerPriceUsd: position.currentSlPrice,
-                    triggerCondition: 'below',
-                  });
-                  toast.success(
-                    `TP ${tp.id.slice(0, 6)} + SL ${sl.id.slice(0, 6)} placed.`,
-                  );
-                  // Persist via /api/orders happens in the calling page; for v1.3
-                  // demo the live wiring is best-effort and the Order Tracker
-                  // will reconcile state.
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : String(err));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? 'Placing…' : 'Confirm exit orders'}
-            </button>
-          </div>
-        </motion.div>
+        <EnterBanner position={position} busy={busy} onConfirm={handleConfirmExit} />
       )}
 
-      {/* Banner: cancel sibling after TP/SL fill */}
       {position.state === 'CLOSED' && cancelSiblingHint && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(124,92,255,0.04))',
-            border: '1px solid rgba(124,92,255,0.45)',
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  letterSpacing: '0.06em',
-                  color: 'var(--color-accent-strong)',
-                  marginBottom: 4,
-                }}
-              >
-                {position.closedReason === 'TP_FILLED' ? 'TP FILLED' : 'SL FILLED'} · WITHDRAW
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-                Cancel the remaining {cancelSiblingHint.siblingKind} order
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
-                Your {position.closedReason === 'TP_FILLED' ? 'take-profit' : 'stop-loss'} has
-                filled. The other leg is still parked in Jupiter's vault — sign once to
-                cancel it and pull the remaining funds back to your wallet.
-              </div>
-            </div>
-            <button
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  if (demo) {
-                    await new Promise((r) => setTimeout(r, 600));
-                    dismissCancelSibling(position.id);
-                    toast.success('Vault funds withdrawn.');
-                    return;
-                  }
-                  // Live: Phase F surfaces the sibling order id via the
-                  // position:updated event payload. We only have the demo
-                  // hint locally, so fetch the open SELL Order on this
-                  // position and pass its jupiterOrderId to the cancel flow.
-                  const ordersRes = await authedFetch(`/api/orders`);
-                  const j = (await ordersRes.json().catch(() => ({}))) as {
-                    orders?: Array<{
-                      id: string;
-                      positionId: string;
-                      kind: string;
-                      jupiterOrderId: string | null;
-                    }>;
-                  };
-                  const sibling = (j.orders ?? []).find(
-                    (o) => o.positionId === position.id && o.kind !== 'BUY_TRIGGER',
-                  );
-                  if (!sibling?.jupiterOrderId) {
-                    toast.error('No open sibling order found to cancel.');
-                    dismissCancelSibling(position.id);
-                    return;
-                  }
-                  const result = await cancelTrigger(sibling.jupiterOrderId);
-                  await authedFetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
-                  dismissCancelSibling(position.id);
-                  toast.success(`Vault withdrawn: ${result.txSignature.slice(0, 8)}…`);
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : String(err));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {busy ? 'Cancelling…' : 'Sign & withdraw'}
-            </button>
-          </div>
-        </motion.div>
+        <CancelSiblingBanner
+          closedReason={position.closedReason ?? null}
+          siblingKind={cancelSiblingHint.siblingKind}
+          busy={busy}
+          onWithdraw={handleWithdraw}
+        />
       )}
 
-      {/* Chart with annotations */}
       {bars.length > 0 && (
-        <div
-          className="card"
-          style={{ padding: '8px 6px 4px', marginBottom: 16 }}
-        >
+        <div className="card" style={{ padding: '8px 6px 4px', marginBottom: 16 }}>
           <MiniChart
             bars={bars}
             height={180}
             marker={{
               price: position.entryPrice,
               label: 'entry',
-              color: markerColor,
+              color: '#22c55e',
             }}
           />
         </div>
       )}
 
-      {/* Position info */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Position</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          <Stat label="Quantity" value={`${position.tokenAmount.toFixed(4)} ${position.ticker}`} />
-          <Stat label="Entry price" value={`$${position.entryPrice.toFixed(2)}`} />
-          <Stat label="Mark price" value={`$${position.markPrice.toFixed(2)}`} />
-          <Stat label="Value" value={`$${computed!.value.toFixed(2)}`} />
-          <Stat
-            label="Unrealised P&L"
-            value={`${computed!.unrealized >= 0 ? '+' : ''}$${computed!.unrealized.toFixed(2)} (${computed!.unrealizedPct.toFixed(1)}%)`}
-            color={computed!.unrealized >= 0 ? 'var(--color-buy)' : 'var(--color-sell)'}
-          />
-          <Stat label="Days held" value={`${computed!.days}`} />
-          <Stat
-            label="Take profit"
-            value={position.currentTpPrice ? `$${position.currentTpPrice.toFixed(2)}` : '—'}
-            color="var(--color-buy)"
-          />
-          <Stat
-            label="Stop loss"
-            value={position.currentSlPrice ? `$${position.currentSlPrice.toFixed(2)}` : '—'}
-            color="var(--color-sell)"
-          />
-        </div>
-      </div>
+      <PositionStats position={position} computed={computed!} />
 
-      {/* Adjust TP / SL */}
       {position.state === 'ACTIVE' && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Adjust TP / SL</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, alignItems: 'end' }}>
-            <NumField label="Take profit" value={tpDraft} onChange={setTpDraft} color="var(--color-buy)" />
-            <NumField label="Stop loss" value={slDraft} onChange={setSlDraft} color="var(--color-sell)" />
-            <button
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => void submitTpSl()}
-            >
-              Update
-            </button>
-          </div>
-        </div>
+        <AdjustTpSlForm
+          tpDraft={tpDraft}
+          slDraft={slDraft}
+          busy={busy}
+          onTpChange={setTpDraft}
+          onSlChange={setSlDraft}
+          onSubmit={() => void handleSubmitTpSl()}
+        />
       )}
 
-      {/* Stock intro */}
       {meta && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>About</h2>
@@ -537,150 +392,29 @@ export default function PositionDetailPage() {
         </div>
       )}
 
-      {/* Demo: simulate exit fills (only in demo mode + ACTIVE) */}
       {demo && position.state === 'ACTIVE' && (
-        <div
-          className="card"
-          style={{
-            background: 'rgba(245,158,11,0.06)',
-            border: '1px dashed rgba(245,158,11,0.35)',
-            marginBottom: 16,
+        <DemoSimulator
+          onSimTp={() => {
+            simulateExitFill(position.id, 'TP');
+            toast.success('TP filled (simulated). SL cancel banner queued.');
           }}
-        >
-          <div style={{ fontSize: 11, color: 'var(--color-warn)', marginBottom: 8 }}>
-            DEMO ONLY · SIMULATE OCO FILL
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              className="btn btn-buy"
-              style={{ flex: 1 }}
-              onClick={() => {
-                simulateExitFill(position.id, 'TP');
-                toast.success('TP filled (simulated). SL cancel banner queued.');
-              }}
-            >
-              Simulate TP fill
-            </button>
-            <button
-              className="btn btn-sell"
-              style={{ flex: 1 }}
-              onClick={() => {
-                simulateExitFill(position.id, 'SL');
-                toast('SL filled (simulated). TP cancel banner queued.');
-              }}
-            >
-              Simulate SL fill
-            </button>
-          </div>
-        </div>
+          onSimSl={() => {
+            simulateExitFill(position.id, 'SL');
+            toast('SL filled (simulated). TP cancel banner queued.');
+          }}
+        />
       )}
 
-      {/* Close Position */}
       {position.state === 'ACTIVE' && (
-        <div className="card">
-          {!confirmClose ? (
-            <button
-              className="btn btn-sell"
-              style={{ width: '100%', padding: '14px 24px', fontSize: 15 }}
-              onClick={() => setConfirmClose(true)}
-            >
-              Close position
-            </button>
-          ) : (
-            <div>
-              <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
-                Cancel both exit orders and sell the full position at market price?
-              </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  className="btn btn-ghost"
-                  style={{ flex: 1 }}
-                  onClick={() => setConfirmClose(false)}
-                  disabled={busy}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn btn-sell"
-                  style={{ flex: 2 }}
-                  onClick={() => void doClose()}
-                  disabled={busy}
-                >
-                  {busy ? 'Closing…' : 'Confirm close'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        <CloseButton busy={busy} onConfirm={() => void handleClose()} />
       )}
 
       {position.state === 'CLOSED' && (
-        <div className="card" style={{ background: 'var(--color-bg-muted)' }}>
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
-            Closed via {position.closedReason ?? '—'}
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
-            Realised P&L:{' '}
-            <span
-              style={{
-                color:
-                  (position.realizedPnl ?? 0) >= 0 ? 'var(--color-buy)' : 'var(--color-sell)',
-              }}
-            >
-              {(position.realizedPnl ?? 0) >= 0 ? '+' : ''}$
-              {(position.realizedPnl ?? 0).toFixed(2)}
-            </span>
-          </div>
-        </div>
+        <ClosedSummary
+          closedReason={position.closedReason ?? null}
+          realizedPnl={position.realizedPnl ?? null}
+        />
       )}
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: string;
-}) {
-  return (
-    <div>
-      <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: color ?? 'var(--color-fg)' }}>{value}</div>
-    </div>
-  );
-}
-
-function NumField({
-  label,
-  value,
-  onChange,
-  color,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  color?: string;
-}) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 12, color: color ?? 'var(--color-fg-muted)' }}>{label}</span>
-      <input
-        type="number"
-        value={value}
-        step={0.5}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: 10,
-          borderRadius: 8,
-          background: 'var(--color-bg-muted)',
-          color: 'var(--color-fg)',
-          border: '1px solid var(--color-border)',
-        }}
-      />
-    </label>
   );
 }

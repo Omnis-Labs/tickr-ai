@@ -12,7 +12,7 @@ import {
 } from '@hunch-it/shared';
 import { env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
-import { runOrderTracker } from './orders/tracker.js';
+import { runOrderTracker } from './orders/tracker/index.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 import { verifyPrivyToken } from './privy/index.js';
