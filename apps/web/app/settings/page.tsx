@@ -20,6 +20,13 @@ import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useRuntime } from '@/lib/runtime/use-runtime';
+import { Button } from '@/components/ui/button';
+import {
+  Card as UICard,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 interface MandateResponse {
   mandate: Mandate | null;
@@ -78,27 +85,34 @@ export default function SettingsPage() {
           </div>
         )}
         {!demo && connected && (
-          <button
-            className="btn btn-ghost"
+          <Button
+            variant="ghost"
             style={{ marginTop: 16 }}
             onClick={() => void logout()}
           >
             Sign out
-          </button>
+          </Button>
         )}
       </Card>
 
       {/* Mandate */}
-      <Card title="Mandate" right={<Link href="/mandate" className="btn btn-ghost">Edit</Link>}>
+      <Card
+        title="Mandate"
+        right={
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/mandate">Edit</Link>
+          </Button>
+        }
+      >
         {isLoading && <p style={{ color: 'var(--color-fg-muted)' }}>Loading…</p>}
         {!isLoading && !mandate && (
           <div>
             <p style={{ color: 'var(--color-fg-muted)', marginBottom: 12 }}>
               No mandate yet. Without a mandate the signal engine doesn't generate proposals.
             </p>
-            <Link href="/mandate" className="btn btn-primary">
-              Set up mandate
-            </Link>
+            <Button asChild>
+              <Link href="/mandate">Set up mandate</Link>
+            </Button>
           </div>
         )}
         {mandate && (
@@ -253,21 +267,21 @@ function CloseAllPositionsCard() {
         )}
       </p>
       {!confirm ? (
-        <button className="btn btn-sell" onClick={() => setConfirm(true)} disabled={busy}>
+        <Button variant="destructive" onClick={() => setConfirm(true)} disabled={busy}>
           Close all positions
-        </button>
+        </Button>
       ) : (
         <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            className="btn btn-ghost"
+          <Button
+            variant="ghost"
             style={{ flex: 1 }}
             onClick={() => setConfirm(false)}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            className="btn btn-sell"
+          </Button>
+          <Button
+            variant="destructive"
             style={{ flex: 2 }}
             onClick={() => void handleCloseAll()}
             disabled={busy}
@@ -277,7 +291,7 @@ function CloseAllPositionsCard() {
                 ? `Closing ${progress.done}/${progress.total}…`
                 : 'Closing…'
               : 'Confirm close all'}
-          </button>
+          </Button>
         </div>
       )}
     </Card>
@@ -376,13 +390,13 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
         <li>Every server-signed transaction is recorded against your account.</li>
       </ul>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button
-          className={active ? 'btn btn-buy' : 'btn btn-primary'}
+        <Button
+          variant={active ? 'accent' : 'default'}
           disabled={busy}
           onClick={() => void toggle(!active)}
         >
           {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
-        </button>
+        </Button>
         <span
           style={{
             fontSize: 13,
@@ -405,26 +419,31 @@ function Card({
   right?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  // Composed on top of the shadcn Card primitive so the visual stack
+  // (radius, surface, shadow, outline) follows the design tokens.
+  // Existing `.card` utility class is retained for non-migrated pages.
   return (
     <motion.div
-      className="card"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       style={{ marginBottom: 16 }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-        }}
-      >
-        <h2 style={{ fontSize: 18, fontWeight: 700 }}>{title}</h2>
-        {right}
-      </div>
-      {children}
+      <UICard>
+        <CardHeader
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingBottom: 12,
+          }}
+        >
+          <CardTitle style={{ fontSize: 18, fontWeight: 700 }}>{title}</CardTitle>
+          {right}
+        </CardHeader>
+        <CardContent>{children}</CardContent>
+      </UICard>
     </motion.div>
   );
 }
