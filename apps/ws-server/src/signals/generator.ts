@@ -15,12 +15,16 @@ import {
 } from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
 import { cacheSignal } from '../cache/index.js';
-import { persistSignal } from '../db/index.js';
+import { getPrisma, persistSignal } from '../db/index.js';
 import { env } from '../env.js';
 import { getHistoricalBars } from '../pyth/benchmarks.js';
 import { evaluateFreshness, getLatestPrice } from '../pyth/index.js';
 import { computeIndicators, type IndicatorResult } from './indicators.js';
 import { generateLlmSignal } from './llm.js';
+import {
+  generateProposalsForBaseAnalysis,
+  type BaseAnalysis,
+} from './proposal-generator.js';
 
 function toIndicatorSnapshot(r: IndicatorResult): IndicatorSnapshot {
   return {
@@ -109,6 +113,50 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
   console.log(
     `[signal] emitted ${signal.ticker} ${signal.action} conf=${signal.confidence.toFixed(2)}${signal.degraded ? ' (degraded)' : ''} id=${signal.id}`,
   );
+
+  // v1.3 Stage 2: hand the base analysis to the per-user Proposal Generator,
+  // which writes Proposal rows for every matching mandate and emits per-user.
+  // Skipped in demo mode (demo loop already emits hand-crafted proposals).
+  if (!env.DEMO_MODE && signal.action === 'BUY') {
+    const prisma = getPrisma();
+    if (prisma) {
+      const baseTicker = signal.ticker.endsWith('x')
+        ? (signal.ticker.slice(0, -1) as BareTicker)
+        : (signal.ticker as BareTicker);
+      const baseAnalysis: BaseAnalysis = {
+        bareTicker: baseTicker,
+        action: 'BUY',
+        confidence: signal.confidence,
+        rationale: signal.rationale,
+        // Phase E: the legacy LLM path in llm.ts only returns a one-line
+        // rationale, so what_changed / why_this_trade are stubs derived from
+        // it. Phase E+ will rework the LLM prompt to return all three.
+        what_changed: signal.rationale,
+        why_this_trade: signal.rationale,
+        priceAtAnalysis: signal.priceAtSignal,
+        // Default TP/SL bands until the LLM emits them directly.
+        suggestedTpPct: 0.04,
+        suggestedSlPct: 0.025,
+        indicators: {
+          rsi: signal.indicators.rsi ?? 50,
+          macd: signal.indicators.macd ?? { macd: 0, signal: 0, histogram: 0 },
+          ma20: signal.indicators.ma20 ?? signal.priceAtSignal,
+          ma50: signal.indicators.ma50 ?? signal.priceAtSignal,
+        },
+      };
+      try {
+        const s = await generateProposalsForBaseAnalysis(prisma, io, baseAnalysis);
+        if (s.proposalsCreated > 0 || s.errors > 0) {
+          console.log(
+            `[gen2] ${signal.ticker} matchingUsers=${s.matchingUsers} proposals=${s.proposalsCreated} errors=${s.errors}`,
+          );
+        }
+      } catch (err) {
+        console.warn(`[gen2] ${signal.ticker} fan-out failed`, err);
+      }
+    }
+  }
+
   return signal;
 }
 

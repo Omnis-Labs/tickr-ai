@@ -19,6 +19,12 @@ export default function PositionDetailPage() {
   );
   const adjustTpSl = useDemoPositionsStore((s) => s.adjustTpSl);
   const closePosition = useDemoPositionsStore((s) => s.closePosition);
+  const confirmExitOrders = useDemoPositionsStore((s) => s.confirmExitOrders);
+  const simulateExitFill = useDemoPositionsStore((s) => s.simulateExitFill);
+  const dismissCancelSibling = useDemoPositionsStore((s) => s.dismissCancelSibling);
+  const cancelSiblingHint = useDemoPositionsStore((s) =>
+    params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
+  );
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
@@ -176,6 +182,132 @@ export default function PositionDetailPage() {
         </div>
       </motion.div>
 
+      {/* Banner: Place exit orders (state=ENTERING) */}
+      {position.state === 'ENTERING' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.04))',
+            border: '1px solid rgba(245,158,11,0.45)',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-warn)',
+                  marginBottom: 4,
+                }}
+              >
+                BUY FILLED · ACTION REQUIRED
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+                Place exit orders to activate TP / SL protection
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
+                Your BUY filled at ${position.entryPrice.toFixed(2)}. Confirm below to attach
+                a take-profit at <strong style={{ color: 'var(--color-buy)' }}>
+                  ${(position.currentTpPrice ?? 0).toFixed(2)}
+                </strong>{' '}
+                and a stop-loss at{' '}
+                <strong style={{ color: 'var(--color-sell)' }}>
+                  ${(position.currentSlPrice ?? 0).toFixed(2)}
+                </strong>{' '}
+                — each runs as its own Jupiter trigger order.
+              </div>
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={async () => {
+                if (!demo) {
+                  toast.error(
+                    'Live exit-order placement requires Privy delegated session signing — Phase F.',
+                  );
+                  return;
+                }
+                setBusy(true);
+                try {
+                  await new Promise((r) => setTimeout(r, 700));
+                  confirmExitOrders(position.id);
+                  toast.success('TP / SL trigger orders placed.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? 'Placing…' : 'Confirm exit orders'}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Banner: cancel sibling after TP/SL fill */}
+      {position.state === 'CLOSED' && cancelSiblingHint && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(124,92,255,0.04))',
+            border: '1px solid rgba(124,92,255,0.45)',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-accent-strong)',
+                  marginBottom: 4,
+                }}
+              >
+                {position.closedReason === 'TP_FILLED' ? 'TP FILLED' : 'SL FILLED'} · WITHDRAW
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+                Cancel the remaining {cancelSiblingHint.siblingKind} order
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
+                Your {position.closedReason === 'TP_FILLED' ? 'take-profit' : 'stop-loss'} has
+                filled. The other leg is still parked in Jupiter's vault — sign once to
+                cancel it and pull the remaining funds back to your wallet.
+              </div>
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={async () => {
+                if (!demo) {
+                  toast.error(
+                    'Live cancel + withdrawal requires the user to sign — Phase F adds inline Jupiter cancel UX.',
+                  );
+                  return;
+                }
+                setBusy(true);
+                try {
+                  await new Promise((r) => setTimeout(r, 600));
+                  dismissCancelSibling(position.id);
+                  toast.success('Vault funds withdrawn.');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? 'Cancelling…' : 'Sign & withdraw'}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       {/* Chart with annotations */}
       {bars.length > 0 && (
         <div
@@ -247,6 +379,44 @@ export default function PositionDetailPage() {
             {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades
             against USDC via Jupiter; underlying exposure is held by the issuer.
           </p>
+        </div>
+      )}
+
+      {/* Demo: simulate exit fills (only in demo mode + ACTIVE) */}
+      {demo && position.state === 'ACTIVE' && (
+        <div
+          className="card"
+          style={{
+            background: 'rgba(245,158,11,0.06)',
+            border: '1px dashed rgba(245,158,11,0.35)',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 11, color: 'var(--color-warn)', marginBottom: 8 }}>
+            DEMO ONLY · SIMULATE OCO FILL
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button
+              className="btn btn-buy"
+              style={{ flex: 1 }}
+              onClick={() => {
+                simulateExitFill(position.id, 'TP');
+                toast.success('TP filled (simulated). SL cancel banner queued.');
+              }}
+            >
+              Simulate TP fill
+            </button>
+            <button
+              className="btn btn-sell"
+              style={{ flex: 1 }}
+              onClick={() => {
+                simulateExitFill(position.id, 'SL');
+                toast('SL filled (simulated). TP cancel banner queued.');
+              }}
+            >
+              Simulate SL fill
+            </button>
+          </div>
         </div>
       )}
 
