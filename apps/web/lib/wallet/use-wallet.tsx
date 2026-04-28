@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
-import { usePrivy } from '@privy-io/react-auth';
+import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
 import { useWallets, useSignTransaction } from '@privy-io/react-auth/solana';
 
 /**
@@ -21,6 +21,12 @@ export interface UnifiedWallet {
   /** Privy access token. null in demo / disconnected state. Used as the
    * Authorization: Bearer credential for /api/* + the ws-server socket. */
   getAccessToken: () => Promise<string | null>;
+  /** Phase F — request the Privy delegation grant for the user's embedded
+   * Solana wallet. Resolves once the user accepts (or rejects) the modal.
+   * No-op (resolves immediately) when Privy isn't mounted. */
+  delegateSolanaWallet: () => Promise<void>;
+  /** Revoke all delegated wallets. */
+  revokeDelegations: () => Promise<void>;
 }
 
 const STUB: UnifiedWallet = {
@@ -42,6 +48,12 @@ const STUB: UnifiedWallet = {
     /* noop */
   },
   getAccessToken: async () => null,
+  delegateSolanaWallet: async () => {
+    /* no-op when Privy isn't mounted */
+  },
+  revokeDelegations: async () => {
+    /* no-op when Privy isn't mounted */
+  },
 };
 
 const WalletContext = createContext<UnifiedWallet>(STUB);
@@ -59,6 +71,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
+  const { delegateWallet, revokeWallets } = useDelegatedActions();
 
   const wallet = wallets[0];
   const value = useMemo<UnifiedWallet>(() => {
@@ -94,8 +107,25 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         if (!ready || !authenticated) return null;
         return getAccessToken().catch(() => null);
       },
+      delegateSolanaWallet: async () => {
+        if (!wallet?.address) throw new Error('No Solana wallet to delegate.');
+        await delegateWallet({ address: wallet.address, chainType: 'solana' });
+      },
+      revokeDelegations: async () => {
+        await revokeWallets();
+      },
     };
-  }, [wallet, ready, authenticated, login, logout, privySign, getAccessToken]);
+  }, [
+    wallet,
+    ready,
+    authenticated,
+    login,
+    logout,
+    privySign,
+    getAccessToken,
+    delegateWallet,
+    revokeWallets,
+  ]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

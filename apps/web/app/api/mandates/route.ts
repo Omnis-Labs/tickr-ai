@@ -75,6 +75,16 @@ async function upsertMandate(
     },
   });
 
+  // PUT (mandate edit) — invalidate any stale ACTIVE proposals so the
+  // Proposal Generator regenerates them against the new mandate. POST
+  // (first-touch create) skips this since there can't be priors.
+  if (!upsert) {
+    await prisma.proposal.updateMany({
+      where: { userId: auth.userId, status: 'ACTIVE' },
+      data: { status: 'EXPIRED' },
+    });
+  }
+
   return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
 }
 

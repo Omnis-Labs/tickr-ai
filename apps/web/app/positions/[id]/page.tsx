@@ -109,8 +109,15 @@ export default function PositionDetailPage() {
   // Cancel any open TP/SL trigger orders attached to this Position. Shared
   // between Adjust (re-place) and Close (then market-sell). Best-effort —
   // surface failures but don't block partial progress.
-  async function cancelSiblingOrders(): Promise<void> {
-    if (!position) return;
+  /**
+   * Cancel any open TP / SL trigger orders attached to this Position. Returns
+   * a snapshot of {kind, triggerPriceUsd} so the caller can reconstruct the
+   * exit orders on failure mid-way through Adjust / Close.
+   */
+  async function cancelSiblingOrders(): Promise<
+    Array<{ kind: 'TAKE_PROFIT' | 'STOP_LOSS'; triggerPriceUsd: number }>
+  > {
+    if (!position) return [];
     const ordersRes = await authedFetch(`/api/orders`);
     const j = (await ordersRes.json().catch(() => ({}))) as {
       orders?: Array<{
@@ -118,21 +125,56 @@ export default function PositionDetailPage() {
         positionId: string;
         kind: string;
         jupiterOrderId: string | null;
+        triggerPriceUsd: number | null;
       }>;
     };
     const open = (j.orders ?? []).filter(
-      (o) =>
+      (o): o is typeof o & { jupiterOrderId: string } =>
         o.positionId === position.id &&
         (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
-        o.jupiterOrderId,
+        !!o.jupiterOrderId,
     );
+    const snapshots: Array<{
+      kind: 'TAKE_PROFIT' | 'STOP_LOSS';
+      triggerPriceUsd: number;
+    }> = [];
     for (const o of open) {
       try {
-        await cancelTrigger(o.jupiterOrderId!);
+        await cancelTrigger(o.jupiterOrderId);
         await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+        if (o.triggerPriceUsd != null) {
+          snapshots.push({
+            kind: o.kind as 'TAKE_PROFIT' | 'STOP_LOSS',
+            triggerPriceUsd: o.triggerPriceUsd,
+          });
+        }
       } catch (err) {
         toast.error(
           `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return snapshots;
+  }
+
+  /** Best-effort re-placement of exit legs after a partial-failure mid-Adjust.
+   *  Surfaces every error inline because we're already in a degraded state. */
+  async function rePlaceExitLegs(
+    snapshots: Array<{ kind: 'TAKE_PROFIT' | 'STOP_LOSS'; triggerPriceUsd: number }>,
+  ): Promise<void> {
+    if (!position || !meta?.mint) return;
+    for (const s of snapshots) {
+      try {
+        await placeSellExit({
+          inputMint: meta.mint,
+          inputDecimals: meta.decimals,
+          tokenAmount: position.tokenAmount,
+          triggerPriceUsd: s.triggerPriceUsd,
+          triggerCondition: s.kind === 'TAKE_PROFIT' ? 'above' : 'below',
+        });
+      } catch (err) {
+        toast.error(
+          `Rollback ${s.kind} @ $${s.triggerPriceUsd.toFixed(2)} failed: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
@@ -234,24 +276,39 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        await cancelSiblingOrders();
-        if (tp != null) {
-          await placeSellExit({
-            inputMint: meta.mint,
-            inputDecimals: meta.decimals,
-            tokenAmount: position.tokenAmount,
-            triggerPriceUsd: tp,
-            triggerCondition: 'above',
-          });
-        }
-        if (sl != null) {
-          await placeSellExit({
-            inputMint: meta.mint,
-            inputDecimals: meta.decimals,
-            tokenAmount: position.tokenAmount,
-            triggerPriceUsd: sl,
-            triggerCondition: 'below',
-          });
+        // Snapshot the old legs so we can rollback if re-placement fails.
+        const snapshot = await cancelSiblingOrders();
+        let placed: Array<'TP' | 'SL'> = [];
+        try {
+          if (tp != null) {
+            await placeSellExit({
+              inputMint: meta.mint,
+              inputDecimals: meta.decimals,
+              tokenAmount: position.tokenAmount,
+              triggerPriceUsd: tp,
+              triggerCondition: 'above',
+            });
+            placed.push('TP');
+          }
+          if (sl != null) {
+            await placeSellExit({
+              inputMint: meta.mint,
+              inputDecimals: meta.decimals,
+              tokenAmount: position.tokenAmount,
+              triggerPriceUsd: sl,
+              triggerCondition: 'below',
+            });
+            placed.push('SL');
+          }
+        } catch (placeErr) {
+          // Re-placement of one or both legs failed — vault funds are now
+          // sitting unguarded. Try to restore the previous legs from the
+          // snapshot so the user is not left exposed.
+          toast.error(
+            `Re-place failed (${placed.join('+') || 'nothing placed'}); restoring previous TP/SL…`,
+          );
+          await rePlaceExitLegs(snapshot);
+          throw placeErr;
         }
         adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');
@@ -365,6 +422,14 @@ export default function PositionDetailPage() {
               label: 'entry',
               color: '#22c55e',
             }}
+            extraMarkers={[
+              ...(position.currentTpPrice
+                ? [{ price: position.currentTpPrice, label: 'TP', color: '#22c55e' }]
+                : []),
+              ...(position.currentSlPrice
+                ? [{ price: position.currentSlPrice, label: 'SL', color: '#ef4444' }]
+                : []),
+            ]}
           />
         </div>
       )}

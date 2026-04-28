@@ -145,6 +145,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
   const [active, setActive] = useState<boolean>(false);
   const [busy, setBusy] = useState(false);
   const authedFetch = useAuthedFetch();
+  const { delegateSolanaWallet, revokeDelegations } = useWallet();
 
   useEffect(() => {
     if (!wallet || demo) return;
@@ -163,11 +164,26 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
     }
     setBusy(true);
     try {
-      // TODO (Phase F+): when Privy is on a Pro plan, also call
-      // useDelegatedActions().delegateWallet({ chainType: 'solana' }) to
-      // actually grant the server signer here. For now this just persists
-      // the user's intent — the ws-server checks both delegationActive AND
-      // PRIVY_APP_SECRET availability before attempting auto-cancel.
+      // Real Privy grant / revoke. Requires the Privy app to be on a plan
+      // that supports server signers; on Free the SDK throws, in which case
+      // we still persist the intent so the user can retry once the app is
+      // upgraded. ws-server gates `tryDelegatedCancel` on both
+      // `delegationActive` AND `PRIVY_APP_SECRET` so the off-state is safe.
+      if (!demo) {
+        try {
+          if (next) await delegateSolanaWallet();
+          else await revokeDelegations();
+        } catch (err) {
+          // Don't bail — the toggle state still persists so the user knows
+          // their intent. The auto-cancel path stays a no-op until grant
+          // succeeds (e.g. after Privy plan upgrade or SDK retry).
+          console.warn('[delegation] grant/revoke failed', err);
+          toast.error(
+            `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
       const res = await authedFetch('/api/users/delegation', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },

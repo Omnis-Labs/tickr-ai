@@ -62,5 +62,29 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     },
   });
 
+  // Mirror as a Trade row so portfolio + leaderboard see the close. Trades
+  // from the Order Tracker land via the same shape from fills.ts; this is
+  // the only path where a user-initiated market-sell short-circuits the
+  // tracker (no Jupiter trigger order to reconcile).
+  if (executionPrice != null && tokenAmount != null) {
+    await prisma.trade
+      .create({
+        data: {
+          userId: auth.userId,
+          positionId: id,
+          ticker: pos.ticker,
+          side: 'SELL',
+          source: 'USER_CLOSE',
+          actualSizeUsd: executionPrice * tokenAmount,
+          executionPrice,
+          filledAmount: tokenAmount,
+          realizedPnl,
+        },
+      })
+      .catch(() => {
+        /* non-fatal — position close already committed */
+      });
+  }
+
   return NextResponse.json({ ok: true, position: decimalsToNumbers(updated) });
 }

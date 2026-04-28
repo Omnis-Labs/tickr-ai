@@ -1,18 +1,14 @@
 // Fill reconciliation — when Jupiter History reports an order moved to
 // FILLED / PARTIALLY_FILLED, mirror the fill into our Order + Position rows
 // and emit the matching socket event. Includes the OCO sibling cancel branch
-// for TP / SL pairs.
+// for TP / SL pairs and writes a Trade row per fill so leaderboard /
+// portfolio aggregation has a consistent source of truth.
 
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient, TradeSource } from '@prisma/client';
 import type { Server as IoServer } from 'socket.io';
-import { WsServerEvents } from '@hunch-it/shared';
+import { WsServerEvents, getAssetById } from '@hunch-it/shared';
 import { tryDelegatedCancel } from './oco.js';
 import type { JupiterHistoryEntry } from './jupiter-history.js';
-
-// Prisma's Decimal columns return Decimal objects on read; the fill math
-// here just needs plain numbers, so the consumer is responsible for
-// .toNumber() before passing in.
-import type { Prisma } from '@prisma/client';
 
 export type OrderForFill = Awaited<ReturnType<PrismaClient['order']['findMany']>>[number] & {
   user: {
@@ -28,12 +24,32 @@ export type OrderForFill = Awaited<ReturnType<PrismaClient['order']['findMany']>
   };
 };
 
+/**
+ * Look up token decimals via the asset registry. xStocks are 8, SOL is 9,
+ * cbBTC is 8 — falls back to 8 only as a defensive default for unknown
+ * assetIds (logs a warning so it doesn't go silent).
+ */
+function decimalsForAsset(assetId: string): number {
+  const a = getAssetById(assetId);
+  if (a) return a.decimals;
+  console.warn(`[tracker] unknown assetId ${assetId} — defaulting decimals=8`);
+  return 8;
+}
+
+function tradeSourceForKind(kind: string): TradeSource {
+  if (kind === 'BUY_TRIGGER') return 'BUY_APPROVAL';
+  if (kind === 'TAKE_PROFIT') return 'TP_FILL';
+  if (kind === 'STOP_LOSS') return 'SL_FILL';
+  return 'USER_CLOSE';
+}
+
 export async function applyFill(
   prisma: PrismaClient,
   io: IoServer,
   order: OrderForFill,
   remote: JupiterHistoryEntry,
 ): Promise<void> {
+  const decimals = decimalsForAsset(order.position.ticker);
   const filledAmount = remote.filledAmount ? Number(remote.filledAmount) : null;
   const inAmount = remote.inAmount ? Number(remote.inAmount) : null;
   const outAmount = remote.outAmount ? Number(remote.outAmount) : null;
@@ -50,10 +66,45 @@ export async function applyFill(
     },
   });
 
+  // Per-fill Trade row. We emit one for any FILLED transition (not partial)
+  // so leaderboard counts each closed leg exactly once.
+  if (remote.status === 'FILLED' && order.user && executionPrice) {
+    const isBuy = order.kind === 'BUY_TRIGGER';
+    // outAmount on a BUY is the xStock acquired; on a SELL it's the USDC out.
+    const tokenAmt = isBuy
+      ? (outAmount ?? 0) / 10 ** decimals
+      : (inAmount ?? 0) / 10 ** decimals;
+    const sizeUsd = isBuy
+      ? (inAmount ?? 0) / 10 ** 6 // USDC has 6 decimals
+      : (outAmount ?? 0) / 10 ** 6;
+    const realizedPnl = isBuy
+      ? null
+      : (executionPrice - order.position.entryPrice.toNumber()) * tokenAmt;
+
+    await prisma.trade
+      .create({
+        data: {
+          userId: order.userId,
+          positionId: order.positionId,
+          ticker: order.position.ticker,
+          side: order.side,
+          source: tradeSourceForKind(order.kind),
+          actualSizeUsd: sizeUsd,
+          actualTriggerPrice: order.triggerPriceUsd,
+          executionPrice,
+          filledAmount: tokenAmt,
+          realizedPnl,
+        },
+      })
+      .catch((err) => {
+        console.warn(`[tracker] trade create failed for order ${order.id}`, err);
+      });
+  }
+
   if (order.kind === 'BUY_TRIGGER' && remote.status === 'FILLED' && executionPrice) {
     // BUY filled → Position transitions to ENTERING. The user places TP/SL
     // next via Position Detail.
-    const tokenAmount = outAmount ? outAmount / 10 ** 8 : 0;
+    const tokenAmount = outAmount ? outAmount / 10 ** decimals : 0;
     await prisma.position.update({
       where: { id: order.positionId },
       data: {
@@ -69,7 +120,6 @@ export async function applyFill(
     (order.kind === 'TAKE_PROFIT' || order.kind === 'STOP_LOSS') &&
     remote.status === 'FILLED'
   ) {
-    // TP / SL filled → mark Position CLOSED with realized PnL.
     const tokenAmount = order.position.tokenAmount.toNumber();
     const realizedPnl = executionPrice
       ? (executionPrice - order.position.entryPrice.toNumber()) * tokenAmount

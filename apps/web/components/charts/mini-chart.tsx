@@ -18,10 +18,18 @@ export interface ChartBar {
   close: number;
 }
 
+export interface ChartMarker {
+  price: number;
+  label?: string;
+  color?: string;
+}
+
 interface MiniChartProps {
   bars: ChartBar[];
   height?: number;
-  marker?: { price: number; label?: string; color?: string };
+  marker?: ChartMarker;
+  /** Extra horizontal price lines (e.g. TP / SL). Drawn above `marker`. */
+  extraMarkers?: ChartMarker[];
   color?: string;
 }
 
@@ -35,6 +43,7 @@ export function MiniChart({
   bars,
   height = 140,
   marker,
+  extraMarkers,
   color = '#a089ff',
 }: MiniChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +113,17 @@ export function MiniChart({
           title: marker.label ?? 'mark',
         });
       }
+      for (const m of extraMarkers ?? []) {
+        if (!Number.isFinite(m.price)) continue;
+        series.createPriceLine({
+          price: m.price,
+          color: m.color ?? '#9099ad',
+          lineStyle: LineStyle.Dotted,
+          lineWidth: 1,
+          axisLabelVisible: true,
+          title: m.label ?? '',
+        });
+      }
 
       ro = new ResizeObserver(() => {
         if (!el || !chart) return;
@@ -131,7 +151,16 @@ export function MiniChart({
       series = null;
     };
     // Recreate on bars / dimension / marker change. Cheap; <300 datapoints.
-  }, [bars, height, color, marker?.price, marker?.label, marker?.color]);
+    // extraMarkers identity matters too — caller should memo if churn is a problem.
+  }, [
+    bars,
+    height,
+    color,
+    marker?.price,
+    marker?.label,
+    marker?.color,
+    extraMarkers,
+  ]);
 
   return <div ref={containerRef} style={{ width: '100%', height }} />;
 }

@@ -15,8 +15,11 @@ import {
   MARKET_FOCUS_VERTICALS,
   WsServerEvents,
   bareToXStock,
+  xStockToBare,
   type BareTicker,
 } from '@hunch-it/shared';
+import { computePositionImpact } from './portfolio-context.js';
+import { getLatestPrices } from '../pyth/index.js';
 
 export interface BaseAnalysis {
   bareTicker: BareTicker;
@@ -83,6 +86,27 @@ export async function generateProposalsForBaseAnalysis(
   const verticals = tickerVerticals(symbol);
   if (verticals.length === 0) return summary;
 
+  // Pre-fetch one Pyth snapshot for every xStock so positionImpact can mark
+  // the user's other holdings to current price. Single round-trip up front
+  // beats N+1 per user.
+  const allMarks = await getLatestPrices().catch(() => new Map());
+  const marksByBareTicker = new Map<BareTicker, number>();
+  for (const [ticker, snap] of allMarks) marksByBareTicker.set(ticker, snap.price);
+
+  // The set of bare tickers that share at least one vertical with `symbol` —
+  // used for sector aggregation in positionImpact. Built once.
+  const sectorPeers = new Set<BareTicker>();
+  for (const v of MARKET_FOCUS_VERTICALS) {
+    if (!verticals.includes(v.id)) continue;
+    for (const t of v.tickers) {
+      if (typeof t === 'string' && t.endsWith('x')) {
+        const bare = xStockToBare(t as Parameters<typeof xStockToBare>[0]);
+        sectorPeers.add(bare);
+      }
+    }
+  }
+  const sectorPeerArr = Array.from(sectorPeers);
+
   // Find users whose mandate's market_focus overlaps this ticker's verticals,
   // OR who chose "no_preference".
   const users = await prisma.user.findMany({
@@ -124,6 +148,22 @@ export async function generateProposalsForBaseAnalysis(
       const slPrice = +(triggerPrice * (1 - slPct)).toFixed(2);
       const ttlMin = HOLDING_PERIOD_TO_TTL_MIN[mandate.holdingPeriod] ?? 60;
 
+      // Real positionImpact via on-chain balance read. Falls back to zeros
+      // if the RPC call fails so a single user's RPC outage doesn't take
+      // down the whole proposal generation tick.
+      const ctx = await computePositionImpact({
+        walletAddress: user.walletAddress,
+        bareTicker: base.bareTicker,
+        sameVerticalBareTickers: sectorPeerArr,
+        marksByBareTicker,
+      });
+      const totalUsd = ctx.totalUsd;
+      const weightBefore = totalUsd > 0 ? ctx.tickerExposureUsd / totalUsd : 0;
+      const weightAfter = totalUsd > 0 ? (ctx.tickerExposureUsd + sizeUsd) / totalUsd : 0;
+      const cashAfter = ctx.cashUsd - sizeUsd;
+      const sectorBefore = totalUsd > 0 ? ctx.sectorExposureUsd / totalUsd : 0;
+      const sectorAfter = totalUsd > 0 ? (ctx.sectorExposureUsd + sizeUsd) / totalUsd : 0;
+
       const why_fits_mandate =
         `Fits your ${mandate.holdingPeriod} holding period. ` +
         `Size $${sizeUsd} is within your $${maxTradeSize.toFixed(0)} max trade size. ` +
@@ -148,15 +188,12 @@ export async function generateProposalsForBaseAnalysis(
             why_this_trade: base.why_this_trade,
             why_fits_mandate,
           },
-          // Phase E does not have on-chain portfolio reads in ws-server, so
-          // positionImpact is approximated from cached cash. Enrich in a future
-          // phase via /api/portfolio/sync hook.
           positionImpact: {
-            weight_before: 0,
-            weight_after: +(sizeUsd / Math.max(5000, maxTradeSize * 10)).toFixed(3),
-            cash_after: 0,
-            sector_before: 0,
-            sector_after: 0,
+            weight_before: +weightBefore.toFixed(4),
+            weight_after: +weightAfter.toFixed(4),
+            cash_after: +cashAfter.toFixed(2),
+            sector_before: +sectorBefore.toFixed(4),
+            sector_after: +sectorAfter.toFixed(4),
           },
           confidence: base.confidence,
           priceAtProposal: base.priceAtAnalysis,
