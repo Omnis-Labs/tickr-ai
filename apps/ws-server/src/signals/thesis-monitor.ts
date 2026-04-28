@@ -12,7 +12,7 @@
 // at BUY-time; this module never re-derives them from the BUY's indicator
 // snapshot, which would defeat the point.
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   WsServerEvents,

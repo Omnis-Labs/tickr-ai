@@ -6,7 +6,7 @@
 // pending). Phase F: when the user opted into delegated signing, OCO sibling
 // cancellation runs server-side via the Privy server SDK without prompting.
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import { WsServerEvents } from '@hunch-it/shared';
 import { fetchHistoryForWallet, type JupiterHistoryEntry } from './jupiter-history.js';

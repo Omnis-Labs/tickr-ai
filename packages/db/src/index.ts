@@ -1,0 +1,20 @@
+export { prisma, shutdownPrisma } from './client.js';
+export type {
+  Prisma,
+  PrismaClient,
+  ProposalAction,
+  ProposalOutcome,
+  ProposalStatus,
+  PositionState,
+  OrderKind,
+  OrderStatus,
+  TradeSource,
+  SkipReason,
+  User,
+  Mandate,
+  Proposal,
+  Skip,
+  Position,
+  Order,
+  Trade,
+} from '@prisma/client';

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@hunch-it/db';
 
 /**
  * Prisma's Decimal columns return a Decimal *object* on read. The frontend

@@ -4,7 +4,7 @@
 // for TP / SL pairs and writes a Trade row per fill so leaderboard /
 // portfolio aggregation has a consistent source of truth.
 
-import type { Prisma, PrismaClient, TradeSource } from '@prisma/client';
+import type { Prisma, PrismaClient, TradeSource } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import { WsServerEvents, getAssetById } from '@hunch-it/shared';
 import { tryDelegatedCancel } from './oco.js';

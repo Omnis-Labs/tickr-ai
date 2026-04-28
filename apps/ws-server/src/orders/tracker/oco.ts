@@ -4,7 +4,7 @@
 // SDK; otherwise the caller emits position:updated action=cancel-sibling so
 // the frontend can prompt the user to sign.
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@hunch-it/db';
 import { isDelegationConfigured, signTransactionDelegated } from '../../privy/index.js';
 import {
   JUPITER_CANCEL_CONFIRM,

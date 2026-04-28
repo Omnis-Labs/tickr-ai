@@ -4,12 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && next build",
+    "build": "pnpm --filter @hunch-it/db generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.70.0",
@@ -22,6 +20,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@pythnetwork/hermes-client": "^2.0.0",
     "@solana-program/memo": "^0.8.0",
+    "@hunch-it/db": "workspace:*",
     "@hunch-it/shared": "workspace:*",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -51,7 +50,6 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
-    "prisma": "^6.1.0",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }

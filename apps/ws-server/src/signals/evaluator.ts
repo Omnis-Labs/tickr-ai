@@ -9,7 +9,7 @@
 // This drives signal-quality monitoring + future leaderboard. v1.3 only emits
 // BUY proposals so a price increase = WIN.
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@hunch-it/db';
 import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
 import { getBarsRange } from '../pyth/benchmarks.js';
 

@@ -17,6 +17,7 @@ import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 import { runThesisMonitor } from './signals/thesis-monitor.js';
 import { verifyPrivyToken } from './privy/index.js';
+import { TaskGroup, registerTask } from './scheduler.js';
 
 const app = express();
 app.use(cors({ origin: env.NEXT_PUBLIC_APP_URL, credentials: true }));
@@ -167,128 +168,69 @@ io.on('connection', (socket) => {
   });
 });
 
+// Recurring tasks are registered through scheduler.ts: one helper enforces
+// busy-skipping, kickoff delay, error swallowing, and shutdown teardown so
+// each task body stays just its core logic.
+const tasks = new TaskGroup();
+
 const stopFakeLoop = startSignalLoop(io);
-const stopEvalLoop = startEvaluatorLoop();
-const stopTrackerLoop = startOrderTrackerLoop();
 
-function startEvaluatorLoop(): () => void {
-  if (env.DEMO_MODE) {
-    console.log('[eval] demo mode — back-evaluator disabled');
-    return () => {};
-  }
-  const intervalMs = 5 * 60_000;
-  let stopped = false;
-  let busy = false;
-
-  async function tick() {
-    if (busy || stopped) return;
-    const p = getPrisma();
-    if (!p) return; // DATABASE_URL not configured — silently skip
-    busy = true;
-    try {
-      const summary = await evaluatePendingSignals(p);
-      if (summary.evaluated > 0 || summary.errors > 0) {
+tasks.add(
+  registerTask({
+    name: 'eval',
+    intervalMs: 5 * 60_000,
+    kickoffMs: 30_000,
+    enabled: !env.DEMO_MODE,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
+      const s = await evaluatePendingSignals(p);
+      if (s.evaluated > 0 || s.errors > 0) {
         console.log(
-          `[eval] evaluated=${summary.evaluated} skipped=${summary.skipped} errors=${summary.errors}`,
+          `[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`,
         );
       }
-    } catch (err) {
-      console.warn('[eval] tick failed', err);
-    } finally {
-      busy = false;
-    }
-  }
+    },
+  }),
+);
 
-  // First run 30s after boot so signals from a previous process get caught up.
-  const kickoff = setTimeout(() => void tick(), 30_000);
-  const handle = setInterval(() => void tick(), intervalMs);
-  console.log(`[eval] back-evaluator running every ${intervalMs / 60_000} min`);
-
-  return () => {
-    stopped = true;
-    clearTimeout(kickoff);
-    clearInterval(handle);
-  };
-}
-
-function startOrderTrackerLoop(): () => void {
-  if (env.DEMO_MODE) {
-    console.log('[tracker] demo mode — order tracker disabled');
-    return () => {};
-  }
-  const intervalMs = 30_000;
-  let stopped = false;
-  let busy = false;
-
-  async function tick() {
-    if (busy || stopped) return;
-    const p = getPrisma();
-    if (!p) return;
-    busy = true;
-    try {
+tasks.add(
+  registerTask({
+    name: 'tracker',
+    intervalMs: 30_000,
+    kickoffMs: 15_000,
+    enabled: !env.DEMO_MODE,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
       const s = await runOrderTracker(p, io);
       if (s.fills > 0 || s.expirations > 0 || s.errors > 0) {
         console.log(
           `[tracker] wallets=${s.polledWallets} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} errors=${s.errors}`,
         );
       }
-    } catch (err) {
-      console.warn('[tracker] tick failed', err);
-    } finally {
-      busy = false;
-    }
-  }
+    },
+  }),
+);
 
-  const kickoff = setTimeout(() => void tick(), 15_000);
-  const handle = setInterval(() => void tick(), intervalMs);
-  console.log(`[tracker] order tracker running every ${intervalMs / 1000}s`);
-
-  return () => {
-    stopped = true;
-    clearTimeout(kickoff);
-    clearInterval(handle);
-  };
-}
-
-function startThesisMonitorLoop(): () => void {
-  if (env.DEMO_MODE) {
-    console.log('[thesis] demo mode — thesis-monitor disabled');
-    return () => {};
-  }
-  const intervalMs = 5 * 60_000;
-  let stopped = false;
-  let busy = false;
-
-  async function tick() {
-    if (busy || stopped) return;
-    const p = getPrisma();
-    if (!p) return;
-    busy = true;
-    try {
+tasks.add(
+  registerTask({
+    name: 'thesis',
+    intervalMs: 5 * 60_000,
+    kickoffMs: 60_000,
+    enabled: !env.DEMO_MODE,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
       const s = await runThesisMonitor(p, io);
       if (s.sellsEmitted > 0 || s.errors > 0) {
         console.log(
           `[thesis] positions=${s.positionsChecked} sells=${s.sellsEmitted} errors=${s.errors}`,
         );
       }
-    } catch (err) {
-      console.warn('[thesis] tick failed', err);
-    } finally {
-      busy = false;
-    }
-  }
-
-  const kickoff = setTimeout(() => void tick(), 60_000);
-  const handle = setInterval(() => void tick(), intervalMs);
-  console.log(`[thesis] thesis-monitor running every ${intervalMs / 60_000} min`);
-
-  return () => {
-    stopped = true;
-    clearTimeout(kickoff);
-    clearInterval(handle);
-  };
-}
-const stopThesisLoop = startThesisMonitorLoop();
+    },
+  }),
+);
 
 httpServer.listen(env.WS_SERVER_PORT, () => {
   console.log(`[http] hunch-it ws-server listening on :${env.WS_SERVER_PORT}`);
@@ -297,9 +239,7 @@ httpServer.listen(env.WS_SERVER_PORT, () => {
 function shutdown(signal: string): void {
   console.log(`[ws] received ${signal}, shutting down`);
   stopFakeLoop();
-  stopEvalLoop();
-  stopTrackerLoop();
-  stopThesisLoop();
+  tasks.stopAll();
   io.close();
   void shutdownPrisma();
   httpServer.close(() => process.exit(0));

@@ -9,7 +9,7 @@
 // This is what makes the same NVDAx market move produce different proposals
 // for different users (PRD §Per-user Signal Problem).
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   MARKET_FOCUS_VERTICALS,
