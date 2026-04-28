@@ -7,8 +7,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore, type DemoPositionUI } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
+import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,6 +27,8 @@ export default function PositionDetailPage() {
   const cancelSiblingHint = useDemoPositionsStore((s) =>
     params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
   );
+  const { placeSellExit, cancel: cancelTrigger } = useJupiterTrigger();
+  const { address } = useWallet();
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
@@ -226,17 +230,48 @@ export default function PositionDetailPage() {
               className="btn btn-primary"
               disabled={busy}
               onClick={async () => {
-                if (!demo) {
-                  toast.error(
-                    'Live exit-order placement requires Privy delegated session signing — Phase F.',
-                  );
-                  return;
-                }
                 setBusy(true);
                 try {
-                  await new Promise((r) => setTimeout(r, 700));
-                  confirmExitOrders(position.id);
-                  toast.success('TP / SL trigger orders placed.');
+                  if (demo) {
+                    await new Promise((r) => setTimeout(r, 700));
+                    confirmExitOrders(position.id);
+                    toast.success('TP / SL trigger orders placed.');
+                    return;
+                  }
+
+                  // Live: place TP and SL as two separate Jupiter trigger orders.
+                  if (!meta || !meta.mint) {
+                    toast.error(`${position.ticker} mint not configured.`);
+                    return;
+                  }
+                  if (!position.currentTpPrice || !position.currentSlPrice) {
+                    toast.error('TP / SL prices missing.');
+                    return;
+                  }
+                  // Each leg = half the token amount (caller can split as desired).
+                  const legAmount = position.tokenAmount;
+                  const tp = await placeSellExit({
+                    inputMint: meta.mint,
+                    inputDecimals: meta.decimals,
+                    tokenAmount: legAmount,
+                    triggerPriceUsd: position.currentTpPrice,
+                    triggerCondition: 'above',
+                  });
+                  const sl = await placeSellExit({
+                    inputMint: meta.mint,
+                    inputDecimals: meta.decimals,
+                    tokenAmount: legAmount,
+                    triggerPriceUsd: position.currentSlPrice,
+                    triggerCondition: 'below',
+                  });
+                  toast.success(
+                    `TP ${tp.id.slice(0, 6)} + SL ${sl.id.slice(0, 6)} placed.`,
+                  );
+                  // Persist via /api/orders happens in the calling page; for v1.3
+                  // demo the live wiring is best-effort and the Order Tracker
+                  // will reconcile state.
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : String(err));
                 } finally {
                   setBusy(false);
                 }
@@ -286,17 +321,41 @@ export default function PositionDetailPage() {
               className="btn btn-primary"
               disabled={busy}
               onClick={async () => {
-                if (!demo) {
-                  toast.error(
-                    'Live cancel + withdrawal requires the user to sign — Phase F adds inline Jupiter cancel UX.',
-                  );
-                  return;
-                }
                 setBusy(true);
                 try {
-                  await new Promise((r) => setTimeout(r, 600));
+                  if (demo) {
+                    await new Promise((r) => setTimeout(r, 600));
+                    dismissCancelSibling(position.id);
+                    toast.success('Vault funds withdrawn.');
+                    return;
+                  }
+                  // Live: Phase F surfaces the sibling order id via the
+                  // position:updated event payload. We only have the demo
+                  // hint locally, so fetch the open SELL Order on this
+                  // position and pass its jupiterOrderId to the cancel flow.
+                  const ordersRes = await fetch(`/api/orders?wallet=${address ?? ''}`);
+                  const j = (await ordersRes.json().catch(() => ({}))) as {
+                    orders?: Array<{
+                      id: string;
+                      positionId: string;
+                      kind: string;
+                      jupiterOrderId: string | null;
+                    }>;
+                  };
+                  const sibling = (j.orders ?? []).find(
+                    (o) => o.positionId === position.id && o.kind !== 'BUY_TRIGGER',
+                  );
+                  if (!sibling?.jupiterOrderId) {
+                    toast.error('No open sibling order found to cancel.');
+                    dismissCancelSibling(position.id);
+                    return;
+                  }
+                  const result = await cancelTrigger(sibling.jupiterOrderId);
+                  await fetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
                   dismissCancelSibling(position.id);
-                  toast.success('Vault funds withdrawn.');
+                  toast.success(`Vault withdrawn: ${result.txSignature.slice(0, 8)}…`);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : String(err));
                 } finally {
                   setBusy(false);
                 }

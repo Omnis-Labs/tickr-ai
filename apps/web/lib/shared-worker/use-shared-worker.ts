@@ -25,9 +25,24 @@ type TabToWorker =
   | { type: 'hello' }
   | { type: 'approval'; payload: ApprovalDecisionPayload };
 
+export interface PositionUpdatedPayload {
+  positionId: string;
+  state: 'BUY_PENDING' | 'ENTERING' | 'ACTIVE' | 'CLOSING' | 'CLOSED';
+  /**
+   * - "cancel-sibling": TP/SL filled, OCO sibling still parked in vault and
+   *   needs the user to sign a withdrawal.
+   * - "sibling-cancelled": delegated server signer already cancelled the
+   *   sibling — frontend just shows confirmation + refresh.
+   */
+  action?: 'cancel-sibling' | 'sibling-cancelled';
+  siblingOrderId?: string;
+  siblingKind?: 'TAKE_PROFIT' | 'STOP_LOSS';
+}
+
 interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
   onProposal?: (proposal: DemoProposalShape) => void;
+  onPositionUpdated?: (payload: PositionUpdatedPayload) => void;
   /**
    * Wallet to bind this socket to. The hook emits an `auth` event with this
    * walletAddress on connect so the ws-server can route per-user proposals.
@@ -49,8 +64,12 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const directSocketRef = useRef<Socket | null>(null);
   const onSignalRef = useRef<((s: Signal) => void) | undefined>(opts.onSignal);
   const onProposalRef = useRef<((p: DemoProposalShape) => void) | undefined>(opts.onProposal);
+  const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
+    opts.onPositionUpdated,
+  );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
+  onPositionUpdatedRef.current = opts.onPositionUpdated;
 
   // The wallet address we'll auth as. Demo defaults to the demo userId so
   // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
@@ -94,6 +113,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.ProposalNew, (proposal: DemoProposalShape) => {
       onProposalRef.current?.(proposal);
+    });
+    socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
+      onPositionUpdatedRef.current?.(payload);
     });
 
     return () => {

@@ -3,6 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import {
   HOLDING_PERIOD_OPTIONS,
   MARKET_FOCUS_VERTICALS,
@@ -124,7 +126,110 @@ export default function SettingsPage() {
           </p>
         )}
       </Card>
+
+      <DelegationCard wallet={wallet ?? null} />
     </main>
+  );
+}
+
+/**
+ * Phase F — Delegated signing toggle.
+ * When the user enables this, the server (Privy server signers) is allowed
+ * to sign Jupiter trigger-order cancel/place transactions for the user's
+ * automated TP/SL flows. Off by default; users can flip it at any time.
+ */
+function DelegationCard({ wallet }: { wallet: string | null }) {
+  const demo = isDemo();
+  const [active, setActive] = useState<boolean>(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!wallet || demo) return;
+    let cancelled = false;
+    fetch(`/api/mandates?wallet=${wallet}`) // piggyback to fetch user; mandate route is closest
+      .catch(() => {});
+    // We don't have a /api/users GET — read delegationActive from localStorage
+    // mirror after a successful PATCH below. Fine for Phase F since this is
+    // an opt-in flag the user controls.
+    if (typeof window === 'undefined') return;
+    const cached = window.localStorage.getItem(`delegation:${wallet}`);
+    if (!cancelled && cached === '1') setActive(true);
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet, demo]);
+
+  async function toggle(next: boolean) {
+    if (!wallet) {
+      toast.error('Connect a wallet first.');
+      return;
+    }
+    setBusy(true);
+    try {
+      // TODO (Phase F+): when Privy is on a Pro plan, also call
+      // useDelegatedActions().delegateWallet({ chainType: 'solana' }) to
+      // actually grant the server signer here. For now this just persists
+      // the user's intent — the ws-server checks both delegationActive AND
+      // PRIVY_APP_SECRET availability before attempting auto-cancel.
+      const res = await fetch('/api/users/delegation', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ walletAddress: wallet, delegationActive: next }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `${res.status}`);
+      }
+      setActive(next);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(`delegation:${wallet}`, next ? '1' : '0');
+      }
+      toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Auto-exit signing">
+      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
+        Allow the Hunch server to cancel a paired exit order automatically when its sibling
+        fills (OCO behaviour), and to place TP / SL after a BUY fills, without prompting you
+        to sign each time.
+      </p>
+      <ul
+        style={{
+          color: 'var(--color-fg-muted)',
+          fontSize: 13,
+          marginBottom: 12,
+          paddingLeft: 20,
+          lineHeight: 1.7,
+        }}
+      >
+        <li>Scope is constrained to Jupiter trigger orders for positions you opened.</li>
+        <li>You can revoke it any time below.</li>
+        <li>Every server-signed transaction is recorded against your account.</li>
+      </ul>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button
+          className={active ? 'btn btn-buy' : 'btn btn-primary'}
+          disabled={busy}
+          onClick={() => void toggle(!active)}
+        >
+          {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
+        </button>
+        <span
+          style={{
+            fontSize: 13,
+            color: active ? 'var(--color-buy)' : 'var(--color-fg-muted)',
+          }}
+        >
+          {active ? '✓ Auto-exit active' : 'Manual confirmation required for cancels'}
+        </span>
+      </div>
+    </Card>
   );
 }
 

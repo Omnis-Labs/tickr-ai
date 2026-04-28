@@ -5,6 +5,8 @@ const EnvSchema = z.object({
   WS_SERVER_PORT: z.coerce.number().int().positive().default(4000),
   WS_CRON_SECRET: z.string().min(1).default('change-me-shared-secret'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  PRIVY_APP_ID: z.string().optional(),
+  PRIVY_APP_SECRET: z.string().optional(),
   PYTH_HERMES_URL: z.string().url().default('https://hermes.pyth.network'),
   PYTH_BENCHMARKS_URL: z.string().url().default('https://benchmarks.pyth.network'),
   DATABASE_URL: z.string().optional(),

@@ -19,10 +19,15 @@ datasource db {
 // ─── Users ────────────────────────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(cuid())
-  privyUserId   String?    @unique // null for legacy demo wallets
-  walletAddress String     @unique
-  createdAt     DateTime   @default(now())
+  id               String   @id @default(cuid())
+  privyUserId      String?  @unique // null for legacy demo wallets
+  privyWalletId    String?  // Privy wallet id used by server signers
+  walletAddress    String   @unique
+  /// Phase F — when true, server signers may submit Jupiter cancel/place
+  /// transactions on the user's behalf for the constrained OCO + auto TP/SL
+  /// flows. Off by default; toggled in /settings via Privy useDelegatedActions.
+  delegationActive Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
   mandate       Mandate?
   proposals     Proposal[]

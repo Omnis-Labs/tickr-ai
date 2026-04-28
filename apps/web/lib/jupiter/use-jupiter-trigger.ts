@@ -2,7 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { VersionedTransaction } from '@solana/web3.js';
-import { USDC_DECIMALS } from '@hunch-it/shared';
+import { USDC_DECIMALS, USDC_MINT } from '@hunch-it/shared';
+
+const USDC_MINT_LOCAL = USDC_MINT;
 import { useWallet } from '@/lib/wallet/use-wallet';
 import {
   buildBuyOrderRequest,
@@ -55,6 +57,21 @@ interface PlaceBuyArgs {
 export interface PlaceBuyResult extends PlacePriceOrderResponse {
   vault: string;
   inputAmount: string;
+}
+
+interface PlaceSellExitArgs {
+  /** xStock mint we're selling (will be deposited into vault). */
+  inputMint: string;
+  /** xStock decimals (typically 8). */
+  inputDecimals: number;
+  /** Token amount of inputMint to sell, in human units (will be scaled to smallest units). */
+  tokenAmount: number;
+  /** TP/SL trigger price in USD. */
+  triggerPriceUsd: number;
+  /** "above" for TP, "below" for SL. */
+  triggerCondition: TriggerCondition;
+  slippageBps?: number;
+  expiresAt?: number;
 }
 
 /**
@@ -121,6 +138,58 @@ export function useJupiterTrigger() {
     [address, signTransaction],
   );
 
+  /**
+   * Place a SELL trigger order against an existing position. Used for Phase F
+   * manual TP/SL placement after BUY fills (Position state=ENTERING). Same
+   * four-step flow as placeBuy but with input=xStock, output=USDC.
+   *
+   * NOTE: vault may already hold the post-BUY xStock balance; the
+   * deposit/craft step here may be a no-op or zero-value tx depending on
+   * Jupiter's current contract. Verify behavior before pushing live.
+   */
+  const placeSellExit = useCallback(
+    async (args: PlaceSellExitArgs): Promise<PlaceBuyResult> => {
+      if (!address) throw new Error('Wallet not connected');
+      const inputAmount = Math.round(args.tokenAmount * 10 ** args.inputDecimals).toString();
+      const expiresAt = args.expiresAt ?? Math.floor(Date.now() / 1000) + 24 * 3600;
+      const slippageBps = args.slippageBps ?? 75;
+
+      setLoading('vault');
+      const vault = await getVault(address);
+
+      setLoading('craft');
+      const craft = await craftDeposit({
+        wallet: address,
+        vault: vault.vault,
+        mint: args.inputMint,
+        amount: inputAmount,
+      });
+
+      setLoading('sign');
+      const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
+      const signed = await signTransaction(tx);
+      const signedB64 = toBase64(signed.serialize());
+
+      setLoading('submit');
+      const placed = await placePriceOrder({
+        vault: vault.vault,
+        signedDepositTransaction: signedB64,
+        inputMint: args.inputMint,
+        outputMint: USDC_MINT_LOCAL, // imported below
+        inputAmount,
+        triggerPriceUsd: args.triggerPriceUsd,
+        triggerCondition: args.triggerCondition,
+        slippageBps,
+        expiresAt,
+      });
+      setLoading(null);
+      const result: PlaceBuyResult = { ...placed, vault: vault.vault, inputAmount };
+      setLastOrder(result);
+      return result;
+    },
+    [address, signTransaction],
+  );
+
   const cancel = useCallback(
     async (orderId: string): Promise<{ txSignature: string }> => {
       if (!signTransaction) throw new Error('Wallet not connected');
@@ -142,5 +211,5 @@ export function useJupiterTrigger() {
     [signTransaction],
   );
 
-  return { placeBuy, cancel, loading, lastOrder };
+  return { placeBuy, placeSellExit, cancel, loading, lastOrder };
 }

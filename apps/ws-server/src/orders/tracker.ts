@@ -3,16 +3,78 @@
 // our DB, and emits `trade:filled` / `position:updated` over Socket.IO.
 //
 // Per spec §Flow 4 (BUY fills), §Flow 5 (TP/SL OCO), §Flow 8 (cancel BUY
-// pending). For OCO sibling cancellation we surface a `trade:filled` event
-// with the sibling's id so the frontend can prompt the user to sign the
-// withdrawal tx — Phase D doesn't ship Privy delegated signing.
+// pending).
+//
+// Phase F: when the user has flipped delegationActive=true and the Privy
+// server SDK is configured, OCO sibling cancellation runs server-side
+// without prompting. Otherwise we still emit `position:updated
+// action=cancel-sibling` so the frontend can show a "Sign & withdraw" banner
+// (Phase E behavior).
 
 import type { PrismaClient } from '@prisma/client';
 import type { Server as IoServer } from 'socket.io';
 import { WsServerEvents } from '@hunch-it/shared';
+import { isDelegationConfigured, signTransactionDelegated } from '../privy/index.js';
 
 const JUPITER_BASE = process.env.NEXT_PUBLIC_JUPITER_API_BASE ?? 'https://lite-api.jup.ag';
 const JUPITER_HISTORY = '/trigger/v2/orders/history';
+const JUPITER_CANCEL_INITIATE = '/trigger/v2/orders/cancel/initiate';
+const JUPITER_CANCEL_CONFIRM = '/trigger/v2/orders/cancel/confirm';
+
+/**
+ * Attempt to cancel a Jupiter trigger order via the Privy delegated server
+ * signer. Returns true if the cancel was submitted on-chain; false means the
+ * caller should fall back to emitting position:updated for user-prompted
+ * signing.
+ */
+async function tryDelegatedCancel(
+  prisma: PrismaClient,
+  jupiterOrderId: string,
+  privyWalletId: string,
+): Promise<boolean> {
+  if (!isDelegationConfigured()) return false;
+  try {
+    const initiateRes = await fetch(`${JUPITER_BASE}${JUPITER_CANCEL_INITIATE}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ orderId: jupiterOrderId }),
+    });
+    if (!initiateRes.ok) return false;
+    const initiateJson = (await initiateRes.json()) as { transaction?: string };
+    if (!initiateJson.transaction) return false;
+
+    const signed = await signTransactionDelegated({
+      privyWalletId,
+      transactionBase64: initiateJson.transaction,
+    });
+    if (!signed) return false;
+
+    const confirmRes = await fetch(`${JUPITER_BASE}${JUPITER_CANCEL_CONFIRM}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        orderId: jupiterOrderId,
+        signedWithdrawalTx: signed,
+      }),
+    });
+    if (!confirmRes.ok) return false;
+
+    const order = await prisma.order.findFirst({
+      where: { jupiterOrderId },
+      select: { id: true },
+    });
+    if (order) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED' },
+      });
+    }
+    return true;
+  } catch (err) {
+    console.warn('[privy] delegated cancel failed', err);
+    return false;
+  }
+}
 
 type JupiterOrderStatus =
   | 'OPEN'
@@ -132,7 +194,11 @@ async function applyFill(
   prisma: PrismaClient,
   io: IoServer,
   order: Awaited<ReturnType<PrismaClient['order']['findMany']>>[number] & {
-    user: { walletAddress: string } | null;
+    user: {
+      walletAddress: string;
+      privyWalletId: string | null;
+      delegationActive: boolean;
+    } | null;
     position: { id: string; ticker: string; tokenAmount: number; entryPrice: number };
   },
   remote: JupiterHistoryEntry,
@@ -188,8 +254,6 @@ async function applyFill(
       },
     });
 
-    // Surface the sibling exit order so the frontend can prompt cancel +
-    // withdrawal. Without delegated signing we can't auto-cancel server-side.
     const sibling = await prisma.order.findFirst({
       where: {
         positionId: order.positionId,
@@ -198,13 +262,27 @@ async function applyFill(
       },
     });
     if (sibling && order.user) {
+      // Phase F: try server-side delegated cancel first. Falls back to a
+      // user-prompted banner via position:updated if the user hasn't opted
+      // in or Privy isn't configured.
+      const delegated =
+        order.user.delegationActive && order.user.privyWalletId
+          ? await tryDelegatedCancel(prisma, sibling.jupiterOrderId ?? '', order.user.privyWalletId)
+          : false;
+
       io.to(`user:${order.user.walletAddress}`).emit(WsServerEvents.PositionUpdated, {
         positionId: order.positionId,
         state: 'CLOSED',
-        action: 'cancel-sibling',
+        action: delegated ? 'sibling-cancelled' : 'cancel-sibling',
         siblingOrderId: sibling.id,
         siblingKind: sibling.kind,
       });
+
+      if (delegated) {
+        console.log(
+          `[tracker] auto-cancelled sibling ${sibling.kind} (jup=${sibling.jupiterOrderId}) for ${order.user.walletAddress.slice(0, 6)}…`,
+        );
+      }
     }
   }
 

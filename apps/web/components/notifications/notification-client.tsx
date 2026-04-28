@@ -4,9 +4,13 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import type { DemoProposalShape, Signal } from '@hunch-it/shared';
-import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
+import {
+  useSharedWorker,
+  type PositionUpdatedPayload,
+} from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
+import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { setAlertFavicon, clearAlertFavicon } from './favicon-dot';
 import { startTitleFlash, stopTitleFlash } from './tab-title-flasher';
 import { playSignalSound } from './sound-manager';
@@ -87,7 +91,40 @@ export function NotificationClient() {
     [addSignal],
   );
 
-  useSharedWorker({ onProposal: handleProposal, onSignal: handleSignal });
+  // ─── position:updated (Phase F) ─────────────────────────────────────────
+  const handlePositionUpdated = useCallback(
+    (payload: PositionUpdatedPayload) => {
+      if (payload.action === 'cancel-sibling' && payload.siblingKind) {
+        // Push into the same demo store the demo simulator uses, so the
+        // banner UX on Position Detail surfaces consistently in both modes.
+        useDemoPositionsStore.setState((s) => ({
+          cancelSiblingHints: {
+            ...s.cancelSiblingHints,
+            [payload.positionId]: {
+              siblingKind: payload.siblingKind === 'TAKE_PROFIT' ? 'TP' : 'SL',
+              createdAt: new Date().toISOString(),
+            },
+          },
+        }));
+        toast(`OCO: ${payload.siblingKind === 'TAKE_PROFIT' ? 'TP' : 'SL'} still parked in vault.`, {
+          description: 'Open Position Detail to sign the withdrawal.',
+          action: {
+            label: 'Open',
+            onClick: () => router.push(`/positions/${payload.positionId}`),
+          },
+        });
+      } else if (payload.action === 'sibling-cancelled') {
+        toast.success(`OCO sibling auto-cancelled.`);
+      }
+    },
+    [router],
+  );
+
+  useSharedWorker({
+    onProposal: handleProposal,
+    onSignal: handleSignal,
+    onPositionUpdated: handlePositionUpdated,
+  });
 
   // Stop attention UI + close stale OS notifications when the user returns.
   useEffect(() => {
