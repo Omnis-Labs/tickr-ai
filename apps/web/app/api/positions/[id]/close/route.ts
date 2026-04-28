@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
+import { requireAuth } from '@/lib/auth/context';
 
 /**
  * POST /api/positions/[id]/close
@@ -34,8 +35,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
   const { executionPrice, tokenAmount } = parsed.data;
 
+  const auth = await requireAuth(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
   const pos = await prisma.position.findUnique({ where: { id } });
-  if (!pos) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!pos || pos.userId !== auth.userId) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
 
   const realizedPnl =
     executionPrice != null && tokenAmount != null

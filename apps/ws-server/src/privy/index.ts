@@ -20,6 +20,7 @@ interface PrivyServerClient {
     walletId: string;
     transactionBase64: string;
   }) => Promise<{ signedTransactionBase64: string }>;
+  verifyAuthToken?: (token: string) => Promise<{ userId: string } | null | undefined>;
 }
 
 async function getPrivyClient(): Promise<PrivyServerClient | null> {
@@ -70,4 +71,21 @@ export async function signTransactionDelegated(input: {
 
 export function isDelegationConfigured(): boolean {
   return !!env.PRIVY_APP_ID && !!env.PRIVY_APP_SECRET;
+}
+
+/**
+ * Verify a Privy access token forwarded by the frontend on socket connect.
+ * Returns the canonical `did:privy:...` userId on success, or null on failure
+ * / missing creds. Demo mode callers should bypass this entirely.
+ */
+export async function verifyPrivyToken(token: string): Promise<string | null> {
+  const client = await getPrivyClient();
+  if (!client || typeof client.verifyAuthToken !== 'function') return null;
+  try {
+    const verified = await client.verifyAuthToken(token);
+    if (!verified?.userId) return null;
+    return verified.userId;
+  } catch {
+    return null;
+  }
 }

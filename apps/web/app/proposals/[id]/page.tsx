@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ProposalModal } from '@/components/proposal-modal/proposal-modal';
 import { useProposalsStore, type ProposalUI } from '@/lib/store/proposals';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 export default function ProposalDetailPage() {
   const params = useParams<{ id: string }>();
@@ -14,6 +15,7 @@ export default function ProposalDetailPage() {
   const removeProposal = useProposalsStore((s) => s.removeProposal);
   const [coldRead, setColdRead] = useState<ProposalUI | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const authedFetch = useAuthedFetch();
 
   useEffect(() => {
     if (!params?.id || inMemory) {
@@ -21,7 +23,7 @@ export default function ProposalDetailPage() {
       return;
     }
     let cancelled = false;
-    fetch(`/api/proposals/${params.id}`)
+    authedFetch(`/api/proposals/${params.id}`)
       .then(async (r) => (r.ok ? ((await r.json()) as { proposal: ProposalUI }) : null))
       .then((j) => {
         if (!cancelled && j?.proposal) setColdRead(j.proposal);

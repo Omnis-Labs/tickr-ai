@@ -18,6 +18,9 @@ export interface UnifiedWallet {
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
   login: () => void;
   logout: () => Promise<void>;
+  /** Privy access token. null in demo / disconnected state. Used as the
+   * Authorization: Bearer credential for /api/* + the ws-server socket. */
+  getAccessToken: () => Promise<string | null>;
 }
 
 const STUB: UnifiedWallet = {
@@ -38,6 +41,7 @@ const STUB: UnifiedWallet = {
   logout: async () => {
     /* noop */
   },
+  getAccessToken: async () => null,
 };
 
 const WalletContext = createContext<UnifiedWallet>(STUB);
@@ -52,7 +56,7 @@ export function useWallet(): UnifiedWallet {
  * only `useContext(WalletContext)` so they don't need to live under PrivyProvider.
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
 
@@ -86,8 +90,12 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         : STUB.signTransaction,
       login,
       logout,
+      getAccessToken: async () => {
+        if (!ready || !authenticated) return null;
+        return getAccessToken().catch(() => null);
+      },
     };
-  }, [wallet, ready, authenticated, login, logout, privySign]);
+  }, [wallet, ready, authenticated, login, logout, privySign, getAccessToken]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

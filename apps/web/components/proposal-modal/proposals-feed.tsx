@@ -7,6 +7,7 @@ import { XSTOCKS, xStockToBare, type DemoProposalShape, type XStockTicker } from
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useProposalsStore } from '@/lib/store/proposals';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useMemo } from 'react';
 
 interface ProposalsFeedProps {
@@ -28,11 +29,12 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
 
   // Pull seed proposals from /api/proposals so the feed is non-empty even
   // before the live socket has emitted anything.
+  const authedFetch = useAuthedFetch();
   const { data, isLoading } = useQuery<{ proposals: DemoProposalShape[] }>({
     queryKey: ['proposals', wallet],
     queryFn: async () => {
       if (!wallet) return { proposals: [] };
-      const r = await fetch(`/api/proposals?wallet=${wallet}`);
+      const r = await authedFetch(`/api/proposals`);
       if (!r.ok) return { proposals: [] };
       return r.json();
     },

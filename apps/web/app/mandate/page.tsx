@@ -14,6 +14,7 @@ import {
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 /**
  * Screen 1 — Mandate Setup
@@ -31,12 +32,13 @@ export default function MandatePage() {
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(0.05);
   const [maxTradeSize, setMaxTradeSize] = useState<number>(500);
   const [marketFocus, setMarketFocus] = useState<string[]>(['no_preference']);
+  const authedFetch = useAuthedFetch();
 
   // Hydrate from existing mandate (edit mode).
   useEffect(() => {
     const wallet = demo ? 'demo-wallet' : address;
     if (!wallet) return;
-    fetch(`/api/mandates?wallet=${wallet}`)
+    authedFetch(`/api/mandates`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         const m = j?.mandate;
@@ -47,7 +49,7 @@ export default function MandatePage() {
         setMarketFocus(m.marketFocus ?? ['no_preference']);
       })
       .catch(() => {});
-  }, [address, demo]);
+  }, [address, demo, authedFetch]);
 
   const noPreference = marketFocus.includes('no_preference');
 
@@ -86,7 +88,7 @@ export default function MandatePage() {
     };
     setLoading(true);
     try {
-      const res = await fetch('/api/mandates', {
+      const res = await authedFetch('/api/mandates', {
         method: submitted ? 'PUT' : 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),

@@ -13,6 +13,7 @@ import {
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 interface MandateResponse {
   mandate: Mandate | null;
@@ -27,11 +28,12 @@ export default function SettingsPage() {
   const { address, connected, logout } = useWallet();
   const wallet = demo ? 'demo-wallet' : address;
 
+  const authedFetch = useAuthedFetch();
   const { data, isLoading } = useQuery<MandateResponse>({
     queryKey: ['mandate', wallet],
     queryFn: async () => {
       if (!wallet) return { mandate: null };
-      const r = await fetch(`/api/mandates?wallet=${wallet}`);
+      const r = await authedFetch(`/api/mandates`);
       if (!r.ok) return { mandate: null };
       return r.json();
     },
@@ -142,21 +144,16 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
   const demo = isDemo();
   const [active, setActive] = useState<boolean>(false);
   const [busy, setBusy] = useState(false);
+  const authedFetch = useAuthedFetch();
 
   useEffect(() => {
     if (!wallet || demo) return;
-    let cancelled = false;
-    fetch(`/api/mandates?wallet=${wallet}`) // piggyback to fetch user; mandate route is closest
-      .catch(() => {});
     // We don't have a /api/users GET — read delegationActive from localStorage
     // mirror after a successful PATCH below. Fine for Phase F since this is
     // an opt-in flag the user controls.
     if (typeof window === 'undefined') return;
     const cached = window.localStorage.getItem(`delegation:${wallet}`);
-    if (!cancelled && cached === '1') setActive(true);
-    return () => {
-      cancelled = true;
-    };
+    if (cached === '1') setActive(true);
   }, [wallet, demo]);
 
   async function toggle(next: boolean) {
@@ -171,7 +168,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
       // actually grant the server signer here. For now this just persists
       // the user's intent — the ws-server checks both delegationActive AND
       // PRIVY_APP_SECRET availability before attempting auto-cancel.
-      const res = await fetch('/api/users/delegation', {
+      const res = await authedFetch('/api/users/delegation', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ walletAddress: wallet, delegationActive: next }),

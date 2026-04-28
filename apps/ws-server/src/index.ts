@@ -15,6 +15,7 @@ import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.j
 import { runOrderTracker } from './orders/tracker.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
+import { verifyPrivyToken } from './privy/index.js';
 
 const app = express();
 app.use(cors({ origin: env.NEXT_PUBLIC_APP_URL, credentials: true }));
@@ -99,16 +100,46 @@ const io = new IoServer(httpServer, {
 io.on('connection', (socket) => {
   console.log(`[ws] connected: ${socket.id}`);
 
-  // v1.3: client sends `auth` after connect with its walletAddress (or
-  // `demo-user` in demo mode). We add the socket to a per-user room so the
-  // Proposal Generator can target individual users via io.to().
-  socket.on(WsClientEvents.Auth, (payload: unknown) => {
+  // v1.3: client sends `auth` after connect. Live mode supplies a Privy
+  // access token; we verify it server-side, look up the user's walletAddress
+  // in our DB, and join the per-user room. Demo mode falls back to a
+  // walletAddress hint (e.g. `demo-user`) so the zero-cred UX path keeps
+  // working without Privy creds.
+  socket.on(WsClientEvents.Auth, async (payload: unknown) => {
     const parsed = AuthPayloadSchema.safeParse(payload);
     if (!parsed.success) {
       console.warn('[ws] bad auth payload', parsed.error.flatten());
+      socket.emit('auth:error', { reason: 'invalid payload' });
       return;
     }
-    const room = `user:${parsed.data.walletAddress}`;
+
+    let walletAddress: string | null = null;
+
+    if (env.DEMO_MODE) {
+      walletAddress = parsed.data.walletAddress ?? 'demo-user';
+    } else if (parsed.data.privyAccessToken) {
+      const privyUserId = await verifyPrivyToken(parsed.data.privyAccessToken);
+      if (!privyUserId) {
+        socket.emit('auth:error', { reason: 'invalid token' });
+        return;
+      }
+      const prisma = getPrisma();
+      if (!prisma) {
+        socket.emit('auth:error', { reason: 'database unavailable' });
+        return;
+      }
+      const user = await prisma.user.findUnique({ where: { privyUserId } });
+      if (!user) {
+        socket.emit('auth:error', { reason: 'user not found' });
+        return;
+      }
+      walletAddress = user.walletAddress;
+    } else {
+      socket.emit('auth:error', { reason: 'token required' });
+      return;
+    }
+
+    const room = `user:${walletAddress}`;
     void socket.join(room);
     console.log(`[ws] ${socket.id} joined ${room}`);
     socket.emit('auth:ok', { room });

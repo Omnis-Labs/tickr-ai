@@ -260,7 +260,11 @@ export const WsClientEvents = {
 } as const;
 
 export const AuthPayloadSchema = z.object({
-  walletAddress: z.string().min(1),
+  /** Demo / dev only — live mode requires privyAccessToken. */
+  walletAddress: z.string().min(1).optional(),
+  /** Privy access token (live mode). The server verifies it and looks up the
+   * walletAddress from the User row, ignoring any wallet hint above. */
+  privyAccessToken: z.string().min(1).optional(),
 });
 export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
 

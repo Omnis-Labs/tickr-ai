@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
+import { requireAuth } from '@/lib/auth/context';
 
 /**
  * GET /api/positions/[id]
- * Live mode: looks up Position by id (with related orders).
- * Demo: returns 404 — the page should read from useDemoPositionsStore.
+ * Live mode: returns the Position (with related orders) — must belong to the
+ * authed user.
+ * Demo: returns 404 — the page reads from useDemoPositionsStore.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 
@@ -15,10 +17,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: 'demo positions live in client store only' }, { status: 404 });
   }
 
+  const auth = await requireAuth(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
   const position = await prisma.position.findUnique({
     where: { id },
     include: { orders: true },
   });
-  if (!position) return NextResponse.json({ error: 'not found' }, { status: 404 });
+  if (!position || position.userId !== auth.userId) {
+    return NextResponse.json({ error: 'not found' }, { status: 404 });
+  }
   return NextResponse.json({ position });
 }

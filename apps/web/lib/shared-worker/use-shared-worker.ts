@@ -12,6 +12,7 @@ import {
   type Signal,
 } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo/flag';
+import { useWallet } from '@/lib/wallet/use-wallet';
 
 export const BROADCAST_CHANNEL = 'hunch-it';
 
@@ -75,6 +76,10 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
   const wallet = opts.walletAddress ?? (isDemo() ? DEMO_MANDATE.userId : undefined);
 
+  // In live mode, send a Privy access token instead — the server verifies it
+  // and resolves the wallet from our DB.
+  const { ready, connected: walletConnected, getAccessToken } = useWallet();
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -97,12 +102,22 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       reconnectionDelayMax: 10_000,
     });
     directSocketRef.current = socket;
-    socket.on('connect', () => {
+    socket.on('connect', async () => {
       console.info('[ws] direct socket connected', socket.id);
       setConnected(true);
-      if (wallet) {
-        socket.emit(WsClientEvents.Auth, { walletAddress: wallet });
+      if (isDemo()) {
+        socket.emit(WsClientEvents.Auth, { walletAddress: wallet ?? DEMO_MANDATE.userId });
+        return;
       }
+      // Live: forward a Privy access token. The server verifies + maps to
+      // the user's walletAddress before joining the room.
+      if (!ready || !walletConnected) return;
+      const token = await getAccessToken();
+      if (!token) {
+        console.warn('[ws] no Privy access token; staying unauthenticated');
+        return;
+      }
+      socket.emit(WsClientEvents.Auth, { privyAccessToken: token });
     });
     socket.on('disconnect', (reason) => {
       console.info('[ws] direct socket disconnected', reason);
@@ -128,7 +143,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       portRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet]);
+  }, [wallet, ready, walletConnected]);
 
   function sendApproval(payload: ApprovalDecisionPayload) {
     const port = portRef.current;

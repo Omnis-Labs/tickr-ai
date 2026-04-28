@@ -18,6 +18,7 @@ import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 type ProposalUI = DemoProposalShape;
 
@@ -43,6 +44,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const router = useRouter();
   const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
   const { placeBuy, loading: triggerLoading } = useJupiterTrigger();
+  const authedFetch = useAuthedFetch();
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [swapLoading, setSwapLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
@@ -194,7 +196,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       // 2) persist Position(BUY_PENDING) + Order(BUY_TRIGGER, OPEN). The
       // Order Tracker will update Position → ENTERING when Jupiter reports
       // the BUY filled.
-      const persistRes = await fetch('/api/orders', {
+      const persistRes = await authedFetch('/api/orders', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -247,11 +249,10 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       return;
     }
     if (!demo) {
-      void fetch('/api/skips', {
+      void authedFetch('/api/skips', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          walletAddress: walletKey,
           proposalId: proposal!.id,
           reason: skipReason,
           detail: skipReason === 'OTHER' ? skipDetail : undefined,

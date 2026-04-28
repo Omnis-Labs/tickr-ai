@@ -12,6 +12,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -31,6 +32,7 @@ export default function PositionDetailPage() {
   const { placeSellExit, cancel: cancelTrigger } = useJupiterTrigger();
   const { swap } = useJupiterSwap();
   const { address } = useWallet();
+  const authedFetch = useAuthedFetch();
 
   // Fetch + cancel open SELL trigger orders attached to this Position. Returns
   // a list of the {id, jupiterOrderId, kind} we cancelled. The persistence
@@ -40,7 +42,7 @@ export default function PositionDetailPage() {
     Array<{ id: string; kind: string; jupiterOrderId: string }>
   > {
     if (!position) return [];
-    const ordersRes = await fetch(`/api/orders?wallet=${address ?? ''}`);
+    const ordersRes = await authedFetch(`/api/orders`);
     const j = (await ordersRes.json().catch(() => ({}))) as {
       orders?: Array<{
         id: string;
@@ -59,7 +61,7 @@ export default function PositionDetailPage() {
     for (const o of open) {
       try {
         await cancelTrigger(o.jupiterOrderId!);
-        await fetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
         cancelled.push({ id: o.id, kind: o.kind, jupiterOrderId: o.jupiterOrderId! });
       } catch (err) {
         // Surface but don't bail — the user may want partial progress.
@@ -223,7 +225,7 @@ export default function PositionDetailPage() {
         const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
         const usdOut = Number(sell.outputAmount) / 1_000_000;
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : position.markPrice;
-        await fetch(`/api/positions/${position.id}/close`, {
+        await authedFetch(`/api/positions/${position.id}/close`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -427,7 +429,7 @@ export default function PositionDetailPage() {
                   // position:updated event payload. We only have the demo
                   // hint locally, so fetch the open SELL Order on this
                   // position and pass its jupiterOrderId to the cancel flow.
-                  const ordersRes = await fetch(`/api/orders?wallet=${address ?? ''}`);
+                  const ordersRes = await authedFetch(`/api/orders`);
                   const j = (await ordersRes.json().catch(() => ({}))) as {
                     orders?: Array<{
                       id: string;
@@ -445,7 +447,7 @@ export default function PositionDetailPage() {
                     return;
                   }
                   const result = await cancelTrigger(sibling.jupiterOrderId);
-                  await fetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
+                  await authedFetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
                   dismissCancelSibling(position.id);
                   toast.success(`Vault withdrawn: ${result.txSignature.slice(0, 8)}…`);
                 } catch (err) {

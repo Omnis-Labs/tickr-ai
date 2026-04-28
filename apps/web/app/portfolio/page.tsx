@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { isDemo, useDemoStore } from '@/lib/demo';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 interface PortfolioPosition {
   ticker: string;
@@ -53,11 +54,12 @@ export default function PortfolioPage() {
     };
   }, [demo, demoPositions, demoTrades]);
 
+  const authedFetch = useAuthedFetch();
   const { data: liveData, isLoading } = useQuery<PortfolioResponse>({
     queryKey: ['portfolio', wallet],
     queryFn: async () => {
       if (!wallet) throw new Error('no wallet');
-      const r = await fetch(`/api/portfolio?wallet=${wallet}`);
+      const r = await authedFetch(`/api/portfolio`);
       if (!r.ok) throw new Error(`portfolio failed: ${r.status}`);
       return (await r.json()) as PortfolioResponse;
     },

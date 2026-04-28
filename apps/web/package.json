@@ -15,6 +15,7 @@
     "@anthropic-ai/sdk": "^0.70.0",
     "@prisma/client": "^6.1.0",
     "@privy-io/react-auth": "^3.22.0",
+    "@privy-io/server-auth": "^1.18.0",
     "@pythnetwork/hermes-client": "^2.0.0",
     "@solana-program/memo": "^0.8.0",
     "@hunch-it/shared": "workspace:*",

@@ -3,18 +3,22 @@ import { z } from 'zod';
 import { OrderKindSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
+import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 
 /**
  * Order persistence layer.
  *
- *   GET  /api/orders?wallet=<addr>          List user's open orders.
- *   POST /api/orders                          Persist a Jupiter trigger order
- *                                              after the client has signed +
- *                                              submitted to Jupiter.
+ *   GET  /api/orders          List the authed user's open orders.
+ *   POST /api/orders          Persist a Jupiter trigger order after the
+ *                              client has signed + submitted it to Jupiter.
  *
  * The client is expected to have already called Jupiter and obtained
  * `jupiterOrderId` + `txSignature`. This route only mirrors that into our DB
  * so the Order Tracker (ws-server) can poll status.
+ *
+ * Auth: Privy access token. User identity is taken from the token, NOT from
+ * any wallet-address field on the request — the body retains walletAddress
+ * only for first-touch user creation (POST), tied to the verified Privy id.
  */
 const PersistOrderSchema = z.object({
   walletAddress: z.string().min(1),
@@ -55,11 +59,8 @@ export async function POST(req: NextRequest) {
   }
   const p = parsed.data;
 
-  const user = await prisma.user.upsert({
-    where: { walletAddress: p.walletAddress },
-    update: {},
-    create: { walletAddress: p.walletAddress },
-  });
+  const ctx = await requireAuthOrUpsert(req, p.walletAddress);
+  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   // For a BUY trigger order without an existing positionId, open a new
   // Position in BUY_PENDING state. Subsequent TP/SL orders will reference it.
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   if (!positionId && p.createPosition && p.kind === 'BUY_TRIGGER') {
     const pos = await prisma.position.create({
       data: {
-        userId: user.id,
+        userId: ctx.userId,
         ticker: p.ticker,
         mint: p.createPosition.mint,
         tokenAmount: 0,
@@ -89,9 +90,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Verify the position belongs to this user — prevents writing orders into
+  // someone else's position by passing a foreign positionId.
+  const pos = await prisma.position.findUnique({ where: { id: positionId } });
+  if (!pos || pos.userId !== ctx.userId) {
+    return NextResponse.json({ error: 'position not found' }, { status: 404 });
+  }
+
   const order = await prisma.order.create({
     data: {
-      userId: user.id,
+      userId: ctx.userId,
       positionId,
       kind: p.kind,
       side: p.side,
@@ -105,10 +113,13 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Mark proposal EXECUTED if this BUY came from one.
+  // Mark proposal EXECUTED if this BUY came from one — but only the user's own.
   if (p.proposalId && p.kind === 'BUY_TRIGGER') {
     await prisma.proposal
-      .update({ where: { id: p.proposalId }, data: { status: 'EXECUTED' } })
+      .updateMany({
+        where: { id: p.proposalId, userId: ctx.userId },
+        data: { status: 'EXECUTED' },
+      })
       .catch(() => {
         /* proposal may not exist yet (Phase B emits to memory only) */
       });
@@ -121,13 +132,12 @@ export async function GET(req: NextRequest) {
   if (isDemoServer()) {
     return NextResponse.json({ orders: [] });
   }
-  const wallet = req.nextUrl.searchParams.get('wallet');
-  if (!wallet) return NextResponse.json({ orders: [] });
-  const user = await prisma.user.findUnique({ where: { walletAddress: wallet } });
-  if (!user) return NextResponse.json({ orders: [] });
+  const ctx = await requireAuth(req);
+  if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
   const orders = await prisma.order.findMany({
     where: {
-      userId: user.id,
+      userId: ctx.userId,
       status: { in: ['OPEN', 'PARTIALLY_FILLED'] },
     },
     orderBy: { createdAt: 'desc' },
