@@ -19,70 +19,74 @@ export interface XStockMeta {
   pythFeedId: string; // 0x-prefixed 32-byte hex
 }
 
+// Mint addresses verified on Solana mainnet via Helius RPC; Pyth feed ids
+// fetched from https://hermes.pyth.network/v2/price_feeds?asset_type=equity.
+// Re-run `pnpm --filter @hunch-it/ws-server verify:xstocks` and
+// `pnpm --filter @hunch-it/ws-server fetch:pyth-feeds` to refresh.
 export const XSTOCKS: Record<BareTicker, XStockMeta> = {
   AAPL: {
     ticker: 'AAPL',
     symbol: 'AAPLx',
     name: 'Apple xStock',
-    mint: '',
+    mint: 'XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688',
   },
   NVDA: {
     ticker: 'NVDA',
     symbol: 'NVDAx',
     name: 'NVIDIA xStock',
-    mint: '',
+    mint: 'Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593',
   },
   TSLA: {
     ticker: 'TSLA',
     symbol: 'TSLAx',
     name: 'Tesla xStock',
-    mint: '',
+    mint: 'XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1',
   },
   SPY: {
     ticker: 'SPY',
     symbol: 'SPYx',
     name: 'S&P 500 xStock',
-    mint: '',
+    mint: 'XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5',
   },
   QQQ: {
     ticker: 'QQQ',
     symbol: 'QQQx',
     name: 'Nasdaq 100 xStock',
-    mint: '',
+    mint: 'Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d',
   },
   MSFT: {
     ticker: 'MSFT',
     symbol: 'MSFTx',
     name: 'Microsoft xStock',
-    mint: '',
+    mint: 'XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0xd0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1',
   },
   GOOGL: {
     ticker: 'GOOGL',
     symbol: 'GOOGLx',
     name: 'Alphabet xStock',
-    mint: '',
+    mint: 'XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6',
   },
   META: {
     ticker: 'META',
     symbol: 'METAx',
     name: 'Meta xStock',
-    mint: '',
+    mint: 'Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu',
     decimals: 8,
-    pythFeedId: '',
+    pythFeedId: '0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe',
   },
 };
 

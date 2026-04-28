@@ -1,0 +1,42 @@
+{
+  "AAPL": {
+    "id": "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
+    "symbol": "Equity.US.AAPL/USD",
+    "description": "APPLE INC / US DOLLAR"
+  },
+  "NVDA": {
+    "id": "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
+    "symbol": "Equity.US.NVDA/USD",
+    "description": "NVIDIA CORP / US DOLLAR"
+  },
+  "TSLA": {
+    "id": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+    "symbol": "Equity.US.TSLA/USD",
+    "description": "TESLA INC / US DOLLAR"
+  },
+  "SPY": {
+    "id": "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
+    "symbol": "Equity.US.SPY/USD",
+    "description": "SPY / US DOLLAR"
+  },
+  "QQQ": {
+    "id": "0x9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",
+    "symbol": "Equity.US.QQQ/USD",
+    "description": "INVESCO QQQ TRUST SERIES 1 / US DOLLAR"
+  },
+  "MSFT": {
+    "id": "0xd0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",
+    "symbol": "Equity.US.MSFT/USD",
+    "description": "MICROSOFT CORP / US DOLLAR"
+  },
+  "GOOGL": {
+    "id": "0x5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",
+    "symbol": "Equity.US.GOOGL/USD",
+    "description": "ALPHABET INC CLASS A / US DOLLAR"
+  },
+  "META": {
+    "id": "0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",
+    "symbol": "Equity.US.META/USD",
+    "description": "META PLATFORMS INC / US DOLLAR"
+  }
+}

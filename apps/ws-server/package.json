@@ -24,6 +24,7 @@
     "@privy-io/server-auth": "^1.18.0",
     "@pythnetwork/hermes-client": "^2.0.0",
     "@hunch-it/shared": "workspace:*",
+    "@solana/web3.js": "^1.98.0",
     "@upstash/redis": "^1.34.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.0",
