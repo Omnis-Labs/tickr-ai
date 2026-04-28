@@ -67,6 +67,12 @@ export interface Runtime {
     /** Mark price for the local PnL fallback when the swap output
      *  doesn't return an executionPrice (demo mode). */
     fallbackMarkPrice: number;
+    /** When set, the runtime persists via
+     *  POST /api/proposals/<id>/sell-confirm so the SELL Proposal flips
+     *  status=EXECUTED and the Trade row carries the proposal id (for
+     *  back-evaluator attribution). Otherwise it goes through
+     *  POST /api/positions/<id>/close. */
+    sellProposalId?: string;
   }): Promise<RuntimeCloseResult>;
 
   /** True if this runtime simulates state in memory (no chain or HTTP

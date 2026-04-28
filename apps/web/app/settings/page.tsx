@@ -19,8 +19,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
+import { useRuntime } from '@/lib/runtime/use-runtime';
 
 interface MandateResponse {
   mandate: Mandate | null;
@@ -155,8 +154,7 @@ function CloseAllPositionsCard() {
   const router = useRouter();
   const positions = useDemoPositionsStore((s) => s.positions);
   const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
-  const { swap } = useJupiterSwap();
-  const { cancelExits } = useExitOrders();
+  const runtime = useRuntime();
   const authedFetch = useAuthedFetch();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -174,37 +172,14 @@ function CloseAllPositionsCard() {
     tokenAmount: number;
     markPrice: number;
   }): Promise<void> {
-    if (demo) {
-      closeDemoPosition(p.id, 'USER_CLOSE', p.markPrice);
-      return;
-    }
     const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
     if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
-
-    // 1) cancel open TP/SL legs (shared with Position Detail + SellProposal)
-    await cancelExits(p.id);
-
-    // 2) market-sell
-    const sell = await swap({
-      direction: 'SELL',
-      xStockMint: meta.mint,
-      xStockDecimals: meta.decimals,
-      sellAll: true,
+    await runtime.closePosition({
+      positionId: p.id,
+      meta: { mint: meta.mint, decimals: meta.decimals },
+      fallbackMarkPrice: p.markPrice,
     });
-    const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
-    const usdOut = Number(sell.outputAmount) / 1_000_000;
-    const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
-
-    // 3) persist
-    await authedFetch(`/api/positions/${p.id}/close`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        executionPrice,
-        tokenAmount: tokenAmt,
-        txSignature: sell.exec.signature ?? null,
-      }),
-    }).catch(() => {});
+    if (demo) closeDemoPosition(p.id, 'USER_CLOSE', p.markPrice);
   }
 
   async function handleCloseAll() {

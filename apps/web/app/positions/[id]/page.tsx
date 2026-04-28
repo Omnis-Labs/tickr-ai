@@ -10,9 +10,8 @@ import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
-import { useAuthedFetch } from '@/lib/auth/fetch';
+import { useRuntime } from '@/lib/runtime/use-runtime';
 import { PositionStats } from '@/components/positions/position-stats';
 import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
 import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
@@ -34,11 +33,10 @@ export default function PositionDetailPage() {
   const cancelSiblingHint = useDemoPositionsStore((s) =>
     params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
   );
-  const { swap } = useJupiterSwap();
   const { cancelExits, placeExit, replaceExits } = useExitOrders();
+  const runtime = useRuntime();
   const { address: _address } = useWallet();
   void _address;
-  const authedFetch = useAuthedFetch();
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
@@ -217,31 +215,19 @@ export default function PositionDetailPage() {
     if (!position) return;
     setBusy(true);
     try {
-      if (!demo) {
-        if (!meta || !meta.mint) {
-          toast.error(`${position.ticker} mint not configured.`);
-          return;
-        }
-        await cancelExits(position.id);
-        const sell = await swap({
-          direction: 'SELL',
-          xStockMint: meta.mint,
-          xStockDecimals: meta.decimals,
-          sellAll: true,
-        });
-        const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
-        const usdOut = Number(sell.outputAmount) / 1_000_000;
-        const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : position.markPrice;
-        await authedFetch(`/api/positions/${position.id}/close`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            executionPrice,
-            tokenAmount: tokenAmt,
-            txSignature: sell.exec.signature ?? null,
-          }),
-        }).catch(() => {});
+      if (!meta || !meta.mint) {
+        toast.error(`${position.ticker} mint not configured.`);
+        return;
       }
+      // Single dispatch — runtime resolves to demo or live impl from
+      // useRuntime(); handler doesn't see the fork.
+      await runtime.closePosition({
+        positionId: position.id,
+        meta: { mint: meta.mint, decimals: meta.decimals },
+        fallbackMarkPrice: position.markPrice,
+      });
+      // Mirror in the demo store so the page UI updates instantly even
+      // when live runtime has fired the server write.
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);
       router.replace('/');

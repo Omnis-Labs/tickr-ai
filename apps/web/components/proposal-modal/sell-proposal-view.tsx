@@ -14,9 +14,7 @@ import {
   type XStockTicker,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { useAuthedFetch } from '@/lib/auth/fetch';
+import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { isDemo } from '@/lib/demo';
 import { useSkipProposal } from '@/lib/hooks/mutations';
@@ -46,9 +44,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const demoPosition = useDemoPositionsStore((s) =>
     proposal.positionId ? s.positions.find((p) => p.id === proposal.positionId) ?? null : null,
   );
-  const { cancelExits } = useExitOrders();
-  const { swap } = useJupiterSwap();
-  const authedFetch = useAuthedFetch();
+  const runtime = useRuntime();
   const skipProposal = useSkipProposal();
 
   const [bars, setBars] = useState<ChartBar[]>([]);
@@ -89,57 +85,29 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
     }
     setExecuting(true);
     try {
-      if (demo) {
-        await new Promise((r) => setTimeout(r, 600));
-        if (demoPosition) {
-          closeDemoPosition(demoPosition.id, 'USER_CLOSE', demoPosition.markPrice);
-        }
-        toast.success(`Sold ${proposal.ticker} (demo).`);
-        onClose('placed');
-        return;
-      }
       if (!meta?.mint) {
         toast.error(`${proposal.ticker} mint not configured.`);
         return;
       }
-
-      // 1) cancel any open TP/SL legs so the vault releases
-      await cancelExits(proposal.positionId);
-
-      // 2) market-sell the full xStock balance
-      const sell = await swap({
-        direction: 'SELL',
-        xStockMint: meta.mint,
-        xStockDecimals: meta.decimals,
-        sellAll: true,
+      const result = await runtime.closePosition({
+        positionId: proposal.positionId,
+        meta: { mint: meta.mint, decimals: meta.decimals },
+        fallbackMarkPrice: demoPosition?.markPrice ?? proposal.priceAtProposal,
+        // Routes the persistence step through the SELL Proposal endpoint
+        // so the Trade row carries proposalId + Proposal flips EXECUTED.
+        sellProposalId: proposal.id,
       });
-      const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
-      const usdOut = Number(sell.outputAmount) / 1_000_000;
-      const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
-
-      // 3) persist + flip the SELL Proposal status=EXECUTED
-      const res = await authedFetch(`/api/proposals/${proposal.id}/sell-confirm`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          executionPrice,
-          tokenAmount: tokenAmt,
-          txSignature: sell.exec.signature ?? null,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `${res.status}`);
+      // Mirror in the demo store so demo mode UI updates instantly.
+      if (demo && demoPosition) {
+        closeDemoPosition(demoPosition.id, 'USER_CLOSE', demoPosition.markPrice);
       }
-      toast.success(
-        `Sold ${proposal.ticker} ${sell.exec.signature ? `(${sell.exec.signature.slice(0, 8)}…)` : ''}`,
-        {
-          action: {
-            label: 'View portfolio',
-            onClick: () => router.push('/portfolio'),
-          },
+      const sigSlice = result.txSignature ? `(${result.txSignature.slice(0, 8)}…)` : '';
+      toast.success(`Sold ${proposal.ticker} ${sigSlice}`.trim(), {
+        action: {
+          label: 'View portfolio',
+          onClick: () => router.push('/portfolio'),
         },
-      );
+      });
       onClose('placed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));

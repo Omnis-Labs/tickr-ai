@@ -70,7 +70,11 @@ export function useRuntime(): Runtime {
         }),
       replaceExits: ({ positionId, meta, tokenAmount, legs }) =>
         replaceExits(positionId, meta, tokenAmount, legs),
-      closePosition: async ({ positionId, meta }): Promise<RuntimeCloseResult> => {
+      closePosition: async ({
+        positionId,
+        meta,
+        sellProposalId,
+      }): Promise<RuntimeCloseResult> => {
         await cancelExits(positionId);
         const sell = await swap({
           direction: 'SELL',
@@ -81,22 +85,26 @@ export function useRuntime(): Runtime {
         const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
         const usdOut = Number(sell.outputAmount) / 1_000_000;
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
+        const txSignature = sell.exec.signature ?? null;
 
-        await authedFetch(`/api/positions/${positionId}/close`, {
+        // Route through the SELL Proposal persistence path when this close
+        // came from a thesis-monitor signal — keeps the Trade row tied to
+        // the originating proposal for back-eval attribution.
+        const persistUrl = sellProposalId
+          ? `/api/proposals/${sellProposalId}/sell-confirm`
+          : `/api/positions/${positionId}/close`;
+
+        await authedFetch(persistUrl, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             executionPrice,
             tokenAmount: tokenAmt,
-            txSignature: sell.exec.signature ?? null,
+            txSignature,
           }),
         }).catch(() => {});
 
-        return {
-          executionPrice,
-          tokenAmount: tokenAmt,
-          txSignature: sell.exec.signature ?? null,
-        };
+        return { executionPrice, tokenAmount: tokenAmt, txSignature };
       },
     };
   }, [demo, authedFetch, cancelExits, placeExit, replaceExits, swap, closeDemoPosition, demoPositions]);
