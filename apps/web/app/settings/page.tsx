@@ -20,7 +20,7 @@ import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
+import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 
 interface MandateResponse {
   mandate: Mandate | null;
@@ -156,7 +156,7 @@ function CloseAllPositionsCard() {
   const positions = useDemoPositionsStore((s) => s.positions);
   const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
   const { swap } = useJupiterSwap();
-  const { cancel: cancelTrigger } = useJupiterTrigger();
+  const { cancelExits } = useExitOrders();
   const authedFetch = useAuthedFetch();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -181,30 +181,8 @@ function CloseAllPositionsCard() {
     const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
     if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
 
-    // 1) cancel any open TP/SL legs
-    const ordersRes = await authedFetch('/api/orders');
-    const j = (await ordersRes.json().catch(() => ({}))) as {
-      orders?: Array<{
-        id: string;
-        positionId: string;
-        kind: string;
-        jupiterOrderId: string | null;
-      }>;
-    };
-    for (const o of j.orders ?? []) {
-      if (
-        o.positionId !== p.id ||
-        (o.kind !== 'TAKE_PROFIT' && o.kind !== 'STOP_LOSS') ||
-        !o.jupiterOrderId
-      )
-        continue;
-      try {
-        await cancelTrigger(o.jupiterOrderId);
-        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
-      } catch (err) {
-        console.warn(`[close-all] cancel ${o.kind} failed`, err);
-      }
-    }
+    // 1) cancel open TP/SL legs (shared with Position Detail + SellProposal)
+    await cancelExits(p.id);
 
     // 2) market-sell
     const sell = await swap({

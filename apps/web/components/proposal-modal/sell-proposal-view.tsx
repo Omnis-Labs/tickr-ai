@@ -14,7 +14,7 @@ import {
   type XStockTicker,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
+import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
@@ -46,7 +46,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const demoPosition = useDemoPositionsStore((s) =>
     proposal.positionId ? s.positions.find((p) => p.id === proposal.positionId) ?? null : null,
   );
-  const { cancel: cancelTrigger } = useJupiterTrigger();
+  const { cancelExits } = useExitOrders();
   const { swap } = useJupiterSwap();
   const authedFetch = useAuthedFetch();
   const skipProposal = useSkipProposal();
@@ -82,34 +82,6 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
   const invalidatedTagIds = (proposal.thesisTags ?? []) as string[];
 
-  async function cancelOpenExitOrders(positionId: string): Promise<void> {
-    const res = await authedFetch('/api/orders');
-    const j = (await res.json().catch(() => ({}))) as {
-      orders?: Array<{
-        id: string;
-        positionId: string;
-        kind: string;
-        jupiterOrderId: string | null;
-      }>;
-    };
-    const open = (j.orders ?? []).filter(
-      (o) =>
-        o.positionId === positionId &&
-        (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
-        o.jupiterOrderId,
-    );
-    for (const o of open) {
-      try {
-        await cancelTrigger(o.jupiterOrderId!);
-        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
-      } catch (err) {
-        toast.error(
-          `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-  }
-
   async function handleConfirmSell() {
     if (!proposal.positionId) {
       toast.error('SELL proposal missing positionId');
@@ -132,7 +104,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
       }
 
       // 1) cancel any open TP/SL legs so the vault releases
-      await cancelOpenExitOrders(proposal.positionId);
+      await cancelExits(proposal.positionId);
 
       // 2) market-sell the full xStock balance
       const sell = await swap({

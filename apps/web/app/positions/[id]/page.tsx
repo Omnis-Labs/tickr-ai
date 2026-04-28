@@ -10,8 +10,8 @@ import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
-import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { PositionStats } from '@/components/positions/position-stats';
 import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
@@ -34,8 +34,8 @@ export default function PositionDetailPage() {
   const cancelSiblingHint = useDemoPositionsStore((s) =>
     params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
   );
-  const { placeSellExit, cancel: cancelTrigger } = useJupiterTrigger();
   const { swap } = useJupiterSwap();
+  const { cancelExits, placeExit, replaceExits } = useExitOrders();
   const { address: _address } = useWallet();
   void _address;
   const authedFetch = useAuthedFetch();
@@ -106,79 +106,8 @@ export default function PositionDetailPage() {
             ? { bg: 'rgba(245,158,11,0.18)', fg: 'var(--color-warn)', label: 'Closing' }
             : { bg: 'rgba(144,153,173,0.18)', fg: 'var(--color-fg-muted)', label: 'Closed' };
 
-  // Cancel any open TP/SL trigger orders attached to this Position. Shared
-  // between Adjust (re-place) and Close (then market-sell). Best-effort —
-  // surface failures but don't block partial progress.
-  /**
-   * Cancel any open TP / SL trigger orders attached to this Position. Returns
-   * a snapshot of {kind, triggerPriceUsd} so the caller can reconstruct the
-   * exit orders on failure mid-way through Adjust / Close.
-   */
-  async function cancelSiblingOrders(): Promise<
-    Array<{ kind: 'TAKE_PROFIT' | 'STOP_LOSS'; triggerPriceUsd: number }>
-  > {
-    if (!position) return [];
-    const ordersRes = await authedFetch(`/api/orders`);
-    const j = (await ordersRes.json().catch(() => ({}))) as {
-      orders?: Array<{
-        id: string;
-        positionId: string;
-        kind: string;
-        jupiterOrderId: string | null;
-        triggerPriceUsd: number | null;
-      }>;
-    };
-    const open = (j.orders ?? []).filter(
-      (o): o is typeof o & { jupiterOrderId: string } =>
-        o.positionId === position.id &&
-        (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
-        !!o.jupiterOrderId,
-    );
-    const snapshots: Array<{
-      kind: 'TAKE_PROFIT' | 'STOP_LOSS';
-      triggerPriceUsd: number;
-    }> = [];
-    for (const o of open) {
-      try {
-        await cancelTrigger(o.jupiterOrderId);
-        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
-        if (o.triggerPriceUsd != null) {
-          snapshots.push({
-            kind: o.kind as 'TAKE_PROFIT' | 'STOP_LOSS',
-            triggerPriceUsd: o.triggerPriceUsd,
-          });
-        }
-      } catch (err) {
-        toast.error(
-          `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-    return snapshots;
-  }
-
-  /** Best-effort re-placement of exit legs after a partial-failure mid-Adjust.
-   *  Surfaces every error inline because we're already in a degraded state. */
-  async function rePlaceExitLegs(
-    snapshots: Array<{ kind: 'TAKE_PROFIT' | 'STOP_LOSS'; triggerPriceUsd: number }>,
-  ): Promise<void> {
-    if (!position || !meta?.mint) return;
-    for (const s of snapshots) {
-      try {
-        await placeSellExit({
-          inputMint: meta.mint,
-          inputDecimals: meta.decimals,
-          tokenAmount: position.tokenAmount,
-          triggerPriceUsd: s.triggerPriceUsd,
-          triggerCondition: s.kind === 'TAKE_PROFIT' ? 'above' : 'below',
-        });
-      } catch (err) {
-        toast.error(
-          `Rollback ${s.kind} @ $${s.triggerPriceUsd.toFixed(2)} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-  }
+  // Cancel + re-place + rollback flows are owned by useExitOrders() so the
+  // SellProposalView and Settings panic-close share the same logic.
 
   async function handleConfirmExit() {
     setBusy(true);
@@ -198,14 +127,14 @@ export default function PositionDetailPage() {
         return;
       }
       const legAmount = position!.tokenAmount;
-      const tp = await placeSellExit({
+      const tp = await placeExit({
         inputMint: meta.mint,
         inputDecimals: meta.decimals,
         tokenAmount: legAmount,
         triggerPriceUsd: position!.currentTpPrice,
         triggerCondition: 'above',
       });
-      const sl = await placeSellExit({
+      const sl = await placeExit({
         inputMint: meta.mint,
         inputDecimals: meta.decimals,
         tokenAmount: legAmount,
@@ -229,27 +158,13 @@ export default function PositionDetailPage() {
         toast.success('Vault funds withdrawn.');
         return;
       }
-      const ordersRes = await authedFetch(`/api/orders`);
-      const j = (await ordersRes.json().catch(() => ({}))) as {
-        orders?: Array<{
-          id: string;
-          positionId: string;
-          kind: string;
-          jupiterOrderId: string | null;
-        }>;
-      };
-      const sibling = (j.orders ?? []).find(
-        (o) => o.positionId === position!.id && o.kind !== 'BUY_TRIGGER',
-      );
-      if (!sibling?.jupiterOrderId) {
-        toast.error('No open sibling order found to cancel.');
-        dismissCancelSibling(position!.id);
-        return;
-      }
-      const result = await cancelTrigger(sibling.jupiterOrderId);
-      await authedFetch(`/api/orders/${sibling.id}/cancel`, { method: 'POST' });
+      const cancelled = await cancelExits(position!.id);
       dismissCancelSibling(position!.id);
-      toast.success(`Vault withdrawn: ${result.txSignature.slice(0, 8)}…`);
+      if (cancelled.length === 0) {
+        toast('No open sibling order to cancel.');
+      } else {
+        toast.success(`Vault withdrawn (${cancelled.length} leg cancelled).`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -276,40 +191,15 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        // Snapshot the old legs so we can rollback if re-placement fails.
-        const snapshot = await cancelSiblingOrders();
-        const placed: Array<'TP' | 'SL'> = [];
-        try {
-          if (tp != null) {
-            await placeSellExit({
-              inputMint: meta.mint,
-              inputDecimals: meta.decimals,
-              tokenAmount: position.tokenAmount,
-              triggerPriceUsd: tp,
-              triggerCondition: 'above',
-            });
-            placed.push('TP');
-          }
-          if (sl != null) {
-            await placeSellExit({
-              inputMint: meta.mint,
-              inputDecimals: meta.decimals,
-              tokenAmount: position.tokenAmount,
-              triggerPriceUsd: sl,
-              triggerCondition: 'below',
-            });
-            placed.push('SL');
-          }
-        } catch (placeErr) {
-          // Re-placement of one or both legs failed — vault funds are now
-          // sitting unguarded. Try to restore the previous legs from the
-          // snapshot so the user is not left exposed.
-          toast.error(
-            `Re-place failed (${placed.join('+') || 'nothing placed'}); restoring previous TP/SL…`,
-          );
-          await rePlaceExitLegs(snapshot);
-          throw placeErr;
-        }
+        await replaceExits(
+          position.id,
+          { mint: meta.mint, decimals: meta.decimals },
+          position.tokenAmount,
+          [
+            { kind: 'TAKE_PROFIT', triggerPriceUsd: tp },
+            { kind: 'STOP_LOSS', triggerPriceUsd: sl },
+          ],
+        );
         adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');
         return;
@@ -332,7 +222,7 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        await cancelSiblingOrders();
+        await cancelExits(position.id);
         const sell = await swap({
           direction: 'SELL',
           xStockMint: meta.mint,
