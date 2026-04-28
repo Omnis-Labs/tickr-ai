@@ -18,7 +18,7 @@ import {
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 

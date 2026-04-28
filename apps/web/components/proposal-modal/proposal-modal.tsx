@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
 import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { ProposalHeader } from './proposal-header';

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import type { DemoProposalShape, Signal } from '@hunch-it/shared';
 import {
   useSharedWorker,
@@ -10,18 +9,21 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
-import { setAlertFavicon, clearAlertFavicon } from './favicon-dot';
-import { startTitleFlash, stopTitleFlash } from './tab-title-flasher';
-import { playSignalSound } from './sound-manager';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
+import { runEffects } from '@/lib/notifications/effects';
+import {
+  positionUpdatedHandler,
+  proposalNewHandler,
+  setNavigator,
+} from '@/lib/notifications/registry';
+import { clearAlertFavicon } from './favicon-dot';
+import { stopTitleFlash } from './tab-title-flasher';
 
 /**
- * Central client component mounted once in the root layout via <Providers>.
- * Receives signals + proposals from the Shared Worker, routes them according
- * to tab state, and owns all attention-getting side effects.
- *
- * v1.3: proposal:new is the primary event. Legacy signal:new remains wired so
- * any non-v1.3 emitter still drops into the same UX, but with low priority.
+ * Driver-only: subscribes to socket events, hands payloads to typed
+ * handlers in lib/notifications/registry.ts, runs the returned UIEffects.
+ * Per-event UI logic lives in the registry — adding a new event type =
+ * one new handler entry.
  */
 export function NotificationClient() {
   const router = useRouter();
@@ -29,76 +31,38 @@ export function NotificationClient() {
   const upsertProposal = useProposalsStore((s) => s.upsertProposal);
   const activeNotifs = useRef<Map<string, Notification>>(new Map());
 
-  // ─── proposal:new ───────────────────────────────────────────────────────
+  // The registry's navigateTo() needs a router; patch it on mount.
+  useEffect(() => {
+    setNavigator((href) => router.push(href));
+  }, [router]);
+
   const handleProposal = useCallback(
     (proposal: DemoProposalShape) => {
       upsertProposal(proposal);
-
-      if (typeof document === 'undefined') return;
-      const isHidden = document.hidden;
-
-      const verb = proposal.action === 'SELL' ? 'SELL' : 'BUY';
-
-      if (!isHidden) {
-        // In-app toast on visible tab — don't auto-push fullscreen since
-        // proposals have minutes of TTL (not 30s like legacy signals).
-        toast(`${verb} ${proposal.ticker}`, {
-          description: proposal.rationale.slice(0, 140),
-          action: {
-            label: 'Review',
-            onClick: () => router.push(`/proposals/${proposal.id}`),
-          },
-          duration: 12_000,
-        });
-        return;
-      }
-
-      // Hidden tab: OS notification + attention UI.
-      startTitleFlash(`🔔 ${verb} ${proposal.ticker} — Hunch It`);
-      setAlertFavicon();
-      playSignalSound();
-
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        try {
-          const n = new Notification(`Hunch It · ${verb} ${proposal.ticker}`, {
-            body: proposal.rationale.slice(0, 200),
-            tag: proposal.id,
-            requireInteraction: true,
-            icon: '/favicons/signal.png',
-          });
-          activeNotifs.current.set(proposal.id, n);
-          n.onclick = () => {
-            window.focus();
-            router.push(`/proposals/${proposal.id}`);
-            n.close();
-            activeNotifs.current.delete(proposal.id);
-          };
-          n.onclose = () => {
-            activeNotifs.current.delete(proposal.id);
-          };
-        } catch (err) {
-          console.warn('[notifications] Notification() failed', err);
-        }
-      }
+      const isHidden = typeof document !== 'undefined' && document.hidden;
+      const effects = proposalNewHandler(proposal, { isHidden });
+      runEffects(effects, {
+        navigate: (href) => router.push(href),
+        activeNotifs: activeNotifs.current,
+      });
     },
     [router, upsertProposal],
   );
 
-  // ─── legacy signal:new (kept for Phase A↔B compat) ──────────────────────
   const handleSignal = useCallback(
     (signal: Signal) => {
+      // Legacy v1.2 emitter — store-only; v1.3 proposal flow owns the modal.
       addSignal(signal);
-      // No UI: the v1.3 proposal flow has taken over the modal path.
     },
     [addSignal],
   );
 
-  // ─── position:updated (Phase F) ─────────────────────────────────────────
   const handlePositionUpdated = useCallback(
     (payload: PositionUpdatedPayload) => {
+      // Cross-store side effect: surface the cancel-sibling banner via the
+      // demo positions store so Position Detail picks it up consistently
+      // across demo + live runtimes.
       if (payload.action === 'cancel-sibling' && payload.siblingKind) {
-        // Push into the same demo store the demo simulator uses, so the
-        // banner UX on Position Detail surfaces consistently in both modes.
         useDemoPositionsStore.setState((s) => ({
           cancelSiblingHints: {
             ...s.cancelSiblingHints,
@@ -108,16 +72,12 @@ export function NotificationClient() {
             },
           },
         }));
-        toast(`OCO: ${payload.siblingKind === 'TAKE_PROFIT' ? 'TP' : 'SL'} still parked in vault.`, {
-          description: 'Open Position Detail to sign the withdrawal.',
-          action: {
-            label: 'Open',
-            onClick: () => router.push(`/positions/${payload.positionId}`),
-          },
-        });
-      } else if (payload.action === 'sibling-cancelled') {
-        toast.success(`OCO sibling auto-cancelled.`);
       }
+      const effects = positionUpdatedHandler(payload);
+      runEffects(effects, {
+        navigate: (href) => router.push(href),
+        activeNotifs: activeNotifs.current,
+      });
     },
     [router],
   );

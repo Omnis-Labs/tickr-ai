@@ -17,7 +17,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { isDemo } from '@/lib/demo';
 import { useSkipProposal } from '@/lib/hooks/mutations';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';

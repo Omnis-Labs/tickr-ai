@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';

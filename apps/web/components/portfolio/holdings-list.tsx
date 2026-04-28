@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 
 /**
  * Compact Holdings list shown on Home. Pulls from useDemoPositionsStore in
