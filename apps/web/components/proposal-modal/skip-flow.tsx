@@ -1,6 +1,9 @@
 'use client';
 
 import { SKIP_REASON_LABELS, type SkipReason } from '@hunch-it/shared';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 interface SkipFlowProps {
   reason: SkipReason;
@@ -18,52 +21,40 @@ interface SkipFlowProps {
  */
 export function SkipFlow({ reason, detail, onReason, onDetail, onBack, onSubmit }: SkipFlowProps) {
   return (
-    <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: 14 }}>
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>Why are you skipping?</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+    <div className="rounded-2xl border border-outline-variant p-4">
+      <div className="mb-2.5 font-semibold">Why are you skipping?</div>
+      <div className="grid grid-cols-2 gap-2">
         {(Object.keys(SKIP_REASON_LABELS) as SkipReason[]).map((r) => (
           <button
             key={r}
             onClick={() => onReason(r)}
-            style={{
-              textAlign: 'left',
-              padding: '8px 10px',
-              borderRadius: 8,
-              background: reason === r ? 'rgba(124,92,255,0.18)' : 'var(--color-bg-muted)',
-              border: `1px solid ${reason === r ? 'var(--color-accent)' : 'var(--color-border)'}`,
-              color: 'var(--color-fg)',
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
+            className={cn(
+              'rounded-md border px-2.5 py-2 text-left text-sm transition-colors',
+              reason === r
+                ? 'border-primary bg-accent-soft text-on-surface'
+                : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-container-high',
+            )}
           >
             {SKIP_REASON_LABELS[r]}
           </button>
         ))}
       </div>
       {reason === 'OTHER' && (
-        <input
+        <Input
           type="text"
           placeholder="Tell us why…"
           value={detail}
           onChange={(e) => onDetail(e.target.value)}
-          style={{
-            width: '100%',
-            marginTop: 10,
-            padding: 10,
-            borderRadius: 8,
-            background: 'var(--color-bg-muted)',
-            color: 'var(--color-fg)',
-            border: '1px solid var(--color-border)',
-          }}
+          className="mt-2.5"
         />
       )}
-      <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-        <button className="btn btn-ghost" style={{ flex: 1 }} onClick={onBack}>
+      <div className="mt-3 flex gap-3">
+        <Button variant="ghost" className="flex-1" onClick={onBack}>
           Back
-        </button>
-        <button className="btn btn-primary" style={{ flex: 1 }} onClick={onSubmit}>
+        </Button>
+        <Button className="flex-1" onClick={onSubmit}>
           Submit skip
-        </button>
+        </Button>
       </div>
     </div>
   );

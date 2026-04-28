@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface CloseButtonProps {
   busy: boolean;
@@ -16,42 +19,42 @@ export function CloseButton({ busy, onConfirm }: CloseButtonProps) {
 
   if (!confirm) {
     return (
-      <div className="card">
-        <button
-          className="btn btn-sell"
-          style={{ width: '100%', padding: '14px 24px', fontSize: 15 }}
-          onClick={() => setConfirm(true)}
-        >
-          Close position
-        </button>
-      </div>
+      <Card>
+        <CardContent className="p-5">
+          <Button variant="destructive" size="lg" className="w-full" onClick={() => setConfirm(true)}>
+            Close position
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="card">
-      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
-        Cancel both exit orders and sell the full position at market price?
-      </p>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button
-          className="btn btn-ghost"
-          style={{ flex: 1 }}
-          onClick={() => setConfirm(false)}
-          disabled={busy}
-        >
-          Cancel
-        </button>
-        <button
-          className="btn btn-sell"
-          style={{ flex: 2 }}
-          onClick={onConfirm}
-          disabled={busy}
-        >
-          {busy ? 'Closing…' : 'Confirm close'}
-        </button>
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-5">
+        <p className="mb-3 text-sm text-on-surface-variant">
+          Cancel both exit orders and sell the full position at market price?
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="ghost"
+            className="flex-1"
+            onClick={() => setConfirm(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-[2]"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Closing…' : 'Confirm close'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -63,16 +66,18 @@ interface ClosedSummaryProps {
 export function ClosedSummary({ closedReason, realizedPnl }: ClosedSummaryProps) {
   const pnl = realizedPnl ?? 0;
   return (
-    <div className="card" style={{ background: 'var(--color-bg-muted)' }}>
-      <div style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
-        Closed via {closedReason ?? '—'}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
-        Realised P&L:{' '}
-        <span style={{ color: pnl >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}>
-          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-        </span>
-      </div>
-    </div>
+    <Card className="bg-surface-container">
+      <CardContent className="p-5">
+        <div className="text-sm text-on-surface-variant">
+          Closed via {closedReason ?? '—'}
+        </div>
+        <div className="mt-1 text-2xl font-bold">
+          Realised P&L:{' '}
+          <span className={cn(pnl >= 0 ? 'text-positive' : 'text-negative')}>
+            {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,5 +1,10 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
 interface AdjustTpSlFormProps {
   tpDraft: string;
   slDraft: string;
@@ -22,23 +27,20 @@ export function AdjustTpSlForm({
   onSubmit,
 }: AdjustTpSlFormProps) {
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Adjust TP / SL</h2>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr auto',
-          gap: 12,
-          alignItems: 'end',
-        }}
-      >
-        <NumField label="Take profit" value={tpDraft} onChange={onTpChange} color="var(--color-buy)" />
-        <NumField label="Stop loss" value={slDraft} onChange={onSlChange} color="var(--color-sell)" />
-        <button className="btn btn-primary" disabled={busy} onClick={onSubmit}>
-          Update
-        </button>
-      </div>
-    </div>
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg font-bold">Adjust TP / SL</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-3">
+          <NumField label="Take profit" value={tpDraft} onChange={onTpChange} tone="positive" />
+          <NumField label="Stop loss" value={slDraft} onChange={onSlChange} tone="negative" />
+          <Button disabled={busy} onClick={onSubmit}>
+            Update
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -46,28 +48,30 @@ function NumField({
   label,
   value,
   onChange,
-  color,
+  tone,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  color?: string;
+  tone?: 'positive' | 'negative';
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 12, color: color ?? 'var(--color-fg-muted)' }}>{label}</span>
-      <input
+    <label className="flex flex-col gap-1">
+      <span
+        className={cn(
+          'text-xs',
+          tone === 'positive' && 'text-positive',
+          tone === 'negative' && 'text-negative',
+          !tone && 'text-on-surface-variant',
+        )}
+      >
+        {label}
+      </span>
+      <Input
         type="number"
         value={value}
         step={0.5}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: 10,
-          borderRadius: 8,
-          background: 'var(--color-bg-muted)',
-          color: 'var(--color-fg)',
-          border: '1px solid var(--color-border)',
-        }}
       />
     </label>
   );

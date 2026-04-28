@@ -8,6 +8,9 @@ import { useMemo } from 'react';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { isDemo, useDemoStore } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface PortfolioPosition {
   ticker: string;
@@ -70,38 +73,26 @@ export default function PortfolioPage() {
   const data = demo ? demoData : liveData;
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>
-      <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
+    <main className="mx-auto max-w-[960px] px-6 py-12">
+      <Link href="/" className="text-sm text-on-surface-variant hover:text-on-surface">
         ← Home
       </Link>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          margin: '16px 0 24px',
-        }}
-      >
-        <h1 style={{ fontSize: 32, fontWeight: 800 }}>Portfolio</h1>
+      <div className="mt-4 mb-6 flex items-center justify-between">
+        <h1 className="text-3xl font-extrabold">Portfolio</h1>
         <WalletButton />
       </div>
 
       {!connected && !demo && (
-        <div className="card">
-          <p style={{ color: 'var(--color-fg-muted)' }}>Connect a wallet to load your portfolio.</p>
-        </div>
+        <Card>
+          <CardContent className="p-5">
+            <p className="text-on-surface-variant">Connect a wallet to load your portfolio.</p>
+          </CardContent>
+        </Card>
       )}
 
       {(connected || demo) && (
         <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
+          <div className="mb-4 grid grid-cols-3 gap-3">
             <PnlCard label="Realised P&L" value={data?.pnl.realized ?? 0} loading={isLoading} />
             <PnlCard label="Unrealised P&L" value={data?.pnl.unrealized ?? 0} loading={isLoading} />
             <PnlCard
@@ -111,11 +102,11 @@ export default function PortfolioPage() {
             />
           </div>
 
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '24px 0 8px' }}>Positions</h2>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <h2 className="mb-2 mt-6 text-xl font-bold">Positions</h2>
+          <Card className="overflow-hidden">
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr style={{ background: 'var(--color-bg-muted)', textAlign: 'left' }}>
+                <tr className="bg-surface-container text-left">
                   <Th>Ticker</Th>
                   <Th align="right">Amount</Th>
                   <Th align="right">Avg cost</Th>
@@ -126,7 +117,7 @@ export default function PortfolioPage() {
               <tbody>
                 {(!data || data.positions.length === 0) && (
                   <tr>
-                    <Td colSpan={5} style={{ color: 'var(--color-fg-muted)' }}>
+                    <Td colSpan={5} className="text-on-surface-variant">
                       {isLoading ? 'Loading…' : 'No open positions yet. Approve a signal to start.'}
                     </Td>
                   </tr>
@@ -137,7 +128,7 @@ export default function PortfolioPage() {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
-                    style={{ borderTop: '1px solid var(--color-border)' }}
+                    className="border-t border-outline-variant"
                   >
                     <Td>{p.ticker}</Td>
                     <Td align="right">{p.tokenAmount.toFixed(4)}</Td>
@@ -145,14 +136,13 @@ export default function PortfolioPage() {
                     <Td align="right">{p.markPrice ? `$${p.markPrice.toFixed(2)}` : '—'}</Td>
                     <Td
                       align="right"
-                      style={{
-                        color:
-                          p.pnl == null
-                            ? 'var(--color-fg-muted)'
-                            : p.pnl >= 0
-                              ? 'var(--color-buy)'
-                              : 'var(--color-sell)',
-                      }}
+                      className={cn(
+                        p.pnl == null
+                          ? 'text-on-surface-variant'
+                          : p.pnl >= 0
+                            ? 'text-positive'
+                            : 'text-negative',
+                      )}
                     >
                       {p.pnl == null ? '—' : `$${p.pnl.toFixed(2)}`}
                     </Td>
@@ -160,13 +150,13 @@ export default function PortfolioPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
-          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '24px 0 8px' }}>Recent trades</h2>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <h2 className="mb-2 mt-6 text-xl font-bold">Recent trades</h2>
+          <Card className="overflow-hidden">
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr style={{ background: 'var(--color-bg-muted)', textAlign: 'left' }}>
+                <tr className="bg-surface-container text-left">
                   <Th>Time</Th>
                   <Th>Side</Th>
                   <Th>Ticker</Th>
@@ -180,7 +170,7 @@ export default function PortfolioPage() {
               <tbody>
                 {(!data || data.trades.length === 0) && (
                   <tr>
-                    <Td colSpan={8} style={{ color: 'var(--color-fg-muted)' }}>
+                    <Td colSpan={8} className="text-on-surface-variant">
                       {isLoading ? 'Loading…' : 'No trades yet.'}
                     </Td>
                   </tr>
@@ -191,15 +181,15 @@ export default function PortfolioPage() {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.02, duration: 0.18 }}
-                    style={{ borderTop: '1px solid var(--color-border)' }}
+                    className="border-t border-outline-variant"
                   >
-                    <Td style={{ color: 'var(--color-fg-muted)', fontSize: 12 }}>
+                    <Td className="text-xs text-on-surface-variant">
                       {new Date(t.createdAt).toLocaleString()}
                     </Td>
                     <Td>
-                      <span className={`badge ${t.side === 'BUY' ? 'badge-buy' : 'badge-sell'}`}>
+                      <Badge variant={t.side === 'BUY' ? 'positive' : 'destructive'}>
                         {t.side}
-                      </span>
+                      </Badge>
                     </Td>
                     <Td>{t.ticker}</Td>
                     <Td align="right">{t.tokenAmount.toFixed(4)}</Td>
@@ -207,14 +197,13 @@ export default function PortfolioPage() {
                     <Td align="right">${t.amountUsd.toFixed(2)}</Td>
                     <Td
                       align="right"
-                      style={{
-                        color:
-                          t.realizedPnl > 0
-                            ? 'var(--color-buy)'
-                            : t.realizedPnl < 0
-                              ? 'var(--color-sell)'
-                              : 'var(--color-fg-muted)',
-                      }}
+                      className={cn(
+                        t.realizedPnl > 0
+                          ? 'text-positive'
+                          : t.realizedPnl < 0
+                            ? 'text-negative'
+                            : 'text-on-surface-variant',
+                      )}
                     >
                       {t.side === 'SELL' ? `$${t.realizedPnl.toFixed(2)}` : '—'}
                     </Td>
@@ -223,7 +212,7 @@ export default function PortfolioPage() {
                         href={`https://solscan.io/tx/${t.txSignature}`}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: 'var(--color-accent)', fontSize: 12 }}
+                        className="text-xs text-primary hover:underline"
                       >
                         {t.txSignature.slice(0, 6)}…
                       </a>
@@ -232,7 +221,7 @@ export default function PortfolioPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </>
       )}
     </main>
@@ -248,15 +237,28 @@ function PnlCard({
   value: number;
   loading: boolean;
 }) {
-  const color =
-    value > 0 ? 'var(--color-buy)' : value < 0 ? 'var(--color-sell)' : 'var(--color-fg)';
   return (
-    <div className="card">
-      <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: loading ? 'var(--color-fg-muted)' : color }}>
-        {loading ? '—' : `$${value.toFixed(2)}`}
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-5">
+        <div className="mb-1 text-xs uppercase tracking-wider text-on-surface-variant">
+          {label}
+        </div>
+        <div
+          className={cn(
+            'text-3xl font-bold',
+            loading
+              ? 'text-on-surface-variant'
+              : value > 0
+                ? 'text-positive'
+                : value < 0
+                  ? 'text-negative'
+                  : 'text-on-surface',
+          )}
+        >
+          {loading ? '—' : `$${value.toFixed(2)}`}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -269,15 +271,10 @@ function Th({
 }) {
   return (
     <th
-      style={{
-        textAlign: align ?? 'left',
-        padding: '10px 14px',
-        fontSize: 12,
-        color: 'var(--color-fg-muted)',
-        fontWeight: 600,
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-      }}
+      className={cn(
+        'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant',
+        align === 'right' ? 'text-right' : 'text-left',
+      )}
     >
       {children}
     </th>
@@ -288,15 +285,18 @@ function Td({
   children,
   align,
   colSpan,
-  style,
+  className,
 }: {
   children: React.ReactNode;
   align?: 'left' | 'right';
   colSpan?: number;
-  style?: React.CSSProperties;
+  className?: string;
 }) {
   return (
-    <td colSpan={colSpan} style={{ textAlign: align ?? 'left', padding: '12px 14px', ...style }}>
+    <td
+      colSpan={colSpan}
+      className={cn('px-4 py-3', align === 'right' ? 'text-right' : 'text-left', className)}
+    >
       {children}
     </td>
   );

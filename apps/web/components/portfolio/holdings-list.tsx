@@ -6,6 +6,8 @@ import { useMemo } from 'react';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 /**
  * Compact Holdings list shown on Home. Pulls from useDemoPositionsStore in
@@ -27,27 +29,31 @@ export function HoldingsList() {
 
   if (!demo) {
     return (
-      <div className="card" style={{ textAlign: 'center', color: 'var(--color-fg-muted)' }}>
-        Live portfolio aggregator is wired in Phase D. Demo mode shows the full Holdings UX.
-      </div>
+      <Card>
+        <CardContent className="p-5 text-center text-sm text-on-surface-variant">
+          Live portfolio aggregator is wired in Phase D. Demo mode shows the full Holdings UX.
+        </CardContent>
+      </Card>
     );
   }
 
   if (positions.length === 0) {
     return (
-      <div className="card" style={{ textAlign: 'center', color: 'var(--color-fg-muted)' }}>
-        No open positions. Approve a proposal to start.
-      </div>
+      <Card>
+        <CardContent className="p-5 text-center text-sm text-on-surface-variant">
+          No open positions. Approve a proposal to start.
+        </CardContent>
+      </Card>
     );
   }
 
   const totalValue = positions.reduce((acc, p) => acc + p.tokenAmount * p.markPrice, 0);
 
   return (
-    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+    <Card className="overflow-hidden">
+      <table className="w-full border-collapse text-sm">
         <thead>
-          <tr style={{ background: 'var(--color-bg-muted)', textAlign: 'left' }}>
+          <tr className="bg-surface-container text-left">
             <Th>Ticker</Th>
             <Th>State</Th>
             <Th align="right">Weight</Th>
@@ -64,35 +70,29 @@ export function HoldingsList() {
             const pnl = (p.markPrice - p.entryPrice) * p.tokenAmount;
             const pnlPct =
               p.entryPrice > 0 ? ((p.markPrice - p.entryPrice) / p.entryPrice) * 100 : 0;
-            const stateColor =
-              p.state === 'ACTIVE' ? 'var(--color-buy)' : 'var(--color-warn)';
             return (
               <motion.tr
                 key={p.id}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.025, duration: 0.2 }}
-                style={{ borderTop: '1px solid var(--color-border)', cursor: 'pointer' }}
+                className="cursor-pointer border-t border-outline-variant"
               >
                 <Td>
-                  <Link
-                    href={`/positions/${p.id}`}
-                    style={{ color: 'inherit', textDecoration: 'none' }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{p.ticker}</span>
-                    <span
-                      style={{
-                        color: 'var(--color-fg-muted)',
-                        fontSize: 12,
-                        marginLeft: 6,
-                      }}
-                    >
+                  <Link href={`/positions/${p.id}`} className="text-on-surface no-underline">
+                    <span className="font-semibold">{p.ticker}</span>
+                    <span className="ml-1.5 text-xs text-on-surface-variant">
                       {meta?.name ?? ''}
                     </span>
                   </Link>
                 </Td>
                 <Td>
-                  <span style={{ color: stateColor, fontSize: 12, fontWeight: 600 }}>
+                  <span
+                    className={cn(
+                      'text-xs font-semibold',
+                      p.state === 'ACTIVE' ? 'text-positive' : 'text-tertiary',
+                    )}
+                  >
                     {p.state}
                   </span>
                 </Td>
@@ -101,7 +101,7 @@ export function HoldingsList() {
                 <Td align="right">${p.entryPrice.toFixed(2)}</Td>
                 <Td
                   align="right"
-                  style={{ color: pnl >= 0 ? 'var(--color-buy)' : 'var(--color-sell)' }}
+                  className={cn(pnl >= 0 ? 'text-positive' : 'text-negative')}
                 >
                   {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)} ({pnlPct.toFixed(1)}%)
                 </Td>
@@ -110,22 +110,17 @@ export function HoldingsList() {
           })}
         </tbody>
       </table>
-    </div>
+    </Card>
   );
 }
 
 function Th({ children, align }: { children: React.ReactNode; align?: 'left' | 'right' }) {
   return (
     <th
-      style={{
-        textAlign: align ?? 'left',
-        padding: '10px 14px',
-        fontSize: 11,
-        color: 'var(--color-fg-muted)',
-        fontWeight: 600,
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-      }}
+      className={cn(
+        'px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant',
+        align === 'right' ? 'text-right' : 'text-left',
+      )}
     >
       {children}
     </th>
@@ -135,14 +130,14 @@ function Th({ children, align }: { children: React.ReactNode; align?: 'left' | '
 function Td({
   children,
   align,
-  style,
+  className,
 }: {
   children: React.ReactNode;
   align?: 'left' | 'right';
-  style?: React.CSSProperties;
+  className?: string;
 }) {
   return (
-    <td style={{ textAlign: align ?? 'left', padding: '12px 14px', ...style }}>
+    <td className={cn('px-4 py-3', align === 'right' ? 'text-right' : 'text-left', className)}>
       {children}
     </td>
   );

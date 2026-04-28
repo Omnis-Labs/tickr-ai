@@ -1,5 +1,8 @@
 'use client';
 
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+
 interface ProposalFormProps {
   size: number;
   trigger: number;
@@ -26,14 +29,7 @@ export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, o
 
   return (
     <>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
+      <div className="mb-3 grid grid-cols-2 gap-3">
         <NumField label="Size (USDC)" value={size} onChange={onSize} warning={sizeWarning} step={10} />
         <NumField label="Trigger price" value={trigger} onChange={onTrigger} step={0.5} />
         <NumField
@@ -41,18 +37,18 @@ export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, o
           value={tp}
           onChange={onTp}
           step={0.5}
-          color="var(--color-buy)"
+          tone="positive"
         />
         <NumField
           label={`Stop loss ${sl > 0 && trigger > sl ? `(${slPct.toFixed(1)}%)` : ''}`}
           value={sl}
           onChange={onSl}
           step={0.5}
-          color="var(--color-sell)"
+          tone="negative"
         />
       </div>
       {rr != null && (
-        <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginBottom: 18 }}>
+        <div className="mb-4 text-xs text-on-surface-variant">
           Risk / reward ratio: <strong>{rr.toFixed(2)}x</strong> (reward / risk)
         </div>
       )}
@@ -66,32 +62,35 @@ function NumField({
   onChange,
   warning,
   step,
-  color,
+  tone,
 }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
   warning?: string | null;
   step?: number;
-  color?: string;
+  tone?: 'positive' | 'negative';
 }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <span style={{ fontSize: 12, color: color ?? 'var(--color-fg-muted)' }}>{label}</span>
-      <input
+    <label className="flex flex-col gap-1">
+      <span
+        className={cn(
+          'text-xs',
+          tone === 'positive' && 'text-positive',
+          tone === 'negative' && 'text-negative',
+          !tone && 'text-on-surface-variant',
+        )}
+      >
+        {label}
+      </span>
+      <Input
         type="number"
         value={Number.isFinite(value) ? value : 0}
         step={step ?? 1}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{
-          padding: 10,
-          borderRadius: 8,
-          background: 'var(--color-bg-muted)',
-          color: 'var(--color-fg)',
-          border: `1px solid ${warning ? 'var(--color-warn)' : 'var(--color-border)'}`,
-        }}
+        className={warning ? 'border-tertiary' : undefined}
       />
-      {warning && <span style={{ fontSize: 11, color: 'var(--color-warn)' }}>{warning}</span>}
+      {warning && <span className="text-[11px] text-tertiary">{warning}</span>}
     </label>
   );
 }

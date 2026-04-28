@@ -16,6 +16,9 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { ensureNotificationPermission } from '@/lib/notifications/permission';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 /**
  * Screen 1 — Mandate Setup
@@ -113,8 +116,8 @@ export default function MandatePage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px' }}>
-      <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
+    <main className="mx-auto max-w-[720px] px-6 py-12">
+      <Link href="/" className="text-sm text-on-surface-variant hover:text-on-surface">
         ← Home
       </Link>
 
@@ -122,22 +125,13 @@ export default function MandatePage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        style={{ marginTop: 16, marginBottom: 32 }}
+        className="mt-4 mb-8"
       >
-        <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginBottom: 4 }}>
+        <div className="mb-1 text-xs uppercase tracking-wider text-on-surface-variant">
           MANDATE SETUP
         </div>
-        <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.02em' }}>
-          Define your trading mandate
-        </h1>
-        <p
-          style={{
-            color: 'var(--color-fg-muted)',
-            marginTop: 8,
-            fontSize: 15,
-            maxWidth: 560,
-          }}
-        >
+        <h1 className="text-4xl font-extrabold tracking-tight">Define your trading mandate</h1>
+        <p className="mt-2 max-w-[560px] text-base text-on-surface-variant">
           Tell the AI signal engine how you want to trade. Every BUY proposal will be sized,
           priced, and reasoned against these parameters.
         </p>
@@ -190,15 +184,14 @@ export default function MandatePage() {
         title="Max trade size"
         sub="Hard upper bound for each proposal's suggested USD size."
       >
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 280 }}>
-          <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>USD per trade</span>
-          <input
+        <label className="flex max-w-[280px] flex-col gap-2">
+          <span className="text-sm text-on-surface-variant">USD per trade</span>
+          <Input
             type="number"
             min={10}
             step={10}
             value={maxTradeSize}
             onChange={(e) => setMaxTradeSize(Number(e.target.value))}
-            style={inputStyle}
           />
         </label>
       </Section>
@@ -246,19 +239,12 @@ export default function MandatePage() {
         </div>
       </Section>
 
-      <div style={{ marginTop: 32, display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button
-          className="btn btn-primary"
-          disabled={!canSubmit}
-          onClick={() => void submit()}
-          style={{ padding: '14px 28px', fontSize: 16 }}
-        >
+      <div className="mt-8 flex items-center gap-3">
+        <Button size="lg" disabled={!canSubmit} onClick={() => void submit()}>
           {loading ? 'Saving…' : 'Start Desk →'}
-        </button>
+        </Button>
         {!connected && !demo && (
-          <span style={{ color: 'var(--color-warn)', fontSize: 13 }}>
-            Connect a wallet to save.
-          </span>
+          <span className="text-sm text-positive">Connect a wallet to save.</span>
         )}
       </div>
     </main>
@@ -283,13 +269,13 @@ function Section({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: step * 0.05 }}
-      style={{ marginBottom: 32 }}
+      className="mb-8"
     >
-      <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', letterSpacing: '0.06em' }}>
+      <div className="text-xs uppercase tracking-wider text-on-surface-variant">
         {step}/{total}
       </div>
-      <h2 style={{ fontSize: 22, fontWeight: 700, margin: '4px 0 4px' }}>{title}</h2>
-      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 16 }}>{sub}</p>
+      <h2 className="mt-1 mb-1 text-xl font-bold">{title}</h2>
+      <p className="mb-4 text-sm text-on-surface-variant">{sub}</p>
       {children}
     </motion.section>
   );
@@ -309,32 +295,17 @@ function Choice({
   return (
     <button
       onClick={onClick}
-      style={{
-        textAlign: 'left',
-        padding: '12px 14px',
-        borderRadius: 10,
-        background: selected ? 'rgba(124,92,255,0.16)' : 'var(--color-bg-muted)',
-        border: `1px solid ${selected ? 'var(--color-accent)' : 'var(--color-border)'}`,
-        color: 'var(--color-fg)',
-        cursor: 'pointer',
-        transition: 'background 120ms ease, border 120ms ease',
-      }}
+      className={cn(
+        'rounded-lg border bg-surface-container px-4 py-3 text-left text-on-surface transition-colors',
+        selected
+          ? 'border-primary bg-accent-soft'
+          : 'border-outline-variant hover:bg-surface-container-high',
+      )}
     >
-      <div style={{ fontWeight: 600, fontSize: 15 }}>{title}</div>
+      <div className="text-base font-semibold">{title}</div>
       {caption && (
-        <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginTop: 2 }}>
-          {caption}
-        </div>
+        <div className="mt-0.5 text-xs text-on-surface-variant">{caption}</div>
       )}
     </button>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: 12,
-  borderRadius: 10,
-  background: 'var(--color-bg-muted)',
-  color: 'var(--color-fg)',
-  border: '1px solid var(--color-border)',
-  fontSize: 16,
-};

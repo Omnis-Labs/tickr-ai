@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 function shorten(addr: string): string {
@@ -13,74 +14,46 @@ export function WalletButton() {
 
   if (!ready) {
     return (
-      <button className="btn btn-ghost" disabled>
+      <Button variant="ghost" disabled>
         Loading…
-      </button>
+      </Button>
     );
   }
 
   if (!connected || !address) {
-    return (
-      <button className="btn btn-primary" onClick={login}>
-        Connect
-      </button>
-    );
+    return <Button onClick={login}>Connect</Button>;
   }
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button
-        className="btn btn-ghost"
-        onClick={() => setOpen((v) => !v)}
-        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-      >
+    <div className="relative">
+      <Button variant="ghost" className="font-mono" onClick={() => setOpen((v) => !v)}>
         {shorten(address)} ▾
-      </button>
+      </Button>
       {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            right: 0,
-            background: 'var(--color-panel)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 10,
-            padding: 6,
-            minWidth: 200,
-            boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-            zIndex: 50,
-          }}
-        >
-          <div
-            style={{
-              padding: '8px 10px',
-              fontSize: 11,
-              color: 'var(--color-fg-muted)',
-              wordBreak: 'break-all',
-            }}
-          >
+        <div className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[200px] rounded-lg border border-outline-variant bg-surface p-1.5 shadow-card">
+          <div className="break-all px-2.5 py-2 text-[11px] text-on-surface-variant">
             {address}
           </div>
-          <button
-            className="btn btn-ghost"
-            style={{ width: '100%', justifyContent: 'flex-start' }}
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
             onClick={() => {
               setOpen(false);
               void navigator.clipboard.writeText(address);
             }}
           >
             Copy address
-          </button>
-          <button
-            className="btn btn-ghost"
-            style={{ width: '100%', justifyContent: 'flex-start' }}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
             onClick={() => {
               setOpen(false);
               void logout();
             }}
           >
             Disconnect
-          </button>
+          </Button>
         </div>
       )}
     </div>

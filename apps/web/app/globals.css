@@ -34,6 +34,10 @@
   --color-on-secondary: #cfe2ff;
   --color-secondary-container: #122036;
   --color-on-secondary-container: #cfe2ff;
+  --color-tertiary: var(--color-warn);
+  --color-on-tertiary: #2d1b00;
+  --color-tertiary-container: rgba(245, 158, 11, 0.18);
+  --color-on-tertiary-container: #ffe5a8;
   --color-surface: var(--color-panel);
   --color-surface-dim: var(--color-bg);
   --color-surface-bright: var(--color-panel-2);

@@ -1,5 +1,8 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+
 interface DemoSimulatorProps {
   onSimTp: () => void;
   onSimSl: () => void;
@@ -11,25 +14,23 @@ interface DemoSimulatorProps {
  */
 export function DemoSimulator({ onSimTp, onSimSl }: DemoSimulatorProps) {
   return (
-    <div
-      className="card"
-      style={{
-        background: 'rgba(245,158,11,0.06)',
-        border: '1px dashed rgba(245,158,11,0.35)',
-        marginBottom: 16,
-      }}
-    >
-      <div style={{ fontSize: 11, color: 'var(--color-warn)', marginBottom: 8 }}>
-        DEMO ONLY · SIMULATE OCO FILL
-      </div>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button className="btn btn-buy" style={{ flex: 1 }} onClick={onSimTp}>
-          Simulate TP fill
-        </button>
-        <button className="btn btn-sell" style={{ flex: 1 }} onClick={onSimSl}>
-          Simulate SL fill
-        </button>
-      </div>
-    </div>
+    <Card className="mb-4 border-dashed border-tertiary/40 bg-tertiary-container/20">
+      <CardContent className="p-5">
+        <div className="mb-2 text-xs uppercase tracking-wider text-tertiary">
+          DEMO ONLY · SIMULATE OCO FILL
+        </div>
+        <div className="flex gap-3">
+          <Button
+            className="flex-1 bg-positive text-on-positive hover:bg-positive/80"
+            onClick={onSimTp}
+          >
+            Simulate TP fill
+          </Button>
+          <Button variant="destructive" className="flex-1" onClick={onSimSl}>
+            Simulate SL fill
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

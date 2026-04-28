@@ -2,6 +2,9 @@
 
 import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { ProposalsFeed } from '@/components/proposal-modal/proposals-feed';
 import { HoldingsList } from '@/components/portfolio/holdings-list';
@@ -13,53 +16,31 @@ const cardVariants: Variants = {
 };
 
 export default function LandingPage() {
+  const demo = isDemo();
+
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        padding: '64px 24px',
-        maxWidth: 1040,
-        margin: '0 auto',
-      }}
-    >
-      <nav
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 64,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            letterSpacing: '-0.02em',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          Hunch It<span style={{ color: 'var(--color-accent)' }}>.</span>
-          {isDemo() && (
-            <span
-              className="badge"
-              style={{ background: 'rgba(245,158,11,0.18)', color: 'var(--color-warn)' }}
-            >
+    <main className="mx-auto max-w-[1040px] min-h-screen px-6 py-16">
+      <nav className="mb-16 flex items-center justify-between">
+        <div className="flex items-baseline gap-3 text-xl font-bold tracking-tight">
+          <span>
+            Hunch It<span className="text-accent">.</span>
+          </span>
+          {demo && (
+            <Badge variant="outline" className="border-positive text-positive">
               DEMO
-            </span>
+            </Badge>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <Link href="/portfolio" className="btn btn-ghost">
-            Portfolio
-          </Link>
-          <Link href="/mandate" className="btn btn-ghost">
-            Mandate
-          </Link>
-          <Link href="/settings" className="btn btn-ghost">
-            Settings
-          </Link>
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/portfolio">Portfolio</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/mandate">Mandate</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/settings">Settings</Link>
+          </Button>
           <WalletButton />
         </div>
       </nav>
@@ -68,22 +49,14 @@ export default function LandingPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        style={{ marginBottom: 48 }}
+        className="mb-12"
       >
-        <h1
-          style={{
-            fontSize: 64,
-            lineHeight: 1.05,
-            fontWeight: 800,
-            letterSpacing: '-0.03em',
-            marginBottom: 16,
-          }}
-        >
+        <h1 className="mb-4 text-[64px] font-extrabold leading-[1.05] tracking-[-0.03em]">
           AI trading signals for
           <br />
-          <span style={{ color: 'var(--color-accent)' }}>tokenized US stocks.</span>
+          <span className="text-accent">tokenized US stocks.</span>
         </h1>
-        <p style={{ fontSize: 18, color: 'var(--color-fg-muted)', maxWidth: 640 }}>
+        <p className="max-w-[640px] text-lg text-on-surface-variant">
           Set your mandate, then let the AI signal engine produce personalised BUY proposals on
           tokenized US stocks and bluechip crypto. One-tap places a Jupiter Trigger Order with
           auto TP / SL.
@@ -97,46 +70,48 @@ export default function LandingPage() {
           hidden: {},
           show: { transition: { staggerChildren: 0.08, delayChildren: 0.15 } },
         }}
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}
+        className="grid grid-cols-3 gap-4"
       >
         <motion.div variants={cardVariants}>
-          <Link
-            href="/mandate"
-            className="card"
-            style={{ textDecoration: 'none', display: 'block' }}
-          >
-            <div style={{ color: 'var(--color-accent)', fontSize: 13, marginBottom: 8 }}>
-              STEP 1 · DEFINE MANDATE
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
-              Set your trading rules
-            </div>
-            <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-              Holding period, drawdown tolerance, max trade size, sectors to watch.
-            </div>
+          <Link href="/mandate" className="block">
+            <Card className="h-full transition-transform hover:scale-[1.01]">
+              <CardContent className="p-5">
+                <div className="mb-2 text-xs uppercase tracking-wider text-accent">
+                  STEP 1 · DEFINE MANDATE
+                </div>
+                <div className="mb-1 text-lg font-semibold">Set your trading rules</div>
+                <div className="text-sm text-on-surface-variant">
+                  Holding period, drawdown tolerance, max trade size, sectors to watch.
+                </div>
+              </CardContent>
+            </Card>
           </Link>
         </motion.div>
-        <motion.div className="card" variants={cardVariants}>
-          <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
-            STEP 2 · AI WATCHES
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
-            Personalised proposals
-          </div>
-          <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-            Pyth + indicators + Claude → BUY proposals tailored to your mandate, with TP / SL.
-          </div>
+        <motion.div variants={cardVariants}>
+          <Card className="h-full">
+            <CardContent className="p-5">
+              <div className="mb-2 text-xs uppercase tracking-wider text-on-surface-variant">
+                STEP 2 · AI WATCHES
+              </div>
+              <div className="mb-1 text-lg font-semibold">Personalised proposals</div>
+              <div className="text-sm text-on-surface-variant">
+                Pyth + indicators + Claude → BUY proposals tailored to your mandate, with TP / SL.
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
-        <motion.div className="card" variants={cardVariants}>
-          <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
-            STEP 3 · ONE-TAP EXECUTE
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
-            Trigger order + auto exits
-          </div>
-          <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-            Approve once → Jupiter Trigger Order → auto TP / SL with OCO behaviour.
-          </div>
+        <motion.div variants={cardVariants}>
+          <Card className="h-full">
+            <CardContent className="p-5">
+              <div className="mb-2 text-xs uppercase tracking-wider text-on-surface-variant">
+                STEP 3 · ONE-TAP EXECUTE
+              </div>
+              <div className="mb-1 text-lg font-semibold">Trigger order + auto exits</div>
+              <div className="text-sm text-on-surface-variant">
+                Approve once → Jupiter Trigger Order → auto TP / SL with OCO behaviour.
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
       </motion.section>
 
@@ -144,18 +119,11 @@ export default function LandingPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.2 }}
-        style={{ marginTop: 48 }}
+        className="mt-12"
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 12,
-          }}
-        >
-          <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>Holdings</h2>
-          <Link href="/portfolio" style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-2xl font-bold tracking-tight">Holdings</h2>
+          <Link href="/portfolio" className="text-sm text-on-surface-variant hover:text-on-surface">
             Full portfolio →
           </Link>
         </div>
@@ -166,22 +134,11 @@ export default function LandingPage() {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.25 }}
-        style={{ marginTop: 32 }}
+        className="mt-8"
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 12,
-          }}
-        >
-          <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
-            Proposals feed
-          </h2>
-          <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
-            Sorted by urgency
-          </span>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-2xl font-bold tracking-tight">Proposals feed</h2>
+          <span className="text-sm text-on-surface-variant">Sorted by urgency</span>
         </div>
         <ProposalsFeed limit={8} />
       </motion.section>

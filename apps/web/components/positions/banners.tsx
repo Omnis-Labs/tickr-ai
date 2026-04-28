@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 
 export interface EnterBannerData {
   ticker: string;
@@ -24,44 +25,32 @@ export function EnterBanner({ position, busy, onConfirm }: EnterBannerProps) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="card"
-      style={{
-        background: 'linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.04))',
-        border: '1px solid rgba(245,158,11,0.45)',
-        marginBottom: 16,
-      }}
+      className="mb-4 rounded-2xl border border-tertiary/45 bg-tertiary-container/40 p-5"
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.06em',
-              color: 'var(--color-warn)',
-              marginBottom: 4,
-            }}
-          >
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <div className="mb-1 text-xs uppercase tracking-wider text-tertiary">
             BUY FILLED · ACTION REQUIRED
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>
+          <div className="mb-1 text-base font-bold">
             Place exit orders to activate TP / SL protection
           </div>
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
+          <div className="text-sm leading-relaxed text-on-surface-variant">
             Your BUY filled at ${position.entryPrice.toFixed(2)}. Confirm below to attach a
             take-profit at{' '}
-            <strong style={{ color: 'var(--color-buy)' }}>
+            <strong className="text-positive">
               ${(position.currentTpPrice ?? 0).toFixed(2)}
             </strong>{' '}
             and a stop-loss at{' '}
-            <strong style={{ color: 'var(--color-sell)' }}>
+            <strong className="text-negative">
               ${(position.currentSlPrice ?? 0).toFixed(2)}
             </strong>{' '}
             — each runs as its own Jupiter trigger order.
           </div>
         </div>
-        <button className="btn btn-primary" disabled={busy} onClick={onConfirm}>
+        <Button disabled={busy} onClick={onConfirm}>
           {busy ? 'Placing…' : 'Confirm exit orders'}
-        </button>
+        </Button>
       </div>
     </motion.div>
   );
@@ -76,8 +65,7 @@ interface CancelSiblingBannerProps {
 
 /**
  * Shown when Position.state === 'CLOSED' and the partner TP/SL leg is still
- * parked in Jupiter's vault (non-delegated path). Click → user signs the
- * withdraw + cancel via useJupiterTrigger.cancel.
+ * parked in Jupiter's vault (non-delegated path).
  */
 export function CancelSiblingBanner({
   closedReason,
@@ -92,36 +80,24 @@ export function CancelSiblingBanner({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="card"
-      style={{
-        background: 'linear-gradient(135deg, rgba(124,92,255,0.18), rgba(124,92,255,0.04))',
-        border: '1px solid rgba(124,92,255,0.45)',
-        marginBottom: 16,
-      }}
+      className="mb-4 rounded-2xl border border-primary/45 bg-primary-container/30 p-5"
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.06em',
-              color: 'var(--color-accent-strong)',
-              marginBottom: 4,
-            }}
-          >
+      <div className="flex items-start gap-3">
+        <div className="flex-1">
+          <div className="mb-1 text-xs uppercase tracking-wider text-primary">
             {reasonLabel} · WITHDRAW
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
+          <div className="mb-1 text-base font-bold">
             Cancel the remaining {siblingKind} order
           </div>
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', lineHeight: 1.5 }}>
-            Your {filledKind} has filled. The other leg is still parked in Jupiter's vault — sign
-            once to cancel it and pull the remaining funds back to your wallet.
+          <div className="text-sm leading-relaxed text-on-surface-variant">
+            Your {filledKind} has filled. The other leg is still parked in Jupiter&apos;s vault —
+            sign once to cancel it and pull the remaining funds back to your wallet.
           </div>
         </div>
-        <button className="btn btn-primary" disabled={busy} onClick={onWithdraw}>
+        <Button disabled={busy} onClick={onWithdraw}>
           {busy ? 'Cancelling…' : 'Sign & withdraw'}
-        </button>
+        </Button>
       </div>
     </motion.div>
   );

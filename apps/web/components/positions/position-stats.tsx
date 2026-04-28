@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 export interface PositionStatsData {
   ticker: string;
@@ -25,9 +27,11 @@ interface PositionStatsProps {
 
 export function PositionStats({ position, computed }: PositionStatsProps) {
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Position</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg font-bold">Position</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 gap-3">
         <Stat label="Quantity" value={`${position.tokenAmount.toFixed(4)} ${position.ticker}`} />
         <Stat label="Entry price" value={`$${position.entryPrice.toFixed(2)}`} />
         <Stat label="Mark price" value={`$${position.markPrice.toFixed(2)}`} />
@@ -35,35 +39,43 @@ export function PositionStats({ position, computed }: PositionStatsProps) {
         <Stat
           label="Unrealised P&L"
           value={`${computed.unrealized >= 0 ? '+' : ''}$${computed.unrealized.toFixed(2)} (${computed.unrealizedPct.toFixed(1)}%)`}
-          color={computed.unrealized >= 0 ? 'var(--color-buy)' : 'var(--color-sell)'}
+          tone={computed.unrealized >= 0 ? 'positive' : 'negative'}
         />
         <Stat label="Days held" value={`${computed.days}`} />
         <Stat
           label="Take profit"
           value={position.currentTpPrice ? `$${position.currentTpPrice.toFixed(2)}` : '—'}
-          color="var(--color-buy)"
+          tone="positive"
         />
         <Stat
           label="Stop loss"
           value={position.currentSlPrice ? `$${position.currentSlPrice.toFixed(2)}` : '—'}
-          color="var(--color-sell)"
+          tone="negative"
         />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 interface StatProps {
   label: string;
   value: ReactNode;
-  color?: string;
+  tone?: 'positive' | 'negative';
 }
 
-function Stat({ label, value, color }: StatProps) {
+function Stat({ label, value, tone }: StatProps) {
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 16, fontWeight: 600, color: color ?? 'var(--color-fg)' }}>{value}</div>
+      <div className="mb-0.5 text-xs text-on-surface-variant">{label}</div>
+      <div
+        className={cn(
+          'text-base font-semibold',
+          tone === 'positive' && 'text-positive',
+          tone === 'negative' && 'text-negative',
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
