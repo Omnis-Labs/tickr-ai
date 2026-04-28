@@ -15,6 +15,7 @@ import {
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { ensureNotificationPermission } from '@/lib/notifications/permission';
 
 /**
  * Screen 1 — Mandate Setup
@@ -99,6 +100,10 @@ export default function MandatePage() {
       }
       toast.success('Mandate saved.');
       setSubmitted(true);
+      // The user just signalled they want our proposals. Best moment to
+      // ask for OS notification permission — granted now, hidden-tab
+      // alerts work for the lifetime of the session.
+      void ensureNotificationPermission();
       router.push('/');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));

@@ -34,24 +34,35 @@ export async function readSignal(id: string): Promise<Signal | null> {
 }
 
 // LLM daily spend counter — keyed by UTC date so it auto-resets at 00:00 UTC.
+// Uses Upstash Redis when configured (production / multi-process), otherwise
+// falls back to a per-process in-memory map (single dev process). The cap
+// gating in signals/llm.ts works either way; Redis just lets multiple
+// ws-server instances share the same bucket.
 function todayKey(): string {
   return `llm:spend:${new Date().toISOString().slice(0, 10)}`;
 }
 
+const memSpend = new Map<string, number>();
+
 export async function getLlmSpendUsd(): Promise<number> {
   const c = getRedis();
-  if (!c) return 0;
+  if (!c) return memSpend.get(todayKey()) ?? 0;
   const raw = await c.get<string | number>(todayKey());
   return typeof raw === 'number' ? raw : Number(raw ?? 0);
 }
 
 export async function recordLlmSpendUsd(deltaUsd: number): Promise<number> {
-  const c = getRedis();
-  if (!c) return 0;
   const key = todayKey();
+  const c = getRedis();
+  if (!c) {
+    const next = (memSpend.get(key) ?? 0) + deltaUsd;
+    memSpend.set(key, next);
+    // Drop yesterday's bucket so memSpend doesn't grow forever.
+    for (const k of memSpend.keys()) if (k !== key) memSpend.delete(k);
+    return next;
+  }
   // incrbyfloat keeps a single source of truth across processes.
   const next = await c.incrbyfloat(key, deltaUsd);
-  // expire the key 36h out so historical buckets don't accumulate forever.
   await c.expire(key, 36 * 3600);
   return Number(next);
 }

@@ -23,11 +23,16 @@ export interface EvaluationSummary {
 // call WIN / LOSS. Anything tighter is noise → NEUTRAL.
 const WIN_THRESHOLD_PCT = 0.5;
 
-function classify(pctChange: number, action: 'BUY' | 'HOLD'): 'WIN' | 'LOSS' | 'NEUTRAL' {
+function classify(
+  pctChange: number,
+  action: 'BUY' | 'SELL' | 'HOLD',
+): 'WIN' | 'LOSS' | 'NEUTRAL' {
   if (Math.abs(pctChange) < WIN_THRESHOLD_PCT) return 'NEUTRAL';
-  // BUY: a price rise is good. (HOLD shouldn't reach back-eval in v1.3 since
-  // only BUY proposals get persisted, but we handle it defensively.)
+  // BUY: a price rise after the proposal = correct call.
   if (action === 'BUY') return pctChange > 0 ? 'WIN' : 'LOSS';
+  // SELL (thesis-monitor): a price drop after the alert = correct call,
+  // because the user would have lost money holding. Inverted from BUY.
+  if (action === 'SELL') return pctChange < 0 ? 'WIN' : 'LOSS';
   return 'NEUTRAL';
 }
 
@@ -119,7 +124,7 @@ export async function evaluatePendingSignals(
       const priceAt = p.priceAtProposal.toNumber();
       const pctChange =
         priceAt > 0 ? ((priceAfter - priceAt) / priceAt) * 100 : 0;
-      const outcome = classify(pctChange, p.action as 'BUY' | 'HOLD');
+      const outcome = classify(pctChange, p.action as 'BUY' | 'SELL' | 'HOLD');
 
       await prisma.proposal.update({
         where: { id: p.id },
