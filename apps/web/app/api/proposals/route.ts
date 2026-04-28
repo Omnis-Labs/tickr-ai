@@ -3,6 +3,7 @@ import { demoInitialProposals } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * GET /api/proposals
@@ -29,5 +30,5 @@ export async function GET(req: NextRequest) {
     take: 50,
   });
 
-  return NextResponse.json({ proposals });
+  return NextResponse.json({ proposals: decimalsToNumbers(proposals) });
 }

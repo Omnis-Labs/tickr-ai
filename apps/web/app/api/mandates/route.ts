@@ -4,6 +4,7 @@ import { DEMO_MANDATE, MandateInputSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * GET    /api/mandates                                  Returns the authed user's mandate.
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const mandate = await prisma.mandate.findUnique({ where: { userId: auth.userId } });
-  return NextResponse.json({ mandate });
+  return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
 }
 
 const PostSchema = MandateInputSchema.extend({
@@ -74,7 +75,7 @@ async function upsertMandate(
     },
   });
 
-  return NextResponse.json({ mandate });
+  return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
 }
 
 export async function POST(req: NextRequest) {

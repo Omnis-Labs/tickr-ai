@@ -4,6 +4,7 @@ import { OrderKindSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * Order persistence layer.
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
       });
   }
 
-  return NextResponse.json({ ok: true, order, positionId });
+  return NextResponse.json({ ok: true, order: decimalsToNumbers(order), positionId });
 }
 
 export async function GET(req: NextRequest) {
@@ -142,5 +143,5 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: 'desc' },
   });
-  return NextResponse.json({ orders });
+  return NextResponse.json({ orders: decimalsToNumbers(orders) });
 }

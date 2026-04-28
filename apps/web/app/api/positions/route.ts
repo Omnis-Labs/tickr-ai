@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * GET /api/positions
@@ -21,5 +22,5 @@ export async function GET(req: NextRequest) {
     where: { userId: auth.userId, state: { not: 'CLOSED' } },
     orderBy: { firstEntryAt: 'desc' },
   });
-  return NextResponse.json({ positions });
+  return NextResponse.json({ positions: decimalsToNumbers(positions) });
 }

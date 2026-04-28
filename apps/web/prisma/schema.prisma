@@ -43,9 +43,9 @@ model Mandate {
   id            String   @id @default(cuid())
   userId        String   @unique
   holdingPeriod String   // "1-3 days" | "1-2 weeks" | "1-3 months" | "6+ months"
-  maxDrawdown   Float?   // 0.03 | 0.05 | 0.08 | null (unlimited)
-  maxTradeSize  Float    // USD
-  marketFocus   Json     // string[]: vertical names, or ["no_preference"]
+  maxDrawdown   Decimal? @db.Decimal(5, 4) // 0.0300 | 0.0500 | 0.0800 | null (unlimited)
+  maxTradeSize  Decimal  @db.Decimal(20, 2) // USD
+  marketFocus   Json
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id])
@@ -58,23 +58,23 @@ model Proposal {
   userId                   String
   ticker                   String
   action                   ProposalAction  // BUY only in v1.3
-  suggestedSizeUsd         Float
-  suggestedTriggerPrice    Float
-  suggestedTakeProfitPrice Float
-  suggestedStopLossPrice   Float
+  suggestedSizeUsd         Decimal         @db.Decimal(20, 2)
+  suggestedTriggerPrice    Decimal         @db.Decimal(20, 8)
+  suggestedTakeProfitPrice Decimal         @db.Decimal(20, 8)
+  suggestedStopLossPrice   Decimal         @db.Decimal(20, 8)
   rationale                String          @db.Text
   reasoning                Json            // { what_changed, why_this_trade, why_fits_mandate }
   positionImpact           Json            // { weight_before, weight_after, cash_after, sector_before, sector_after }
-  confidence               Float
-  priceAtProposal          Float
+  confidence               Decimal         @db.Decimal(3, 2)  // 0.00–1.00
+  priceAtProposal          Decimal         @db.Decimal(20, 8)
   indicators               Json            // { rsi, macd, ma20, ma50 }
   status                   ProposalStatus  @default(ACTIVE)
   expiresAt                DateTime
   createdAt                DateTime        @default(now())
 
   evaluatedAt              DateTime?
-  priceAfter               Float?
-  pctChange                Float?
+  priceAfter               Decimal?        @db.Decimal(20, 8)
+  pctChange                Decimal?        @db.Decimal(8, 4)  // signed % e.g. -12.3456
   outcome                  ProposalOutcome?
 
   user                     User            @relation(fields: [userId], references: [id])
@@ -108,16 +108,16 @@ model Position {
   userId         String
   ticker         String
   mint           String
-  tokenAmount    Float
-  entryPrice     Float
-  totalCost      Float
-  currentTpPrice Float?
-  currentSlPrice Float?
+  tokenAmount    Decimal       @db.Decimal(30, 9)
+  entryPrice     Decimal       @db.Decimal(20, 8)
+  totalCost      Decimal       @db.Decimal(20, 2)
+  currentTpPrice Decimal?      @db.Decimal(20, 8)
+  currentSlPrice Decimal?      @db.Decimal(20, 8)
   state          PositionState @default(BUY_PENDING)
   firstEntryAt   DateTime
   closedAt       DateTime?
   closedReason   String?       // "TP_FILLED" | "SL_FILLED" | "USER_CLOSE"
-  realizedPnl    Float?
+  realizedPnl    Decimal?      @db.Decimal(20, 2)
   updatedAt      DateTime      @updatedAt
 
   user           User          @relation(fields: [userId], references: [id])
@@ -136,14 +136,14 @@ model Order {
   positionId      String
   kind            OrderKind   // BUY_TRIGGER | TAKE_PROFIT | STOP_LOSS | CLOSE_SWAP
   side            String      // "BUY" | "SELL"
-  triggerPriceUsd Float?      // null for market swaps
-  sizeUsd         Float
-  tokenAmount     Float?
+  triggerPriceUsd Decimal?    @db.Decimal(20, 8) // null for market swaps
+  sizeUsd         Decimal     @db.Decimal(20, 2)
+  tokenAmount     Decimal?    @db.Decimal(30, 9)
   status          OrderStatus @default(PENDING)
   jupiterOrderId  String?     @unique
   txSignature     String?
-  executionPrice  Float?
-  filledAmount    Float?
+  executionPrice  Decimal?    @db.Decimal(20, 8)
+  filledAmount    Decimal?    @db.Decimal(30, 9)
   filledAt        DateTime?
   slippageBps     Int?
   createdAt       DateTime    @default(now())
@@ -168,19 +168,19 @@ model Trade {
   source                TradeSource
 
   // Proposal-suggested snapshot (immutable)
-  suggestedSizeUsd      Float?
-  suggestedTriggerPrice Float?
-  suggestedTpPrice      Float?
-  suggestedSlPrice      Float?
+  suggestedSizeUsd      Decimal?    @db.Decimal(20, 2)
+  suggestedTriggerPrice Decimal?    @db.Decimal(20, 8)
+  suggestedTpPrice      Decimal?    @db.Decimal(20, 8)
+  suggestedSlPrice      Decimal?    @db.Decimal(20, 8)
 
   // Actual execution
-  actualSizeUsd         Float
-  actualTriggerPrice    Float?
-  actualTpPrice         Float?
-  actualSlPrice         Float?
-  executionPrice        Float?
-  filledAmount          Float?
-  realizedPnl           Float?
+  actualSizeUsd         Decimal     @db.Decimal(20, 2)
+  actualTriggerPrice    Decimal?    @db.Decimal(20, 8)
+  actualTpPrice         Decimal?    @db.Decimal(20, 8)
+  actualSlPrice         Decimal?    @db.Decimal(20, 8)
+  executionPrice        Decimal?    @db.Decimal(20, 8)
+  filledAmount          Decimal?    @db.Decimal(30, 9)
+  realizedPnl           Decimal?    @db.Decimal(20, 2)
 
   createdAt             DateTime    @default(now())
 

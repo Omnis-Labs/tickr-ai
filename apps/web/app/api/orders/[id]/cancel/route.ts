@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * POST /api/orders/[id]/cancel
@@ -47,5 +48,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .catch(() => {});
   }
 
-  return NextResponse.json({ ok: true, order });
+  return NextResponse.json({ ok: true, order: decimalsToNumbers(order) });
 }

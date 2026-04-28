@@ -9,13 +9,23 @@ import { WsServerEvents } from '@hunch-it/shared';
 import { tryDelegatedCancel } from './oco.js';
 import type { JupiterHistoryEntry } from './jupiter-history.js';
 
+// Prisma's Decimal columns return Decimal objects on read; the fill math
+// here just needs plain numbers, so the consumer is responsible for
+// .toNumber() before passing in.
+import type { Prisma } from '@prisma/client';
+
 export type OrderForFill = Awaited<ReturnType<PrismaClient['order']['findMany']>>[number] & {
   user: {
     walletAddress: string;
     privyWalletId: string | null;
     delegationActive: boolean;
   } | null;
-  position: { id: string; ticker: string; tokenAmount: number; entryPrice: number };
+  position: {
+    id: string;
+    ticker: string;
+    tokenAmount: Prisma.Decimal;
+    entryPrice: Prisma.Decimal;
+  };
 };
 
 export async function applyFill(
@@ -60,9 +70,9 @@ export async function applyFill(
     remote.status === 'FILLED'
   ) {
     // TP / SL filled → mark Position CLOSED with realized PnL.
-    const tokenAmount = order.position.tokenAmount;
+    const tokenAmount = order.position.tokenAmount.toNumber();
     const realizedPnl = executionPrice
-      ? (executionPrice - order.position.entryPrice) * tokenAmount
+      ? (executionPrice - order.position.entryPrice.toNumber()) * tokenAmount
       : 0;
     await prisma.position.update({
       where: { id: order.positionId },

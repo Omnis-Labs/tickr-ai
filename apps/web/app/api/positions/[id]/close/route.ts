@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * POST /api/positions/[id]/close
@@ -43,9 +44,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
 
+  // pos.entryPrice is now Prisma.Decimal — convert to number for the simple
+  // PnL formula. For finer precision we'd hold off on .toNumber() until the
+  // very end, but USD pennies of slippage is acceptable at this layer.
   const realizedPnl =
     executionPrice != null && tokenAmount != null
-      ? (executionPrice - pos.entryPrice) * tokenAmount
+      ? (executionPrice - pos.entryPrice.toNumber()) * tokenAmount
       : 0;
 
   const updated = await prisma.position.update({
@@ -58,5 +62,5 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     },
   });
 
-  return NextResponse.json({ ok: true, position: updated });
+  return NextResponse.json({ ok: true, position: decimalsToNumbers(updated) });
 }

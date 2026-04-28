@@ -3,6 +3,7 @@ import { makeDemoProposal } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 function hash(s: string): number {
   let h = 0;
@@ -30,5 +31,5 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!proposal || proposal.userId !== auth.userId) {
     return NextResponse.json({ error: 'proposal not found' }, { status: 404 });
   }
-  return NextResponse.json({ proposal, source: 'postgres' });
+  return NextResponse.json({ proposal: decimalsToNumbers(proposal), source: 'postgres' });
 }

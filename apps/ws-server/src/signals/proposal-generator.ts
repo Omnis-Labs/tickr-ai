@@ -111,21 +111,25 @@ export async function generateProposalsForBaseAnalysis(
 
     try {
       const mandate = user.mandate;
-      const baseSize = mandate.maxTradeSize * 0.4; // 40% of max as default
-      const sizeUsd = clampSize(mandate.maxTradeSize, Math.round(baseSize));
+      // Mandate.maxTradeSize / maxDrawdown are Prisma.Decimal; convert once
+      // for the local arithmetic. USD pennies of error are fine here.
+      const maxTradeSize = mandate.maxTradeSize.toNumber();
+      const maxDrawdown = mandate.maxDrawdown?.toNumber() ?? null;
+      const baseSize = maxTradeSize * 0.4; // 40% of max as default
+      const sizeUsd = clampSize(maxTradeSize, Math.round(baseSize));
       const triggerPrice = +(base.priceAtAnalysis * 0.997).toFixed(2);
       const tpPrice = +(triggerPrice * (1 + base.suggestedTpPct)).toFixed(2);
-      const drawdownCap = mandate.maxDrawdown ?? base.suggestedSlPct;
+      const drawdownCap = maxDrawdown ?? base.suggestedSlPct;
       const slPct = Math.min(base.suggestedSlPct, drawdownCap);
       const slPrice = +(triggerPrice * (1 - slPct)).toFixed(2);
       const ttlMin = HOLDING_PERIOD_TO_TTL_MIN[mandate.holdingPeriod] ?? 60;
 
       const why_fits_mandate =
         `Fits your ${mandate.holdingPeriod} holding period. ` +
-        `Size $${sizeUsd} is within your $${mandate.maxTradeSize.toFixed(0)} max trade size. ` +
+        `Size $${sizeUsd} is within your $${maxTradeSize.toFixed(0)} max trade size. ` +
         `Suggested SL at $${slPrice} caps risk to ${(slPct * 100).toFixed(1)}%${
-          mandate.maxDrawdown != null
-            ? ` (within your ${(mandate.maxDrawdown * 100).toFixed(0)}% drawdown tolerance)`
+          maxDrawdown != null
+            ? ` (within your ${(maxDrawdown * 100).toFixed(0)}% drawdown tolerance)`
             : ''
         }.`;
 
@@ -149,7 +153,7 @@ export async function generateProposalsForBaseAnalysis(
           // phase via /api/portfolio/sync hook.
           positionImpact: {
             weight_before: 0,
-            weight_after: +(sizeUsd / Math.max(5000, mandate.maxTradeSize * 10)).toFixed(3),
+            weight_after: +(sizeUsd / Math.max(5000, maxTradeSize * 10)).toFixed(3),
             cash_after: 0,
             sector_before: 0,
             sector_after: 0,

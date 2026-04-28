@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
+import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
  * GET /api/positions/[id]
@@ -27,5 +28,5 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!position || position.userId !== auth.userId) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
-  return NextResponse.json({ position });
+  return NextResponse.json({ position: decimalsToNumbers(position) });
 }

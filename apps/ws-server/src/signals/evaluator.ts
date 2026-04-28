@@ -114,10 +114,11 @@ export async function evaluatePendingSignals(
         continue;
       }
 
+      // p.priceAtProposal is Prisma.Decimal — cast to number for the simple
+      // pct-change calc. We don't need Decimal precision for a 1h % move.
+      const priceAt = p.priceAtProposal.toNumber();
       const pctChange =
-        p.priceAtProposal > 0
-          ? ((priceAfter - p.priceAtProposal) / p.priceAtProposal) * 100
-          : 0;
+        priceAt > 0 ? ((priceAfter - priceAt) / priceAt) * 100 : 0;
       const outcome = classify(pctChange, p.action as 'BUY' | 'HOLD');
 
       await prisma.proposal.update({
