@@ -1,13 +1,12 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { XSTOCKS, xStockToBare, type DemoProposalShape, type XStockTicker } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { useAuthedFetch } from '@/lib/auth/fetch';
+import { useProposals } from '@/lib/hooks/queries';
 import { useMemo } from 'react';
 
 interface ProposalsFeedProps {
@@ -27,20 +26,9 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   const demo = isDemo();
   const wallet = demo ? 'demo-wallet' : address;
 
-  // Pull seed proposals from /api/proposals so the feed is non-empty even
-  // before the live socket has emitted anything.
-  const authedFetch = useAuthedFetch();
-  const { data, isLoading } = useQuery<{ proposals: DemoProposalShape[] }>({
-    queryKey: ['proposals', wallet],
-    queryFn: async () => {
-      if (!wallet) return { proposals: [] };
-      const r = await authedFetch(`/api/proposals`);
-      if (!r.ok) return { proposals: [] };
-      return r.json();
-    },
-    enabled: !!wallet,
-    refetchInterval: 30_000,
-  });
+  // Pull seed proposals via the centralised hook so cache invalidation from
+  // mutations (skip / execute) updates this feed without local plumbing.
+  const { data, isLoading } = useProposals();
 
   // Live in-memory store (proposal:new pushes append here).
   const live = useProposalsStore((s) => s.order.map((id) => s.proposalsById[id]));

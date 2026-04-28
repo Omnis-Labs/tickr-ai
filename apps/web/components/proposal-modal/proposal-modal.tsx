@@ -18,7 +18,7 @@ import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
-import { useAuthedFetch } from '@/lib/auth/fetch';
+import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { ProposalHeader } from './proposal-header';
 import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
@@ -47,7 +47,8 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const router = useRouter();
   const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
   const { placeBuy, loading: triggerLoading } = useJupiterTrigger();
-  const authedFetch = useAuthedFetch();
+  const persistOrder = usePersistOrder();
+  const skipProposal = useSkipProposal();
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [swapLoading, setSwapLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
@@ -182,36 +183,24 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         expiresAt: Math.floor(new Date(proposal!.expiresAt).getTime() / 1000),
       });
 
-      const persistRes = await authedFetch('/api/orders', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: walletKey,
-          proposalId: proposal!.id,
-          ticker: proposal!.ticker,
-          kind: 'BUY_TRIGGER',
-          side: 'BUY',
-          triggerPriceUsd: trigger,
-          sizeUsd: size,
-          jupiterOrderId: placed.id,
-          txSignature: placed.txSignature,
-          slippageBps: 50,
-          createPosition: {
-            mint: meta.mint,
-            entryPriceEstimate: trigger,
-            tpPrice: tp,
-            slPrice: sl,
-          },
-        }),
+      const persistJson = await persistOrder.mutateAsync({
+        walletAddress: walletKey,
+        proposalId: proposal!.id,
+        ticker: proposal!.ticker,
+        kind: 'BUY_TRIGGER',
+        side: 'BUY',
+        triggerPriceUsd: trigger,
+        sizeUsd: size,
+        jupiterOrderId: placed.id,
+        txSignature: placed.txSignature,
+        slippageBps: 50,
+        createPosition: {
+          mint: meta.mint,
+          entryPriceEstimate: trigger,
+          tpPrice: tp,
+          slPrice: sl,
+        },
       });
-      const persistJson = (await persistRes.json().catch(() => ({}))) as {
-        ok?: boolean;
-        positionId?: string;
-        error?: string;
-      };
-      if (!persistRes.ok || !persistJson.ok) {
-        throw new Error(persistJson.error ?? `persist failed: ${persistRes.status}`);
-      }
 
       toast.success(
         `BUY ${proposal!.ticker} trigger order placed. Vault deposit: ${placed.txSignature.slice(0, 8)}…`,
@@ -238,15 +227,13 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       return;
     }
     if (!demo) {
-      void authedFetch('/api/skips', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+      void skipProposal
+        .mutateAsync({
           proposalId: proposal!.id,
           reason: skipReason,
           detail: skipReason === 'OTHER' ? skipDetail : undefined,
-        }),
-      }).catch(() => {});
+        })
+        .catch(() => {});
     }
     toast(`Proposal skipped (${SKIP_REASON_LABELS[skipReason] ?? skipReason})`);
     onClose('skipped');
