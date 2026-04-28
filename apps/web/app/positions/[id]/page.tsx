@@ -103,6 +103,7 @@ export default function PositionDetailPage() {
             : { bg: 'rgba(144,153,173,0.18)', fg: 'var(--color-fg-muted)', label: 'Closed' };
 
   async function submitTpSl() {
+    if (!position) return;
     const tp = tpDraft === '' ? null : Number(tpDraft);
     const sl = slDraft === '' ? null : Number(slDraft);
     if (tp != null && (!Number.isFinite(tp) || tp <= 0)) {
@@ -129,6 +130,7 @@ export default function PositionDetailPage() {
   }
 
   async function doClose() {
+    if (!position) return;
     setBusy(true);
     try {
       if (!demo) {

@@ -114,6 +114,13 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
       return;
     }
 
+    if (signal.action === 'HOLD') {
+      toast('HOLD signal — no trade executed.');
+      onClose(decision);
+      return;
+    }
+    const action: 'BUY' | 'SELL' = signal.action;
+
     // Yes path: pull mint, run Jupiter Ultra round-trip, persist trade.
     const bare = xStockToBare(signal.ticker as XStockTicker);
     const meta = XSTOCKS[bare];
@@ -134,7 +141,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
     setExecuting(true);
     try {
       const result =
-        signal.action === 'BUY'
+        action === 'BUY'
           ? await swap({
               direction: 'BUY',
               xStockMint: mintForSwap,
@@ -149,11 +156,11 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
             });
 
       const tokenAmount =
-        signal.action === 'BUY'
+        action === 'BUY'
           ? Number(result.outputAmount) / 10 ** meta.decimals
           : Number(result.inputAmount) / 10 ** meta.decimals;
       const usdValue =
-        signal.action === 'BUY'
+        action === 'BUY'
           ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
           : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
       const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : signal.priceAtSignal;
@@ -163,7 +170,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
         useDemoStore.getState().appendTrade({
           signalId: signal.id,
           ticker: signal.ticker,
-          side: signal.action,
+          side: action,
           amountUsd: usdValue,
           tokenAmount,
           executionPrice,
@@ -179,7 +186,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
             walletAddress: walletKey,
             signalId: signal.id,
             ticker: signal.ticker,
-            side: signal.action,
+            side: action,
             amountUsd: usdValue,
             tokenAmount,
             executionPrice,

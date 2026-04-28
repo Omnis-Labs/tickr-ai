@@ -19,7 +19,7 @@ export {
   TradeSourceSchema,
   SkipReasonSchema,
   SkipInputSchema,
-} from './types';
+} from './types.js';
 export type {
   HoldingPeriod,
   MarketFocusVertical,
@@ -37,7 +37,7 @@ export type {
   TradeSource,
   SkipReason,
   SkipInput,
-} from './types';
+} from './types.js';
 
 // ── legacy v1.2 types still used by demo signal loop ─────────────────────
 export {
@@ -56,7 +56,7 @@ export {
   TradeStatusSchema,
   WsClientEvents,
   WsServerEvents,
-} from './types';
+} from './types.js';
 export type {
   ApprovalDecisionPayload,
   Approval,
@@ -71,7 +71,7 @@ export type {
   SignalAction,
   Trade,
   TradeStatus,
-} from './types';
+} from './types.js';
 
 // ── constants ────────────────────────────────────────────────────────────
 export {
@@ -107,7 +107,7 @@ export {
   requirePythFeedId,
   solscanTokenUrl,
   xStockToBare,
-} from './constants';
+} from './constants.js';
 export type {
   BareTicker,
   DrawdownOption,
@@ -115,10 +115,10 @@ export type {
   MarketFocusVerticalDef,
   XStockMeta,
   XStockTicker,
-} from './constants';
+} from './constants.js';
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
-export { createRpcRoundRobin, parseRpcUrls } from './rpc';
+export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
 
 // ── demo fixtures ────────────────────────────────────────────────────────
 export {
@@ -131,9 +131,9 @@ export {
   makeDemoBars,
   makeDemoProposal,
   makeDemoSignal,
-} from './demo';
+} from './demo.js';
 export type {
   DemoPortfolioPosition,
   DemoPortfolioTrade,
   DemoProposalShape,
-} from './demo';
+} from './demo.js';

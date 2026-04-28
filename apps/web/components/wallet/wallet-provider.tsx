@@ -43,7 +43,6 @@ export function WalletContextProvider({ children }: { children: ReactNode }) {
         embeddedWallets: {
           solana: { createOnLogin: 'users-without-wallets' },
         },
-        solanaClusters: [{ name: 'mainnet-beta', rpcUrl: endpoint }],
       }}
     >
       <PrivyWalletBridge>{inner}</PrivyWalletBridge>

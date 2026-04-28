@@ -2,7 +2,7 @@
 // loop can be showcased without Helius / Anthropic / Pyth / Cloud SQL
 // credentials (or even a wallet). All data synthetic.
 
-import type { Bar, IndicatorSnapshot, Signal } from './types';
+import type { Bar, IndicatorSnapshot, Signal } from './types.js';
 
 const SIGNAL_SEEDS: Array<{
   ticker: string;
