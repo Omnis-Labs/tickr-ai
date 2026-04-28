@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
@@ -10,11 +11,18 @@ import { useDemoPositionsStore } from '@/lib/store/demo-positions';
  * Compact Holdings list shown on Home. Pulls from useDemoPositionsStore in
  * demo mode; live mode stubbed (renders empty hint until /api/portfolio
  * aggregator is rewired in Phase D).
+ *
+ * Note: select the *raw* positions array and filter via useMemo. Filtering
+ * inside the Zustand selector returns a new array reference every read and
+ * trips React 19's "getServerSnapshot should be cached" guard, infinite-
+ * looping the render.
  */
 export function HoldingsList() {
   const demo = isDemo();
-  const positions = useDemoPositionsStore((s) =>
-    s.positions.filter((p) => p.state !== 'CLOSED'),
+  const allPositions = useDemoPositionsStore((s) => s.positions);
+  const positions = useMemo(
+    () => allPositions.filter((p) => p.state !== 'CLOSED'),
+    [allPositions],
   );
 
   if (!demo) {

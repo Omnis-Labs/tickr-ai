@@ -30,8 +30,16 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   // mutations (skip / execute) updates this feed without local plumbing.
   const { data, isLoading } = useProposals();
 
-  // Live in-memory store (proposal:new pushes append here).
-  const live = useProposalsStore((s) => s.order.map((id) => s.proposalsById[id]));
+  // Live in-memory store (proposal:new pushes append here). Select the raw
+  // primitives (order + map) and join inside useMemo so the Zustand
+  // selector returns stable references — filtering / mapping inline
+  // returns a new array each render and trips React 19's snapshot guard.
+  const order = useProposalsStore((s) => s.order);
+  const proposalsById = useProposalsStore((s) => s.proposalsById);
+  const live = useMemo(
+    () => order.map((id) => proposalsById[id]),
+    [order, proposalsById],
+  );
 
   // Merge: in-memory first, then API seed (de-duped by id), sorted by expiry.
   const merged = useMemo(() => {
