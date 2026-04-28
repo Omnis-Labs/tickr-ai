@@ -117,6 +117,20 @@ export type {
   XStockTicker,
 } from './constants.js';
 
+// ── Asset registry (preferred lookup for new code) ───────────────────────
+// Existing callsites still use XSTOCKS[xStockToBare(...)] and that's fine —
+// see assets.ts for why we didn't mass-rename.
+export {
+  ASSET_REGISTRY,
+  assetToUnderlyingTicker,
+  getAssetById,
+  getXStockAssets,
+  isCrypto,
+  isXStock,
+  requireAsset,
+} from './assets.js';
+export type { Asset, AssetId, AssetKind } from './assets.js';
+
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
 

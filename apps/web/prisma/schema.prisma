@@ -56,6 +56,10 @@ model Mandate {
 model Proposal {
   id                       String          @id @default(cuid())
   userId                   String
+  /// Stores an AssetId from `packages/shared/src/assets.ts` (e.g. "AAPLx",
+  /// "SOL", "cbBTC"). Column kept as `ticker` for migration safety; treat
+  /// the value space as `AssetId` everywhere — look up metadata via
+  /// `getAssetById(p.ticker)`, not `XSTOCKS[...]`.
   ticker                   String
   action                   ProposalAction  // BUY only in v1.3
   suggestedSizeUsd         Decimal         @db.Decimal(20, 2)
@@ -106,6 +110,7 @@ model Skip {
 model Position {
   id             String        @id @default(cuid())
   userId         String
+  /// AssetId — see Proposal.ticker comment.
   ticker         String
   mint           String
   tokenAmount    Decimal       @db.Decimal(30, 9)
@@ -163,6 +168,7 @@ model Trade {
   userId                String
   positionId            String
   proposalId            String?
+  /// AssetId — see Proposal.ticker comment.
   ticker                String
   side                  String      // "BUY" | "SELL"
   source                TradeSource
