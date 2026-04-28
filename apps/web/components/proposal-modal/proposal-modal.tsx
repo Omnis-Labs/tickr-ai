@@ -6,16 +6,16 @@ import { toast } from 'sonner';
 import {
   DEMO_FAKE_MINT,
   SKIP_REASON_LABELS,
-  USDC_DECIMALS,
   XSTOCKS,
   xStockToBare,
   type DemoProposalShape,
   type SkipReason,
   type XStockTicker,
 } from '@hunch-it/shared';
+import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { isDemo, useDemoStore } from '@/lib/demo';
+import { isDemo } from '@/lib/demo';
+import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 
 type ProposalUI = DemoProposalShape;
@@ -39,9 +39,11 @@ const overlayStyle: React.CSSProperties = {
 
 export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalProps) {
   const { publicKey } = useWallet();
-  const { swap, loading: swapLoading } = useJupiterSwap();
+  const router = useRouter();
+  const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
+  const [swapLoading, setSwapLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
   const [skipOpen, setSkipOpen] = useState(false);
   const [skipReason, setSkipReason] = useState<SkipReason>('TOO_RISKY');
   const [skipDetail, setSkipDetail] = useState('');
@@ -127,6 +129,8 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const slPct = Number.isFinite(slPctRaw) ? slPctRaw : 0;
   const rr = sl > 0 && trigger > sl && tp > trigger ? (tp - trigger) / (trigger - sl) : null;
 
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
   async function handlePlace() {
     if (!walletKey) {
       toast.error('Connect a wallet to place orders.');
@@ -136,51 +140,49 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       toast.error(`Unknown ticker ${proposal!.ticker}`);
       return;
     }
-    const mintForSwap = meta.mint || (demo ? DEMO_FAKE_MINT : '');
-    if (!mintForSwap) {
+    if (!demo) {
       toast.error(
-        `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
+        'Live Jupiter Trigger Order v2 BUY + auto TP/SL OCO is wired in Phase D. Demo mode runs the full UX.',
       );
+      return;
+    }
+    const mintForSwap = meta.mint || DEMO_FAKE_MINT;
+    if (!mintForSwap) {
+      toast.error(`${meta.symbol} mint is empty.`);
       return;
     }
     setExecuting(true);
     try {
-      // v1.3 NOTE: this still uses the legacy Jupiter Ultra path. Phase C
-      // replaces it with Trigger Order v2 (BUY trigger + auto TP/SL OCO).
-      const result = await swap({
-        direction: 'BUY',
-        xStockMint: mintForSwap,
-        xStockDecimals: meta.decimals,
-        usdAmount: size,
+      // Demo simulates the BUY trigger order round-trip so the UX cadence
+      // matches what live Jupiter Trigger Order v2 will look like:
+      //   1) build deposit tx + initial order
+      //   2) wait for wallet signature
+      //   3) submit signed tx + order params
+      // Then we skip BUY_PENDING / ENTERING and snap to ACTIVE with TP/SL
+      // already attached, since there's no real chain to wait for.
+      setSwapLoading('order');
+      await sleep(600);
+      setSwapLoading('sign');
+      await sleep(900);
+      setSwapLoading('execute');
+      await sleep(700);
+      setSwapLoading(null);
+
+      const position = addPosition({
+        proposalId: proposal!.id,
+        ticker: proposal!.ticker,
+        sizeUsd: size,
+        entryPrice: trigger,
+        tpPrice: tp,
+        slPrice: sl,
       });
 
-      const tokenAmount = Number(result.outputAmount) / 10 ** meta.decimals;
-      const usdValue = Number(result.inputAmount) / 10 ** USDC_DECIMALS;
-      const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : trigger;
-
-      if (demo) {
-        useDemoStore.getState().appendTrade({
-          signalId: proposal!.id,
-          ticker: proposal!.ticker,
-          side: 'BUY',
-          amountUsd: usdValue,
-          tokenAmount,
-          executionPrice,
-          realizedPnl: 0,
-          txSignature: result.exec.signature ?? `demo-${Date.now()}`,
-          status: result.exec.status === 'Success' ? 'CONFIRMED' : 'FAILED',
-        });
-      }
-      // Live persistence (Trade table writes) is wired in Phase C alongside
-      // the Trigger Order pipeline.
-
-      if (result.exec.status === 'Success') {
-        toast.success(
-          `BUY ${proposal!.ticker} placed${demo ? ' (demo)' : ''}. TP/SL will attach on fill.`,
-        );
-      } else {
-        toast.error(`Order failed: ${result.exec.error ?? 'unknown'}`);
-      }
+      toast.success(`BUY ${proposal!.ticker} placed (demo). TP/SL attached on fill.`, {
+        action: {
+          label: 'View position',
+          onClick: () => router.push(`/positions/${position.id}`),
+        },
+      });
       onClose('placed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));

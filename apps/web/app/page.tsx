@@ -4,6 +4,7 @@ import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { ProposalsFeed } from '@/components/proposal-modal/proposals-feed';
+import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { isDemo } from '@/lib/demo';
 
 const cardVariants: Variants = {
@@ -144,6 +145,28 @@ export default function LandingPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.2 }}
         style={{ marginTop: 48 }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>Holdings</h2>
+          <Link href="/portfolio" style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
+            Full portfolio →
+          </Link>
+        </div>
+        <HoldingsList />
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.25 }}
+        style={{ marginTop: 32 }}
       >
         <div
           style={{
