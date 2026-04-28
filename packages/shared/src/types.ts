@@ -240,14 +240,29 @@ export type Position = z.infer<typeof PositionSchema>;
 
 // Socket.IO wire events
 export const WsServerEvents = {
+  // legacy v1.2
   SignalNew: 'signal:new',
   SignalExpired: 'signal:expired',
+  // v1.3
+  ProposalNew: 'proposal:new',
+  ProposalExpired: 'proposal:expired',
+  TradeFilled: 'trade:filled',
+  TradeExpired: 'trade:expired',
+  PositionUpdated: 'position:updated',
 } as const;
 
 export const WsClientEvents = {
+  // legacy v1.2
   ApprovalDecision: 'approval:decision',
+  // v1.3
+  Auth: 'auth',
   Ping: 'ping',
 } as const;
+
+export const AuthPayloadSchema = z.object({
+  walletAddress: z.string().min(1),
+});
+export type AuthPayload = z.infer<typeof AuthPayloadSchema>;
 
 export const ApprovalDecisionPayloadSchema = z.object({
   signalId: z.string(),

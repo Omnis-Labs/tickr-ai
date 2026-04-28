@@ -4,18 +4,22 @@ import { BroadcastChannel } from 'broadcast-channel';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import {
+  DEMO_MANDATE,
   WsClientEvents,
   WsServerEvents,
   type ApprovalDecisionPayload,
+  type DemoProposalShape,
   type Signal,
 } from '@hunch-it/shared';
+import { isDemo } from '@/lib/demo/flag';
 
 export const BROADCAST_CHANNEL = 'hunch-it';
 
 type WorkerToTab =
   | { type: 'connected' }
   | { type: 'disconnected'; reason: string }
-  | { type: 'signal:new'; signal: Signal };
+  | { type: 'signal:new'; signal: Signal }
+  | { type: 'proposal:new'; proposal: DemoProposalShape };
 
 type TabToWorker =
   | { type: 'hello' }
@@ -23,6 +27,13 @@ type TabToWorker =
 
 interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
+  onProposal?: (proposal: DemoProposalShape) => void;
+  /**
+   * Wallet to bind this socket to. The hook emits an `auth` event with this
+   * walletAddress on connect so the ws-server can route per-user proposals.
+   * In demo mode, defaults to the demo wallet.
+   */
+  walletAddress?: string;
 }
 
 interface UseSharedWorkerReturn {
@@ -30,12 +41,6 @@ interface UseSharedWorkerReturn {
   sendApproval: (payload: ApprovalDecisionPayload) => void;
 }
 
-/**
- * Attaches the current tab to the Hunch It Shared Worker and subscribes to
- * signal broadcasts. Falls back gracefully in browsers without SharedWorker by
- * still listening to the broadcast-channel (which other tabs / extensions may
- * post to).
- */
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
 
 export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWorkerReturn {
@@ -43,7 +48,13 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const portRef = useRef<MessagePort | null>(null);
   const directSocketRef = useRef<Socket | null>(null);
   const onSignalRef = useRef<((s: Signal) => void) | undefined>(opts.onSignal);
+  const onProposalRef = useRef<((p: DemoProposalShape) => void) | undefined>(opts.onProposal);
   onSignalRef.current = opts.onSignal;
+  onProposalRef.current = opts.onProposal;
+
+  // The wallet address we'll auth as. Demo defaults to the demo userId so
+  // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
+  const wallet = opts.walletAddress ?? (isDemo() ? DEMO_MANDATE.userId : undefined);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -53,14 +64,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       if (msg.type === 'connected') setConnected(true);
       else if (msg.type === 'disconnected') setConnected(false);
       else if (msg.type === 'signal:new') onSignalRef.current?.(msg.signal);
+      else if (msg.type === 'proposal:new') onProposalRef.current?.(msg.proposal);
     }
 
-    // We previously tried `new SharedWorker(new URL('./socket-worker.ts', ...))`
-    // for cross-tab dedup, but Turbopack in Next.js 15 dev doesn't bundle the
-    // worker script — the constructor succeeds but the script load fails async
-    // ('Failed to fetch a worker script.'), and the error doesn't reach our
-    // try/catch. For now we always go direct Socket.IO. Cross-tab dedup is a
-    // production polish item.
     const channel = new BroadcastChannel<WorkerToTab>(BROADCAST_CHANNEL);
     channel.addEventListener('message', handleMessage);
 
@@ -75,6 +81,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on('connect', () => {
       console.info('[ws] direct socket connected', socket.id);
       setConnected(true);
+      if (wallet) {
+        socket.emit(WsClientEvents.Auth, { walletAddress: wallet });
+      }
     });
     socket.on('disconnect', (reason) => {
       console.info('[ws] direct socket disconnected', reason);
@@ -82,6 +91,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.SignalNew, (signal: Signal) => {
       onSignalRef.current?.(signal);
+    });
+    socket.on(WsServerEvents.ProposalNew, (proposal: DemoProposalShape) => {
+      onProposalRef.current?.(proposal);
     });
 
     return () => {
@@ -93,7 +105,8 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       }
       portRef.current = null;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wallet]);
 
   function sendApproval(payload: ApprovalDecisionPayload) {
     const port = portRef.current;
@@ -105,12 +118,11 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       directSocketRef.current.emit(WsClientEvents.ApprovalDecision, payload);
       return;
     }
-    // Last resort: hit the Next API route.
     void fetch('/api/approvals', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
-    });
+    }).catch(() => {});
   }
 
   return { connected, sendApproval };

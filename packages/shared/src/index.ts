@@ -43,6 +43,7 @@ export type {
 export {
   ApprovalDecisionPayloadSchema,
   ApprovalSchema,
+  AuthPayloadSchema,
   BarSchema,
   CronGenerateRequestSchema,
   IndicatorSnapshotSchema,
@@ -59,6 +60,7 @@ export {
 export type {
   ApprovalDecisionPayload,
   Approval,
+  AuthPayload,
   Bar,
   CronGenerateRequest,
   IndicatorSnapshot,
@@ -117,8 +119,14 @@ export {
   DEMO_LEADERBOARD,
   DEMO_MANDATE,
   demoInitialPositions,
+  demoInitialProposals,
   demoInitialTrades,
   makeDemoBars,
+  makeDemoProposal,
   makeDemoSignal,
 } from './demo';
-export type { DemoPortfolioPosition, DemoPortfolioTrade } from './demo';
+export type {
+  DemoPortfolioPosition,
+  DemoPortfolioTrade,
+  DemoProposalShape,
+} from './demo';

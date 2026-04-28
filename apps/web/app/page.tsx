@@ -3,6 +3,7 @@
 import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import { WalletButton } from '@/components/wallet/wallet-button';
+import { ProposalsFeed } from '@/components/proposal-modal/proposals-feed';
 import { isDemo } from '@/lib/demo';
 
 const cardVariants: Variants = {
@@ -136,6 +137,30 @@ export default function LandingPage() {
             Approve once → Jupiter Trigger Order → auto TP / SL with OCO behaviour.
           </div>
         </motion.div>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.2 }}
+        style={{ marginTop: 48 }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: 12,
+          }}
+        >
+          <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' }}>
+            Proposals feed
+          </h2>
+          <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
+            Sorted by urgency
+          </span>
+        </div>
+        <ProposalsFeed limit={8} />
       </motion.section>
     </main>
   );

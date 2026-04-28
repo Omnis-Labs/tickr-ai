@@ -4,6 +4,7 @@ import express, { type Request, type Response } from 'express';
 import { Server as IoServer } from 'socket.io';
 import {
   ApprovalDecisionPayloadSchema,
+  AuthPayloadSchema,
   BARE_TICKERS,
   CronGenerateRequestSchema,
   WsClientEvents,
@@ -78,6 +79,23 @@ const io = new IoServer(httpServer, {
 io.on('connection', (socket) => {
   console.log(`[ws] connected: ${socket.id}`);
 
+  // v1.3: client sends `auth` after connect with its walletAddress (or
+  // `demo-user` in demo mode). We add the socket to a per-user room so the
+  // Proposal Generator can target individual users via io.to().
+  socket.on(WsClientEvents.Auth, (payload: unknown) => {
+    const parsed = AuthPayloadSchema.safeParse(payload);
+    if (!parsed.success) {
+      console.warn('[ws] bad auth payload', parsed.error.flatten());
+      return;
+    }
+    const room = `user:${parsed.data.walletAddress}`;
+    void socket.join(room);
+    console.log(`[ws] ${socket.id} joined ${room}`);
+    socket.emit('auth:ok', { room });
+  });
+
+  // Legacy v1.2 — superseded by Skip table writes from /api/skips, but kept
+  // wired so older clients don't break.
   socket.on(WsClientEvents.ApprovalDecision, async (payload: unknown) => {
     const parsed = ApprovalDecisionPayloadSchema.safeParse(payload);
     if (!parsed.success) {

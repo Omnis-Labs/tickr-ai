@@ -321,3 +321,234 @@ export const DEMO_MANDATE = {
   createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
   updatedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
 };
+
+// ──────────────────────────────────────────────────────────────────────────
+// v1.3 demo proposal fixtures — used by the demo loop in ws-server and the
+// /api/proposals demo branch.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PROPOSAL_TEMPLATES: Array<{
+  ticker: string;
+  sector: string;
+  priceAtProposal: number;
+  rsi: number;
+  macdHist: number;
+  rationale: string;
+  what_changed: string;
+  why_this_trade: string;
+  tpPct: number; // % above entry
+  slPct: number; // % below entry
+}> = [
+  {
+    ticker: 'AAPLx',
+    sector: 'Technology / Software',
+    priceAtProposal: 232.45,
+    rsi: 28.4,
+    macdHist: 0.24,
+    rationale:
+      'AAPLx -3.1% on broad tech selloff. RSI=28.4 oversold. MACD hist flipping +0.24 while price reclaims MA20.',
+    what_changed:
+      'AAPL pulled back -3.1% intraday on broad tech rotation; RSI(14) printed 28.4 (oversold band); 5m MACD histogram crossed from -0.18 to +0.24 in the last 25 minutes.',
+    why_this_trade:
+      'Combination of oversold RSI + MACD histogram flip + price reclaiming the 20-bar SMA is the classic counter-trend long setup. Risk is well-defined since support at $230.10 (3-week low) sits just below the suggested SL.',
+    tpPct: 0.04,
+    slPct: 0.025,
+  },
+  {
+    ticker: 'TSMx',
+    sector: 'Semiconductors',
+    priceAtProposal: 178.2,
+    rsi: 31.1,
+    macdHist: 0.18,
+    rationale:
+      'TSMx -4.2% on sector rotation. 12% below 20-day avg. Portfolio has 0% semis vs mandate.',
+    what_changed:
+      'Semi sector rolled over -3.8% on Friday; TSMx specifically -4.2%, now 12% below 20-day moving average and 6% below 50-day. RSI=31.1, near oversold.',
+    why_this_trade:
+      'Backwardation in TSMx vs sector peers is mean-reverting on ~5-day average. With AI capex narrative still intact and earnings 3 weeks out, dip-buying offers asymmetric R:R against the recent $174 floor.',
+    tpPct: 0.05,
+    slPct: 0.03,
+  },
+  {
+    ticker: 'NVDAx',
+    sector: 'Semiconductors',
+    priceAtProposal: 142.3,
+    rsi: 32.4,
+    macdHist: 0.11,
+    rationale:
+      'NVDAx tagged 50-day SMA $141.80. RSI=32 oversold; volume +30% vs avg. Sector beta favourable.',
+    what_changed:
+      'NVDAx tagged the 50-day SMA at $141.80 for the first time in 3 weeks; volume on the bounce is +30% vs 20-bar average; semi sector breadth improved (5 of 8 names green in the last hour).',
+    why_this_trade:
+      'Touch-and-bounce off long-term moving averages with above-average volume tends to mark short-term lows. Suggested SL at $138 keeps risk to ~3% while the 50-day acts as a clear invalidation level.',
+    tpPct: 0.06,
+    slPct: 0.03,
+  },
+  {
+    ticker: 'SPYx',
+    sector: 'Tokenized ETFs',
+    priceAtProposal: 551.1,
+    rsi: 35.4,
+    macdHist: 0.09,
+    rationale:
+      'SPYx -1.4% intraday, RSI=35. 5m MACD turning positive. Broad benchmark dip into MA20 zone.',
+    what_changed:
+      'Broad-market index pulled back to the 20-bar SMA at $550.20. RSI(14)=35.4. MACD histogram flipped to +0.09 after 4 consecutive negative bars.',
+    why_this_trade:
+      'A measured dip into the MA20 zone with MACD reversing is the highest-frequency long setup on SPYx (62% historical hit rate over the last 90 days based on internal back-eval). Low-vol broad-market exposure fits a swing horizon.',
+    tpPct: 0.02,
+    slPct: 0.012,
+  },
+  {
+    ticker: 'METAx',
+    sector: 'Technology / Software',
+    priceAtProposal: 510.8,
+    rsi: 33.2,
+    macdHist: 0.21,
+    rationale:
+      'METAx pulled to $510 (key support); RSI=33; volume confirms; portfolio underweight large-cap tech.',
+    what_changed:
+      "META retraced 4.5% from last week's high to a $510 horizontal support that held twice in the past 30 days. RSI=33.2, MACD histogram +0.21 after 6 negative bars.",
+    why_this_trade:
+      'Multi-touch horizontal support combined with momentum reversal usually marks a 5-7% swing low. Suggested entry slightly above support to confirm; SL just below the support cluster.',
+    tpPct: 0.04,
+    slPct: 0.025,
+  },
+  {
+    ticker: 'MSFTx',
+    sector: 'Technology / Software',
+    priceAtProposal: 421.8,
+    rsi: 33.1,
+    macdHist: 0.15,
+    rationale:
+      'MSFTx tested MA50 twice; both held. RSI=33; MACD +0.15. Cloud guidance 2 weeks away.',
+    what_changed:
+      'MSFTx tested the 50-bar SMA at $421 twice in the last 5 sessions; both bounces produced higher lows. RSI=33.1, MACD histogram +0.15.',
+    why_this_trade:
+      'Successive higher lows above a key MA with momentum confirmation is the cleanest long-side pattern. Cloud guidance catalyst in 2 weeks adds asymmetric upside; SL below MA50 caps downside.',
+    tpPct: 0.045,
+    slPct: 0.022,
+  },
+  {
+    ticker: 'GOOGLx',
+    sector: 'Technology / Software',
+    priceAtProposal: 170.22,
+    rsi: 29.8,
+    macdHist: 0.09,
+    rationale:
+      'GOOGLx -3.4%; RSI=29.8 oversold. MACD bullish crossover; 5m volume +24% vs avg.',
+    what_changed:
+      'GOOGLx fell 3.4% on the back of broad tech weakness; RSI(14) printed 29.8 (oversold). 5m MACD line crossed above the signal line at $169.80, with volume +24% vs the 20-bar average.',
+    why_this_trade:
+      'Oversold RSI combined with 5-min MACD crossover and confirming volume gives a high-quality reversal entry. Suggested SL just below the recent 5-day low at $167.80 keeps risk contained.',
+    tpPct: 0.05,
+    slPct: 0.018,
+  },
+  {
+    ticker: 'COINx',
+    sector: 'Financials / Fintech',
+    priceAtProposal: 215.4,
+    rsi: 30.5,
+    macdHist: 0.14,
+    rationale:
+      'COINx -5.8% on BTC weakness, but on-chain volume holding. RSI=30. Crypto-correlated dip into support.',
+    what_changed:
+      'COINx -5.8% on the back of BTC retracing 4%; however CEX volume on Coinbase is +12% w/w, suggesting fundamental decoupling. RSI=30.5, MACD histogram +0.14.',
+    why_this_trade:
+      "Beta dip on COINx tends to overshoot when underlying fundamentals (volume) are intact. Mean-reversion candidate with clear stop below $210 (last week's low).",
+    tpPct: 0.06,
+    slPct: 0.025,
+  },
+];
+
+export interface DemoProposalShape {
+  id: string;
+  userId: string;
+  ticker: string;
+  action: 'BUY';
+  suggestedSizeUsd: number;
+  suggestedTriggerPrice: number;
+  suggestedTakeProfitPrice: number;
+  suggestedStopLossPrice: number;
+  rationale: string;
+  reasoning: {
+    what_changed: string;
+    why_this_trade: string;
+    why_fits_mandate: string;
+  };
+  positionImpact: {
+    weight_before: number;
+    weight_after: number;
+    cash_after: number;
+    sector_before: number;
+    sector_after: number;
+  };
+  confidence: number;
+  priceAtProposal: number;
+  indicators: {
+    rsi: number;
+    macd: { macd: number; signal: number; histogram: number };
+    ma20: number;
+    ma50: number;
+  };
+  status: 'ACTIVE';
+  expiresAt: string;
+  createdAt: string;
+}
+
+export function makeDemoProposal(index: number): DemoProposalShape {
+  const t = PROPOSAL_TEMPLATES[Math.abs(index) % PROPOSAL_TEMPLATES.length]!;
+  const now = Date.now();
+  const ttlMin = 30 + Math.floor(Math.random() * 90); // 30–120 min
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `demo-prop-${now}-${index}`;
+  const jitter = 1 + (Math.random() - 0.5) * 0.004;
+  const priceAtProposal = +(t.priceAtProposal * jitter).toFixed(2);
+  const triggerPrice = +(priceAtProposal * (1 - 0.003)).toFixed(2);
+  const tpPrice = +(priceAtProposal * (1 + t.tpPct)).toFixed(2);
+  const slPrice = +(priceAtProposal * (1 - t.slPct)).toFixed(2);
+  const suggestedSize = 100 + Math.floor(Math.random() * 4) * 50; // 100/150/200/250
+  const ma20 = +(priceAtProposal * 0.992).toFixed(2);
+  const ma50 = +(priceAtProposal * 0.978).toFixed(2);
+  return {
+    id,
+    userId: DEMO_MANDATE.userId,
+    ticker: t.ticker,
+    action: 'BUY',
+    suggestedSizeUsd: suggestedSize,
+    suggestedTriggerPrice: triggerPrice,
+    suggestedTakeProfitPrice: tpPrice,
+    suggestedStopLossPrice: slPrice,
+    rationale: t.rationale,
+    reasoning: {
+      what_changed: t.what_changed,
+      why_this_trade: t.why_this_trade,
+      why_fits_mandate: `Fits your ${DEMO_MANDATE.holdingPeriod} holding period; size $${suggestedSize} is within your $${DEMO_MANDATE.maxTradeSize.toFixed(0)} max trade size; suggested SL at $${slPrice} caps risk to ${(t.slPct * 100).toFixed(1)}% (within your ${(DEMO_MANDATE.maxDrawdown! * 100).toFixed(0)}% drawdown tolerance). Adds ${t.sector} exposure that your mandate targets.`,
+    },
+    positionImpact: {
+      weight_before: 0,
+      weight_after: +(suggestedSize / 5000).toFixed(3),
+      cash_after: 5000 - suggestedSize,
+      sector_before: 0.34,
+      sector_after: +(0.34 + suggestedSize / 5000 / 2).toFixed(3),
+    },
+    confidence: +(0.72 + Math.random() * 0.18).toFixed(2),
+    priceAtProposal,
+    indicators: {
+      rsi: t.rsi,
+      macd: { macd: t.macdHist * 2.2, signal: t.macdHist * 1.4, histogram: t.macdHist },
+      ma20,
+      ma50,
+    },
+    status: 'ACTIVE',
+    expiresAt: new Date(now + ttlMin * 60 * 1000).toISOString(),
+    createdAt: new Date(now).toISOString(),
+  };
+}
+
+/** Pre-baked initial set for cold loads of /api/proposals in demo mode. */
+export function demoInitialProposals(count = 4): DemoProposalShape[] {
+  return Array.from({ length: count }, (_, i) => makeDemoProposal(i));
+}
