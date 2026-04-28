@@ -44,7 +44,7 @@ export const MandateSchema = MandateInputSchema.extend({
 });
 export type Mandate = z.infer<typeof MandateSchema>;
 
-export const ProposalActionSchema = z.enum(['BUY']);
+export const ProposalActionSchema = z.enum(['BUY', 'SELL']);
 export type ProposalAction = z.infer<typeof ProposalActionSchema>;
 
 export const ProposalStatusSchema = z.enum(['ACTIVE', 'EXPIRED', 'SKIPPED', 'EXECUTED']);

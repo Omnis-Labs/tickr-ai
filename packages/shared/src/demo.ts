@@ -465,7 +465,7 @@ export interface DemoProposalShape {
   id: string;
   userId: string;
   ticker: string;
-  action: 'BUY';
+  action: 'BUY' | 'SELL';
   suggestedSizeUsd: number;
   suggestedTriggerPrice: number;
   suggestedTakeProfitPrice: number;
@@ -491,6 +491,16 @@ export interface DemoProposalShape {
     ma20: number;
     ma50: number;
   };
+  /** SELL-only — supporting tags from THESIS_TAGS at BUY time. The SELL
+   * modal renders these struck-through to show what flipped. */
+  thesisTags?: string[];
+  /** SELL-only — id of the BUY Proposal whose thesis went stale. */
+  sourceBuyProposalId?: string | null;
+  /** SELL-only — Position to close on confirm. */
+  positionId?: string | null;
+  /** SELL-only — single tag whose flip pushed the count over the
+   *  conservative-majority threshold. */
+  triggeringTag?: string | null;
   status: 'ACTIVE';
   expiresAt: string;
   createdAt: string;

@@ -15,6 +15,7 @@ import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.j
 import { runOrderTracker } from './orders/tracker/index.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
+import { runThesisMonitor } from './signals/thesis-monitor.js';
 import { verifyPrivyToken } from './privy/index.js';
 
 const app = express();
@@ -249,6 +250,46 @@ function startOrderTrackerLoop(): () => void {
   };
 }
 
+function startThesisMonitorLoop(): () => void {
+  if (env.DEMO_MODE) {
+    console.log('[thesis] demo mode — thesis-monitor disabled');
+    return () => {};
+  }
+  const intervalMs = 5 * 60_000;
+  let stopped = false;
+  let busy = false;
+
+  async function tick() {
+    if (busy || stopped) return;
+    const p = getPrisma();
+    if (!p) return;
+    busy = true;
+    try {
+      const s = await runThesisMonitor(p, io);
+      if (s.sellsEmitted > 0 || s.errors > 0) {
+        console.log(
+          `[thesis] positions=${s.positionsChecked} sells=${s.sellsEmitted} errors=${s.errors}`,
+        );
+      }
+    } catch (err) {
+      console.warn('[thesis] tick failed', err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  const kickoff = setTimeout(() => void tick(), 60_000);
+  const handle = setInterval(() => void tick(), intervalMs);
+  console.log(`[thesis] thesis-monitor running every ${intervalMs / 60_000} min`);
+
+  return () => {
+    stopped = true;
+    clearTimeout(kickoff);
+    clearInterval(handle);
+  };
+}
+const stopThesisLoop = startThesisMonitorLoop();
+
 httpServer.listen(env.WS_SERVER_PORT, () => {
   console.log(`[http] hunch-it ws-server listening on :${env.WS_SERVER_PORT}`);
 });
@@ -258,6 +299,7 @@ function shutdown(signal: string): void {
   stopFakeLoop();
   stopEvalLoop();
   stopTrackerLoop();
+  stopThesisLoop();
   io.close();
   void shutdownPrisma();
   httpServer.close(() => process.exit(0));

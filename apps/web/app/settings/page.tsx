@@ -4,16 +4,23 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   HOLDING_PERIOD_OPTIONS,
   MARKET_FOCUS_VERTICALS,
   MAX_DRAWDOWN_OPTIONS,
+  XSTOCKS,
+  xStockToBare,
   type Mandate,
+  type XStockTicker,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { useDemoPositionsStore } from '@/lib/demo/positions';
+import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 
 interface MandateResponse {
   mandate: Mandate | null;
@@ -130,7 +137,197 @@ export default function SettingsPage() {
       </Card>
 
       <DelegationCard wallet={wallet ?? null} />
+      <CloseAllPositionsCard />
     </main>
+  );
+}
+
+/**
+ * Manual "panic close" — iterates every ACTIVE / ENTERING position and
+ * walks them through the same close flow as Position Detail. In demo mode
+ * the demo store mutates synchronously; in live mode each position
+ * requires the user to sign at least one cancel + one swap, so this is
+ * sequential by design (parallel sigs would queue Privy modals on top of
+ * each other).
+ */
+function CloseAllPositionsCard() {
+  const demo = isDemo();
+  const router = useRouter();
+  const positions = useDemoPositionsStore((s) => s.positions);
+  const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
+  const { swap } = useJupiterSwap();
+  const { cancel: cancelTrigger } = useJupiterTrigger();
+  const authedFetch = useAuthedFetch();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Demo positions are already in the store; in live mode we GET them lazily
+  // when the user clicks (the live store isn't subscribed here).
+  const openCount = demo
+    ? positions.filter((p) => p.state !== 'CLOSED').length
+    : null;
+
+  async function closeOne(p: {
+    id: string;
+    ticker: string;
+    tokenAmount: number;
+    markPrice: number;
+  }): Promise<void> {
+    if (demo) {
+      closeDemoPosition(p.id, 'USER_CLOSE', p.markPrice);
+      return;
+    }
+    const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+    if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
+
+    // 1) cancel any open TP/SL legs
+    const ordersRes = await authedFetch('/api/orders');
+    const j = (await ordersRes.json().catch(() => ({}))) as {
+      orders?: Array<{
+        id: string;
+        positionId: string;
+        kind: string;
+        jupiterOrderId: string | null;
+      }>;
+    };
+    for (const o of j.orders ?? []) {
+      if (
+        o.positionId !== p.id ||
+        (o.kind !== 'TAKE_PROFIT' && o.kind !== 'STOP_LOSS') ||
+        !o.jupiterOrderId
+      )
+        continue;
+      try {
+        await cancelTrigger(o.jupiterOrderId);
+        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+      } catch (err) {
+        console.warn(`[close-all] cancel ${o.kind} failed`, err);
+      }
+    }
+
+    // 2) market-sell
+    const sell = await swap({
+      direction: 'SELL',
+      xStockMint: meta.mint,
+      xStockDecimals: meta.decimals,
+      sellAll: true,
+    });
+    const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
+    const usdOut = Number(sell.outputAmount) / 1_000_000;
+    const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
+
+    // 3) persist
+    await authedFetch(`/api/positions/${p.id}/close`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        executionPrice,
+        tokenAmount: tokenAmt,
+        txSignature: sell.exec.signature ?? null,
+      }),
+    }).catch(() => {});
+  }
+
+  async function handleCloseAll() {
+    setBusy(true);
+    try {
+      let targets: Array<{ id: string; ticker: string; tokenAmount: number; markPrice: number }>;
+      if (demo) {
+        targets = positions
+          .filter((p) => p.state !== 'CLOSED')
+          .map((p) => ({
+            id: p.id,
+            ticker: p.ticker,
+            tokenAmount: p.tokenAmount,
+            markPrice: p.markPrice,
+          }));
+      } else {
+        const r = await authedFetch('/api/positions');
+        const j = (await r.json().catch(() => ({ positions: [] }))) as {
+          positions: Array<{
+            id: string;
+            ticker: string;
+            tokenAmount: number;
+            entryPrice: number;
+          }>;
+        };
+        targets = (j.positions ?? []).map((p) => ({
+          id: p.id,
+          ticker: p.ticker,
+          tokenAmount: p.tokenAmount,
+          markPrice: p.entryPrice, // we don't have a live mark in this scope
+        }));
+      }
+
+      if (targets.length === 0) {
+        toast('No open positions.');
+        setConfirm(false);
+        return;
+      }
+
+      setProgress({ done: 0, total: targets.length });
+      for (let i = 0; i < targets.length; i++) {
+        try {
+          await closeOne(targets[i]!);
+        } catch (err) {
+          toast.error(
+            `Close ${targets[i]!.ticker} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        setProgress({ done: i + 1, total: targets.length });
+      }
+      toast.success(`Closed ${targets.length} position${targets.length === 1 ? '' : 's'}.`);
+      router.replace('/');
+    } finally {
+      setBusy(false);
+      setProgress(null);
+      setConfirm(false);
+    }
+  }
+
+  return (
+    <Card title="Panic close">
+      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
+        Cancel every open TP / SL trigger order and market-sell every position you currently
+        hold. Each position needs one wallet signature (cancel) plus one swap signature in live
+        mode.
+        {demo && openCount != null && (
+          <>
+            {' '}
+            Demo store has <strong>{openCount}</strong> open position{openCount === 1 ? '' : 's'}.
+          </>
+        )}
+      </p>
+      {!confirm ? (
+        <button className="btn btn-sell" onClick={() => setConfirm(true)} disabled={busy}>
+          Close all positions
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            className="btn btn-ghost"
+            style={{ flex: 1 }}
+            onClick={() => setConfirm(false)}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn btn-sell"
+            style={{ flex: 2 }}
+            onClick={() => void handleCloseAll()}
+            disabled={busy}
+          >
+            {busy
+              ? progress
+                ? `Closing ${progress.done}/${progress.total}…`
+                : 'Closing…'
+              : 'Confirm close all'}
+          </button>
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -15,6 +15,7 @@ import {
   MARKET_FOCUS_VERTICALS,
   WsServerEvents,
   bareToXStock,
+  extractThesisTags,
   xStockToBare,
   type BareTicker,
 } from '@hunch-it/shared';
@@ -198,6 +199,16 @@ export async function generateProposalsForBaseAnalysis(
           confidence: base.confidence,
           priceAtProposal: base.priceAtAnalysis,
           indicators: base.indicators,
+          // Snapshot of structured thesis tags that are TRUE right now. The
+          // thesis-monitor uses this set as the BUY-time baseline; once a
+          // majority flip false it emits a SELL Proposal.
+          thesisTags: extractThesisTags({
+            rsi: base.indicators.rsi,
+            ma20: base.indicators.ma20,
+            ma50: base.indicators.ma50,
+            price: base.priceAtAnalysis,
+            macd: base.indicators.macd,
+          }),
           status: 'ACTIVE',
           expiresAt: new Date(Date.now() + ttlMin * 60_000),
         },

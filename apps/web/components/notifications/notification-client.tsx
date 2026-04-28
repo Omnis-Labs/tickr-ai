@@ -37,10 +37,12 @@ export function NotificationClient() {
       if (typeof document === 'undefined') return;
       const isHidden = document.hidden;
 
+      const verb = proposal.action === 'SELL' ? 'SELL' : 'BUY';
+
       if (!isHidden) {
         // In-app toast on visible tab — don't auto-push fullscreen since
         // proposals have minutes of TTL (not 30s like legacy signals).
-        toast(`BUY ${proposal.ticker}`, {
+        toast(`${verb} ${proposal.ticker}`, {
           description: proposal.rationale.slice(0, 140),
           action: {
             label: 'Review',
@@ -52,13 +54,13 @@ export function NotificationClient() {
       }
 
       // Hidden tab: OS notification + attention UI.
-      startTitleFlash(`🔔 BUY ${proposal.ticker} — Hunch It`);
+      startTitleFlash(`🔔 ${verb} ${proposal.ticker} — Hunch It`);
       setAlertFavicon();
       playSignalSound();
 
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
-          const n = new Notification(`Hunch It · BUY ${proposal.ticker}`, {
+          const n = new Notification(`Hunch It · ${verb} ${proposal.ticker}`, {
             body: proposal.rationale.slice(0, 200),
             tag: proposal.id,
             requireInteraction: true,

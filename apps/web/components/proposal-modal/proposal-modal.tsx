@@ -22,6 +22,7 @@ import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { ProposalHeader } from './proposal-header';
 import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
+import { SellProposalView } from './sell-proposal-view';
 
 type ProposalUI = DemoProposalShape;
 
@@ -119,6 +120,21 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
             Close
           </button>
         </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Branch on action: SELL has its own thinner view (no size/trigger edit
+  // because the user already holds the position).
+  if (proposal.action === 'SELL') {
+    return (
+      <motion.div
+        style={overlayStyle}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        <SellProposalView proposal={proposal} onClose={onClose} />
       </motion.div>
     );
   }

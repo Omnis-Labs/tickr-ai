@@ -61,7 +61,10 @@ model Proposal {
   /// the value space as `AssetId` everywhere — look up metadata via
   /// `getAssetById(p.ticker)`, not `XSTOCKS[...]`.
   ticker                   String
-  action                   ProposalAction  // BUY only in v1.3
+  /// BUY = AI-driven entry signal. SELL = thesis-invalidation exit signal
+  /// emitted by the ws-server thesis-monitor when the BUY proposal's
+  /// majority of thesis tags re-evaluate to false.
+  action                   ProposalAction
   suggestedSizeUsd         Decimal         @db.Decimal(20, 2)
   suggestedTriggerPrice    Decimal         @db.Decimal(20, 8)
   suggestedTakeProfitPrice Decimal         @db.Decimal(20, 8)
@@ -72,6 +75,19 @@ model Proposal {
   confidence               Decimal         @db.Decimal(3, 2)  // 0.00–1.00
   priceAtProposal          Decimal         @db.Decimal(20, 8)
   indicators               Json            // { rsi, macd, ma20, ma50 }
+  /// Structured thesis tag ids the BUY relied on (see
+  /// packages/shared/src/thesis.ts). Re-checked by the thesis-monitor;
+  /// when majority become false, a SELL Proposal is emitted referencing
+  /// the originating BUY via `sourceBuyProposalId`.
+  thesisTags               Json?           // string[] from THESIS_TAGS
+  /// SELL only — id of the BUY proposal whose thesis is now invalid.
+  sourceBuyProposalId      String?
+  /// SELL only — the Position the user holds that this SELL targets.
+  positionId               String?
+  /// SELL only — the specific tag whose flip pushed the count over the
+  /// majority threshold (informational; the tag set itself lives in
+  /// `thesisTags`).
+  triggeringTag            String?
   status                   ProposalStatus  @default(ACTIVE)
   expiresAt                DateTime
   createdAt                DateTime        @default(now())
@@ -84,9 +100,11 @@ model Proposal {
   user                     User            @relation(fields: [userId], references: [id])
   skips                    Skip[]
   trades                   Trade[]
+  position                 Position?       @relation(fields: [positionId], references: [id])
 
   @@index([userId, status, createdAt])
   @@index([evaluatedAt])
+  @@index([positionId])
 }
 
 // ─── Skip ─────────────────────────────────────────────────────────────────
@@ -128,6 +146,7 @@ model Position {
   user           User          @relation(fields: [userId], references: [id])
   orders         Order[]
   trades         Trade[]
+  proposals      Proposal[]
 
   @@index([userId, state])
   @@index([userId, ticker])
@@ -202,6 +221,7 @@ model Trade {
 
 enum ProposalAction {
   BUY
+  SELL
 }
 
 enum ProposalStatus {

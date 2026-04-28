@@ -131,6 +131,19 @@ export {
 } from './assets.js';
 export type { Asset, AssetId, AssetKind } from './assets.js';
 
+// ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
+export {
+  THESIS_TAGS,
+  evaluateThesis,
+  extractThesisTags,
+  getThesisTag,
+} from './thesis.js';
+export type {
+  ThesisEvaluation,
+  ThesisIndicatorSnapshot,
+  ThesisTagDef,
+} from './thesis.js';
+
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
 
