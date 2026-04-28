@@ -1,11 +1,12 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
-export async function GET(req: NextRequest) {
-  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') ?? '50'), 200);
-  const signals = await prisma.signal.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-  });
-  return NextResponse.json({ signals });
+/**
+ * v1.3 transition: the legacy Signal table is gone. Per-user proposals will
+ * be served by `/api/proposals` once the Proposal Generator lands (Phase B).
+ */
+export async function GET() {
+  return NextResponse.json(
+    { error: 'GET /api/signals is deprecated; use /api/proposals (coming in Phase B)' },
+    { status: 410 },
+  );
 }

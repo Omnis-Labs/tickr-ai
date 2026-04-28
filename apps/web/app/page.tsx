@@ -52,11 +52,11 @@ export default function LandingPage() {
           <Link href="/portfolio" className="btn btn-ghost">
             Portfolio
           </Link>
-          <Link href="/leaderboard" className="btn btn-ghost">
-            Leaderboard
+          <Link href="/mandate" className="btn btn-ghost">
+            Mandate
           </Link>
-          <Link href="/debug/trade" className="btn btn-ghost">
-            /debug/trade
+          <Link href="/settings" className="btn btn-ghost">
+            Settings
           </Link>
           <WalletButton />
         </div>
@@ -82,8 +82,9 @@ export default function LandingPage() {
           <span style={{ color: 'var(--color-accent)' }}>tokenized US stocks.</span>
         </h1>
         <p style={{ fontSize: 18, color: 'var(--color-fg-muted)', maxWidth: 640 }}>
-          Leave Hunch It running in a background tab. Our signal engine watches xStocks on Pyth
-          and pings you with a 30-second window to approve a Jupiter Ultra swap — gas sponsored.
+          Set your mandate, then let the AI signal engine produce personalised BUY proposals on
+          tokenized US stocks and bluechip crypto. One-tap places a Jupiter Trigger Order with
+          auto TP / SL.
         </p>
       </motion.section>
 
@@ -98,35 +99,41 @@ export default function LandingPage() {
       >
         <motion.div variants={cardVariants}>
           <Link
-            href="/onboarding"
+            href="/mandate"
             className="card"
             style={{ textDecoration: 'none', display: 'block' }}
           >
             <div style={{ color: 'var(--color-accent)', fontSize: 13, marginBottom: 8 }}>
-              STEP 1 · 2 MIN
+              STEP 1 · DEFINE MANDATE
             </div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Connect & onboard</div>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+              Set your trading rules
+            </div>
             <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-              Phantom / Solflare / Backpack, notification permission, sound unlock.
+              Holding period, drawdown tolerance, max trade size, sectors to watch.
             </div>
           </Link>
         </motion.div>
         <motion.div className="card" variants={cardVariants}>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
-            STEP 2 · PASSIVE
+            STEP 2 · AI WATCHES
           </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Leave a tab open</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+            Personalised proposals
+          </div>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-            A Shared Worker keeps one socket alive across every tab.
+            Pyth + indicators + Claude → BUY proposals tailored to your mandate, with TP / SL.
           </div>
         </motion.div>
         <motion.div className="card" variants={cardVariants}>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
-            STEP 3 · ON SIGNAL
+            STEP 3 · ONE-TAP EXECUTE
           </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Approve in 30s</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+            Trigger order + auto exits
+          </div>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-            System notification → modal with Yes / No. Click Yes, sign, done.
+            Approve once → Jupiter Trigger Order → auto TP / SL with OCO behaviour.
           </div>
         </motion.div>
       </motion.section>

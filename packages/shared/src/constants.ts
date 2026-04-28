@@ -185,3 +185,135 @@ export const MIN_ACTIONABLE_CONFIDENCE = 0.7;
 export function solscanTokenUrl(mint: string): string {
   return `https://solscan.io/token/${mint}`;
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// v1.3 mandate taxonomy — surface for /mandate Screen 1 + Proposal
+// Generator's market-focus filter.
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface MarketFocusVerticalDef {
+  id: string;
+  label: string;
+  category: 'stocks' | 'etfs' | 'crypto';
+  tickers: string[]; // xStock symbols (with x suffix) or crypto symbols
+}
+
+export const MARKET_FOCUS_VERTICALS: MarketFocusVerticalDef[] = [
+  // Tokenized stocks
+  {
+    id: 'technology_software',
+    label: 'Technology / Software',
+    category: 'stocks',
+    tickers: [
+      'AAPLx',
+      'MSFTx',
+      'GOOGLx',
+      'METAx',
+      'AMZNx',
+      'CRMx',
+      'ORCLx',
+      'PLTRx',
+      'AVGOx',
+      'CRCLx',
+      'ADBEx',
+      'SHOPx',
+    ],
+  },
+  {
+    id: 'semiconductors',
+    label: 'Semiconductors',
+    category: 'stocks',
+    tickers: ['NVDAx', 'TSMx', 'AMDx', 'INTCx', 'AMATx', 'SMHx', 'ASMLx', 'GEVx'],
+  },
+  {
+    id: 'ev_clean_energy',
+    label: 'EV & Clean Energy',
+    category: 'stocks',
+    tickers: ['TSLAx'],
+  },
+  {
+    id: 'financials_fintech',
+    label: 'Financials / Fintech',
+    category: 'stocks',
+    tickers: ['JPMx', 'GSx', 'HOODx', 'COINx', 'BACx', 'MAx', 'Vx', 'PYPLx', 'SQx'],
+  },
+  {
+    id: 'healthcare_pharma',
+    label: 'Healthcare / Pharma',
+    category: 'stocks',
+    tickers: ['LLYx', 'UNHx', 'ABTx', 'JNJx', 'MRKx', 'PFEx'],
+  },
+  {
+    id: 'consumer_retail',
+    label: 'Consumer / Retail',
+    category: 'stocks',
+    tickers: ['MCDx', 'WMTx', 'NKEx', 'SBUXx'],
+  },
+  {
+    id: 'energy_utilities',
+    label: 'Energy / Utilities',
+    category: 'stocks',
+    tickers: ['XLEx', 'XOPx', 'URAx'],
+  },
+  {
+    id: 'crypto_mining',
+    label: 'Crypto Mining',
+    category: 'stocks',
+    tickers: ['MSTRx', 'RIOTx', 'MARAx', 'CLSKx'],
+  },
+  {
+    id: 'industrials',
+    label: 'Industrials',
+    category: 'stocks',
+    tickers: ['CATx', 'DELLx', 'BAx'],
+  },
+  // ETFs
+  {
+    id: 'tokenized_etfs',
+    label: 'Tokenized ETFs',
+    category: 'etfs',
+    tickers: ['SPYx', 'QQQx', 'IWMx', 'VTIx', 'IEMGx', 'VGKx', 'SMHx', 'URAx', 'SGOVx', 'XLEx'],
+  },
+  // Crypto
+  {
+    id: 'bluechip_crypto',
+    label: 'Bluechip Crypto',
+    category: 'crypto',
+    tickers: ['SOL', 'BTC', 'ETH'],
+  },
+];
+
+export interface HoldingPeriodOption {
+  value: string;
+  label: string;
+  caption: string;
+}
+
+export const HOLDING_PERIOD_OPTIONS: HoldingPeriodOption[] = [
+  { value: '1-3 days', label: 'Short-term', caption: '1–3 days' },
+  { value: '1-2 weeks', label: 'Swing', caption: '1–2 weeks' },
+  { value: '1-3 months', label: 'Medium-term', caption: '1–3 months' },
+  { value: '6+ months', label: 'Long-term', caption: '6+ months' },
+];
+
+export interface DrawdownOption {
+  value: number | null;
+  label: string;
+}
+
+export const MAX_DRAWDOWN_OPTIONS: DrawdownOption[] = [
+  { value: 0.03, label: '3%' },
+  { value: 0.05, label: '5%' },
+  { value: 0.08, label: '8%' },
+  { value: null, label: 'No limit' },
+];
+
+export const SKIP_REASON_LABELS: Record<string, string> = {
+  TOO_RISKY: 'Too risky',
+  DISAGREE_THESIS: "Don't agree with the thesis",
+  BAD_TIMING: "Timing doesn't look good",
+  ENOUGH_EXPOSURE: 'Already enough exposure',
+  PRICE_NOT_ATTRACTIVE: 'Price not attractive',
+  TOO_MANY_PROPOSALS: 'Too many proposals',
+  OTHER: 'Other',
+};

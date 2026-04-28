@@ -308,3 +308,16 @@ export const DEMO_LEADERBOARD = {
 // Synthetic xStock mint used by the modal "Yes" path when real mints aren't
 // populated. Never routed on-chain in demo mode.
 export const DEMO_FAKE_MINT = 'DeMoMint11111111111111111111111111111111111';
+
+// Pre-baked mandate so demo /home shows mandate-aware proposals before the
+// user has filled out Screen 1. The /mandate page seeds with these values.
+export const DEMO_MANDATE = {
+  id: 'demo-mandate',
+  userId: 'demo-user',
+  holdingPeriod: '1-2 weeks' as const,
+  maxDrawdown: 0.05,
+  maxTradeSize: 500,
+  marketFocus: ['technology_software', 'semiconductors', 'tokenized_etfs'],
+  createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+  updatedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+};

@@ -2,7 +2,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-AI trading signals with one-tap execution for tokenized stocks & crypto on Solana.
+Mandate-driven AI trading proposals for tokenized stocks & crypto on Solana.
 
 Users define a simple investment mandate, receive AI-assisted BUY proposals for tokenized stocks, tokenized ETFs, and bluechip crypto, then execute those proposals through Jupiter Trigger Orders. After a BUY fills, Hunch automatically places take-profit and stop-loss orders so every position has an exit plan.
 
@@ -24,6 +24,8 @@ Login → Mandate setup → Home → Review BUY proposal → Place Jupiter Trigg
 ```
 
 The app is built around proposals, not a manual trading terminal. In v1, trades start from BUY proposals; exits happen through take-profit, stop-loss, or user-initiated full close.
+
+> **Implementation status (v1.3 Phase A landed)**: schema rewritten to v1.3 (Mandate / Proposal / Skip / Position / Order / Trade with the new state machine), Mandate Setup screen + `/api/mandates` + Settings page wired, legacy `/api/{trades,portfolio,signals}` routes stubbed to 501. Trigger Order pipeline, Proposal Generator, and Auto TP/SL OCO are tracked as Phase B-D. The legacy v1.2 demo signal loop still runs so demo mode stays exercisable.
 
 ## Current Scope
 

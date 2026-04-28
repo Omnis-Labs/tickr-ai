@@ -1,5 +1,149 @@
 import { z } from 'zod';
 
+// ────────────────────────────────────────────────────────────────────────
+// v1.3 — Mandate / Proposal / Skip / Position / Order / Trade
+// ────────────────────────────────────────────────────────────────────────
+
+export const HoldingPeriodSchema = z.enum([
+  '1-3 days',
+  '1-2 weeks',
+  '1-3 months',
+  '6+ months',
+]);
+export type HoldingPeriod = z.infer<typeof HoldingPeriodSchema>;
+
+export const MarketFocusVerticalSchema = z.enum([
+  'no_preference',
+  'technology_software',
+  'semiconductors',
+  'ev_clean_energy',
+  'financials_fintech',
+  'healthcare_pharma',
+  'consumer_retail',
+  'energy_utilities',
+  'crypto_mining',
+  'industrials',
+  'tokenized_etfs',
+  'bluechip_crypto',
+]);
+export type MarketFocusVertical = z.infer<typeof MarketFocusVerticalSchema>;
+
+export const MandateInputSchema = z.object({
+  holdingPeriod: HoldingPeriodSchema,
+  maxDrawdown: z.number().min(0).max(1).nullable(), // 0.03 / 0.05 / 0.08 / null
+  maxTradeSize: z.number().positive(),
+  marketFocus: z.array(MarketFocusVerticalSchema).min(1),
+});
+export type MandateInput = z.infer<typeof MandateInputSchema>;
+
+export const MandateSchema = MandateInputSchema.extend({
+  id: z.string(),
+  userId: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Mandate = z.infer<typeof MandateSchema>;
+
+export const ProposalActionSchema = z.enum(['BUY']);
+export type ProposalAction = z.infer<typeof ProposalActionSchema>;
+
+export const ProposalStatusSchema = z.enum(['ACTIVE', 'EXPIRED', 'SKIPPED', 'EXECUTED']);
+export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
+
+export const ProposalOutcomeSchema = z.enum(['WIN', 'LOSS', 'NEUTRAL']);
+export type ProposalOutcome = z.infer<typeof ProposalOutcomeSchema>;
+
+export const SkipReasonSchema = z.enum([
+  'TOO_RISKY',
+  'DISAGREE_THESIS',
+  'BAD_TIMING',
+  'ENOUGH_EXPOSURE',
+  'PRICE_NOT_ATTRACTIVE',
+  'TOO_MANY_PROPOSALS',
+  'OTHER',
+]);
+export type SkipReason = z.infer<typeof SkipReasonSchema>;
+
+export const PositionStateSchema = z.enum([
+  'BUY_PENDING',
+  'ENTERING',
+  'ACTIVE',
+  'CLOSING',
+  'CLOSED',
+]);
+export type PositionState = z.infer<typeof PositionStateSchema>;
+
+export const OrderKindSchema = z.enum([
+  'BUY_TRIGGER',
+  'TAKE_PROFIT',
+  'STOP_LOSS',
+  'CLOSE_SWAP',
+]);
+export type OrderKind = z.infer<typeof OrderKindSchema>;
+
+export const OrderStatusSchema = z.enum([
+  'PENDING',
+  'OPEN',
+  'FILLED',
+  'PARTIALLY_FILLED',
+  'CANCELLED',
+  'EXPIRED',
+  'FAILED',
+]);
+export type OrderStatus = z.infer<typeof OrderStatusSchema>;
+
+export const TradeSourceSchema = z.enum(['BUY_APPROVAL', 'TP_FILL', 'SL_FILL', 'USER_CLOSE']);
+export type TradeSource = z.infer<typeof TradeSourceSchema>;
+
+export const ProposalReasoningSchema = z.object({
+  what_changed: z.string(),
+  why_this_trade: z.string(),
+  why_fits_mandate: z.string(),
+});
+export type ProposalReasoning = z.infer<typeof ProposalReasoningSchema>;
+
+export const PositionImpactSchema = z.object({
+  weight_before: z.number(),
+  weight_after: z.number(),
+  cash_after: z.number(),
+  sector_before: z.number(),
+  sector_after: z.number(),
+});
+export type PositionImpact = z.infer<typeof PositionImpactSchema>;
+
+export const ProposalSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  ticker: z.string(),
+  action: ProposalActionSchema,
+  suggestedSizeUsd: z.number(),
+  suggestedTriggerPrice: z.number(),
+  suggestedTakeProfitPrice: z.number(),
+  suggestedStopLossPrice: z.number(),
+  rationale: z.string(),
+  reasoning: ProposalReasoningSchema,
+  positionImpact: PositionImpactSchema,
+  confidence: z.number().min(0).max(1),
+  priceAtProposal: z.number(),
+  indicators: z.unknown(),
+  status: ProposalStatusSchema,
+  expiresAt: z.string(),
+  createdAt: z.string(),
+});
+export type Proposal = z.infer<typeof ProposalSchema>;
+
+export const SkipInputSchema = z.object({
+  proposalId: z.string(),
+  reason: SkipReasonSchema,
+  detail: z.string().optional(),
+});
+export type SkipInput = z.infer<typeof SkipInputSchema>;
+
+// ────────────────────────────────────────────────────────────────────────
+// Legacy (v1.2) shapes — still emitted by the demo signal loop and the
+// existing SignalModal until Proposal Generator + ProposalModal land.
+// ────────────────────────────────────────────────────────────────────────
+
 export const SignalActionSchema = z.enum(['BUY', 'SELL', 'HOLD']);
 export type SignalAction = z.infer<typeof SignalActionSchema>;
 

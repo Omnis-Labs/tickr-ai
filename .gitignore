@@ -28,3 +28,7 @@ pnpm-debug.log*
 
 # prisma
 apps/web/prisma/migrations/dev.db*
+
+# local-only planning notes (do not share)
+docs/v1.2-roadmap.md
+docs/spec-hunch-v1.3.md

@@ -216,8 +216,8 @@ export default function OnboardingPage() {
               <button className="btn btn-ghost" onClick={() => setStep(3)}>
                 ← Back
               </button>
-              <Link href="/" className="btn btn-primary">
-                Done →
+              <Link href="/mandate" className="btn btn-primary">
+                Set up mandate →
               </Link>
             </div>
           </>

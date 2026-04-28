@@ -1,3 +1,9 @@
+// v1.3 transition: the legacy Signal/Approval tables are gone. The
+// ws-server signal-emit loop still broadcasts via Socket.IO so demo mode
+// keeps working, but DB writes are no-ops until Phase B (Proposal Generator)
+// lands. The Prisma client itself is still wired so the back-evaluator and
+// Order Tracker (Phase C) can pick it up without further plumbing.
+
 import { PrismaClient } from '@prisma/client';
 import type { Signal } from '@hunch-it/shared';
 import { env } from '../env.js';
@@ -7,60 +13,22 @@ let prisma: PrismaClient | null = null;
 export function getPrisma(): PrismaClient | null {
   if (prisma) return prisma;
   if (!env.DATABASE_URL) return null;
-  prisma = new PrismaClient({
-    log: ['error'],
-  });
+  prisma = new PrismaClient({ log: ['error'] });
   return prisma;
 }
 
+/** v1.3: no-op. Legacy signal table removed; emission still fans out via Socket.IO. */
 export async function persistSignal(signal: Signal): Promise<void> {
-  const p = getPrisma();
-  if (!p) return;
-  try {
-    await p.signal.create({
-      data: {
-        id: signal.id,
-        ticker: signal.ticker,
-        action: signal.action,
-        confidence: signal.confidence,
-        rationale: signal.rationale,
-        ttlSeconds: signal.ttlSeconds,
-        priceAtSignal: signal.priceAtSignal,
-        indicators: signal.indicators as unknown as object,
-        createdAt: new Date(signal.createdAt),
-        expiresAt: new Date(signal.expiresAt),
-      },
-    });
-  } catch (err) {
-    console.warn('[db] persistSignal failed', err);
-  }
+  void signal;
 }
 
+/** v1.3: no-op. Approvals replaced by Skip / Trade flow (Phase B). */
 export async function persistApprovalDecision(input: {
   walletAddress: string;
   signalId: string;
   decision: boolean;
 }): Promise<void> {
-  const p = getPrisma();
-  if (!p) return;
-  try {
-    const user = await p.user.upsert({
-      where: { walletAddress: input.walletAddress },
-      update: {},
-      create: { walletAddress: input.walletAddress },
-    });
-    await p.approval.upsert({
-      where: { userId_signalId: { userId: user.id, signalId: input.signalId } },
-      update: { decision: input.decision, decidedAt: new Date() },
-      create: {
-        userId: user.id,
-        signalId: input.signalId,
-        decision: input.decision,
-      },
-    });
-  } catch (err) {
-    console.warn('[db] persistApprovalDecision failed', err);
-  }
+  void input;
 }
 
 export async function shutdownPrisma(): Promise<void> {

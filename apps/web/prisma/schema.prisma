@@ -1,6 +1,11 @@
-// SignalDesk — shared Prisma schema (GCP Cloud SQL / PostgreSQL 15)
-// Ships the five tables from the bootstrap spec: users, signals, approvals,
-// trades, positions.
+// Hunch It — Prisma schema (Cloud SQL Postgres / PostgreSQL 15 compatible)
+// Aligned to PRD v1.3 (docs/spec-hunch-v1.3.md).
+//
+// v1 → v1.3 migration: Signal / Approval / Trade / Position have been
+// replaced by Proposal / Skip / Order / Trade / Position with the new state
+// machine. The ws-server signal-emit loop continues to broadcast over
+// Socket.IO for demo mode; its DB writes are now no-ops until the Proposal
+// Generator (Phase B) ships.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,95 +16,234 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Users ────────────────────────────────────────────────────────────────
+
 model User {
   id            String     @id @default(cuid())
+  privyUserId   String?    @unique // null for legacy demo wallets
   walletAddress String     @unique
   createdAt     DateTime   @default(now())
-  approvals     Approval[]
-  trades        Trade[]
+
+  mandate       Mandate?
+  proposals     Proposal[]
+  skips         Skip[]
+  orders        Order[]
   positions     Position[]
+  trades        Trade[]
 }
 
-model Signal {
-  id            String         @id @default(cuid())
-  ticker        String
-  action        SignalAction
-  confidence    Float
-  rationale     String         @db.Text
-  ttlSeconds    Int
-  priceAtSignal Float
-  indicators    Json
-  createdAt     DateTime       @default(now())
-  expiresAt     DateTime
+// ─── Mandate ──────────────────────────────────────────────────────────────
 
-  // Back-evaluation: filled in by the 5-min cron once createdAt+1h has elapsed.
-  // priceAfter = close of the 5-min Pyth Benchmarks bar containing createdAt+1h.
-  // pctChange  = (priceAfter - priceAtSignal) / priceAtSignal.
-  // outcome    = WIN / LOSS / NEUTRAL (HOLD or |pctChange| < 0.1%).
-  evaluatedAt   DateTime?
-  priceAfter    Float?
-  pctChange     Float?
-  outcome       SignalOutcome?
+model Mandate {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  holdingPeriod String   // "1-3 days" | "1-2 weeks" | "1-3 months" | "6+ months"
+  maxDrawdown   Float?   // 0.03 | 0.05 | 0.08 | null (unlimited)
+  maxTradeSize  Float    // USD
+  marketFocus   Json     // string[]: vertical names, or ["no_preference"]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+}
 
-  approvals     Approval[]
-  trades        Trade[]
+// ─── Proposal ─────────────────────────────────────────────────────────────
 
-  @@index([createdAt])
-  @@index([ticker, createdAt])
+model Proposal {
+  id                       String          @id @default(cuid())
+  userId                   String
+  ticker                   String
+  action                   ProposalAction  // BUY only in v1.3
+  suggestedSizeUsd         Float
+  suggestedTriggerPrice    Float
+  suggestedTakeProfitPrice Float
+  suggestedStopLossPrice   Float
+  rationale                String          @db.Text
+  reasoning                Json            // { what_changed, why_this_trade, why_fits_mandate }
+  positionImpact           Json            // { weight_before, weight_after, cash_after, sector_before, sector_after }
+  confidence               Float
+  priceAtProposal          Float
+  indicators               Json            // { rsi, macd, ma20, ma50 }
+  status                   ProposalStatus  @default(ACTIVE)
+  expiresAt                DateTime
+  createdAt                DateTime        @default(now())
+
+  evaluatedAt              DateTime?
+  priceAfter               Float?
+  pctChange                Float?
+  outcome                  ProposalOutcome?
+
+  user                     User            @relation(fields: [userId], references: [id])
+  skips                    Skip[]
+  trades                   Trade[]
+
+  @@index([userId, status, createdAt])
   @@index([evaluatedAt])
 }
 
-model Approval {
-  id         String   @id @default(cuid())
+// ─── Skip ─────────────────────────────────────────────────────────────────
+
+model Skip {
+  id         String     @id @default(cuid())
   userId     String
-  signalId   String
-  decision   Boolean
-  decidedAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  signal     Signal   @relation(fields: [signalId], references: [id])
+  proposalId String
+  reason     SkipReason
+  detail     String?
+  createdAt  DateTime   @default(now())
+  user       User       @relation(fields: [userId], references: [id])
+  proposal   Proposal   @relation(fields: [proposalId], references: [id])
 
-  @@unique([userId, signalId])
+  @@unique([userId, proposalId])
 }
 
-model Trade {
-  id             String   @id @default(cuid())
-  userId         String
-  signalId       String?
-  ticker         String
-  side           String
-  amountUsd      Float
-  tokenAmount    Float
-  executionPrice Float
-  txSignature    String   @unique
-  status         String
-  realizedPnl    Float    @default(0)
-  createdAt      DateTime @default(now())
-  user           User     @relation(fields: [userId], references: [id])
-  signal         Signal?  @relation(fields: [signalId], references: [id])
-
-  @@index([userId, createdAt])
-}
+// ─── Position ─────────────────────────────────────────────────────────────
+// One row per independent position (same user × ticker may have many).
 
 model Position {
-  id          String   @id @default(cuid())
-  userId      String
-  ticker      String
-  tokenAmount Float
-  avgCost     Float
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id])
+  id             String        @id @default(cuid())
+  userId         String
+  ticker         String
+  mint           String
+  tokenAmount    Float
+  entryPrice     Float
+  totalCost      Float
+  currentTpPrice Float?
+  currentSlPrice Float?
+  state          PositionState @default(BUY_PENDING)
+  firstEntryAt   DateTime
+  closedAt       DateTime?
+  closedReason   String?       // "TP_FILLED" | "SL_FILLED" | "USER_CLOSE"
+  realizedPnl    Float?
+  updatedAt      DateTime      @updatedAt
 
-  @@unique([userId, ticker])
+  user           User          @relation(fields: [userId], references: [id])
+  orders         Order[]
+  trades         Trade[]
+
+  @@index([userId, state])
+  @@index([userId, ticker])
 }
 
-enum SignalAction {
+// ─── Order ────────────────────────────────────────────────────────────────
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String
+  positionId      String
+  kind            OrderKind   // BUY_TRIGGER | TAKE_PROFIT | STOP_LOSS | CLOSE_SWAP
+  side            String      // "BUY" | "SELL"
+  triggerPriceUsd Float?      // null for market swaps
+  sizeUsd         Float
+  tokenAmount     Float?
+  status          OrderStatus @default(PENDING)
+  jupiterOrderId  String?     @unique
+  txSignature     String?
+  executionPrice  Float?
+  filledAmount    Float?
+  filledAt        DateTime?
+  slippageBps     Int?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id])
+  position        Position    @relation(fields: [positionId], references: [id])
+
+  @@index([userId, status])
+  @@index([positionId])
+}
+
+// ─── Trade ────────────────────────────────────────────────────────────────
+
+model Trade {
+  id                    String      @id @default(cuid())
+  userId                String
+  positionId            String
+  proposalId            String?
+  ticker                String
+  side                  String      // "BUY" | "SELL"
+  source                TradeSource
+
+  // Proposal-suggested snapshot (immutable)
+  suggestedSizeUsd      Float?
+  suggestedTriggerPrice Float?
+  suggestedTpPrice      Float?
+  suggestedSlPrice      Float?
+
+  // Actual execution
+  actualSizeUsd         Float
+  actualTriggerPrice    Float?
+  actualTpPrice         Float?
+  actualSlPrice         Float?
+  executionPrice        Float?
+  filledAmount          Float?
+  realizedPnl           Float?
+
+  createdAt             DateTime    @default(now())
+
+  user                  User        @relation(fields: [userId], references: [id])
+  position              Position    @relation(fields: [positionId], references: [id])
+  proposal              Proposal?   @relation(fields: [proposalId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([positionId])
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────
+
+enum ProposalAction {
   BUY
-  SELL
-  HOLD
 }
 
-enum SignalOutcome {
+enum ProposalStatus {
+  ACTIVE
+  EXPIRED
+  SKIPPED
+  EXECUTED
+}
+
+enum ProposalOutcome {
   WIN
   LOSS
   NEUTRAL
+}
+
+enum SkipReason {
+  TOO_RISKY
+  DISAGREE_THESIS
+  BAD_TIMING
+  ENOUGH_EXPOSURE
+  PRICE_NOT_ATTRACTIVE
+  TOO_MANY_PROPOSALS
+  OTHER
+}
+
+enum PositionState {
+  BUY_PENDING
+  ENTERING
+  ACTIVE
+  CLOSING
+  CLOSED
+}
+
+enum OrderKind {
+  BUY_TRIGGER
+  TAKE_PROFIT
+  STOP_LOSS
+  CLOSE_SWAP
+}
+
+enum OrderStatus {
+  PENDING
+  OPEN
+  FILLED
+  PARTIALLY_FILLED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+enum TradeSource {
+  BUY_APPROVAL
+  TP_FILL
+  SL_FILL
+  USER_CLOSE
 }
