@@ -1,26 +1,56 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 
 /**
  * POST /api/positions/[id]/close
  *
- * Per spec §Flow 6 — cancel TP/SL trigger orders, then market-sell remaining
- * tokens via Jupiter Swap, then mark Position state=CLOSED.
+ * Per spec §Flow 6 — the client has already cancelled TP/SL trigger orders
+ * and market-sold the remaining tokens via Jupiter Ultra. This endpoint just
+ * mirrors the result into our Position row so the Order Tracker / portfolio
+ * agree.
  *
- * Demo: the client's useDemoPositionsStore.closePosition mutates state
- * directly. This endpoint just acks.
- *
- * Live: 501 until Phase D wires the Jupiter Swap + Trigger Order cancel flow.
+ * Demo: client-side store does the mutation; the route is a no-op ack.
  */
-export async function POST(_req: Request, _ctx: { params: Promise<{ id: string }> }) {
-  if (isDemoServer()) {
-    return NextResponse.json({ ok: true, demo: true });
+const ClosePayloadSchema = z.object({
+  executionPrice: z.number().positive().nullable().optional(),
+  tokenAmount: z.number().nonnegative().nullable().optional(),
+  txSignature: z.string().nullable().optional(),
+});
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  if (isDemoServer()) return NextResponse.json({ ok: true, demo: true });
+  if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = ClosePayloadSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid payload', issues: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
-  return NextResponse.json(
-    {
-      error:
-        'POST /api/positions/[id]/close is wired in Phase D (Jupiter Trigger Order cancel + Swap)',
+  const { executionPrice, tokenAmount } = parsed.data;
+
+  const pos = await prisma.position.findUnique({ where: { id } });
+  if (!pos) return NextResponse.json({ error: 'not found' }, { status: 404 });
+
+  const realizedPnl =
+    executionPrice != null && tokenAmount != null
+      ? (executionPrice - pos.entryPrice) * tokenAmount
+      : 0;
+
+  const updated = await prisma.position.update({
+    where: { id },
+    data: {
+      state: 'CLOSED',
+      closedAt: new Date(),
+      closedReason: 'USER_CLOSE',
+      realizedPnl,
     },
-    { status: 501 },
-  );
+  });
+
+  return NextResponse.json({ ok: true, position: updated });
 }

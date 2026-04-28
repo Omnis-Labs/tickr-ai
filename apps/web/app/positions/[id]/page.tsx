@@ -11,6 +11,7 @@ import { useDemoPositionsStore } from '@/lib/demo/positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
+import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -28,7 +29,47 @@ export default function PositionDetailPage() {
     params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
   );
   const { placeSellExit, cancel: cancelTrigger } = useJupiterTrigger();
+  const { swap } = useJupiterSwap();
   const { address } = useWallet();
+
+  // Fetch + cancel open SELL trigger orders attached to this Position. Returns
+  // a list of the {id, jupiterOrderId, kind} we cancelled. The persistence
+  // ack (POST /api/orders/[id]/cancel) is fire-and-forget on success — the
+  // Order Tracker will still reconcile via Jupiter History.
+  async function cancelSiblingOrders(): Promise<
+    Array<{ id: string; kind: string; jupiterOrderId: string }>
+  > {
+    if (!position) return [];
+    const ordersRes = await fetch(`/api/orders?wallet=${address ?? ''}`);
+    const j = (await ordersRes.json().catch(() => ({}))) as {
+      orders?: Array<{
+        id: string;
+        positionId: string;
+        kind: string;
+        jupiterOrderId: string | null;
+      }>;
+    };
+    const open = (j.orders ?? []).filter(
+      (o) =>
+        o.positionId === position.id &&
+        (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
+        o.jupiterOrderId,
+    );
+    const cancelled: Array<{ id: string; kind: string; jupiterOrderId: string }> = [];
+    for (const o of open) {
+      try {
+        await cancelTrigger(o.jupiterOrderId!);
+        await fetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+        cancelled.push({ id: o.id, kind: o.kind, jupiterOrderId: o.jupiterOrderId! });
+      } catch (err) {
+        // Surface but don't bail — the user may want partial progress.
+        toast.error(
+          `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return cancelled;
+  }
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
@@ -117,13 +158,41 @@ export default function PositionDetailPage() {
     setBusy(true);
     try {
       if (!demo) {
-        toast.error(
-          'Live TP/SL adjust is wired in Phase D (Jupiter Trigger Order in-place edit).',
-        );
+        // Live: cancel the existing TP + SL trigger orders, then re-place at
+        // the new prices. Jupiter Trigger Order v2 has no "edit in place" so
+        // we have to round-trip cancel + place. A nullable price means
+        // "remove that leg" — skip placing it.
+        if (!meta || !meta.mint) {
+          toast.error(`${position.ticker} mint not configured.`);
+          return;
+        }
+        await cancelSiblingOrders();
+        if (tp != null) {
+          await placeSellExit({
+            inputMint: meta.mint,
+            inputDecimals: meta.decimals,
+            tokenAmount: position.tokenAmount,
+            triggerPriceUsd: tp,
+            triggerCondition: 'above',
+          });
+        }
+        if (sl != null) {
+          await placeSellExit({
+            inputMint: meta.mint,
+            inputDecimals: meta.decimals,
+            tokenAmount: position.tokenAmount,
+            triggerPriceUsd: sl,
+            triggerCondition: 'below',
+          });
+        }
+        adjustTpSl(position.id, tp, sl); // mirror in client store for instant UI
+        toast.success('TP / SL re-placed.');
         return;
       }
       adjustTpSl(position.id, tp, sl);
       toast.success('TP / SL updated.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -134,12 +203,35 @@ export default function PositionDetailPage() {
     setBusy(true);
     try {
       if (!demo) {
-        const res = await fetch(`/api/positions/${position.id}/close`, { method: 'POST' });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          toast.error(j.error ?? `${res.status}`);
+        if (!meta || !meta.mint) {
+          toast.error(`${position.ticker} mint not configured.`);
           return;
         }
+        // Live close: cancel both exit orders (so vault funds return to the
+        // wallet), then market-sell the full xStock balance via Jupiter Ultra.
+        await cancelSiblingOrders();
+        const sell = await swap({
+          direction: 'SELL',
+          xStockMint: meta.mint,
+          xStockDecimals: meta.decimals,
+          sellAll: true,
+        });
+        // Persist the close on the server so the Position row flips state +
+        // realizedPnl is recorded. The route now accepts {executionPrice,
+        // tokenAmount, txSignature} so the demo branch + live branch share a
+        // shape.
+        const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
+        const usdOut = Number(sell.outputAmount) / 1_000_000;
+        const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : position.markPrice;
+        await fetch(`/api/positions/${position.id}/close`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            executionPrice,
+            tokenAmount: tokenAmt,
+            txSignature: sell.exec.signature ?? null,
+          }),
+        }).catch(() => {});
       }
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);
