@@ -1,55 +1,57 @@
 "use client";
 
 import { TopAppBar } from '@/components/shell/top-app-bar';
-import { BottomNav } from '@/components/shell/bottom-nav';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
+import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { ProposalsFeed } from '@/components/desk/proposals-feed';
 import { OpenOrders } from '@/components/desk/open-orders';
 import { DepositSection } from '@/components/desk/deposit-section';
 import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
+import { usePortfolio, usePositions } from '@/lib/hooks/queries';
 
-// Mock types for portfolio
-interface MockPosition {
-  id: string;
-  assetId: string;
-  state: string;
-  totalCost: number;
-  tokenAmount: number;
-  entryPrice: number;
-  ticker?: string;
-  name?: string;
-}
-
-// TODO(integration): Fetch portfolio from API/store
 export default function DeskPage() {
   const router = useRouter();
 
-  const isLoading = false;
-  const portfolioError = null;
+  const positionsQuery = usePositions();
+  const portfolioQuery = usePortfolio();
 
-  const positions: MockPosition[] = [
-    {
-      id: 'pos1',
-      assetId: 'sol',
-      state: 'OPEN',
-      totalCost: 1000,
-      tokenAmount: 6.66,
-      entryPrice: 150,
-      ticker: 'SOL',
-      name: 'Solana',
-    }
-  ];
-  const totalValue = 1500;
-  const dayPnl = 50;
-  const dayPnlPct = 0.035;
-  const totalPnl = 100;
-  const totalPnlPct = 0.07;
+  const isLoading = positionsQuery.isLoading || portfolioQuery.isLoading;
+  const portfolioError = positionsQuery.error || portfolioQuery.error;
+
+  const positions = useMemo(
+    () =>
+      (positionsQuery.data?.positions ?? []).map((p) => {
+        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        return {
+          id: p.id,
+          assetId: p.ticker,
+          state: p.state,
+          tokenAmount: p.tokenAmount,
+          entryPrice: p.entryPrice,
+          totalCost: p.tokenAmount * p.entryPrice,
+          ticker: meta?.ticker ?? p.ticker,
+          name: meta?.name ?? p.ticker,
+        };
+      }),
+    [positionsQuery.data],
+  );
+
+  const realized = portfolioQuery.data?.pnl.realized ?? 0;
+  const unrealized = portfolioQuery.data?.pnl.unrealized ?? 0;
+  const totalPnl = realized + unrealized;
+  const dayPnl = unrealized; // 24h delta not tracked separately yet
+  const totalValue = positions.reduce((acc, p) => acc + p.totalCost, 0) + realized;
+  const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
+  const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
   const dayPnlPositive = dayPnl >= 0;
   const totalPnlPositive = totalPnl >= 0;
 
-  const cashUsd = 500;
-  const hasHoldings = positions.filter(p => p.state !== 'CLOSED').length > 0;
+  // Cash = USDC parked in the embedded wallet. /api/portfolio/sync isn't
+  // wired yet; show 0 until that lands.
+  const cashUsd = 0;
+  const hasHoldings = positions.filter((p) => p.state !== 'CLOSED').length > 0;
   const hasCash = cashUsd > 0;
 
   return (
@@ -222,8 +224,6 @@ export default function DeskPage() {
         <OpenOrders />
         <DepositSection />
       </main>
-
-      <BottomNav />
     </>
   );
 }

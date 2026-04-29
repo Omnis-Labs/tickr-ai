@@ -1,48 +1,18 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useOpenOrders } from '@/lib/hooks/queries';
 
-// Mock types
-type OrderKind = 'TAKE_PROFIT' | 'STOP_LOSS' | 'BUY_TRIGGER';
-type OrderStatus = 'OPEN' | 'CLOSED';
-
-interface MockOrder {
-  id: string;
-  kind: OrderKind;
-  status: OrderStatus;
-  assetId: string;
-  positionId: string;
-  sizeUsd: number;
-  triggerPriceUsd?: number;
-  ticker?: string;
-}
-
-// TODO(integration): Fetch open orders from API/store
+/**
+ * Live open-orders widget for /desk. Reads useOpenOrders() (TanStack
+ * Query, 20s refetch); the Order Tracker on the ws-server emits
+ * trade:filled / trade:expired into the same query cache via mutation
+ * invalidation, so the list stays current without per-component
+ * sockets.
+ */
 export function OpenOrders() {
-  const isLoading = false;
-  const error = null;
-  const orders: MockOrder[] = [
-    {
-      id: '1',
-      kind: 'TAKE_PROFIT',
-      status: 'OPEN',
-      assetId: 'btc',
-      positionId: 'pos_1',
-      sizeUsd: 1000,
-      triggerPriceUsd: 65000,
-      ticker: 'BTC',
-    },
-    {
-      id: '2',
-      kind: 'STOP_LOSS',
-      status: 'OPEN',
-      assetId: 'eth',
-      positionId: 'pos_2',
-      sizeUsd: 500,
-      triggerPriceUsd: 3000,
-      ticker: 'ETH',
-    }
-  ];
+  const { data, isLoading, error } = useOpenOrders();
+  const orders = data?.orders ?? [];
 
   return (
     <motion.section 
@@ -83,7 +53,10 @@ export function OpenOrders() {
             const kindLabel = order.kind === 'TAKE_PROFIT' ? 'TP' : order.kind === 'STOP_LOSS' ? 'SL' : order.kind === 'BUY_TRIGGER' ? 'BUY' : order.kind;
             const kindColor = order.kind === 'TAKE_PROFIT' ? 'text-positive' : order.kind === 'STOP_LOSS' ? 'text-negative' : 'text-on-surface';
             const icon = order.kind === 'BUY_TRIGGER' ? 'shopping_cart' : order.kind === 'TAKE_PROFIT' ? 'trending_up' : order.kind === 'STOP_LOSS' ? 'trending_down' : 'swap_vert';
-            const ticker = order.ticker ?? order.assetId ?? order.positionId.slice(0, 8);
+            // OrderRow from /api/orders doesn't carry ticker; we show a
+            // short positionId stub. Position Detail page reveals the full
+            // asset metadata when the user clicks through.
+            const ticker = order.positionId.slice(0, 8);
             const isBuyPending = order.kind === 'BUY_TRIGGER' && order.status === 'OPEN';
             const isEditable = (order.kind === 'TAKE_PROFIT' || order.kind === 'STOP_LOSS') && order.status === 'OPEN';
             return (
