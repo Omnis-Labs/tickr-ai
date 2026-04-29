@@ -50,8 +50,9 @@ COPY packages/shared ./packages/shared
 RUN pnpm --filter @hunch-it/db exec prisma generate
 
 EXPOSE 4000
+# 127.0.0.1 explicitly — see note in apps/web/Dockerfile.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD wget -qO- http://localhost:4000/healthz || exit 1
+  CMD wget -qO- http://127.0.0.1:4000/healthz || exit 1
 
 WORKDIR /repo/apps/ws-server
 # tsx (already a devDependency) reads the .ts source directly. We don't

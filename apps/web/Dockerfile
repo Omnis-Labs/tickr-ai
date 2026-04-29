@@ -83,8 +83,10 @@ COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /repo/apps/web/public ./apps/web/public
 
 EXPOSE 3000
+# 127.0.0.1 explicitly — alpine wget would otherwise resolve `localhost`
+# via getaddrinfo, prefer AAAA, hit [::1]:3000 and fail on the IPv6 leg.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD wget -qO- http://localhost:3000/ || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/ || exit 1
 
 # server.js is emitted at the trace root (repo root), pointing at the web app.
 CMD ["node", "apps/web/server.js"]
