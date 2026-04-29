@@ -47,15 +47,11 @@ export default function ProposalDetailPage() {
 
   if (!loaded) {
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'var(--color-fg-muted)',
-        }}
-      >
-        Loading proposal…
+      <div className="min-h-screen grid place-items-center text-on-surface-variant text-body-md">
+        <div className="flex items-center gap-3">
+          <span className="inline-block w-5 h-5 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
+          Loading proposal…
+        </div>
       </div>
     );
   }

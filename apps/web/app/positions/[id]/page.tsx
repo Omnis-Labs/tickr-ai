@@ -1,11 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { TopAppBar } from '@/components/shell/top-app-bar';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
@@ -17,6 +17,14 @@ import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners
 import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
 import { ClosedSummary, CloseButton } from '@/components/positions/close-button';
 import { DemoSimulator } from '@/components/positions/demo-simulator';
+
+const STATE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  ACTIVE: { bg: 'bg-positive/20', text: 'text-positive', label: 'Active' },
+  BUY_PENDING: { bg: 'bg-accent/30', text: 'text-on-surface', label: 'Buy pending' },
+  ENTERING: { bg: 'bg-accent/30', text: 'text-on-surface', label: 'Entering' },
+  CLOSING: { bg: 'bg-negative/20', text: 'text-negative', label: 'Closing' },
+  CLOSED: { bg: 'bg-surface-container', text: 'text-on-surface-variant', label: 'Closed' },
+};
 
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -60,9 +68,7 @@ export default function PositionDetailPage() {
     };
   }, [position?.id, position?.ticker]);
 
-  const meta = position
-    ? XSTOCKS[xStockToBare(position.ticker as XStockTicker)]
-    : null;
+  const meta = position ? XSTOCKS[xStockToBare(position.ticker as XStockTicker)] : null;
 
   const computed = useMemo(() => {
     if (!position) return null;
@@ -81,31 +87,37 @@ export default function PositionDetailPage() {
 
   if (!position) {
     return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px' }}>
-        <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
-          ← Home
-        </Link>
-        <h1 style={{ fontSize: 28, fontWeight: 800, margin: '16px 0' }}>Position not found</h1>
-        <p style={{ color: 'var(--color-fg-muted)' }}>
-          This position has been closed or doesn't exist on this device.
-        </p>
-      </main>
+      <>
+        <TopAppBar
+          title="Position"
+          leftAction={
+            <button
+              type="button"
+              onClick={() => router.back()}
+              aria-label="Back"
+              className="w-11 h-11 flex items-center justify-center rounded-full bg-surface text-primary"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+          }
+        />
+        <main className="px-5 py-8 max-w-md mx-auto pb-24">
+          <div className="bg-surface rounded-lg p-6 shadow-soft text-center">
+            <div className="w-12 h-12 mx-auto rounded-full bg-surface-container flex items-center justify-center mb-3">
+              <span className="material-symbols-outlined text-on-surface-variant text-[24px]">help</span>
+            </div>
+            <p className="text-title-md text-primary">Position not found</p>
+            <p className="text-body-sm text-on-surface-variant mt-1">
+              This position has been closed or doesn't exist on this device.
+            </p>
+          </div>
+        </main>
+      </>
     );
   }
 
-  const stateBadge =
-    position.state === 'ACTIVE'
-      ? { bg: 'rgba(34,197,94,0.18)', fg: 'var(--color-buy)', label: 'Active' }
-      : position.state === 'BUY_PENDING'
-        ? { bg: 'rgba(245,158,11,0.18)', fg: 'var(--color-warn)', label: 'Buy pending' }
-        : position.state === 'ENTERING'
-          ? { bg: 'rgba(245,158,11,0.18)', fg: 'var(--color-warn)', label: 'Entering' }
-          : position.state === 'CLOSING'
-            ? { bg: 'rgba(245,158,11,0.18)', fg: 'var(--color-warn)', label: 'Closing' }
-            : { bg: 'rgba(144,153,173,0.18)', fg: 'var(--color-fg-muted)', label: 'Closed' };
-
-  // Cancel + re-place + rollback flows are owned by useExitOrders() so the
-  // SellProposalView and Settings panic-close share the same logic.
+  const badge = STATE_BADGE[position.state] ?? STATE_BADGE.CLOSED!;
+  const pnlPositive = (computed?.unrealized ?? 0) >= 0;
 
   async function handleConfirmExit() {
     setBusy(true);
@@ -219,15 +231,11 @@ export default function PositionDetailPage() {
         toast.error(`${position.ticker} mint not configured.`);
         return;
       }
-      // Single dispatch — runtime resolves to demo or live impl from
-      // useRuntime(); handler doesn't see the fork.
       await runtime.closePosition({
         positionId: position.id,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: position.markPrice,
       });
-      // Mirror in the demo store so the page UI updates instantly even
-      // when live runtime has fired the server write.
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);
       router.replace('/');
@@ -239,123 +247,139 @@ export default function PositionDetailPage() {
   }
 
   return (
-    <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
-      <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
-        ← Home
-      </Link>
-
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        style={{ marginTop: 16, marginBottom: 24 }}
-      >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <h1 style={{ fontSize: 34, fontWeight: 800, letterSpacing: '-0.02em' }}>
-            {position.ticker}
-          </h1>
-          <span
-            style={{
-              padding: '2px 10px',
-              borderRadius: 999,
-              fontSize: 12,
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              background: stateBadge.bg,
-              color: stateBadge.fg,
-            }}
+    <>
+      <TopAppBar
+        title="Position"
+        leftAction={
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="w-11 h-11 flex items-center justify-center rounded-full bg-surface text-primary"
           >
-            {stateBadge.label}
-          </span>
-        </div>
-        <div style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginTop: 4 }}>
-          {meta?.name ?? '—'}
-        </div>
-      </motion.div>
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+        }
+      />
 
-      {position.state === 'ENTERING' && (
-        <EnterBanner position={position} busy={busy} onConfirm={handleConfirmExit} />
-      )}
+      <main className="px-5 py-6 pb-32 max-w-md mx-auto flex flex-col gap-6">
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-surface rounded-lg p-5 shadow-soft flex flex-col items-center text-center"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-full bg-surface-dim flex items-center justify-center text-primary">
+              <span className="material-symbols-outlined text-[24px]">memory</span>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-label-md font-semibold ${badge.bg} ${badge.text}`}>
+              {badge.label}
+            </span>
+          </div>
+          <h1 className="text-display-lg text-on-background">{position.ticker}</h1>
+          <div className="text-body-md text-on-surface-variant mt-1">{meta?.name ?? '—'}</div>
+          <div className="text-number-xl text-on-background mt-3 tabular-nums">
+            ${position.markPrice.toFixed(2)}
+          </div>
+          {computed && position.state !== 'CLOSED' && (
+            <div
+              className={`mt-3 px-3 py-1 rounded-full text-label-sm font-semibold ${
+                pnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'
+              }`}
+            >
+              {pnlPositive ? '+' : ''}${computed.unrealized.toFixed(2)} ({pnlPositive ? '+' : ''}
+              {computed.unrealizedPct.toFixed(1)}%)
+            </div>
+          )}
+          {position.state === 'CLOSED' && position.realizedPnl != null && (
+            <div
+              className={`mt-3 px-3 py-1 rounded-full text-label-sm font-semibold ${
+                position.realizedPnl >= 0 ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'
+              }`}
+            >
+              Realized: {position.realizedPnl >= 0 ? '+' : ''}${position.realizedPnl.toFixed(2)}
+            </div>
+          )}
+        </motion.section>
 
-      {position.state === 'CLOSED' && cancelSiblingHint && (
-        <CancelSiblingBanner
-          closedReason={position.closedReason ?? null}
-          siblingKind={cancelSiblingHint.siblingKind}
-          busy={busy}
-          onWithdraw={handleWithdraw}
-        />
-      )}
+        {position.state === 'ENTERING' && (
+          <EnterBanner position={position} busy={busy} onConfirm={handleConfirmExit} />
+        )}
 
-      {bars.length > 0 && (
-        <div className="card" style={{ padding: '8px 6px 4px', marginBottom: 16 }}>
-          <MiniChart
-            bars={bars}
-            height={180}
-            marker={{
-              price: position.entryPrice,
-              label: 'entry',
-              color: '#22c55e',
-            }}
-            extraMarkers={[
-              ...(position.currentTpPrice
-                ? [{ price: position.currentTpPrice, label: 'TP', color: '#22c55e' }]
-                : []),
-              ...(position.currentSlPrice
-                ? [{ price: position.currentSlPrice, label: 'SL', color: '#ef4444' }]
-                : []),
-            ]}
+        {position.state === 'CLOSED' && cancelSiblingHint && (
+          <CancelSiblingBanner
+            closedReason={position.closedReason ?? null}
+            siblingKind={cancelSiblingHint.siblingKind}
+            busy={busy}
+            onWithdraw={handleWithdraw}
           />
-        </div>
-      )}
+        )}
 
-      <PositionStats position={position} computed={computed!} />
+        {bars.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-lg p-5 shadow-soft">
+            <h3 className="text-title-lg text-on-surface mb-3">Price history</h3>
+            <MiniChart
+              bars={bars}
+              height={180}
+              marker={{ price: position.entryPrice, label: 'entry', color: '#22c55e' }}
+              extraMarkers={[
+                ...(position.currentTpPrice
+                  ? [{ price: position.currentTpPrice, label: 'TP', color: '#22c55e' }]
+                  : []),
+                ...(position.currentSlPrice
+                  ? [{ price: position.currentSlPrice, label: 'SL', color: '#ef4444' }]
+                  : []),
+              ]}
+            />
+          </motion.div>
+        )}
 
-      {position.state === 'ACTIVE' && (
-        <AdjustTpSlForm
-          tpDraft={tpDraft}
-          slDraft={slDraft}
-          busy={busy}
-          onTpChange={setTpDraft}
-          onSlChange={setSlDraft}
-          onSubmit={() => void handleSubmitTpSl()}
-        />
-      )}
+        <PositionStats position={position} computed={computed!} />
 
-      {meta && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>About</h2>
-          <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, lineHeight: 1.6 }}>
-            {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades
-            against USDC via Jupiter; underlying exposure is held by the issuer.
-          </p>
-        </div>
-      )}
+        {position.state === 'ACTIVE' && (
+          <AdjustTpSlForm
+            tpDraft={tpDraft}
+            slDraft={slDraft}
+            busy={busy}
+            onTpChange={setTpDraft}
+            onSlChange={setSlDraft}
+            onSubmit={() => void handleSubmitTpSl()}
+          />
+        )}
 
-      {demo && position.state === 'ACTIVE' && (
-        <DemoSimulator
-          onSimTp={() => {
-            simulateExitFill(position.id, 'TP');
-            toast.success('TP filled (simulated). SL cancel banner queued.');
-          }}
-          onSimSl={() => {
-            simulateExitFill(position.id, 'SL');
-            toast('SL filled (simulated). TP cancel banner queued.');
-          }}
-        />
-      )}
+        {meta && (
+          <div className="bg-surface rounded-lg p-5 shadow-soft">
+            <h3 className="text-title-lg text-on-surface mb-2">About</h3>
+            <p className="text-body-md text-on-surface-variant leading-relaxed">
+              {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades against USDC via Jupiter; underlying exposure is held by the issuer.
+            </p>
+          </div>
+        )}
 
-      {position.state === 'ACTIVE' && (
-        <CloseButton busy={busy} onConfirm={() => void handleClose()} />
-      )}
+        {demo && position.state === 'ACTIVE' && (
+          <DemoSimulator
+            onSimTp={() => {
+              simulateExitFill(position.id, 'TP');
+              toast.success('TP filled (simulated). SL cancel banner queued.');
+            }}
+            onSimSl={() => {
+              simulateExitFill(position.id, 'SL');
+              toast('SL filled (simulated). TP cancel banner queued.');
+            }}
+          />
+        )}
 
-      {position.state === 'CLOSED' && (
-        <ClosedSummary
-          closedReason={position.closedReason ?? null}
-          realizedPnl={position.realizedPnl ?? null}
-        />
-      )}
-    </main>
+        {position.state === 'ACTIVE' && (
+          <CloseButton busy={busy} onConfirm={() => void handleClose()} />
+        )}
+
+        {position.state === 'CLOSED' && (
+          <ClosedSummary
+            closedReason={position.closedReason ?? null}
+            realizedPnl={position.realizedPnl ?? null}
+          />
+        )}
+      </main>
+    </>
   );
 }

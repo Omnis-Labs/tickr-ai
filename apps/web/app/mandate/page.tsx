@@ -1,7 +1,6 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -12,33 +11,32 @@ import {
   type HoldingPeriod,
   type MandateInput,
 } from '@hunch-it/shared';
+import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { ensureNotificationPermission } from '@/lib/notifications/permission';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 
 /**
- * Screen 1 — Mandate Setup
- * Four sub-sections: holding period / max drawdown / max trade size / market focus
- * On submit POSTs /api/mandates and redirects to /.
+ * Mandate setup / edit. Four cards: holding period, max drawdown, max
+ * trade size, market focus. Hydrates from /api/mandates on mount; POST
+ * for first-time, PUT once `submitted`. After save we ask for OS notif
+ * permission while the user is in a high-intent moment, then bounce to /.
  */
 export default function MandatePage() {
   const router = useRouter();
   const { address, connected } = useWallet();
   const demo = isDemo();
+  const authedFetch = useAuthedFetch();
+
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const [holdingPeriod, setHoldingPeriod] = useState<HoldingPeriod>('1-2 weeks');
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(0.05);
-  const [maxTradeSize, setMaxTradeSize] = useState<number>(500);
+  const [maxTradeSize, setMaxTradeSize] = useState<string>('500');
   const [marketFocus, setMarketFocus] = useState<string[]>(['no_preference']);
-  const authedFetch = useAuthedFetch();
 
-  // Hydrate from existing mandate (edit mode).
   useEffect(() => {
     const wallet = demo ? 'demo-wallet' : address;
     if (!wallet) return;
@@ -49,13 +47,15 @@ export default function MandatePage() {
         if (!m) return;
         setHoldingPeriod(m.holdingPeriod);
         setMaxDrawdown(m.maxDrawdown ?? null);
-        setMaxTradeSize(m.maxTradeSize);
+        setMaxTradeSize(String(m.maxTradeSize));
         setMarketFocus(m.marketFocus ?? ['no_preference']);
+        setSubmitted(true);
       })
       .catch(() => {});
   }, [address, demo, authedFetch]);
 
   const noPreference = marketFocus.includes('no_preference');
+  const tradeSize = Number(maxTradeSize);
 
   function toggleFocus(id: string) {
     if (id === 'no_preference') {
@@ -70,12 +70,13 @@ export default function MandatePage() {
 
   const canSubmit = useMemo(() => {
     return (
-      maxTradeSize > 0 &&
+      !isNaN(tradeSize) &&
+      tradeSize >= 10 &&
       marketFocus.length > 0 &&
       (connected || demo) &&
       !loading
     );
-  }, [maxTradeSize, marketFocus, connected, demo, loading]);
+  }, [tradeSize, marketFocus, connected, demo, loading]);
 
   async function submit() {
     const wallet = demo ? `demo-${'wallet'.padEnd(40, '0')}` : address;
@@ -87,7 +88,7 @@ export default function MandatePage() {
       walletAddress: wallet,
       holdingPeriod,
       maxDrawdown,
-      maxTradeSize,
+      maxTradeSize: tradeSize,
       marketFocus: marketFocus as MandateInput['marketFocus'],
     };
     setLoading(true);
@@ -103,9 +104,6 @@ export default function MandatePage() {
       }
       toast.success('Mandate saved.');
       setSubmitted(true);
-      // The user just signalled they want our proposals. Best moment to
-      // ask for OS notification permission — granted now, hidden-tab
-      // alerts work for the lifetime of the session.
       void ensureNotificationPermission();
       router.push('/');
     } catch (err) {
@@ -115,167 +113,157 @@ export default function MandatePage() {
     }
   }
 
+  const segmentItem = (active: boolean) =>
+    `flex-1 flex items-center justify-center h-9 rounded-full text-label-md transition-colors duration-200 cursor-pointer ${
+      active ? 'bg-primary text-on-primary' : 'bg-transparent text-on-surface hover:bg-surface-dim'
+    }`;
+
   return (
-    <main className="mx-auto max-w-[720px] px-6 py-12">
-      <Link href="/" className="text-sm text-on-surface-variant hover:text-on-surface">
-        ← Home
-      </Link>
+    <>
+      <TopAppBar
+        title="Set up mandate"
+        leftAction={
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex items-center justify-center w-11 h-11 rounded-full text-on-surface hover:bg-surface-container transition-colors"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+        }
+      />
 
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="mt-4 mb-8"
-      >
-        <div className="mb-1 text-xs uppercase tracking-wider text-on-surface-variant">
-          MANDATE SETUP
-        </div>
-        <h1 className="text-4xl font-extrabold tracking-tight">Define your trading mandate</h1>
-        <p className="mt-2 max-w-[560px] text-base text-on-surface-variant">
-          Tell the AI signal engine how you want to trade. Every BUY proposal will be sized,
-          priced, and reasoned against these parameters.
-        </p>
-      </motion.div>
+      <main className="flex flex-col gap-4 px-5 pt-4 pb-32 max-w-md mx-auto">
+        <Card icon="schedule" title="Holding period" delay={0}>
+          <div className="grid grid-cols-2 gap-2">
+            {HOLDING_PERIOD_OPTIONS.map((opt) => (
+              <Choice
+                key={opt.value}
+                selected={holdingPeriod === opt.value}
+                onClick={() => setHoldingPeriod(opt.value as HoldingPeriod)}
+                title={opt.label}
+                caption={opt.caption}
+              />
+            ))}
+          </div>
+        </Card>
 
-      {/* 1A. Holding period */}
-      <Section
-        step={1}
-        total={4}
-        title="Holding period"
-        sub="Influences proposal expiry and how aggressive TP / SL bands are set."
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          {HOLDING_PERIOD_OPTIONS.map((opt) => (
-            <Choice
-              key={opt.value}
-              selected={holdingPeriod === opt.value}
-              onClick={() => setHoldingPeriod(opt.value as HoldingPeriod)}
-              title={opt.label}
-              caption={opt.caption}
+        <Card icon="warning" title="Max drawdown" delay={0.05}>
+          <div className="flex items-center w-full bg-surface-container-low rounded-full h-11 p-1">
+            {MAX_DRAWDOWN_OPTIONS.map((opt) => (
+              <button
+                key={String(opt.value)}
+                type="button"
+                onClick={() => setMaxDrawdown(opt.value)}
+                className={segmentItem(maxDrawdown === opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card icon="account_balance" title="Max trade size" delay={0.1}>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-title-lg text-on-surface">
+              $
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={maxTradeSize}
+              onChange={(e) => setMaxTradeSize(e.target.value)}
+              placeholder="0.00"
+              min={10}
+              step={10}
+              className="pl-9 h-11 w-full rounded-full bg-surface-container-low border border-outline-variant focus-visible:border-primary focus-visible:outline-none text-title-md tabular-nums px-4"
             />
-          ))}
-        </div>
-      </Section>
+          </div>
+          <p className="text-body-sm text-on-surface-variant mt-2">
+            Hard upper bound for each proposal's suggested USD size.
+          </p>
+        </Card>
 
-      {/* 1B. Max drawdown */}
-      <Section
-        step={2}
-        total={4}
-        title="Max drawdown"
-        sub="Risk tolerance — bounds the suggested SL price for each proposal."
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {MAX_DRAWDOWN_OPTIONS.map((opt) => (
-            <Choice
-              key={String(opt.value)}
-              selected={maxDrawdown === opt.value}
-              onClick={() => setMaxDrawdown(opt.value)}
-              title={opt.label}
-              caption=""
-            />
-          ))}
-        </div>
-      </Section>
+        <Card icon="public" title="Market focus" delay={0.15}>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => toggleFocus('no_preference')}
+              className={`h-9 px-4 rounded-full text-label-md transition-colors ${
+                noPreference
+                  ? 'bg-primary text-on-primary'
+                  : 'bg-transparent text-on-surface border border-outline-variant'
+              }`}
+            >
+              No preference
+            </button>
+            {MARKET_FOCUS_VERTICALS.map((v) => {
+              const active = !noPreference && marketFocus.includes(v.id);
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => toggleFocus(v.id)}
+                  disabled={noPreference}
+                  className={`h-9 px-4 rounded-full text-label-md transition-colors ${
+                    active
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-transparent text-on-surface border border-outline-variant'
+                  } ${noPreference ? 'opacity-45 pointer-events-none' : ''}`}
+                >
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      </main>
 
-      {/* 1C. Max trade size */}
-      <Section
-        step={3}
-        total={4}
-        title="Max trade size"
-        sub="Hard upper bound for each proposal's suggested USD size."
-      >
-        <label className="flex max-w-[280px] flex-col gap-2">
-          <span className="text-sm text-on-surface-variant">USD per trade</span>
-          <Input
-            type="number"
-            min={10}
-            step={10}
-            value={maxTradeSize}
-            onChange={(e) => setMaxTradeSize(Number(e.target.value))}
-          />
-        </label>
-      </Section>
-
-      {/* 1D. Market focus */}
-      <Section
-        step={4}
-        total={4}
-        title="Market focus"
-        sub="Which verticals should the engine watch for opportunities? Multi-select."
-      >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 8,
-            marginBottom: 12,
-          }}
-        >
-          <Choice
-            selected={noPreference}
-            onClick={() => toggleFocus('no_preference')}
-            title="No preference"
-            caption="Watch every supported asset"
-          />
+      <div className="fixed bottom-0 left-0 right-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-background via-background/85 to-transparent z-30">
+        <div className="max-w-md mx-auto">
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+            className="flex items-center justify-center gap-2 w-full h-14 rounded-full bg-accent text-on-accent text-title-md shadow-floating active:scale-[0.98] transition-transform disabled:opacity-50 disabled:active:scale-100"
+          >
+            {loading ? 'Saving…' : submitted ? 'Save changes' : 'Start Desk'}
+            <span className="material-symbols-outlined">arrow_forward</span>
+          </button>
+          {!connected && !demo && (
+            <p className="mt-2 text-center text-body-sm text-on-surface-variant">Connect a wallet to save.</p>
+          )}
         </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 8,
-            opacity: noPreference ? 0.45 : 1,
-            pointerEvents: noPreference ? 'none' : 'auto',
-          }}
-        >
-          {MARKET_FOCUS_VERTICALS.map((v) => (
-            <Choice
-              key={v.id}
-              selected={!noPreference && marketFocus.includes(v.id)}
-              onClick={() => toggleFocus(v.id)}
-              title={v.label}
-              caption={`${v.tickers.length} tickers`}
-            />
-          ))}
-        </div>
-      </Section>
-
-      <div className="mt-8 flex items-center gap-3">
-        <Button size="lg" disabled={!canSubmit} onClick={() => void submit()}>
-          {loading ? 'Saving…' : 'Start Desk →'}
-        </Button>
-        {!connected && !demo && (
-          <span className="text-sm text-positive">Connect a wallet to save.</span>
-        )}
       </div>
-    </main>
+    </>
   );
 }
 
-function Section({
-  step,
-  total,
+function Card({
+  icon,
   title,
-  sub,
+  delay,
   children,
 }: {
-  step: number;
-  total: number;
+  icon: string;
   title: string;
-  sub: string;
+  delay: number;
   children: React.ReactNode;
 }) {
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: step * 0.05 }}
-      className="mb-8"
+      transition={{ duration: 0.4, delay }}
+      className="bg-surface rounded-lg p-5 shadow-soft flex flex-col gap-4"
     >
-      <div className="text-xs uppercase tracking-wider text-on-surface-variant">
-        {step}/{total}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-9 h-9 rounded-full bg-surface-container text-on-surface">
+          <span className="material-symbols-outlined text-[20px]">{icon}</span>
+        </div>
+        <h2 className="text-title-md text-on-surface">{title}</h2>
       </div>
-      <h2 className="mt-1 mb-1 text-xl font-bold">{title}</h2>
-      <p className="mb-4 text-sm text-on-surface-variant">{sub}</p>
       {children}
     </motion.section>
   );
@@ -290,22 +278,20 @@ function Choice({
   selected: boolean;
   onClick: () => void;
   title: string;
-  caption: string;
+  caption?: string;
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={cn(
-        'rounded-lg border bg-surface-container px-4 py-3 text-left text-on-surface transition-colors',
+      className={`rounded-lg border px-4 py-3 text-left transition-colors ${
         selected
-          ? 'border-primary bg-accent-soft'
-          : 'border-outline-variant hover:bg-surface-container-high',
-      )}
+          ? 'border-primary bg-accent-soft text-on-surface'
+          : 'border-outline-variant bg-surface-container hover:bg-surface-container-high text-on-surface'
+      }`}
     >
-      <div className="text-base font-semibold">{title}</div>
-      {caption && (
-        <div className="mt-0.5 text-xs text-on-surface-variant">{caption}</div>
-      )}
+      <div className="text-label-lg font-semibold">{title}</div>
+      {caption && <div className="mt-0.5 text-body-sm text-on-surface-variant">{caption}</div>}
     </button>
   );
 }

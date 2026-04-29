@@ -1,303 +1,199 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { useWallet } from '@/lib/wallet/use-wallet';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { WalletButton } from '@/components/wallet/wallet-button';
-import { isDemo, useDemoStore } from '@/lib/demo';
-import { useAuthedFetch } from '@/lib/auth/fetch';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { TopAppBar } from '@/components/shell/top-app-bar';
+import { HoldingsList, type Holding } from '@/components/portfolio/holdings-list';
+import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { usePortfolio } from '@/lib/hooks/queries';
+import { useWallet } from '@/lib/wallet/use-wallet';
+import { isDemo } from '@/lib/demo';
 
-interface PortfolioPosition {
-  ticker: string;
-  tokenAmount: number;
-  avgCost: number;
-  markPrice?: number;
-  pnl?: number;
-}
-interface PortfolioTrade {
-  id: string;
-  ticker: string;
-  side: 'BUY' | 'SELL';
-  amountUsd: number;
-  tokenAmount: number;
-  executionPrice: number;
-  txSignature: string;
-  status: string;
-  realizedPnl: number;
-  createdAt: string;
-}
-interface PortfolioResponse {
-  positions: PortfolioPosition[];
-  trades: PortfolioTrade[];
-  pnl: { realized: number; unrealized: number };
-}
-
+/**
+ * Portfolio surface: total value + PnL header, holdings card list, and
+ * recent-trades log. Reads usePortfolio() — same query as /desk so caches
+ * coalesce. Cash + positions value combine into the total displayed at
+ * the top so the number matches Desk's hero card.
+ */
 export default function PortfolioPage() {
-  const { publicKey, connected } = useWallet();
-  const wallet = publicKey?.toBase58();
+  const { connected } = useWallet();
   const demo = isDemo();
-  const demoPositions = useDemoStore((s) => s.positions);
-  const demoTrades = useDemoStore((s) => s.trades);
+  const portfolioQuery = usePortfolio();
+  const data = portfolioQuery.data;
+  const isLoading = portfolioQuery.isLoading;
 
-  const demoData: PortfolioResponse | null = useMemo(() => {
-    if (!demo) return null;
-    const realized = demoTrades
-      .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
-      .reduce((acc, t) => acc + t.realizedPnl, 0);
-    const unrealized = demoPositions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-    return {
-      positions: demoPositions,
-      trades: demoTrades,
-      pnl: { realized, unrealized },
-    };
-  }, [demo, demoPositions, demoTrades]);
+  const holdings: Holding[] = useMemo(() => {
+    const positions = data?.positions ?? [];
+    return positions
+      .filter((p) => p.tokenAmount > 0)
+      .map((p, idx) => {
+        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        const mark = p.markPrice ?? p.avgCost;
+        const value = p.tokenAmount * mark;
+        const pnl = p.pnl ?? (mark - p.avgCost) * p.tokenAmount;
+        const pnlPct = p.avgCost > 0 ? (mark - p.avgCost) / p.avgCost : 0;
+        return {
+          id: `${p.ticker}-${idx}`,
+          assetId: p.ticker,
+          name: meta?.name ?? p.ticker,
+          ticker: meta?.ticker ?? p.ticker,
+          value,
+          pnl,
+          pnlPct,
+          state: 'ACTIVE' as const,
+        };
+      });
+  }, [data?.positions]);
 
-  const authedFetch = useAuthedFetch();
-  const { data: liveData, isLoading } = useQuery<PortfolioResponse>({
-    queryKey: ['portfolio', wallet],
-    queryFn: async () => {
-      if (!wallet) throw new Error('no wallet');
-      const r = await authedFetch(`/api/portfolio`);
-      if (!r.ok) throw new Error(`portfolio failed: ${r.status}`);
-      return (await r.json()) as PortfolioResponse;
-    },
-    enabled: !!wallet && !demo,
-    refetchInterval: 15_000,
-  });
-
-  const data = demo ? demoData : liveData;
+  const realized = data?.pnl.realized ?? 0;
+  const unrealized = data?.pnl.unrealized ?? 0;
+  const totalPnl = realized + unrealized;
+  const dayPnl = unrealized;
+  const cashUsd = data?.cashUsd ?? 0;
+  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
+  const totalValue = positionsValue + cashUsd;
+  const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
+  const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
+  const dayPnlPositive = dayPnl >= 0;
+  const totalPnlPositive = totalPnl >= 0;
 
   return (
-    <main className="mx-auto max-w-[960px] px-6 py-12">
-      <Link href="/" className="text-sm text-on-surface-variant hover:text-on-surface">
-        ← Home
-      </Link>
-      <div className="mt-4 mb-6 flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold">Portfolio</h1>
-        <WalletButton />
-      </div>
+    <>
+      <TopAppBar title="Portfolio" />
 
-      {!connected && !demo && (
-        <Card>
-          <CardContent className="p-5">
-            <p className="text-on-surface-variant">Connect a wallet to load your portfolio.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {(connected || demo) && (
-        <>
-          <div className="mb-4 grid grid-cols-3 gap-3">
-            <PnlCard label="Realised P&L" value={data?.pnl.realized ?? 0} loading={isLoading} />
-            <PnlCard label="Unrealised P&L" value={data?.pnl.unrealized ?? 0} loading={isLoading} />
-            <PnlCard
-              label="Total"
-              value={(data?.pnl.realized ?? 0) + (data?.pnl.unrealized ?? 0)}
-              loading={isLoading}
-            />
+      <main className="px-5 py-6 pb-24 max-w-md mx-auto">
+        {!connected && !demo ? (
+          <div className="bg-surface rounded-lg p-6 shadow-soft flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
+              <span className="material-symbols-outlined text-primary text-[24px]">login</span>
+            </div>
+            <p className="text-title-md text-primary mb-1">Sign in to load your portfolio</p>
+            <p className="text-body-sm text-on-surface-variant mb-4">Your holdings, PnL, and recent trades will appear here.</p>
+            <Link href="/login" className="px-5 py-2.5 bg-primary text-on-primary rounded-full text-label-md active:scale-[0.97] transition-transform">
+              Sign in
+            </Link>
           </div>
+        ) : (
+          <>
+            <section className="mb-8">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-surface rounded-lg p-5 shadow-soft"
+              >
+                {isLoading ? (
+                  <div className="flex flex-col gap-3 animate-pulse">
+                    <div className="h-4 w-20 bg-surface-container rounded" />
+                    <div className="h-8 w-40 bg-surface-container rounded" />
+                    <div className="h-6 w-32 bg-surface-container rounded-full" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-label-lg text-on-surface-variant">Total Value</span>
+                      <span className="text-number-xl text-primary tracking-tight">
+                        ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
 
-          <h2 className="mb-2 mt-6 text-xl font-bold">Positions</h2>
-          <Card className="overflow-hidden">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-surface-container text-left">
-                  <Th>Ticker</Th>
-                  <Th align="right">Amount</Th>
-                  <Th align="right">Avg cost</Th>
-                  <Th align="right">Mark</Th>
-                  <Th align="right">Unrealised P&amp;L</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!data || data.positions.length === 0) && (
-                  <tr>
-                    <Td colSpan={5} className="text-on-surface-variant">
-                      {isLoading ? 'Loading…' : 'No open positions yet. Approve a signal to start.'}
-                    </Td>
-                  </tr>
-                )}
-                {data?.positions.map((p, i) => (
-                  <motion.tr
-                    key={p.ticker}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03, duration: 0.2 }}
-                    className="border-t border-outline-variant"
-                  >
-                    <Td>{p.ticker}</Td>
-                    <Td align="right">{p.tokenAmount.toFixed(4)}</Td>
-                    <Td align="right">${p.avgCost.toFixed(2)}</Td>
-                    <Td align="right">{p.markPrice ? `$${p.markPrice.toFixed(2)}` : '—'}</Td>
-                    <Td
-                      align="right"
-                      className={cn(
-                        p.pnl == null
-                          ? 'text-on-surface-variant'
-                          : p.pnl >= 0
-                            ? 'text-positive'
-                            : 'text-negative',
-                      )}
-                    >
-                      {p.pnl == null ? '—' : `$${p.pnl.toFixed(2)}`}
-                    </Td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${dayPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                        Day {dayPnlPositive ? '+' : ''}${dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dayPnlPositive ? '+' : ''}{(dayPnlPct * 100).toFixed(1)}%)
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${totalPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                        Total {totalPnlPositive ? '+' : ''}${totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({totalPnlPositive ? '+' : ''}{(totalPnlPct * 100).toFixed(1)}%)
+                      </span>
+                    </div>
 
-          <h2 className="mb-2 mt-6 text-xl font-bold">Recent trades</h2>
-          <Card className="overflow-hidden">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-surface-container text-left">
-                  <Th>Time</Th>
-                  <Th>Side</Th>
-                  <Th>Ticker</Th>
-                  <Th align="right">Tokens</Th>
-                  <Th align="right">Price</Th>
-                  <Th align="right">USD</Th>
-                  <Th align="right">P&amp;L</Th>
-                  <Th>Tx</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!data || data.trades.length === 0) && (
-                  <tr>
-                    <Td colSpan={8} className="text-on-surface-variant">
-                      {isLoading ? 'Loading…' : 'No trades yet.'}
-                    </Td>
-                  </tr>
-                )}
-                {data?.trades.map((t, i) => (
-                  <motion.tr
-                    key={t.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.02, duration: 0.18 }}
-                    className="border-t border-outline-variant"
-                  >
-                    <Td className="text-xs text-on-surface-variant">
-                      {new Date(t.createdAt).toLocaleString()}
-                    </Td>
-                    <Td>
-                      <Badge variant={t.side === 'BUY' ? 'positive' : 'destructive'}>
-                        {t.side}
-                      </Badge>
-                    </Td>
-                    <Td>{t.ticker}</Td>
-                    <Td align="right">{t.tokenAmount.toFixed(4)}</Td>
-                    <Td align="right">${t.executionPrice.toFixed(2)}</Td>
-                    <Td align="right">${t.amountUsd.toFixed(2)}</Td>
-                    <Td
-                      align="right"
-                      className={cn(
-                        t.realizedPnl > 0
-                          ? 'text-positive'
-                          : t.realizedPnl < 0
-                            ? 'text-negative'
-                            : 'text-on-surface-variant',
-                      )}
-                    >
-                      {t.side === 'SELL' ? `$${t.realizedPnl.toFixed(2)}` : '—'}
-                    </Td>
-                    <Td>
-                      <a
-                        href={`https://solscan.io/tx/${t.txSignature}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-primary hover:underline"
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-divider">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-label-md text-on-surface-variant">Cash (USDC)</span>
+                        <span className="text-title-lg text-on-surface tabular-nums">
+                          ${cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <Link
+                        href="/desk#deposit-section"
+                        className="flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full h-11 px-5 text-label-lg transition-transform active:scale-[0.97]"
                       >
-                        {t.txSignature.slice(0, 6)}…
-                      </a>
-                    </Td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        </>
-      )}
-    </main>
-  );
-}
+                        <span className="material-symbols-outlined text-[20px]">add</span>
+                        Deposit
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </section>
 
-function PnlCard({
-  label,
-  value,
-  loading,
-}: {
-  label: string;
-  value: number;
-  loading: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="mb-1 text-xs uppercase tracking-wider text-on-surface-variant">
-          {label}
-        </div>
-        <div
-          className={cn(
-            'text-3xl font-bold',
-            loading
-              ? 'text-on-surface-variant'
-              : value > 0
-                ? 'text-positive'
-                : value < 0
-                  ? 'text-negative'
-                  : 'text-on-surface',
-          )}
-        >
-          {loading ? '—' : `$${value.toFixed(2)}`}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+            <section className="mb-8">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-title-lg text-primary">Holdings</h2>
+              </div>
+              <HoldingsList holdings={holdings} isLoading={isLoading} />
+            </section>
 
-function Th({
-  children,
-  align,
-}: {
-  children: React.ReactNode;
-  align?: 'left' | 'right';
-}) {
-  return (
-    <th
-      className={cn(
-        'px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-on-surface-variant',
-        align === 'right' ? 'text-right' : 'text-left',
-      )}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  align,
-  colSpan,
-  className,
-}: {
-  children: React.ReactNode;
-  align?: 'left' | 'right';
-  colSpan?: number;
-  className?: string;
-}) {
-  return (
-    <td
-      colSpan={colSpan}
-      className={cn('px-4 py-3', align === 'right' ? 'text-right' : 'text-left', className)}
-    >
-      {children}
-    </td>
+            <section>
+              <h2 className="text-title-lg text-primary mb-4">Recent trades</h2>
+              {isLoading ? (
+                <div className="bg-surface rounded-lg p-4 h-[120px] animate-pulse shadow-soft" />
+              ) : !data || data.trades.length === 0 ? (
+                <div className="bg-surface rounded-lg p-6 shadow-soft flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
+                    <span className="material-symbols-outlined text-primary text-[24px]">receipt_long</span>
+                  </div>
+                  <p className="text-title-md text-primary">No trades yet</p>
+                  <p className="text-body-sm text-on-surface-variant mt-1">Approve a proposal to start.</p>
+                </div>
+              ) : (
+                <div className="bg-surface rounded-lg p-4 shadow-soft flex flex-col gap-4">
+                  {data.trades.slice(0, 20).map((t, i) => {
+                    const isBuy = t.side === 'BUY';
+                    const sideColor = isBuy ? 'text-positive' : 'text-negative';
+                    const pnlColor =
+                      t.realizedPnl > 0
+                        ? 'text-positive'
+                        : t.realizedPnl < 0
+                          ? 'text-negative'
+                          : 'text-on-surface-variant';
+                    return (
+                      <div
+                        key={t.id}
+                        className={`flex justify-between items-center ${i < Math.min(data.trades.length, 20) - 1 ? 'pb-4 border-b border-divider' : ''}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="bg-surface-container-high w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                            <span className={`material-symbols-outlined text-[20px] ${sideColor}`}>
+                              {isBuy ? 'trending_up' : 'trending_down'}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-label-lg text-on-surface">{t.ticker}</span>
+                              <span className={`text-label-md font-bold ${sideColor}`}>{t.side}</span>
+                            </div>
+                            <div className="text-body-sm text-on-surface-variant">
+                              {new Date(t.createdAt).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-label-lg text-on-surface tabular-nums">
+                            ${t.amountUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <div className={`text-label-sm font-semibold tabular-nums ${pnlColor}`}>
+                            {t.side === 'SELL' ? `${t.realizedPnl >= 0 ? '+' : ''}$${t.realizedPnl.toFixed(2)}` : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+    </>
   );
 }

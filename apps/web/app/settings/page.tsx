@@ -1,9 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -12,28 +11,18 @@ import {
   MAX_DRAWDOWN_OPTIONS,
   XSTOCKS,
   xStockToBare,
-  type Mandate,
   type XStockTicker,
 } from '@hunch-it/shared';
+import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useRuntime } from '@/lib/runtime/use-runtime';
-import { Button } from '@/components/ui/button';
-import {
-  Card as UICard,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-
-interface MandateResponse {
-  mandate: Mandate | null;
-}
+import { useMandate, usePortfolio } from '@/lib/hooks/queries';
 
 function shorten(addr: string): string {
-  return `${addr.slice(0, 4)}…${addr.slice(-4)}`;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 export default function SettingsPage() {
@@ -41,127 +30,250 @@ export default function SettingsPage() {
   const { address, connected, logout } = useWallet();
   const wallet = demo ? 'demo-wallet' : address;
 
-  const authedFetch = useAuthedFetch();
-  const { data, isLoading } = useQuery<MandateResponse>({
-    queryKey: ['mandate', wallet],
-    queryFn: async () => {
-      if (!wallet) return { mandate: null };
-      const r = await authedFetch(`/api/mandates`);
-      if (!r.ok) return { mandate: null };
-      return r.json();
-    },
-    enabled: !!wallet,
-  });
+  const mandateQuery = useMandate();
+  const portfolioQuery = usePortfolio();
 
-  const mandate = data?.mandate;
+  const mandate = mandateQuery.data?.mandate;
+  const isLoading = mandateQuery.isLoading;
+
   const verticalLabels = (mandate?.marketFocus ?? []).map(
     (id) => MARKET_FOCUS_VERTICALS.find((v) => v.id === id)?.label ?? id,
   );
 
+  const positionsCount = useMemo(
+    () => (portfolioQuery.data?.positions ?? []).filter((p) => p.tokenAmount > 0).length,
+    [portfolioQuery.data?.positions],
+  );
+  const positionsValue = useMemo(() => {
+    const positions = portfolioQuery.data?.positions ?? [];
+    return positions.reduce((acc, p) => acc + p.tokenAmount * (p.markPrice ?? p.avgCost), 0);
+  }, [portfolioQuery.data?.positions]);
+
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    if (!address) return;
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px' }}>
-      <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
-        ← Home
-      </Link>
-      <motion.h1
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        style={{ fontSize: 32, fontWeight: 800, margin: '16px 0 24px' }}
-      >
-        Settings
-      </motion.h1>
+    <>
+      <TopAppBar title="Settings" />
 
-      {/* Account */}
-      <Card title="Account">
-        {!connected && !demo ? (
-          <p style={{ color: 'var(--color-fg-muted)' }}>Not connected.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Row label="Wallet">
-              <code style={{ fontSize: 12 }}>{address ?? 'demo-wallet'}</code>
-            </Row>
-            <Row label="Mode">{demo ? 'Demo' : 'Live'}</Row>
-          </div>
-        )}
-        {!demo && connected && (
-          <Button
-            variant="ghost"
-            style={{ marginTop: 16 }}
-            onClick={() => void logout()}
-          >
-            Sign out
-          </Button>
-        )}
-      </Card>
+      <main className="px-5 py-6 pb-24 max-w-md mx-auto flex flex-col gap-6">
+        <Section icon="person" title="Account">
+          {!connected && !demo ? (
+            <p className="text-body-md text-on-surface-variant">Not signed in.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <Row label="Mode">{demo ? 'Demo' : 'Live'}</Row>
+              <div className="flex flex-col gap-1">
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Wallet</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-body-md text-on-surface truncate">
+                    {address ? shorten(address) : 'demo-wallet'}
+                  </span>
+                  {address && (
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      aria-label="Copy wallet address"
+                      className="w-9 h-9 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        {copied ? 'check' : 'content_copy'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+              {!demo && connected && (
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  className="self-start flex items-center gap-2 text-label-md text-negative hover:underline"
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  Sign out
+                </button>
+              )}
+            </div>
+          )}
+        </Section>
 
-      {/* Mandate */}
-      <Card
-        title="Mandate"
-        right={
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/mandate">Edit</Link>
-          </Button>
-        }
-      >
-        {isLoading && <p style={{ color: 'var(--color-fg-muted)' }}>Loading…</p>}
-        {!isLoading && !mandate && (
-          <div>
-            <p style={{ color: 'var(--color-fg-muted)', marginBottom: 12 }}>
-              No mandate yet. Without a mandate the signal engine doesn't generate proposals.
-            </p>
-            <Button asChild>
-              <Link href="/mandate">Set up mandate</Link>
-            </Button>
-          </div>
-        )}
-        {mandate && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Row label="Holding period">
-              {HOLDING_PERIOD_OPTIONS.find((o) => o.value === mandate.holdingPeriod)?.label ??
-                mandate.holdingPeriod}
-              <span style={{ color: 'var(--color-fg-muted)', marginLeft: 8 }}>
-                {HOLDING_PERIOD_OPTIONS.find((o) => o.value === mandate.holdingPeriod)?.caption ??
-                  ''}
-              </span>
-            </Row>
-            <Row label="Max drawdown">
-              {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ??
-                'Custom'}
-            </Row>
-            <Row label="Max trade size">${mandate.maxTradeSize.toFixed(2)}</Row>
-            <Row label="Market focus">{verticalLabels.join(', ') || '—'}</Row>
-          </div>
-        )}
-        {mandate && (
-          <p
-            style={{
-              color: 'var(--color-fg-muted)',
-              fontSize: 12,
-              marginTop: 12,
-              borderTop: '1px solid var(--color-border)',
-              paddingTop: 12,
-            }}
-          >
-            Editing the mandate will mark every active proposal as expired and the engine will
-            regenerate against the new parameters on its next cycle.
-          </p>
-        )}
-      </Card>
+        <Section icon="briefcase" title="Positions Overview">
+          <Row label="Active positions">
+            <span className="tabular-nums">{positionsCount}</span>
+          </Row>
+          <div className="h-px bg-divider my-3" />
+          <Row label="Total value">
+            <span className="text-primary tabular-nums">
+              ${positionsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </Row>
+        </Section>
 
-      <DelegationCard wallet={wallet ?? null} />
-      <CloseAllPositionsCard />
-    </main>
+        <Section
+          icon="tune"
+          title="Your Mandate"
+          right={
+            mandate ? (
+              <Link
+                href="/mandate"
+                className="text-label-md text-primary hover:underline"
+              >
+                Edit
+              </Link>
+            ) : null
+          }
+        >
+          {isLoading ? (
+            <p className="text-body-md text-on-surface-variant">Loading…</p>
+          ) : !mandate ? (
+            <div>
+              <p className="text-body-md text-on-surface-variant mb-3">
+                No mandate yet. Without a mandate the signal engine doesn't generate proposals.
+              </p>
+              <Link
+                href="/mandate"
+                className="inline-flex items-center justify-center bg-primary text-on-primary rounded-full h-11 px-5 text-label-lg active:scale-[0.97] transition-transform"
+              >
+                Set up mandate
+              </Link>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <Row label="Holding period">
+                {HOLDING_PERIOD_OPTIONS.find((o) => o.value === mandate.holdingPeriod)?.label ??
+                  mandate.holdingPeriod}
+              </Row>
+              <Row label="Max drawdown">
+                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ?? 'Custom'}
+              </Row>
+              <Row label="Max trade size">
+                <span className="tabular-nums">${mandate.maxTradeSize.toFixed(2)}</span>
+              </Row>
+              <div className="flex flex-col gap-2">
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Market focus</span>
+                <div className="flex flex-wrap gap-2">
+                  {verticalLabels.length === 0 && <span className="text-body-sm text-on-surface-variant">—</span>}
+                  {verticalLabels.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-container-low text-label-sm text-primary"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-body-sm text-on-surface-variant pt-3 mt-1 border-t border-divider">
+                Editing the mandate marks every active proposal as expired and the engine regenerates against the new parameters on its next cycle.
+              </p>
+            </div>
+          )}
+        </Section>
+
+        <DelegationCard wallet={wallet ?? null} />
+        <CloseAllPositionsCard />
+      </main>
+    </>
   );
 }
 
 /**
- * Manual "panic close" — iterates every ACTIVE / ENTERING position and
- * walks them through the same close flow as Position Detail. In demo mode
- * the demo store mutates synchronously; in live mode each position
- * requires the user to sign at least one cancel + one swap, so this is
- * sequential by design (parallel sigs would queue Privy modals on top of
- * each other).
+ * Phase F — Delegated signing toggle. Keeping the localStorage mirror so
+ * the toggle restores between sessions even though we never built a
+ * /api/users GET to read delegationActive back from the DB.
+ */
+function DelegationCard({ wallet }: { wallet: string | null }) {
+  const demo = isDemo();
+  const [active, setActive] = useState<boolean>(false);
+  const [busy, setBusy] = useState(false);
+  const authedFetch = useAuthedFetch();
+  const { delegateSolanaWallet, revokeDelegations } = useWallet();
+
+  useEffect(() => {
+    if (!wallet || demo) return;
+    if (typeof window === 'undefined') return;
+    const cached = window.localStorage.getItem(`delegation:${wallet}`);
+    if (cached === '1') setActive(true);
+  }, [wallet, demo]);
+
+  async function toggle(next: boolean) {
+    if (!wallet) {
+      toast.error('Connect a wallet first.');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!demo) {
+        try {
+          if (next) await delegateSolanaWallet();
+          else await revokeDelegations();
+        } catch (err) {
+          console.warn('[delegation] grant/revoke failed', err);
+          toast.error(
+            `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+
+      const res = await authedFetch('/api/users/delegation', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ walletAddress: wallet, delegationActive: next }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error ?? `${res.status}`);
+      }
+      setActive(next);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(`delegation:${wallet}`, next ? '1' : '0');
+      }
+      toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section icon="bolt" title="Auto-exit signing">
+      <p className="text-body-sm text-on-surface-variant mb-3">
+        Allow the Hunch server to cancel a paired exit order automatically when its sibling fills (OCO behaviour), and to place TP / SL after a BUY fills, without prompting you to sign each time.
+      </p>
+      <ul className="text-body-sm text-on-surface-variant list-disc pl-5 mb-4 space-y-1">
+        <li>Scope is constrained to Jupiter trigger orders for positions you opened.</li>
+        <li>You can revoke it any time below.</li>
+        <li>Every server-signed transaction is recorded against your account.</li>
+      </ul>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void toggle(!active)}
+          disabled={busy}
+          className={`flex items-center justify-center h-11 px-5 rounded-full text-label-lg transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 ${
+            active ? 'bg-accent text-on-accent shadow-soft' : 'bg-primary text-on-primary'
+          }`}
+        >
+          {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
+        </button>
+        <span className={`text-label-md ${active ? 'text-positive' : 'text-on-surface-variant'}`}>
+          {active ? '✓ Auto-exit active' : 'Manual confirmation required'}
+        </span>
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * Manual "panic close". Each live position needs at least one wallet sig
+ * (cancel) plus one swap sig — sequential by design so Privy modals don't
+ * stack.
  */
 function CloseAllPositionsCard() {
   const demo = isDemo();
@@ -174,11 +286,7 @@ function CloseAllPositionsCard() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
-  // Demo positions are already in the store; in live mode we GET them lazily
-  // when the user clicks (the live store isn't subscribed here).
-  const openCount = demo
-    ? positions.filter((p) => p.state !== 'CLOSED').length
-    : null;
+  const openCount = demo ? positions.filter((p) => p.state !== 'CLOSED').length : null;
 
   async function closeOne(p: {
     id: string;
@@ -212,18 +320,13 @@ function CloseAllPositionsCard() {
       } else {
         const r = await authedFetch('/api/positions');
         const j = (await r.json().catch(() => ({ positions: [] }))) as {
-          positions: Array<{
-            id: string;
-            ticker: string;
-            tokenAmount: number;
-            entryPrice: number;
-          }>;
+          positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
         };
         targets = (j.positions ?? []).map((p) => ({
           id: p.id,
           ticker: p.ticker,
           tokenAmount: p.tokenAmount,
-          markPrice: p.entryPrice, // we don't have a live mark in this scope
+          markPrice: p.entryPrice,
         }));
       }
 
@@ -254,205 +357,87 @@ function CloseAllPositionsCard() {
   }
 
   return (
-    <Card title="Panic close">
-      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
-        Cancel every open TP / SL trigger order and market-sell every position you currently
-        hold. Each position needs one wallet signature (cancel) plus one swap signature in live
-        mode.
+    <Section icon="warning" title="Panic close">
+      <p className="text-body-sm text-on-surface-variant mb-3">
+        Cancel every open TP / SL trigger order and market-sell every position you currently hold. Each position needs one wallet signature (cancel) plus one swap signature in live mode.
         {demo && openCount != null && (
           <>
-            {' '}
-            Demo store has <strong>{openCount}</strong> open position{openCount === 1 ? '' : 's'}.
+            {' '}Demo store has <strong>{openCount}</strong> open position{openCount === 1 ? '' : 's'}.
           </>
         )}
       </p>
       {!confirm ? (
-        <Button variant="destructive" onClick={() => setConfirm(true)} disabled={busy}>
+        <button
+          type="button"
+          onClick={() => setConfirm(true)}
+          disabled={busy}
+          className="flex items-center justify-center h-11 px-5 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
+        >
           Close all positions
-        </Button>
+        </button>
       ) : (
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Button
-            variant="ghost"
-            style={{ flex: 1 }}
+        <div className="flex gap-3">
+          <button
+            type="button"
             onClick={() => setConfirm(false)}
             disabled={busy}
+            className="flex-1 h-11 rounded-full border border-outline text-label-lg text-primary active:scale-[0.97] transition-transform disabled:opacity-50"
           >
             Cancel
-          </Button>
-          <Button
-            variant="destructive"
-            style={{ flex: 2 }}
+          </button>
+          <button
+            type="button"
             onClick={() => void handleCloseAll()}
             disabled={busy}
+            className="flex-[2] h-11 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
           >
             {busy
               ? progress
                 ? `Closing ${progress.done}/${progress.total}…`
                 : 'Closing…'
               : 'Confirm close all'}
-          </Button>
+          </button>
         </div>
       )}
-    </Card>
+    </Section>
   );
 }
 
-/**
- * Phase F — Delegated signing toggle.
- * When the user enables this, the server (Privy server signers) is allowed
- * to sign Jupiter trigger-order cancel/place transactions for the user's
- * automated TP/SL flows. Off by default; users can flip it at any time.
- */
-function DelegationCard({ wallet }: { wallet: string | null }) {
-  const demo = isDemo();
-  const [active, setActive] = useState<boolean>(false);
-  const [busy, setBusy] = useState(false);
-  const authedFetch = useAuthedFetch();
-  const { delegateSolanaWallet, revokeDelegations } = useWallet();
-
-  useEffect(() => {
-    if (!wallet || demo) return;
-    // We don't have a /api/users GET — read delegationActive from localStorage
-    // mirror after a successful PATCH below. Fine for Phase F since this is
-    // an opt-in flag the user controls.
-    if (typeof window === 'undefined') return;
-    const cached = window.localStorage.getItem(`delegation:${wallet}`);
-    if (cached === '1') setActive(true);
-  }, [wallet, demo]);
-
-  async function toggle(next: boolean) {
-    if (!wallet) {
-      toast.error('Connect a wallet first.');
-      return;
-    }
-    setBusy(true);
-    try {
-      // Real Privy grant / revoke. Requires the Privy app to be on a plan
-      // that supports server signers; on Free the SDK throws, in which case
-      // we still persist the intent so the user can retry once the app is
-      // upgraded. ws-server gates `tryDelegatedCancel` on both
-      // `delegationActive` AND `PRIVY_APP_SECRET` so the off-state is safe.
-      if (!demo) {
-        try {
-          if (next) await delegateSolanaWallet();
-          else await revokeDelegations();
-        } catch (err) {
-          // Don't bail — the toggle state still persists so the user knows
-          // their intent. The auto-cancel path stays a no-op until grant
-          // succeeds (e.g. after Privy plan upgrade or SDK retry).
-          console.warn('[delegation] grant/revoke failed', err);
-          toast.error(
-            `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
-
-      const res = await authedFetch('/api/users/delegation', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ walletAddress: wallet, delegationActive: next }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error ?? `${res.status}`);
-      }
-      setActive(next);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`delegation:${wallet}`, next ? '1' : '0');
-      }
-      toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card title="Auto-exit signing">
-      <p style={{ color: 'var(--color-fg-muted)', fontSize: 14, marginBottom: 12 }}>
-        Allow the Hunch server to cancel a paired exit order automatically when its sibling
-        fills (OCO behaviour), and to place TP / SL after a BUY fills, without prompting you
-        to sign each time.
-      </p>
-      <ul
-        style={{
-          color: 'var(--color-fg-muted)',
-          fontSize: 13,
-          marginBottom: 12,
-          paddingLeft: 20,
-          lineHeight: 1.7,
-        }}
-      >
-        <li>Scope is constrained to Jupiter trigger orders for positions you opened.</li>
-        <li>You can revoke it any time below.</li>
-        <li>Every server-signed transaction is recorded against your account.</li>
-      </ul>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <Button
-          variant={active ? 'accent' : 'default'}
-          disabled={busy}
-          onClick={() => void toggle(!active)}
-        >
-          {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
-        </Button>
-        <span
-          style={{
-            fontSize: 13,
-            color: active ? 'var(--color-buy)' : 'var(--color-fg-muted)',
-          }}
-        >
-          {active ? '✓ Auto-exit active' : 'Manual confirmation required for cancels'}
-        </span>
-      </div>
-    </Card>
-  );
-}
-
-function Card({
+function Section({
+  icon,
   title,
   right,
   children,
 }: {
+  icon: string;
   title: string;
   right?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  // Composed on top of the shadcn Card primitive so the visual stack
-  // (radius, surface, shadow, outline) follows the design tokens.
-  // Existing `.card` utility class is retained for non-migrated pages.
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      style={{ marginBottom: 16 }}
+      className="bg-surface rounded-lg p-5 shadow-soft"
     >
-      <UICard>
-        <CardHeader
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            paddingBottom: 12,
-          }}
-        >
-          <CardTitle style={{ fontSize: 18, fontWeight: 700 }}>{title}</CardTitle>
-          {right}
-        </CardHeader>
-        <CardContent>{children}</CardContent>
-      </UICard>
-    </motion.div>
+      <header className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-icon-muted text-[20px]">{icon}</span>
+          <h2 className="text-title-md text-primary">{title}</h2>
+        </div>
+        {right}
+      </header>
+      {children}
+    </motion.section>
   );
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <span style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>{label}</span>
-      <span style={{ textAlign: 'right' }}>{children}</span>
+    <div className="flex justify-between items-baseline gap-3">
+      <span className="text-body-sm text-on-surface-variant">{label}</span>
+      <span className="text-body-md text-on-surface text-right">{children}</span>
     </div>
   );
 }
