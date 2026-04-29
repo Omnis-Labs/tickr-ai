@@ -28,6 +28,11 @@ export interface UnifiedWallet {
   delegateSolanaWallet: () => Promise<void>;
   /** Revoke all delegated wallets. */
   revokeDelegations: () => Promise<void>;
+  /** Open the Privy funding modal (fiat on-ramp / external wallet transfer)
+   *  for the user's embedded wallet. amountUsdc, when supplied, prefills the
+   *  USDC amount on Solana mainnet. Resolves once the modal closes. No-op
+   *  when no provider is mounted. */
+  fundWallet: (amountUsdc?: number) => Promise<void>;
 }
 
 export const STUB_WALLET: UnifiedWallet = {
@@ -49,6 +54,7 @@ export const STUB_WALLET: UnifiedWallet = {
   getAccessToken: async () => null,
   delegateSolanaWallet: async () => {},
   revokeDelegations: async () => {},
+  fundWallet: async () => {},
 };
 
 export const WalletContext = createContext<UnifiedWallet>(STUB_WALLET);

@@ -145,6 +145,7 @@ export interface PortfolioResponse {
     createdAt: string;
   }>;
   pnl: { realized: number; unrealized: number };
+  cashUsd?: number;
 }
 
 export function usePortfolio() {
@@ -159,7 +160,7 @@ export function usePortfolio() {
           .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
           .reduce((acc, t) => acc + t.realizedPnl, 0);
         const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-        return { positions, trades, pnl: { realized, unrealized } };
+        return { positions, trades, pnl: { realized, unrealized }, cashUsd: 1234.56 };
       }
       const r = await authedFetch('/api/portfolio');
       if (!r.ok) {

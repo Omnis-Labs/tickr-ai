@@ -3,7 +3,12 @@
 import { useMemo, type ReactNode } from 'react';
 import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
 import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
-import { useWallets, useSignTransaction } from '@privy-io/react-auth/solana';
+import {
+  useWallets,
+  useSignTransaction,
+  useFundWallet,
+  useSolanaFundingPlugin,
+} from '@privy-io/react-auth/solana';
 import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
 
 /**
@@ -19,6 +24,9 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { delegateWallet, revokeWallets } = useDelegatedActions();
+  // Register Solana funding capabilities so useFundWallet has providers wired.
+  useSolanaFundingPlugin();
+  const { fundWallet: privyFund } = useFundWallet();
 
   const wallet = wallets[0];
   const value = useMemo<UnifiedWallet>(() => {
@@ -61,6 +69,17 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       revokeDelegations: async () => {
         await revokeWallets();
       },
+      fundWallet: async (amountUsdc?: number) => {
+        if (!wallet?.address) throw new Error('No Solana wallet to fund.');
+        await privyFund({
+          address: wallet.address,
+          options: {
+            chain: 'solana:mainnet',
+            asset: 'USDC',
+            ...(amountUsdc != null ? { amount: String(amountUsdc) } : {}),
+          },
+        });
+      },
     };
   }, [
     wallet,
@@ -72,6 +91,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     getAccessToken,
     delegateWallet,
     revokeWallets,
+    privyFund,
   ]);
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

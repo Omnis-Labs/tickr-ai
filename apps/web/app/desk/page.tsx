@@ -48,9 +48,7 @@ export default function DeskPage() {
   const dayPnlPositive = dayPnl >= 0;
   const totalPnlPositive = totalPnl >= 0;
 
-  // Cash = USDC parked in the embedded wallet. /api/portfolio/sync isn't
-  // wired yet; show 0 until that lands.
-  const cashUsd = 0;
+  const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
   const hasHoldings = positions.filter((p) => p.state !== 'CLOSED').length > 0;
   const hasCash = cashUsd > 0;
 

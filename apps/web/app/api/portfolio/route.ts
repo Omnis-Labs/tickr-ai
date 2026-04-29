@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
+import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 
 /**
  * GET /api/portfolio
@@ -25,13 +26,18 @@ export async function GET(req: NextRequest) {
       .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
       .reduce((acc, t) => acc + t.realizedPnl, 0);
     const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-    return NextResponse.json({ positions, trades, pnl: { realized, unrealized } });
+    return NextResponse.json({
+      positions,
+      trades,
+      pnl: { realized, unrealized },
+      cashUsd: 1234.56, // demo placeholder
+    });
   }
 
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const [openPositions, recentTrades] = await Promise.all([
+  const [openPositions, recentTrades, cashUsd] = await Promise.all([
     prisma.position.findMany({
       where: { userId: auth.userId, state: { not: 'CLOSED' } },
       orderBy: { firstEntryAt: 'desc' },
@@ -41,6 +47,10 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 100,
     }),
+    // RPC read of the user's embedded-wallet USDC balance. Cached 60s
+    // per wallet inside the helper so the desk page's 15s portfolio
+    // refetch doesn't pound the RPC. Returns 0 on failure.
+    readUsdcBalance(auth.walletAddress),
   ]);
 
   // Realized PnL = sum of all SELL-side Trade.realizedPnl (BUY trades have
@@ -83,5 +93,6 @@ export async function GET(req: NextRequest) {
     positions: decimalsToNumbers(positions),
     trades,
     pnl: { realized, unrealized },
+    cashUsd,
   });
 }

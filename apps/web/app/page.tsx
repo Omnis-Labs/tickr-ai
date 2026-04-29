@@ -2,10 +2,13 @@
 
 import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BottomNav } from '@/components/shell/bottom-nav';
+import { useWallet } from '@/lib/wallet/use-wallet';
+import { useMandate } from '@/lib/hooks/queries';
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
@@ -13,6 +16,23 @@ const cardVariants: Variants = {
 };
 
 export default function LandingPage() {
+  const router = useRouter();
+  const { ready, connected } = useWallet();
+  const mandateQuery = useMandate();
+
+  // Routing rules for the marketing landing:
+  //   - not logged in        → stay (show marketing copy + Login CTA)
+  //   - logged in, mandate?  → /desk (the real signed-in home)
+  //   - logged in, no mandate→ /mandate (one-time setup)
+  // The mandate query is enabled by default; in DEMO_MODE it returns
+  // DEMO_MANDATE so the redirect to /desk fires immediately.
+  useEffect(() => {
+    if (!ready || !connected) return;
+    if (mandateQuery.isLoading) return;
+    if (mandateQuery.data?.mandate) router.replace('/desk');
+    else router.replace('/mandate');
+  }, [ready, connected, mandateQuery.isLoading, mandateQuery.data, router]);
+
   return (
     <div className="min-h-screen bg-background text-on-background pb-32">
       <header className="px-5 pt-8 pb-4 flex justify-between items-center max-w-[1040px] mx-auto">
@@ -162,8 +182,6 @@ export default function LandingPage() {
           </div>
         </motion.section>
       </main>
-
-      <BottomNav />
     </div>
   );
 }
