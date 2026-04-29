@@ -1,0 +1,59 @@
+# Repo-root .dockerignore. Both apps/web/Dockerfile and apps/ws-server/
+# Dockerfile build with the monorepo as their context, so this is the
+# single source of truth for what should NOT ship into the build sandbox.
+
+# Version control + tooling
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Node artifacts (we install fresh inside the image)
+**/node_modules
+**/.pnpm-store
+
+# Build outputs
+**/dist
+**/.next
+**/.turbo
+**/.cache
+**/coverage
+**/*.tsbuildinfo
+
+# Local env (each container gets its env from compose / docker run)
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Local DB / data
+**/*.db
+**/*.sqlite
+**/pgdata
+
+# Docker artefacts
+docker-compose.override.yml
+
+# Logs
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/pnpm-debug.log*
+
+# OS / editor noise
+**/Thumbs.db
+
+# Documentation we don't need at runtime
+README.md
+**/*.md
+DESIGN.md
+docs/
+
+# Tests / scripts only used outside the image
+**/*.test.ts
+**/*.spec.ts

@@ -1,7 +1,17 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Standalone bundles the server + only the runtime-needed node_modules
+  // into .next/standalone, which is what the web Dockerfile runs from.
+  // `next dev` ignores this flag, so it doesn't affect local dev DX.
+  output: 'standalone',
+  // In a monorepo the trace must point at the repo root so workspace
+  // packages (@hunch-it/db, @hunch-it/shared) are copied into the
+  // standalone bundle. Without this Next traces from apps/web only and
+  // the bundle 404s on workspace imports at runtime.
+  outputFileTracingRoot: path.join(__dirname, '../..'),
   experimental: {
     // Allow importing TS from sibling workspaces (packages/shared).
     externalDir: true,

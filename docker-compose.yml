@@ -1,0 +1,98 @@
+# Local-dev orchestration. Brings up the same three services that will
+# run on Cloud Run + Cloud SQL in prod, so this is the rehearsal stage.
+#
+#   docker compose up --build
+#   docker compose exec ws-server pnpm --filter @hunch-it/db exec prisma migrate deploy
+#
+# Web is reachable at http://localhost:3000 (browser) and http://web:3000
+# (container network). ws-server at :4000 / http://ws-server:4000.
+# Cron forwarding goes container→container via WS_URL_INTERNAL.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hunch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hunchit
+      POSTGRES_USER: hunch
+      POSTGRES_PASSWORD: hunch
+    ports:
+      - "5432:5432"
+    volumes:
+      - hunch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hunch -d hunchit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ws-server:
+    build:
+      context: .
+      dockerfile: apps/ws-server/Dockerfile
+    container_name: hunch-ws
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://hunch:hunch@postgres:5432/hunchit
+      WS_SERVER_PORT: "4000"
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      WS_CRON_SECRET: ${WS_CRON_SECRET:-dev-shared-secret}
+      DEMO_MODE: "${DEMO_MODE:-false}"
+      LLM_ENABLED: "${LLM_ENABLED:-true}"
+      LLM_DAILY_USD_CAP: "${LLM_DAILY_USD_CAP:-20}"
+      BYPASS_MARKET_HOURS: "${BYPASS_MARKET_HOURS:-true}"
+      SIGNAL_INTERVAL_SECONDS: "${SIGNAL_INTERVAL_SECONDS:-60}"
+      TICKER_STAGGER_SECONDS: "${TICKER_STAGGER_SECONDS:-7}"
+      DEMO_INTERVAL_SECONDS: "${DEMO_INTERVAL_SECONDS:-30}"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PRIVY_APP_ID: ${PRIVY_APP_ID:-}
+      PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
+      PYTH_HERMES_URL: ${PYTH_HERMES_URL:-https://hermes.pyth.network}
+      PYTH_BENCHMARKS_URL: ${PYTH_BENCHMARKS_URL:-https://benchmarks.pyth.network}
+      NEXT_PUBLIC_SOLANA_RPC_URLS: ${NEXT_PUBLIC_SOLANA_RPC_URLS:-https://api.mainnet-beta.solana.com}
+      NEXT_PUBLIC_JUPITER_API_BASE: ${NEXT_PUBLIC_JUPITER_API_BASE:-https://lite-api.jup.ag}
+      UPSTASH_REDIS_REST_URL: ${UPSTASH_REDIS_REST_URL:-}
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-}
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* are baked into the JS bundle at build time. Pass
+        # the values the BROWSER will use (i.e. host-side localhost), not
+        # the container-internal addresses.
+        NEXT_PUBLIC_WS_URL: http://localhost:4000
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+        NEXT_PUBLIC_PRIVY_APP_ID: ${NEXT_PUBLIC_PRIVY_APP_ID:-}
+        NEXT_PUBLIC_SOLANA_RPC_URLS: ${NEXT_PUBLIC_SOLANA_RPC_URLS:-https://api.mainnet-beta.solana.com}
+        NEXT_PUBLIC_JUPITER_API_BASE: ${NEXT_PUBLIC_JUPITER_API_BASE:-https://lite-api.jup.ag}
+        NEXT_PUBLIC_DEMO_MODE: "${NEXT_PUBLIC_DEMO_MODE:-false}"
+        NEXT_PUBLIC_DEFAULT_TRADE_USD: "${NEXT_PUBLIC_DEFAULT_TRADE_USD:-500}"
+    container_name: hunch-web
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ws-server:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://hunch:hunch@postgres:5432/hunchit
+      # Server-side cron forwarder uses container DNS to reach ws-server.
+      WS_URL_INTERNAL: http://ws-server:4000
+      WS_CRON_SECRET: ${WS_CRON_SECRET:-dev-shared-secret}
+      CRON_SECRET: ${CRON_SECRET:-}
+      PRIVY_APP_ID: ${PRIVY_APP_ID:-}
+      PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
+      DEMO_MODE: "${DEMO_MODE:-false}"
+
+volumes:
+  hunch-pgdata:

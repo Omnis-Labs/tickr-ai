@@ -33,7 +33,12 @@ export async function forwardToWsServer(req: NextRequest, opts: ForwardOptions):
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
+  // Server-side cron forwarding uses the container-internal URL when set
+  // (e.g. http://ws-server:4000 inside docker compose); falls back to the
+  // public NEXT_PUBLIC_WS_URL the browser uses. Same code path works for
+  // Cloud Run / Vercel because the public URL also resolves server-side.
+  const wsUrl =
+    process.env.WS_URL_INTERNAL ?? process.env.NEXT_PUBLIC_WS_URL ?? 'http://localhost:4000';
   const secret = process.env.WS_CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: 'WS_CRON_SECRET not configured' }, { status: 500 });
