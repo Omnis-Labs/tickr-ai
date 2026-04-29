@@ -21,7 +21,7 @@ export function ErrorState({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-surface rounded-lg p-6 shadow-card border border-border-soft flex flex-col items-center justify-center text-center"
+      className="bg-surface rounded-lg p-6 shadow-micro flex flex-col items-center justify-center text-center"
     >
       <div className="w-12 h-12 rounded-full bg-negative-container flex items-center justify-center mb-3">
         <span className="material-symbols-outlined text-negative text-[24px]">{icon}</span>
@@ -31,7 +31,7 @@ export function ErrorState({
       {onRetry && (
         <button
           onClick={onRetry}
-          className="mt-4 px-5 py-2.5 bg-primary text-on-primary rounded-full text-label-md active:scale-95 transition-transform"
+          className="mt-4 px-5 py-2.5 bg-primary text-on-primary rounded-full text-label-md active:scale-[0.97] transition-transform"
         >
           {retryLabel}
         </button>
@@ -53,7 +53,7 @@ export function ErrorBanner({
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="mx-5 mb-4 bg-negative-container rounded-[20px] px-5 py-3 flex items-center justify-between"
+      className="mx-5 mb-4 bg-negative-container rounded-lg px-5 py-3 flex items-center justify-between"
     >
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-negative text-[18px]">warning</span>

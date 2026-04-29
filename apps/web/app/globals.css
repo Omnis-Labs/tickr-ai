@@ -1,164 +1,298 @@
-@import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
+@import "tailwindcss";
 
-/* ── Existing dark-mode tokens (referenced by every inline-styled page) ──── */
-@theme {
-  --color-bg: #0b0d12;
-  --color-bg-muted: #12151d;
-  --color-panel: #181c26;
-  --color-panel-2: #1f2433;
-  --color-border: #262b3a;
-  --color-fg: #e8ecf3;
-  --color-fg-muted: #9099ad;
-  --color-accent: #7c5cff;
-  --color-accent-strong: #a089ff;
-  --color-buy: #22c55e;
-  --color-sell: #ef4444;
-  --color-warn: #f59e0b;
-}
-
-/* ── shadcn primitive tokens (used by components/ui/*) ──────────────────────
-   Mapped onto our dark palette so <Button> / <Card> / <Dialog> render
-   coherently with the inline-styled pages instead of importing a foreign
-   light-mode design system. The branch's original light cream/lime values
-   live as backups in comments — uncomment if you skin to light mode. */
 @theme inline {
-  --color-primary: var(--color-accent);          /* default action / brand */
-  --color-on-primary: #ffffff;
-  --color-primary-container: var(--color-accent-strong);
-  --color-on-primary-container: #ffffff;
-  --color-on-accent: #ffffff;                     /* on top of --color-accent */
-  --color-accent-bright: var(--color-accent-strong);
-  --color-accent-soft: rgba(124, 92, 255, 0.18);
-  --color-on-accent-container: #ffffff;
-  --color-secondary: #1d2c4a;
-  --color-on-secondary: #cfe2ff;
-  --color-secondary-container: #122036;
-  --color-on-secondary-container: #cfe2ff;
-  --color-tertiary: var(--color-warn);
-  --color-on-tertiary: #2d1b00;
-  --color-tertiary-container: rgba(245, 158, 11, 0.18);
-  --color-on-tertiary-container: #ffe5a8;
-  --color-surface: var(--color-panel);
-  --color-surface-dim: var(--color-bg);
-  --color-surface-bright: var(--color-panel-2);
-  --color-surface-container: var(--color-panel-2);
-  --color-surface-container-low: var(--color-panel);
-  --color-surface-container-high: var(--color-panel-2);
-  --color-surface-container-highest: #232a3d;
-  --color-surface-container-lowest: #0b0d12;
-  --color-on-surface: var(--color-fg);
-  --color-on-surface-variant: var(--color-fg-muted);
-  --color-inverse-surface: var(--color-fg);
-  --color-inverse-on-surface: var(--color-bg);
-  --color-outline: var(--color-border);
-  --color-outline-variant: rgba(38, 43, 58, 0.65);
-  --color-positive: var(--color-buy);
-  --color-on-positive: #04210f;
-  --color-positive-container: rgba(34, 197, 94, 0.18);
-  --color-negative: var(--color-sell);
-  --color-on-negative: #2b0505;
-  --color-negative-container: rgba(239, 68, 68, 0.18);
-  --color-error: var(--color-sell);
-  --color-on-error: #2b0505;
-  --color-error-container: rgba(239, 68, 68, 0.22);
-  --color-on-error-container: #ffe5e5;
-  --color-border-soft: rgba(38, 43, 58, 0.5);
-  --color-border-medium: var(--color-border);
-  --color-border-inverse: rgba(232, 236, 243, 0.18);
-  --color-icon-muted: var(--color-fg-muted);
-  --color-divider: var(--color-border);
+  --color-background: #F2EFE8;
+  --color-on-background: #1A1C1E;
+  --color-surface: #FFFFFA;
+  --color-surface-dim: #EEE9DF;
+  --color-surface-bright: #FFFFFA;
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F8F6EF;
+  --color-surface-container: #F2EFE8;
+  --color-surface-container-high: #ECE9E2;
+  --color-surface-container-highest: #E6E3DC;
+  --color-on-surface: #1A1C1E;
+  --color-on-surface-variant: #6B6C64;
+  --color-inverse-surface: #1A1C1E;
+  --color-inverse-on-surface: #FFFFFA;
+  --color-outline: #D0CDC5;
+  --color-outline-variant: #E6E3DC;
+  --color-primary: #1A1C1E;
+  --color-on-primary: #FFFFFA;
+  --color-primary-container: #2B2C2E;
+  --color-on-primary-container: #FFFFFA;
+  --color-inverse-primary: #FFFFFA;
+  --color-accent: #D0E906;
+  --color-accent-bright: #D7F20A;
+  --color-accent-soft: #E8F780;
+  --color-on-accent: #1A1C1E;
+  --color-accent-container: #F0FBC0;
+  --color-on-accent-container: #1A1C1E;
+  --color-secondary: #BDEDF4;
+  --color-on-secondary: #1A1C1E;
+  --color-secondary-container: #D8F6FA;
+  --color-on-secondary-container: #25464B;
+  --color-secondary-bar: #A3D9F5;
+  --color-tertiary: #F5C896;
+  --color-on-tertiary: #1A1C1E;
+  --color-tertiary-container: #FCEACC;
+  --color-on-tertiary-container: #422B00;
+  --color-positive: #20BFC6;
+  --color-on-positive: #FFFFFF;
+  --color-positive-container: #CBF5F7;
+  --color-negative: #FF745D;
+  --color-on-negative: #FFFFFF;
+  --color-negative-container: #FFE0DA;
+  --color-error: #BA1A1A;
+  --color-on-error: #FFFFFF;
+  --color-error-container: #FFDAD6;
+  --color-on-error-container: #93000A;
+  --color-chart-hatched: #D8D5CC;
+  --color-chart-selected: #1A1C1E;
+  --color-neutral-badge: #1A1C1E;
+  --color-on-neutral-badge: #FFFFFA;
+  --color-icon-muted: #9A978D;
+  --color-divider: #ECE9E2;
+
+  --text-display-lg: 40px;
+  --text-display-lg--line-height: 44px;
+  --text-display-lg--letter-spacing: -0.03em;
+  --text-display-lg--font-weight: 700;
+
+  --text-headline-lg: 32px;
+  --text-headline-lg--line-height: 38px;
+  --text-headline-lg--letter-spacing: -0.02em;
+  --text-headline-lg--font-weight: 700;
+
+  --text-headline-md: 24px;
+  --text-headline-md--line-height: 30px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-md--font-weight: 700;
+
+  --text-title-lg: 20px;
+  --text-title-lg--line-height: 26px;
+  --text-title-lg--font-weight: 600;
+
+  --text-title-md: 16px;
+  --text-title-md--line-height: 22px;
+  --text-title-md--font-weight: 600;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 24px;
+  --text-body-lg--font-weight: 400;
+
+  --text-body-md: 14px;
+  --text-body-md--line-height: 20px;
+  --text-body-md--font-weight: 400;
+
+  --text-body-sm: 12px;
+  --text-body-sm--line-height: 16px;
+  --text-body-sm--font-weight: 400;
+
+  --text-label-lg: 14px;
+  --text-label-lg--line-height: 20px;
+  --text-label-lg--letter-spacing: 0.01em;
+  --text-label-lg--font-weight: 600;
+
+  --text-label-md: 12px;
+  --text-label-md--line-height: 16px;
+  --text-label-md--font-weight: 600;
+
+  --text-label-sm: 10px;
+  --text-label-sm--line-height: 14px;
+  --text-label-sm--letter-spacing: 0.02em;
+  --text-label-sm--font-weight: 500;
+
+  --text-number-xl: 40px;
+  --text-number-xl--line-height: 44px;
+  --text-number-xl--letter-spacing: -0.04em;
+  --text-number-xl--font-weight: 700;
+
+  --text-number-lg: 28px;
+  --text-number-lg--line-height: 34px;
+  --text-number-lg--letter-spacing: -0.03em;
+  --text-number-lg--font-weight: 700;
+
+  --text-number-md: 20px;
+  --text-number-md--line-height: 26px;
+  --text-number-md--letter-spacing: -0.02em;
+  --text-number-md--font-weight: 700;
 
   --radius-xs: 4px;
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+  --radius-DEFAULT: 12px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --radius-full: 9999px;
 
-  --text-display-lg: 40px;
-  --text-headline-lg: 32px;
-  --text-headline-md: 24px;
-  --text-title-lg: 20px;
-  --text-title-md: 16px;
-  --text-body-lg: 16px;
-  --text-body-md: 14px;
-  --text-body-sm: 12px;
-  --text-label-lg: 14px;
-  --text-label-md: 12px;
-  --text-label-sm: 10px;
+  --spacing-section: 48px;
+  --spacing-screen-x: 20px;
+  --spacing-screen-top: 16px;
+  --spacing-screen-bottom: 24px;
+  --spacing-card-padding: 20px;
+  --spacing-card-padding-compact: 16px;
+  --spacing-card-gap: 14px;
+  --spacing-section-gap: 18px;
+  --spacing-chart-padding: 20px;
+  --spacing-touch-target: 48px;
+  --spacing-nav-height: 64px;
+
+  --shadow-none: none;
+  --shadow-hairline: 0px 1px 0px 0px rgba(26, 28, 30, 0.04);
+  --shadow-micro: 0px 2px 8px 0px rgba(26, 28, 30, 0.06);
+  --shadow-soft: 0px 8px 24px 0px rgba(26, 28, 30, 0.08);
+  --shadow-card: 0px 12px 32px 0px rgba(26, 28, 30, 0.10);
+  --shadow-floating: 0px 16px 40px 0px rgba(26, 28, 30, 0.14);
+
+  --border-width-hairline: 1px;
+  --border-width-focus: 2px;
+  
+  --color-border-soft: rgba(26, 28, 30, 0.08);
+  --color-border-medium: rgba(26, 28, 30, 0.14);
+  --color-border-inverse: rgba(255, 255, 250, 0.24);
+
+  --default-transition-duration: 220ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+
+  --duration-instant: 80ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-springy: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --opacity-disabled: 0.38;
+  --opacity-muted: 0.62;
+  --opacity-overlay: 0.72;
+
+  --font-sans: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
-html,
-body {
-  height: 100%;
-  background: var(--color-bg);
-  color: var(--color-fg);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
+/* ── Legacy token aliases ────────────────────────────────────────────────
+   Old pages (mandate / portfolio / positions / proposals / proposal-modal)
+   still reference these. Aliasing onto the new ivory tokens lets them
+   render coherently in the new palette while the per-page migration
+   catches up. Remove this block once every page consumes the new
+   semantic tokens directly. */
+@theme inline {
+  --color-bg: var(--color-background);
+  --color-bg-muted: var(--color-surface-container);
+  --color-panel: var(--color-surface);
+  --color-panel-2: var(--color-surface-container-high);
+  --color-border: var(--color-outline-variant);
+  --color-fg: var(--color-on-surface);
+  --color-fg-muted: var(--color-on-surface-variant);
+  --color-accent-strong: var(--color-accent-bright);
+  --color-buy: var(--color-positive);
+  --color-sell: var(--color-negative);
+  --color-warn: var(--color-tertiary);
 }
 
-/* Simple utility primitives so bootstrap pages can look OK without shadcn yet. */
+@layer base {
+  :root {
+    --hatch-angle: -45deg;
+    --hatch-stroke: 2px;
+    --hatch-gap: 6px;
+    --hatch-opacity: 0.18;
+
+    --hunch-spacing-unit: 4px;
+    --hunch-spacing-xs: 4px;
+    --hunch-spacing-sm: 8px;
+    --hunch-spacing-md: 12px;
+    --hunch-spacing-default: 16px;
+    --hunch-spacing-lg: 20px;
+    --hunch-spacing-xl: 24px;
+    --hunch-spacing-2xl: 32px;
+    --hunch-spacing-3xl: 40px;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+    font-family: 'Plus Jakarta Sans', var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ── Legacy .btn / .card / .badge utility classes ──────────────────────────
+   Same story: pages I haven't migrated yet use these. They now resolve to
+   the new ivory palette via the legacy token aliases above. Drop when
+   every site consumes <Button> / <Card> / <Badge> primitives. */
 .card {
-  background: var(--color-panel);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 16px;
   padding: 20px;
+  box-shadow: var(--shadow-soft);
 }
-
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: 10px;
+  border-radius: 9999px;
   font-weight: 600;
   font-size: 14px;
-  transition:
-    transform 120ms ease,
-    background 120ms ease,
-    opacity 120ms ease;
+  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
   cursor: pointer;
   border: 1px solid transparent;
 }
-.btn:active {
-  transform: scale(0.98);
-}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; pointer-events: none; }
 .btn-primary {
-  background: var(--color-accent);
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
-.btn-primary:hover {
-  background: var(--color-accent-strong);
-}
+.btn-primary:hover { background: color-mix(in srgb, var(--color-primary) 88%, transparent); }
 .btn-ghost {
   background: transparent;
-  color: var(--color-fg);
-  border-color: var(--color-border);
+  color: var(--color-on-surface);
+  border-color: var(--color-outline);
 }
-.btn-ghost:hover {
-  background: var(--color-bg-muted);
-}
+.btn-ghost:hover { background: var(--color-surface-container); }
 .btn-buy {
-  background: var(--color-buy);
-  color: #04210f;
+  background: var(--color-positive);
+  color: var(--color-on-positive);
 }
 .btn-sell {
-  background: var(--color-sell);
-  color: #2b0505;
+  background: var(--color-negative);
+  color: var(--color-on-negative);
 }
-
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -166,14 +300,31 @@ body {
   text-transform: uppercase;
 }
 .badge-buy {
-  background: color-mix(in srgb, var(--color-buy) 20%, transparent);
-  color: var(--color-buy);
+  background: var(--color-positive-container);
+  color: var(--color-positive);
 }
 .badge-sell {
-  background: color-mix(in srgb, var(--color-sell) 20%, transparent);
-  color: var(--color-sell);
+  background: var(--color-negative-container);
+  color: var(--color-negative);
 }
 .badge-hold {
-  background: color-mix(in srgb, var(--color-fg-muted) 25%, transparent);
-  color: var(--color-fg-muted);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+}
+
+@layer utilities {
+  .bg-hatch {
+    background-image: repeating-linear-gradient(
+      var(--hatch-angle),
+      currentColor,
+      currentColor var(--hatch-stroke),
+      transparent var(--hatch-stroke),
+      transparent calc(var(--hatch-stroke) + var(--hatch-gap))
+    );
+    opacity: var(--hatch-opacity);
+  }
+
+  .animate-spin-slow {
+    animation: spin 20s linear infinite;
+  }
 }
