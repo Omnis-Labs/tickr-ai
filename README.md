@@ -23,9 +23,7 @@ Login → Mandate setup → Home → Review BUY proposal → Place Jupiter Trigg
   → BUY fills → TP/SL auto-protected → Adjust TP/SL or close the position
 ```
 
-The app is built around proposals, not a manual trading terminal. In v1, trades start from BUY proposals; exits happen through take-profit, stop-loss, or user-initiated full close.
-
-> **Implementation status (v1.3 Phase A landed)**: schema rewritten to v1.3 (Mandate / Proposal / Skip / Position / Order / Trade with the new state machine), Mandate Setup screen + `/api/mandates` + Settings page wired, legacy `/api/{trades,portfolio,signals}` routes stubbed to 501. Trigger Order pipeline, Proposal Generator, and Auto TP/SL OCO are tracked as Phase B-D. The legacy v1.2 demo signal loop still runs so demo mode stays exercisable.
+The app is built around proposals, not a manual trading terminal. Trades start from BUY proposals; exits happen through take-profit, stop-loss, or user-initiated full close.
 
 ## Current Scope
 
@@ -36,38 +34,57 @@ The app is built around proposals, not a manual trading terminal. In v1, trades 
 - **Data:** Pyth live and historical prices, PostgreSQL via Prisma
 - **Signal engine:** standalone `ws-server` process using indicators plus an LLM for base market analysis
 
-See [docs/product-overview.md](docs/product-overview.md) for the product scope and MWP checklist.
+See [docs/product-overview.md](docs/product-overview.md) for the full product scope.
 
-## Quick Start (Demo)
+## Quick Start
 
-Demo mode is the easiest way to try the local experience before wiring external services.
+### Prerequisites
+
+- **Node.js ≥ 20** and **pnpm ≥ 9** (`corepack enable` recommended)
+- A container runtime — **[OrbStack](https://orbstack.dev) is recommended on macOS** (lighter, faster boot than Docker Desktop). Docker Desktop, Colima, or any Docker-compatible engine also works.
+  ```bash
+  brew install orbstack   # one-line install on macOS
+  ```
+
+### Setup (once)
 
 ```bash
 git clone https://github.com/Omnis-Labs/hunch-it.git
 cd hunch-it
+corepack enable
 pnpm install
 cp .env.example .env
-```
-
-Edit `.env` and set:
-
-```bash
-DEMO_MODE=true
-NEXT_PUBLIC_DEMO_MODE=true
-```
-
-Then run:
-
-```bash
 cp .env apps/web/.env.local
 cp .env apps/ws-server/.env
-pnpm db:generate
-pnpm dev
+pnpm db:push      # push the Prisma schema to the (still empty) docker postgres volume
 ```
 
-Open http://localhost:3000, complete mandate setup, and use the demo proposal flow. Demo mode does not place real trades.
+> **Want to click around without external services?** Set `DEMO_MODE=true` and `NEXT_PUBLIC_DEMO_MODE=true` in `.env` (and re-copy to the two app env files). Demo mode generates fake signals and never places real trades. See [docs/getting-started.md](docs/getting-started.md#demo-mode) for the full demo walkthrough.
 
-For live setup, see [docs/getting-started.md](docs/getting-started.md).
+### Run — pick one
+
+**A. Full Docker** — runs web + ws-server + postgres as containers. Best for an end-to-end smoke test. Slow first build (~10 min cold), fast after that.
+
+```bash
+docker compose up --build -d
+docker compose down            # to stop
+```
+
+**B. `pnpm dev` with hot reload** *(recommended for coding)* — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, and runs `prisma generate` for you.
+
+```bash
+pnpm dev                       # auto-starts OrbStack/Docker → postgres → prisma generate → web + ws-server
+# Stop: Ctrl+C, then `pnpm db:down` if you also want to stop postgres
+```
+
+`pnpm dev` prefers OrbStack (`orb start`) on macOS and falls back to Docker Desktop if OrbStack isn't installed. On Linux it expects the docker daemon to already be running.
+
+### Open
+
+- Web UI: http://localhost:3000
+- ws-server: http://localhost:4000 (`/healthz` for a liveness check)
+
+For the full env reference, live trading setup, and the demo walkthrough, see [docs/getting-started.md](docs/getting-started.md). If something breaks, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Repo Structure
 
@@ -83,22 +100,27 @@ hunch-it/
 
 ## Scripts
 
-| Command            | Description                            |
-| ------------------ | -------------------------------------- |
-| `pnpm dev`         | Run web + ws-server concurrently       |
-| `pnpm dev:web`     | Run the Next.js app only               |
-| `pnpm dev:ws`      | Run the ws-server only                 |
-| `pnpm build`       | Build all workspaces                   |
-| `pnpm typecheck`   | Type-check all workspaces              |
-| `pnpm db:generate` | Generate the Prisma client             |
-| `pnpm db:push`     | Push the Prisma schema to the database |
-| `pnpm db:studio`   | Open Prisma Studio                     |
+| Command                  | Description                                                              |
+| ------------------------ | ------------------------------------------------------------------------ |
+| `pnpm dev`               | Auto-start docker postgres, generate Prisma client, run web + ws-server  |
+| `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)  |
+| `pnpm dev:web`           | Run the Next.js app only                                                 |
+| `pnpm dev:ws`            | Run the ws-server only                                                   |
+| `pnpm build`             | Build all workspaces                                                     |
+| `pnpm typecheck`         | Type-check all workspaces                                                |
+| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy)          |
+| `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)      |
+| `pnpm db:generate`       | Generate the Prisma client                                               |
+| `pnpm db:push`           | Push the Prisma schema to the database                                   |
+| `pnpm db:migrate`        | `prisma migrate dev` (interactive, creates a new migration)              |
+| `pnpm db:migrate:deploy` | `prisma migrate deploy` (apply existing migrations, for prod-like flows) |
+| `pnpm db:studio`         | Open Prisma Studio                                                       |
 
 ## Documentation
 
 | Doc                                          | What it covers                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------- |
-| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets, MWP checklist              |
+| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets                             |
 | [Getting Started](docs/getting-started.md)   | Demo mode, live setup, local development commands                    |
 | [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
 | [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |

@@ -6,6 +6,7 @@ Thanks for your interest in Hunch It. The project is still early, so the contrib
 
 - Node.js >= 20
 - pnpm >= 9
+- A container runtime — [OrbStack](https://orbstack.dev) (`brew install orbstack`) is recommended on macOS; Docker Desktop, Colima, or any Docker-compatible engine also works
 - Git
 
 ## Setup
@@ -15,25 +16,15 @@ git clone https://github.com/Omnis-Labs/hunch-it.git
 cd hunch-it
 pnpm install
 cp .env.example .env
-```
-
-For a quick local run, enable demo mode in `.env`:
-
-```bash
-DEMO_MODE=true
-NEXT_PUBLIC_DEMO_MODE=true
-```
-
-Then:
-
-```bash
 cp .env apps/web/.env.local
 cp .env apps/ws-server/.env
-pnpm db:generate
-pnpm dev
+pnpm db:push        # push the Prisma schema to the docker postgres volume
+pnpm dev            # auto-starts your container runtime, postgres, and the apps
 ```
 
-See [docs/getting-started.md](docs/getting-started.md) for live setup.
+For a no-credentials run, set `DEMO_MODE=true` and `NEXT_PUBLIC_DEMO_MODE=true` in `.env` (and re-copy to both app env files) before `pnpm dev`.
+
+See [docs/getting-started.md](docs/getting-started.md) for the full walkthrough including the alternative full-Docker flow (`docker compose up --build -d`).
 
 ## How to Help
 

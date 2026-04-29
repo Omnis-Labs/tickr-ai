@@ -40,7 +40,7 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/ws-server/node_modules ./apps/ws-server/node_modules
 COPY --from=deps /repo/packages/db/node_modules ./packages/db/node_modules
 COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY apps/ws-server ./apps/ws-server
 COPY packages/db ./packages/db
 COPY packages/shared ./packages/shared
