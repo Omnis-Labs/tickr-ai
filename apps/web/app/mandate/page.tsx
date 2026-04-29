@@ -16,6 +16,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { ensureNotificationPermission } from '@/lib/notifications/permission';
+import { markOnboarded } from '@/lib/onboarding/state';
 
 /**
  * Mandate setup / edit. Four cards: holding period, max drawdown, max
@@ -104,6 +105,7 @@ export default function MandatePage() {
       }
       toast.success('Mandate saved.');
       setSubmitted(true);
+      markOnboarded(demo ? 'demo-wallet' : address);
       void ensureNotificationPermission();
       router.push('/');
     } catch (err) {

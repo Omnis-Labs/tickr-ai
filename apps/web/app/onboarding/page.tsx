@@ -9,6 +9,7 @@ import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo/flag';
 import { unlockSound, playSignalSound } from '@/components/notifications/sound-manager';
+import { markOnboarded } from '@/lib/onboarding/state';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -21,7 +22,7 @@ type Step = 1 | 2 | 3 | 4;
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>(1);
-  const { connected, login } = useWallet();
+  const { connected, login, address } = useWallet();
   const demo = isDemo();
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
@@ -209,6 +210,7 @@ export default function OnboardingPage() {
                     </button>
                     <Link
                       href="/mandate"
+                      onClick={() => markOnboarded(address)}
                       className="flex-[2] h-11 inline-flex items-center justify-center rounded-full bg-accent text-on-accent text-label-lg shadow-soft active:scale-[0.97] transition-transform"
                     >
                       Set up mandate

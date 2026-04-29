@@ -9,29 +9,52 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useMandate } from '@/lib/hooks/queries';
+import { hasOnboarded } from '@/lib/onboarding/state';
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' } },
 };
 
+const STEPS: Array<{ icon: string; title: string; body: string }> = [
+  {
+    icon: 'tune',
+    title: 'Set your mandate',
+    body: 'Tell the engine your holding period, drawdown tolerance, max trade size, and the markets you actually care about.',
+  },
+  {
+    icon: 'campaign',
+    title: 'Receive proposals',
+    body: 'When momentum, volume, and macro line up, you get a single proposal — sized, priced, and reasoned against your mandate.',
+  },
+  {
+    icon: 'shield',
+    title: 'Execute with one tap',
+    body: 'Approve and the BUY trigger places automatically. Take-profit and stop-loss go in alongside it, so the exit is set before you walk away.',
+  },
+];
+
 export default function LandingPage() {
   const router = useRouter();
-  const { ready, connected } = useWallet();
+  const { ready, connected, address } = useWallet();
   const mandateQuery = useMandate();
 
   // Routing rules for the marketing landing:
-  //   - not logged in        → stay (show marketing copy + Login CTA)
-  //   - logged in, mandate?  → /desk (the real signed-in home)
-  //   - logged in, no mandate→ /mandate (one-time setup)
-  // The mandate query is enabled by default; in DEMO_MODE it returns
-  // DEMO_MANDATE so the redirect to /desk fires immediately.
+  //   - not logged in            → stay (show marketing copy + Login CTA)
+  //   - logged in, mandate       → /desk (the real signed-in home)
+  //   - logged in, no mandate,
+  //     not onboarded yet        → /onboarding (4-step prep wizard)
+  //   - logged in, no mandate,
+  //     already onboarded        → /mandate (they backed out before saving)
   useEffect(() => {
     if (!ready || !connected) return;
     if (mandateQuery.isLoading) return;
-    if (mandateQuery.data?.mandate) router.replace('/desk');
-    else router.replace('/mandate');
-  }, [ready, connected, mandateQuery.isLoading, mandateQuery.data, router]);
+    if (mandateQuery.data?.mandate) {
+      router.replace('/desk');
+      return;
+    }
+    router.replace(hasOnboarded(address) ? '/mandate' : '/onboarding');
+  }, [ready, connected, address, mandateQuery.isLoading, mandateQuery.data, router]);
 
   return (
     <div className="min-h-screen bg-background text-on-background pb-32">
@@ -40,7 +63,6 @@ export default function LandingPage() {
           Hunch It<span className="text-accent">.</span>
         </div>
         <div className="flex gap-3">
-          {/* // TODO(integration): Wire auth login trigger */}
           <Button variant="outline" size="sm" asChild>
             <Link href="/login">Login</Link>
           </Button>
@@ -62,13 +84,12 @@ export default function LandingPage() {
           <p className="text-body-lg text-on-surface-variant max-w-xl mb-8">
             AI-driven trading signals for tokenized US stocks on Solana. We translate market data into clear proposals, you execute in seconds. Every position is protected.
           </p>
-          {/* // TODO(integration): Wire auth login trigger */}
           <Button variant="accent" size="lg" className="w-full sm:w-auto shadow-soft" asChild>
             <Link href="/login">Get Started</Link>
           </Button>
         </motion.section>
 
-        {/* Mock Portfolio Summary */}
+        {/* How it works — replaces the mock portfolio block */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -76,34 +97,29 @@ export default function LandingPage() {
           className="mb-12"
         >
           <div className="flex justify-between items-baseline mb-4">
-            <h2 className="text-title-lg font-bold">Portfolio</h2>
-            <Link href="/portfolio" className="text-label-md text-on-surface-variant">
-              View all →
-            </Link>
+            <h2 className="text-title-lg font-bold">How it works</h2>
           </div>
-          {/* // TODO(integration): Wire to GET /api/portfolio for live data */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="bg-surface shadow-micro">
-              <CardContent className="p-5">
-                <div className="text-label-sm text-on-surface-variant mb-1">Total Value</div>
-                <div className="text-number-md tracking-tight">$12,450.00</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-surface shadow-micro">
-              <CardContent className="p-5">
-                <div className="text-label-sm text-on-surface-variant mb-1">24h Change</div>
-                <div className="text-number-md tracking-tight text-positive flex items-center gap-1">
-                  +$342.50
-                </div>
-                <Badge variant="positive" className="mt-2">
-                  +2.8%
-                </Badge>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {STEPS.map((s, i) => (
+              <Card key={s.title} className="bg-surface shadow-micro">
+                <CardContent className="p-5 flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+                      <span className="material-symbols-outlined text-[22px]">{s.icon}</span>
+                    </div>
+                    <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                      Step {i + 1}
+                    </span>
+                  </div>
+                  <h3 className="text-title-md text-primary">{s.title}</h3>
+                  <p className="text-body-md text-on-surface-variant">{s.body}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </motion.section>
 
-        {/* Mock Proposals Feed */}
+        {/* Sample proposal — replaces the mock feed; clearly labelled. */}
         <motion.section
           initial="hidden"
           animate="show"
@@ -113,73 +129,42 @@ export default function LandingPage() {
           }}
         >
           <div className="flex justify-between items-baseline mb-4">
-            <h2 className="text-title-lg font-bold">Proposals feed</h2>
-            <span className="text-label-sm text-on-surface-variant">
-              Sorted by urgency
-            </span>
+            <h2 className="text-title-lg font-bold">A proposal looks like this</h2>
+            <span className="text-label-sm text-on-surface-variant">Sample</span>
           </div>
-          {/* // TODO(integration): Wire to GET /api/proposals for live feed */}
-          <div className="space-y-4">
-            {/* Mock Proposal 1 */}
-            <motion.div variants={cardVariants}>
-              <Card className="bg-accent border-transparent shadow-soft">
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <Badge className="bg-primary text-on-primary mb-2 border-transparent">NEW PROPOSAL</Badge>
-                      <h3 className="text-title-lg font-bold text-on-accent">Long AAPL</h3>
-                    </div>
-                    <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-primary shadow-micro">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-                      </svg>
-                    </div>
+          <motion.div variants={cardVariants}>
+            <Card className="bg-accent border-transparent shadow-soft">
+              <CardContent className="p-5">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <Badge className="bg-primary text-on-primary mb-2 border-transparent">SAMPLE</Badge>
+                    <h3 className="text-title-lg font-bold text-on-accent">Long AAPL</h3>
                   </div>
-                  <p className="text-body-md text-on-accent/80 mb-6">
-                    Earnings momentum breaking overhead resistance. Tech sector rotation confirms strength.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-surface/40 p-3 rounded-xl">
-                      <div className="text-label-sm opacity-70 mb-1 text-on-accent">Target</div>
-                      <div className="font-bold text-on-accent">$192.50</div>
-                    </div>
-                    <div className="bg-surface/40 p-3 rounded-xl">
-                      <div className="text-label-sm opacity-70 mb-1 text-on-accent">Stop Loss</div>
-                      <div className="font-bold text-on-accent">$178.00</div>
-                    </div>
+                  <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-primary shadow-micro">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                    </svg>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Mock Proposal 2 */}
-            <motion.div variants={cardVariants}>
-              <Card className="shadow-micro">
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <Badge variant="secondary" className="mb-2">ACTIVE</Badge>
-                      <h3 className="text-title-lg font-bold">Long TSLA</h3>
-                    </div>
-                    <span className="text-label-sm text-on-surface-variant">2h ago</span>
+                </div>
+                <p className="text-body-md text-on-accent/80 mb-6">
+                  Earnings momentum breaking overhead resistance. Tech sector rotation confirms strength. Sized within mandate, exits prefilled.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-surface/40 p-3 rounded-xl">
+                    <div className="text-label-sm opacity-70 mb-1 text-on-accent">Take profit</div>
+                    <div className="font-bold text-on-accent">+8% target</div>
                   </div>
-                  <p className="text-body-md text-on-surface-variant mb-6">
-                    Volatility contraction pattern resolving upwards. High confidence setup.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-surface-container p-3 rounded-xl">
-                      <div className="text-label-sm text-on-surface-variant mb-1">Target</div>
-                      <div className="font-bold text-on-surface">$210.00</div>
-                    </div>
-                    <div className="bg-surface-container p-3 rounded-xl">
-                      <div className="text-label-sm text-on-surface-variant mb-1">Stop Loss</div>
-                      <div className="font-bold text-on-surface">$165.50</div>
-                    </div>
+                  <div className="bg-surface/40 p-3 rounded-xl">
+                    <div className="text-label-sm opacity-70 mb-1 text-on-accent">Stop loss</div>
+                    <div className="font-bold text-on-accent">−5% guard</div>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <p className="mt-3 text-body-sm text-on-surface-variant text-center">
+            Real proposals are tailored to your mandate and live market data once you sign in.
+          </p>
         </motion.section>
       </main>
     </div>

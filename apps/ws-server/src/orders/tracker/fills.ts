@@ -8,6 +8,7 @@ import type { Prisma, PrismaClient, TradeSource } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import { WsServerEvents, getAssetById } from '@hunch-it/shared';
 import { tryDelegatedCancel } from './oco.js';
+import { tryAutoPlaceExits } from './auto-exits.js';
 import type { JupiterHistoryEntry } from './jupiter-history.js';
 
 export type OrderForFill = Awaited<ReturnType<PrismaClient['order']['findMany']>>[number] & {
@@ -102,8 +103,9 @@ export async function applyFill(
   }
 
   if (order.kind === 'BUY_TRIGGER' && remote.status === 'FILLED' && executionPrice) {
-    // BUY filled → Position transitions to ENTERING. The user places TP/SL
-    // next via Position Detail.
+    // BUY filled → Position is ENTERING. If the user delegated signing,
+    // we place TP/SL server-side immediately; otherwise the manual
+    // "Confirm exits" CTA on Position Detail kicks in.
     const tokenAmount = outAmount ? outAmount / 10 ** decimals : 0;
     await prisma.position.update({
       where: { id: order.positionId },
@@ -114,6 +116,32 @@ export async function applyFill(
         totalCost: tokenAmount * executionPrice,
       },
     });
+
+    if (order.user?.delegationActive && order.user.privyWalletId && tokenAmount > 0) {
+      const placed = await tryAutoPlaceExits({
+        prisma,
+        positionId: order.positionId,
+        userId: order.userId,
+        walletAddress: order.user.walletAddress,
+        privyWalletId: order.user.privyWalletId,
+        ticker: order.position.ticker,
+        tokenAmount,
+      }).catch((err) => {
+        console.warn('[tracker] auto TP/SL placement threw', err);
+        return 0;
+      });
+      if (placed > 0 && order.user) {
+        io.to(`user:${order.user.walletAddress}`).emit(WsServerEvents.PositionUpdated, {
+          positionId: order.positionId,
+          state: 'ACTIVE',
+          action: 'auto-exits-placed',
+          placedCount: placed,
+        });
+        console.log(
+          `[tracker] auto-placed ${placed} exit leg(s) for position ${order.positionId.slice(0, 8)}…`,
+        );
+      }
+    }
   }
 
   if (
