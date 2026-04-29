@@ -183,23 +183,61 @@ export default function SettingsPage() {
 }
 
 /**
- * Phase F — Delegated signing toggle. Keeping the localStorage mirror so
- * the toggle restores between sessions even though we never built a
- * /api/users GET to read delegationActive back from the DB.
+ * Phase F — Delegated signing toggle. Hydrates `active` from /api/users/
+ * delegation on mount, and PATCHes the Privy server wallet id (which only
+ * appears post-grant) back to the server via a follow-up effect once it's
+ * available — that way the ws-server's `tryDelegatedCancel` has the id it
+ * needs even though the frontend grant call resolves before Privy
+ * re-publishes the user state.
  */
 function DelegationCard({ wallet }: { wallet: string | null }) {
   const demo = isDemo();
   const [active, setActive] = useState<boolean>(false);
+  const [persistedWalletId, setPersistedWalletId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const authedFetch = useAuthedFetch();
-  const { delegateSolanaWallet, revokeDelegations } = useWallet();
+  const { delegateSolanaWallet, revokeDelegations, walletId } = useWallet();
 
   useEffect(() => {
-    if (!wallet || demo) return;
-    if (typeof window === 'undefined') return;
-    const cached = window.localStorage.getItem(`delegation:${wallet}`);
-    if (cached === '1') setActive(true);
-  }, [wallet, demo]);
+    if (demo || !wallet) return;
+    let cancelled = false;
+    authedFetch('/api/users/delegation')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return;
+        const data = j as { delegationActive?: boolean; privyWalletId?: string | null };
+        setActive(!!data.delegationActive);
+        setPersistedWalletId(data.privyWalletId ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet, demo, authedFetch]);
+
+  // Privy populates `walletId` after the user has delegated. If the user
+  // toggled on but we PATCHed without an id (because Privy hadn't re-
+  // published the user state yet), backfill it as soon as it appears.
+  useEffect(() => {
+    if (demo || !wallet || !active || !walletId) return;
+    if (walletId === persistedWalletId) return;
+    void authedFetch('/api/users/delegation', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress: wallet,
+        privyWalletId: walletId,
+        delegationActive: true,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j && (j as { privyWalletId?: string }).privyWalletId) {
+          setPersistedWalletId((j as { privyWalletId: string }).privyWalletId);
+        }
+      })
+      .catch(() => {});
+  }, [demo, wallet, active, walletId, persistedWalletId, authedFetch]);
 
   async function toggle(next: boolean) {
     if (!wallet) {
@@ -223,16 +261,19 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
       const res = await authedFetch('/api/users/delegation', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ walletAddress: wallet, delegationActive: next }),
+        body: JSON.stringify({
+          walletAddress: wallet,
+          delegationActive: next,
+          ...(next && walletId ? { privyWalletId: walletId } : {}),
+        }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         throw new Error((j as { error?: string }).error ?? `${res.status}`);
       }
+      const j = (await res.json().catch(() => ({}))) as { privyWalletId?: string | null };
+      setPersistedWalletId(j.privyWalletId ?? null);
       setActive(next);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(`delegation:${wallet}`, next ? '1' : '0');
-      }
       toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -240,6 +281,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
       setBusy(false);
     }
   }
+
 
   return (
     <Section icon="bolt" title="Auto-exit signing">

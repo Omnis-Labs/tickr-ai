@@ -2,21 +2,45 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
-import { requireAuthOrUpsert } from '@/lib/auth/context';
+import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 
 /**
- * PATCH /api/users/delegation
- * body: { walletAddress, privyWalletId?, delegationActive }
+ * Phase F — delegated signing toggle persistence.
  *
- * Persists the user's delegated-signing opt-in state. The actual delegation
- * grant is done client-side via Privy's useDelegatedActions; this endpoint
- * just records that the user has agreed so the ws-server Order Tracker /
- * auto TP/SL placement code knows it can call the Privy server signer.
+ *   GET   /api/users/delegation
+ *           returns { delegationActive, privyWalletId } from the DB so the
+ *           Settings toggle can hydrate from server state on mount instead
+ *           of localStorage. Demo mode short-circuits to a stub.
  *
- * Auth: Privy access token. The user identity comes from the verified token,
- * NOT from the request body. Demo mode short-circuits.
+ *   PATCH /api/users/delegation
+ *           body: { walletAddress, privyWalletId?, delegationActive }
+ *           Persists the user's opt-in. The Privy delegation grant itself
+ *           happens client-side (useDelegatedActions); this endpoint
+ *           records that the user has agreed so the ws-server Order
+ *           Tracker knows it can call the Privy server signer.
+ *
+ * Auth: Privy access token. Identity comes from the verified token, never
+ * from the request body.
  */
-const Schema = z.object({
+
+export async function GET(req: NextRequest) {
+  if (isDemoServer()) {
+    return NextResponse.json({ delegationActive: false, privyWalletId: null, demo: true });
+  }
+  const auth = await requireAuth(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { delegationActive: true, privyWalletId: true },
+  });
+  return NextResponse.json({
+    delegationActive: user?.delegationActive ?? false,
+    privyWalletId: user?.privyWalletId ?? null,
+  });
+}
+
+const PatchSchema = z.object({
   walletAddress: z.string().min(1),
   privyWalletId: z.string().optional(),
   delegationActive: z.boolean(),
@@ -24,7 +48,7 @@ const Schema = z.object({
 
 export async function PATCH(req: NextRequest) {
   const body: unknown = await req.json().catch(() => null);
-  const parsed = Schema.safeParse(body);
+  const parsed = PatchSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'invalid payload', issues: parsed.error.flatten() },
@@ -44,10 +68,12 @@ export async function PATCH(req: NextRequest) {
       ...(parsed.data.privyWalletId ? { privyWalletId: parsed.data.privyWalletId } : {}),
       delegationActive: parsed.data.delegationActive,
     },
+    select: { delegationActive: true, privyWalletId: true },
   });
 
   return NextResponse.json({
     ok: true,
     delegationActive: user.delegationActive,
+    privyWalletId: user.privyWalletId,
   });
 }

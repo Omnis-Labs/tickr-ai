@@ -20,7 +20,7 @@ import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
  * shape and replace this in components/wallet/wallet-provider.tsx.
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken, user } = usePrivy();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { delegateWallet, revokeWallets } = useDelegatedActions();
@@ -39,9 +39,19 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       }
     })();
 
+    // Match the embedded Privy wallet to the connected wallet's address so
+    // we read the right `id` (server wallet ID, populated post-delegation).
+    const privyEmbedded = user?.linkedAccounts?.find(
+      (acct) =>
+        acct.type === 'wallet' &&
+        (acct as { address?: string }).address === wallet?.address,
+    ) as { id?: string | null; delegated?: boolean } | undefined;
+
     return {
       publicKey,
       address: wallet?.address ?? null,
+      walletId: privyEmbedded?.id ?? user?.wallet?.id ?? null,
+      delegated: !!privyEmbedded?.delegated || !!user?.wallet?.delegated,
       connected: ready && authenticated && !!wallet,
       ready,
       signTransaction: wallet
@@ -83,6 +93,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     };
   }, [
     wallet,
+    user,
     ready,
     authenticated,
     login,

@@ -14,6 +14,13 @@ import type { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.
 export interface UnifiedWallet {
   publicKey: PublicKey | null;
   address: string | null;
+  /** Privy server-wallet id (populated only after the user has delegated
+   *  signing for this embedded wallet). Required by the server SDK's
+   *  signSolanaTransaction({ walletId }) call, so we thread it through to
+   *  /api/users/delegation when the toggle flips on. */
+  walletId: string | null;
+  /** Whether the user has granted delegation for this embedded wallet. */
+  delegated: boolean;
   connected: boolean;
   ready: boolean;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
@@ -38,6 +45,8 @@ export interface UnifiedWallet {
 export const STUB_WALLET: UnifiedWallet = {
   publicKey: null,
   address: null,
+  walletId: null,
+  delegated: false,
   connected: false,
   ready: true, // "ready to NOT auth" so the WalletButton renders Connect
   signTransaction: async () => {
