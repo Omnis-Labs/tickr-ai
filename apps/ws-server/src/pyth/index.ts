@@ -17,7 +17,12 @@ import { env } from '../env.js';
 
 let hermes: HermesClient | null = null;
 function getHermes(): HermesClient {
-  if (!hermes) hermes = new HermesClient(env.PYTH_HERMES_URL);
+  // HermesClient defaults to a 5s fetch timeout and explicitly skips its
+  // built-in retry on AbortError, so a single slow upstream response fails
+  // the whole cycle. Bumping to 10s catches the long tail of public-endpoint
+  // latency spikes; our caller already absorbs per-ticker errors and the
+  // next 60s tick retries naturally, so we don't layer on extra retry here.
+  if (!hermes) hermes = new HermesClient(env.PYTH_HERMES_URL, { timeout: 10_000 });
   return hermes;
 }
 
