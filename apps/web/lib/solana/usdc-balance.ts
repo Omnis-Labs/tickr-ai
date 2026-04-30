@@ -6,19 +6,21 @@
 // so this stays cheap.
 
 import 'server-only';
-import { Connection, PublicKey } from '@solana/web3.js';
-import { USDC_DECIMALS, USDC_MINT, parseRpcUrls } from '@hunch-it/shared';
+import { PublicKey } from '@solana/web3.js';
+import { USDC_DECIMALS, USDC_MINT } from '@hunch-it/shared';
+import {
+  configureRpcPool,
+  WEB_RPC_OPTIONS,
+  withRpcFailover,
+} from '@hunch-it/shared/rpc';
+
+configureRpcPool({
+  rawUrls: process.env.NEXT_PUBLIC_SOLANA_RPC_URLS,
+  options: WEB_RPC_OPTIONS,
+});
 
 const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const TTL_MS = 60_000;
-
-let lazyConn: Connection | null = null;
-function getConn(): Connection {
-  if (lazyConn) return lazyConn;
-  const rpcUrls = parseRpcUrls(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS);
-  lazyConn = new Connection(rpcUrls[0]!, 'confirmed');
-  return lazyConn;
-}
 
 const cache = new Map<string, { at: number; usd: number }>();
 
@@ -38,9 +40,11 @@ export async function readUsdcBalance(walletAddress: string): Promise<number> {
   }
 
   try {
-    const res = await getConn().getParsedTokenAccountsByOwner(owner, {
-      programId: new PublicKey(SPL_TOKEN_PROGRAM),
-    });
+    const res = await withRpcFailover((conn) =>
+      conn.getParsedTokenAccountsByOwner(owner, {
+        programId: new PublicKey(SPL_TOKEN_PROGRAM),
+      }),
+    );
     let raw = 0;
     for (const acct of res.value) {
       const info = acct.account.data;
