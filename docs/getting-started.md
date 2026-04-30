@@ -74,7 +74,7 @@ pnpm db:down
 
 Then it starts web (Next.js dev) and ws-server (`tsx watch`) in parallel. The first request to `/` triggers Next's cold compile (~60–90s); after that, edits hot-reload in under a second.
 
-If you want to manage Postgres yourself (e.g. you already have a local Postgres, or you're using a Cloud SQL Auth Proxy), use `pnpm dev:no-db` to skip the preflight.
+If you want to manage Postgres yourself (e.g. you already have a local Postgres, or you're proxying a managed Postgres), use `pnpm dev:no-db` to skip the preflight.
 
 > **First-run heads-up:** if you skip `pnpm db:push` (or you wipe the `hunch-pgdata` volume — `docker compose down -v` — or you switch between Docker Desktop and OrbStack which keep separate volume stores), the Prisma schema is gone. Run `pnpm db:push` before `pnpm dev`. Otherwise ws-server will log `P2021 The table public.User does not exist` on the first websocket connection.
 

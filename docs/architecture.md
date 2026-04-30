@@ -22,7 +22,7 @@ hunch-it/
 
 **packages/shared**: Zod schemas, asset registry (static TypeScript), and type definitions shared between both apps.
 
-Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through its own Prisma client instance.
+Both apps connect to the same PostgreSQL database (self-managed, running in Docker on the prod VM), each through its own Prisma client instance.
 
 ---
 
@@ -63,13 +63,13 @@ Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through it
 │  ┌──────────────┐  ┌────────────────┐                   │
 │  │   Auto       │  │    Back-       │                   │
 │  │   TP/SL      │  │   Evaluator    │                   │
-│  │   Placer     │  │  (cron 5min)   │                   │
+│  │   Placer     │  │  (every 5min)  │                   │
 │  └──────────────┘  └────────────────┘                   │
 └─────────────────────────┬───────────────────────────────┘
                           │
                    ┌──────┴──────┐
-                   │ GCP Cloud   │
-                   │ SQL (PG)    │
+                   │ VM Postgres │
+                   │ (Docker)    │
                    │ via Prisma  │
                    └─────────────┘
 ```
@@ -93,7 +93,7 @@ Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through it
 | Realtime Communication | Socket.IO (server) + Shared Worker + BroadcastChannel (client)                                                       |
 | Signal Engine LLM      | Claude Sonnet or Opus (@anthropic-ai/sdk)                                                                            |
 | Technical Indicators   | technicalindicators library                                                                                          |
-| Database               | GCP Cloud SQL (PostgreSQL 15)                                                                                        |
+| Database               | PostgreSQL 15 (self-managed, in Docker on the prod VM)                                                               |
 | ORM                    | Prisma                                                                                                               |
 | Schema Validation      | Zod                                                                                                                  |
 | Asset Registry         | Static TypeScript (packages/shared/src/constants.ts)                                                                 |
@@ -107,7 +107,7 @@ Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through it
 | ------------------------------ | ------------------------- | ------------------------------------------------------- |
 | Frontend (apps/web)            | GCP VM + Docker           | Next.js container                                       |
 | Signal Engine (apps/ws-server) | GCP VM + Docker           | Long-running Node.js process with WebSocket connections |
-| Database                       | Cloud SQL (PostgreSQL 15) | Single instance, both apps connect via Private IP       |
+| Database                       | PostgreSQL 15 in Docker   | Single instance on the prod VM; apps connect via the docker-compose network |
 | DNS                            | Cloud DNS                 | <app-domain>                                            |
 
 Both apps/web and ws-server are packaged as Docker images, deployed on the same (or two separate) GCP VMs. Environment variables (API keys, DB credentials) are configured directly in Docker Compose or `.env` on the VM.

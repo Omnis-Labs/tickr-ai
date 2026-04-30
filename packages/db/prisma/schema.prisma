@@ -1,4 +1,4 @@
-// Hunch It — Prisma schema (Cloud SQL Postgres / PostgreSQL 15 compatible)
+// Hunch It — Prisma schema (PostgreSQL 15)
 // Aligned to PRD v1.3 (docs/spec-hunch-v1.3.md).
 //
 // v1 → v1.3 migration: Signal / Approval / Trade / Position have been

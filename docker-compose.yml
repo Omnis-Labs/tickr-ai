@@ -1,12 +1,12 @@
-# Local-dev orchestration. Brings up the same three services that will
-# run on Cloud Run + Cloud SQL in prod, so this is the rehearsal stage.
+# Local-dev orchestration. Brings up the same three services that run on
+# the prod VM (Linux + Docker + self-managed Postgres), so this is the
+# rehearsal stage.
 #
 #   docker compose up --build
 #   docker compose exec ws-server pnpm --filter @hunch-it/db exec prisma migrate deploy
 #
 # Web is reachable at http://localhost:3000 (browser) and http://web:3000
 # (container network). ws-server at :4000 / http://ws-server:4000.
-# Cron forwarding goes container→container via WS_URL_INTERNAL.
 
 services:
   postgres:

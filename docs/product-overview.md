@@ -46,7 +46,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **Automatic TP/SL**: system places exit orders after BUY fills, with OCO behavior
 - **Signal Engine**: independent backend (ws-server) using Pyth price feeds + technical indicators + Claude Sonnet/Opus LLM to generate personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
-- **GCP Cloud SQL** (PostgreSQL) for persistence: mandates, positions, proposals, trades, orders
+- **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
 - **Supported assets**: Jupiter-listed xStocks + bluechip crypto (SOL, BTC, ETH)
 - **Back-evaluation**: automated proposal quality scoring 1 hour after generation
 

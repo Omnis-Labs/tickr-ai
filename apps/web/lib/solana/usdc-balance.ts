@@ -1,9 +1,9 @@
 // Server-only helper: read a wallet's USDC balance via Solana RPC.
 //
 // Used by /api/portfolio to populate cashUsd. We cache per-wallet for 60s
-// so the desk page's 15s portfolio refetch doesn't pound the RPC. Cache
-// is module-scoped; in dev/Vercel the function-instance recycles regularly
-// so this stays cheap.
+// so the desk page's 15s portfolio refetch doesn't pound the RPC. The
+// cache is module-scoped, lives for the life of the Node process, and is
+// dropped on container restart — fine for a 60s TTL.
 
 import 'server-only';
 import { Connection, PublicKey } from '@solana/web3.js';
