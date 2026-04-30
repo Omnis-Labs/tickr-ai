@@ -3,8 +3,9 @@
 /**
  * Plays a short two-note "ding" using Web Audio API. Synthesised on the fly so
  * we don't need to ship an mp3. Audio contexts must be created/resumed inside
- * a user gesture — `unlockSound()` is called from the onboarding "Unlock & test"
- * button, which satisfies autoplay policies for the rest of the session.
+ * a user gesture — `unlockSound()` is called synchronously at the start of
+ * the mandate-page "Start Desk" submit handler so the AudioContext is ready
+ * before the user lands on /desk and signal sounds start firing.
  */
 
 interface AudioCtxCtor {
