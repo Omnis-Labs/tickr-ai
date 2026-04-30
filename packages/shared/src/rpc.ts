@@ -21,13 +21,15 @@
 // resets on cold start — which is correct (stale health shouldn't survive
 // a deployment).
 //
-// Server-only: this file imports `@solana/web3.js` and must never reach the
-// browser bundle. The `import 'server-only'` below makes Next.js fail the
-// build if a Client Component imports it. The barrel `./index.ts` does NOT
-// re-export from here — callers must explicitly import from
-// `@hunch-it/shared/rpc`.
+// Server-only: this file imports `@solana/web3.js` (heavy server-side dep)
+// and must never reach the apps/web client bundle. Two guardrails enforce
+// this without depending on the `server-only` package (which throws at
+// runtime in plain Node and would break apps/ws-server):
+//   1. The barrel `./index.ts` does NOT re-export from here.
+//   2. Callers must import via the explicit `@hunch-it/shared/rpc` subpath.
+// A Client Component pulling this in would have to spell out the subpath
+// import, at which point Next.js's bundle analyzer will surface the bloat.
 
-import 'server-only';
 import { Connection } from '@solana/web3.js';
 
 // ── public ───────────────────────────────────────────────────────────────
