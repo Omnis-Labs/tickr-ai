@@ -33,6 +33,15 @@ const nextConfig: NextConfig = {
       path: false,
       crypto: false,
     };
+    // @privy-io/react-auth pulls in @farcaster/mini-app-solana as an
+    // optional peer dep for Farcaster Mini App + Solana integration. We
+    // don't ship inside a Farcaster mini app, so the code path is never
+    // hit at runtime. Aliasing to `false` tells webpack to resolve it as
+    // an empty module and silences the "Module not found" warning.
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@farcaster/mini-app-solana': false,
+    };
     // packages/shared uses NodeNext-flavoured `.js` extensions on relative
     // imports (so the ws-server can typecheck under moduleResolution=NodeNext).
     // webpack reads those literally and 404s on a missing `./types.js`.
