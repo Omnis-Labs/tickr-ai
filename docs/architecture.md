@@ -85,7 +85,7 @@ Both apps connect to the same GCP Cloud SQL PostgreSQL database, each through it
 | Styling                | Tailwind CSS v4                                                                                                      |
 | Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
 | State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
-| Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
+| Auth + Wallet          | Privy (email-only; embedded Solana wallet auto-created for in-app execution)                                         |
 | Order Execution        | Jupiter Trigger Order API v2 (BUY, TP, SL) + Jupiter Swap API (Close Position)                                       |
 | Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
 | Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |

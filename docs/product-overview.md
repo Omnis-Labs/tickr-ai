@@ -40,7 +40,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 ### What We Build
 
 - **PWA** (single interface with manifest + service worker, no native app)
-- **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
+- **Privy auth** (email-only) with auto-created embedded Solana wallet
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
 - **Trigger-based limit order execution** via Jupiter Trigger Order API v2
 - **Automatic TP/SL**: system places exit orders after BUY fills, with OCO behavior
