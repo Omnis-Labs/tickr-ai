@@ -112,7 +112,15 @@ export function useOpenOrders() {
 }
 
 // ── Mandate ─────────────────────────────────────────────────────────────
-export function useMandate() {
+/**
+ * `enabled` lets callers (e.g. `/login`, `AuthGate`) defer the fetch until
+ * Privy + the embedded wallet are actually ready. Firing pre-auth would 401
+ * and — because we currently swallow !r.ok into `{ mandate: null }` — would
+ * cache a false "no mandate" answer that misroutes existing users to
+ * /mandate after they finish logging in. Phase 2 hardens the throw/retry
+ * story; for now the gate is the minimal correct behavior.
+ */
+export function useMandate(options?: { enabled?: boolean }) {
   const authedFetch = useAuthedFetch();
   return useQuery<{ mandate: Mandate | null }>({
     queryKey: QK.mandate(),
@@ -121,6 +129,7 @@ export function useMandate() {
       if (!r.ok) return { mandate: null };
       return r.json();
     },
+    enabled: options?.enabled ?? true,
   });
 }
 
