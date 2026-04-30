@@ -107,7 +107,7 @@ export default function MandatePage() {
       setSubmitted(true);
       markOnboarded(demo ? 'demo-wallet' : address);
       void ensureNotificationPermission();
-      router.push('/');
+      router.replace('/desk');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
