@@ -145,10 +145,12 @@ export type {
 } from './thesis.js';
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
-// Failover helpers (withRpcFailover, SolanaRpcPool, configureRpcPool) are
-// deliberately omitted from this barrel — they pull in @solana/web3.js and
-// must remain server-only. Import them via `@hunch-it/shared/rpc`.
-export { parseRpcUrls } from './rpc.js';
+// `parseRpcUrls` lives in its own file with zero deps so it stays safe for
+// client components. Failover helpers (withRpcFailover, SolanaRpcPool,
+// configureRpcPool) intentionally live in `./rpc.ts` (which imports
+// @solana/web3.js) and are NOT re-exported here — server callers import
+// them via `@hunch-it/shared/rpc`.
+export { parseRpcUrls } from './rpc-urls.js';
 
 // ── demo fixtures ────────────────────────────────────────────────────────
 export {

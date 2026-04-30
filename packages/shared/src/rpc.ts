@@ -31,50 +31,11 @@
 // import, at which point Next.js's bundle analyzer will surface the bloat.
 
 import { Connection } from '@solana/web3.js';
+import { parseRpcUrls } from './rpc-urls.js';
+
+export { parseRpcUrls } from './rpc-urls.js';
 
 // ── public ───────────────────────────────────────────────────────────────
-
-const SOLANA_MAINNET_FALLBACK = 'https://api.mainnet-beta.solana.com';
-
-/**
- * Parse a comma-separated RPC URL string into a deduped, validated array.
- * Production: throws when the input is empty (callers must configure RPC).
- * Dev / test: returns `[SOLANA_MAINNET_FALLBACK]` so local boot still works.
- */
-export function parseRpcUrls(raw: string | undefined): string[] {
-  const trimmed = raw?.trim() ?? '';
-  if (trimmed.length === 0) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        '[rpc] SOLANA_RPC_URLS / NEXT_PUBLIC_SOLANA_RPC_URLS is required in production',
-      );
-    }
-    return [SOLANA_MAINNET_FALLBACK];
-  }
-
-  const seen = new Set<string>();
-  const valid: string[] = [];
-  for (const candidate of trimmed.split(',').map((u) => u.trim()).filter(Boolean)) {
-    let url: URL;
-    try {
-      url = new URL(candidate);
-    } catch {
-      console.warn(`[rpc] dropping malformed RPC URL: ${candidate}`);
-      continue;
-    }
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      console.warn(`[rpc] dropping non-http(s) RPC URL: ${candidate}`);
-      continue;
-    }
-    const normalized = url.toString();
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      valid.push(normalized);
-    }
-  }
-
-  return valid.length > 0 ? valid : [SOLANA_MAINNET_FALLBACK];
-}
 
 export interface RpcPoolOptions {
   /** Per-fetch HTTP timeout in ms. */
@@ -123,8 +84,16 @@ export function configureRpcPool(args: {
  * rotates endpoints on transient failure (5xx, 429, network, timeout) and
  * fails fast on configuration errors (4xx, invalid params).
  *
- * Throws {@link RpcFailoverExhaustedError} when all attempts fail. Caller
- * decides whether to swallow (degrade) or propagate.
+ * READ-ONLY ONLY. Retries are safe for idempotent reads (getBalance,
+ * getParsedTokenAccountsByOwner, getSlot, …). Do NOT use for mutations
+ * (sendTransaction, requestAirdrop) — a network blip could resubmit a
+ * write to two endpoints. Subscriptions (onAccountChange, onLogs) are also
+ * unsupported here because @solana/web3.js opens those over a websocket
+ * tied to the constructor URL, which our custom fetch does not intercept.
+ *
+ * Throws {@link RpcFailoverExhaustedError} when all attempts fail or
+ * {@link RpcAbortError} when the caller's AbortSignal fires. Caller decides
+ * whether to swallow (degrade) or propagate.
  */
 export async function withRpcFailover<T>(
   op: (conn: Connection) => Promise<T>,
@@ -143,6 +112,20 @@ export class RpcFailoverExhaustedError extends Error {
       detail: string;
     }>,
   ) {
+    super(message);
+  }
+}
+
+/** Error thrown when the caller's AbortSignal aborted before completion. */
+export class RpcAbortError extends Error {
+  override readonly name = 'RpcAbortError';
+  constructor() {
+    super('[rpc] aborted by caller');
+  }
+}
+
+class FatalRpcHttpError extends Error {
+  constructor(message: string) {
     super(message);
   }
 }
@@ -298,14 +281,19 @@ export class SolanaRpcPool {
     _input: Parameters<typeof fetch>[0],
     init?: Parameters<typeof fetch>[1],
   ): Promise<Awaited<ReturnType<typeof fetch>>> {
+    const callerSignal = init?.signal;
+    if (callerSignal?.aborted) throw new RpcAbortError();
+
     const startedAtMs = Date.now();
     const deadlineMs = startedAtMs + this.options.totalTimeoutMs;
     const attempts: AttemptRecord[] = [];
     let attempt = 0;
 
     while (attempt < this.options.maxAttempts && Date.now() < deadlineMs) {
+      if (callerSignal?.aborted) throw new RpcAbortError();
+
       const now = Date.now();
-      const endpoint = this.pickEndpointOrWait(now, deadlineMs);
+      const endpoint = this.pickNextEndpoint(now);
       if (!endpoint) break;
 
       attempt += 1;
@@ -316,9 +304,11 @@ export class SolanaRpcPool {
 
       const controller = new AbortController();
       const timeoutHandle = setTimeout(() => controller.abort(), perAttemptTimeout);
-
-      const callerSignal = init?.signal;
-      const onCallerAbort = () => controller.abort();
+      let abortedByCaller = false;
+      const onCallerAbort = () => {
+        abortedByCaller = true;
+        controller.abort();
+      };
       callerSignal?.addEventListener('abort', onCallerAbort);
 
       try {
@@ -328,14 +318,31 @@ export class SolanaRpcPool {
         });
 
         if (response.ok) {
+          // Read and validate the body inside the wrapper: a 200 OK with a
+          // truncated or non-JSON payload is still a provider failure
+          // (some flaky RPCs return partial responses). Connection always
+          // uses JSON-RPC, so an unparseable body must trigger failover.
+          const text = await response.text();
+          try {
+            JSON.parse(text);
+          } catch {
+            const detail = `truncated or invalid JSON body (${text.length} bytes)`;
+            endpoint.markFailed(false, attemptStartedAtMs, Date.now());
+            attempts.push({ url: endpoint.url, kind: 'transport', detail });
+            continue;
+          }
           endpoint.markSuccess(attemptStartedAtMs);
-          return response;
+          return new Response(text, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          });
         }
 
         if (NON_RETRYABLE_HTTP_STATUS.has(response.status)) {
-          // Configuration error (bad key, wrong URL). Do NOT mark endpoint
-          // unhealthy — it's responding correctly, the request is wrong.
-          throw new Error(
+          // Configuration error (bad key, wrong URL). Endpoint is healthy,
+          // request is wrong — fail fast without marking unhealthy.
+          throw new FatalRpcHttpError(
             `RPC ${response.status} from ${redactRpcUrl(endpoint.url)}: ${await readErrorPreview(response)}`,
           );
         }
@@ -351,11 +358,14 @@ export class SolanaRpcPool {
 
         if (!RETRYABLE_HTTP_STATUS.has(response.status)) {
           // Unknown non-2xx → fail fast rather than retry blindly across endpoints.
-          throw new Error(
+          throw new FatalRpcHttpError(
             `RPC ${response.status} from ${redactRpcUrl(endpoint.url)}: ${detail}`,
           );
         }
       } catch (err) {
+        if (err instanceof FatalRpcHttpError) throw err;
+        if (abortedByCaller) throw new RpcAbortError();
+
         const classified = classifyTransportError(err, controller.signal.aborted);
         attempts.push({
           url: endpoint.url,
@@ -363,16 +373,11 @@ export class SolanaRpcPool {
           detail: classified.detail,
         });
 
-        if (classified.kind === 'rate-limit' || classified.kind === 'timeout') {
-          endpoint.markFailed(
-            classified.kind === 'rate-limit',
-            attemptStartedAtMs,
-            Date.now(),
-          );
+        if (classified.kind === 'timeout') {
+          endpoint.markFailed(false, attemptStartedAtMs, Date.now());
         } else if (classified.retryable) {
           endpoint.markFailed(false, attemptStartedAtMs, Date.now());
         } else {
-          // Fatal — propagate immediately, don't keep retrying.
           throw normalizeRpcError(err, endpoint.url);
         }
       } finally {
@@ -388,13 +393,13 @@ export class SolanaRpcPool {
   }
 
   /**
-   * Pick the next healthy endpoint via round-robin. If none are healthy,
-   * sleep until the earliest cooldown ends (bounded by deadline).
+   * Pick the next healthy endpoint via round-robin. If all endpoints are
+   * cooling down, returns the one with the earliest recovery time so the
+   * caller's per-attempt timeout bounds the wait. We don't sleep here —
+   * the outer total-deadline check still enforces the upper bound on
+   * blocked time.
    */
-  private pickEndpointOrWait(
-    now: number,
-    deadlineMs: number,
-  ): RpcEndpoint | null {
+  private pickNextEndpoint(now: number): RpcEndpoint | null {
     const n = this.endpoints.length;
     for (let i = 0; i < n; i += 1) {
       const idx = this.rrIdx % n;
@@ -403,15 +408,6 @@ export class SolanaRpcPool {
       if (ep.isHealthy(now)) return ep;
     }
 
-    // All unhealthy — sleep until earliest cooldown ends, capped by deadline.
-    const earliest = Math.min(...this.endpoints.map((e) => e.cooldownUntilMs()));
-    const waitMs = Math.max(0, Math.min(earliest - now, deadlineMs - now));
-    if (waitMs <= 0) return null;
-    // Synchronous busy-spin? No — caller awaits the returned promise. But
-    // this method is sync, so we can't sleep here without restructuring.
-    // Instead, return the endpoint with the earliest cooldown and let the
-    // caller's per-attempt timeout handle the wait. This is simpler and
-    // still bounded by total deadline.
     let earliestEp = this.endpoints[0]!;
     for (const e of this.endpoints) {
       if (e.cooldownUntilMs() < earliestEp.cooldownUntilMs()) earliestEp = e;
