@@ -93,7 +93,7 @@ export default function DebugTradePage() {
 
   return (
     <main style={{ maxWidth: 640, margin: '0 auto', padding: '48px 24px' }}>
-      <Link href="/" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
+      <Link href="/desk" style={{ color: 'var(--color-fg-muted)', fontSize: 13 }}>
         ← Home
       </Link>
       <h1 style={{ fontSize: 32, fontWeight: 800, margin: '16px 0 8px' }}>/debug/trade</h1>
