@@ -238,7 +238,7 @@ export default function PositionDetailPage() {
       });
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);
-      router.replace('/');
+      router.replace('/desk');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {

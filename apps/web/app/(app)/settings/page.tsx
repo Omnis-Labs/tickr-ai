@@ -390,7 +390,7 @@ function CloseAllPositionsCard() {
         setProgress({ done: i + 1, total: targets.length });
       }
       toast.success(`Closed ${targets.length} position${targets.length === 1 ? '' : 's'}.`);
-      router.replace('/');
+      router.replace('/desk');
     } finally {
       setBusy(false);
       setProgress(null);

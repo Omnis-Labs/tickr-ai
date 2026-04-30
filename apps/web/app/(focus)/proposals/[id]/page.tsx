@@ -41,7 +41,7 @@ export default function ProposalDetailPage() {
 
   function handleClose(decision: 'placed' | 'skipped' | null) {
     if (params?.id && inMemory) removeProposal(params.id);
-    router.replace('/');
+    router.replace('/desk');
     void decision;
   }
 

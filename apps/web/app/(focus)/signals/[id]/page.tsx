@@ -42,7 +42,7 @@ export default function SignalDetailPage() {
 
   function handleClose(decision: boolean | null) {
     if (params?.id && inMemory) removeSignal(params.id);
-    router.replace('/');
+    router.replace('/desk');
     void decision;
   }
 
