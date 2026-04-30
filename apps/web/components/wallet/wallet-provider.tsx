@@ -36,7 +36,7 @@ export function WalletContextProvider({ children }: { children: ReactNode }) {
       config={{
         loginMethods: ['email'],
         appearance: {
-          theme: 'dark',
+          theme: 'light',
           accentColor: '#7c5cff',
           walletChainType: 'solana-only',
         },
