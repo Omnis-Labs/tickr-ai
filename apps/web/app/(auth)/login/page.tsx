@@ -1,21 +1,56 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { useMandate } from '@/lib/hooks/queries';
+import { isDemo } from '@/lib/demo/flag';
 
+/**
+ * Login + post-auth gate. Shows the Get Started CTA when unauthenticated
+ * and routes authenticated users to /desk (with mandate) or /mandate
+ * (without). Uses router.replace so /login is not retained in the
+ * back-button history once routing settles.
+ *
+ * 5xx mandate errors keep the user on the spinner; the QueryClient retry
+ * policy (hardened in lib/hooks/queries.ts) recovers on next focus.
+ */
 export default function LoginPage() {
   const router = useRouter();
-  const { connected, ready, login } = useWallet();
+  const { ready, connected, address, login } = useWallet();
+  const mandateQuery = useMandate();
+  const demo = isDemo();
+
+  const authPassed = demo || (ready && connected && !!address);
+  const mandate = mandateQuery.data?.mandate ?? null;
 
   useEffect(() => {
-    if (ready && connected) router.replace('/');
-  }, [ready, connected, router]);
+    if (!ready) return;
+    if (!authPassed) return;
+    if (mandateQuery.isLoading) return;
+    if (mandateQuery.error) return;
+    if (mandate) {
+      router.replace('/desk');
+    } else {
+      router.replace('/mandate');
+    }
+  }, [
+    ready,
+    authPassed,
+    mandate,
+    mandateQuery.isLoading,
+    mandateQuery.error,
+    router,
+  ]);
 
-  const handleLogin = () => {
-    login();
-  };
+  if (!ready || authPassed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-between overflow-hidden px-5 py-12">
@@ -51,7 +86,7 @@ export default function LoginPage() {
           className="flex w-full flex-col gap-4"
         >
           <button
-            onClick={handleLogin}
+            onClick={() => login()}
             className="flex h-14 w-full items-center justify-center whitespace-nowrap rounded-full bg-accent text-label-lg text-on-accent shadow-[0_8px_24px_rgba(208,233,6,0.25)] transition-transform hover:scale-[0.98] active:scale-[0.97]"
           >
             Get Started
