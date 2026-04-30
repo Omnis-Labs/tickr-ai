@@ -266,12 +266,11 @@ export default function MandatePage() {
                   key={v.id}
                   type="button"
                   onClick={() => toggleFocus(v.id)}
-                  disabled={noPreference}
                   className={`h-9 px-4 rounded-full text-label-md transition-colors ${
                     active
                       ? 'bg-primary text-on-primary'
                       : 'bg-transparent text-on-surface border border-outline-variant'
-                  } ${noPreference ? 'opacity-45 pointer-events-none' : ''}`}
+                  }`}
                 >
                   {v.label}
                 </button>
