@@ -101,7 +101,7 @@ export default function PositionDetailPage() {
             </button>
           }
         />
-        <main className="px-5 py-8 max-w-md mx-auto pb-24">
+        <main className="px-5 py-8 max-w-md mx-auto pb-8">
           <div className="bg-surface rounded-lg p-6 shadow-soft text-center">
             <div className="w-12 h-12 mx-auto rounded-full bg-surface-container flex items-center justify-center mb-3">
               <span className="material-symbols-outlined text-on-surface-variant text-[24px]">help</span>
@@ -262,7 +262,7 @@ export default function PositionDetailPage() {
         }
       />
 
-      <main className="px-5 py-6 pb-32 max-w-md mx-auto flex flex-col gap-6">
+      <main className="px-5 py-6 pb-12 max-w-md mx-auto flex flex-col gap-6">
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
