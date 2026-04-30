@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { DemoProposalShape, Mandate } from '@hunch-it/shared';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { isDemo } from '@/lib/demo/flag';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import { demoInitialPositions, demoInitialTrades, DEMO_MANDATE } from '@hunch-it/shared';
 
 /**
@@ -15,6 +16,21 @@ import { demoInitialPositions, demoInitialTrades, DEMO_MANDATE } from '@hunch-it
  * keeps rendering populated screens without hitting the backend.
  */
 
+/**
+ * Thrown by hardened query helpers (currently `useMandate`) on any non-2xx
+ * response. Carries the HTTP status so consumers can distinguish 401/403
+ * (auth race) from 4xx (deterministic) from 5xx (transient) without
+ * parsing error messages.
+ */
+export class FetchError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'FetchError';
+    this.status = status;
+  }
+}
+
 // ── Cache key conventions ───────────────────────────────────────────────
 export const QK = {
   proposals: () => ['proposals'] as const,
@@ -22,7 +38,8 @@ export const QK = {
   positions: () => ['positions'] as const,
   position: (id: string) => ['position', id] as const,
   orders: () => ['orders'] as const,
-  mandate: () => ['mandate'] as const,
+  mandate: (walletKey?: string) =>
+    walletKey ? (['mandate', walletKey] as const) : (['mandate'] as const),
   portfolio: () => ['portfolio'] as const,
 };
 
@@ -113,23 +130,49 @@ export function useOpenOrders() {
 
 // ── Mandate ─────────────────────────────────────────────────────────────
 /**
- * `enabled` lets callers (e.g. `/login`, `AuthGate`) defer the fetch until
- * Privy + the embedded wallet are actually ready. Firing pre-auth would 401
- * and — because we currently swallow !r.ok into `{ mandate: null }` — would
- * cache a false "no mandate" answer that misroutes existing users to
- * /mandate after they finish logging in. Phase 2 hardens the throw/retry
- * story; for now the gate is the minimal correct behavior.
+ * Hardened mandate read. Three guarantees beyond the other queries here:
+ *
+ *   1. Wallet-scoped cache key — one user's mandate never leaks into a
+ *      different wallet's session, even when both authenticate in the
+ *      same browser.
+ *   2. Internal readiness gate ANDed with the optional caller `enabled`,
+ *      so the query physically cannot fire before Privy + embedded wallet
+ *      are ready. Prevents the pre-auth 401 → cached `{ mandate: null }`
+ *      cache-poisoning race.
+ *   3. Throws `FetchError` on non-2xx instead of swallowing as null, so
+ *      callers can distinguish "no mandate exists" (HTTP 200 + null body)
+ *      from "auth raced" (401/403) from "server flaked" (5xx). Retry
+ *      policy: 401/403 once (token mint race), other 4xx never, 5xx twice.
+ *
+ * The legacy 200 + `{ mandate: null }` shape from /api/mandates is the
+ * documented success-with-empty case for first-touch users; we surface
+ * that as data, not error.
  */
 export function useMandate(options?: { enabled?: boolean }) {
   const authedFetch = useAuthedFetch();
-  return useQuery<{ mandate: Mandate | null }>({
-    queryKey: QK.mandate(),
+  const { ready, connected, address } = useWallet();
+  const demo = isDemo();
+  const walletKey = demo ? 'demo-wallet' : address;
+  const internallyReady = demo || (ready && connected && !!address);
+  const callerEnabled = options?.enabled ?? true;
+
+  return useQuery<{ mandate: Mandate | null }, FetchError>({
+    queryKey: QK.mandate(walletKey ?? 'anonymous'),
     queryFn: async () => {
       const r = await authedFetch('/api/mandates');
-      if (!r.ok) return { mandate: null };
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        throw new FetchError(r.status, body?.error ?? `HTTP ${r.status}`);
+      }
       return r.json();
     },
-    enabled: options?.enabled ?? true,
+    enabled: callerEnabled && internallyReady,
+    retry: (failureCount, error) => {
+      if (!(error instanceof FetchError)) return failureCount < 2;
+      if (error.status === 401 || error.status === 403) return failureCount < 1;
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 2;
+    },
   });
 }
 
