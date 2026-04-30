@@ -331,7 +331,7 @@ flowchart TD
     D --> E{Success?}
     E -- No --> E1[Show error / retry]
     E1 --> C
-    E -- Yes --> E2[Embedded Solana wallet created/connected]
+    E -- Yes --> E2[Privy auto-creates embedded Solana wallet on first login]
     B -- Yes --> F{Mandate exists?}
     E2 --> F
     F -- No --> G[Mandate Setup]
@@ -508,7 +508,7 @@ These states can appear on multiple screens and need consistent handling:
 | -------------------------- | -------------------------------------------------------------------------------------- |
 | Not logged in              | Require login                                                                          |
 | Session expired            | Privy handles re-authentication                                                        |
-| No wallet                  | Create or connect wallet                                                               |
+| No wallet                  | Privy auto-creates the embedded Solana wallet on login (no external connect flow)      |
 | API loading                | Show loading indicator                                                                 |
 | API error                  | Generic error + retry                                                                  |
 | Portfolio sync in progress | Show non-blocking sync indicator. Disable stale portfolio-dependent actions if needed. |

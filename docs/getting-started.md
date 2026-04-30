@@ -1,6 +1,6 @@
 # Getting Started with Hunch It
 
-This guide walks you from a fresh clone to a running local instance. If you only want to see the product flow without wiring real services, follow [Demo Mode](#demo-mode); when you're ready to use real wallets and live data, switch to [Live Mode](#live-mode).
+This guide walks you from a fresh clone to a running local instance. If you only want to see the product flow without wiring real services, follow [Demo Mode](#demo-mode); when you're ready to log in with real Privy email auth and use live data, switch to [Live Mode](#live-mode).
 
 ---
 
@@ -87,7 +87,7 @@ Local URLs (both modes):
 
 ## Demo Mode
 
-Demo mode lets you click through the product without external credentials or real funds. It uses fake signals, bypasses wallet auth, and never places real trades.
+Demo mode lets you click through the product without external credentials or real funds. It uses fake signals, bypasses Privy email login, and never places real trades.
 
 In `.env` (and your two copies in `apps/web/.env.local`, `apps/ws-server/.env`), set:
 
