@@ -21,6 +21,11 @@ import { isDemo } from '@/lib/demo/flag';
  * `(auth)/login/page.tsx` and `(auth)/mandate/page.tsx` each carry their
  * own intent-specific routing logic, so `(auth)/layout.tsx` does NOT mount
  * this gate to avoid redirect loops.
+ *
+ * `useMandate` is gated on auth so it doesn't run pre-auth and cache a
+ * 401-induced `{ mandate: null }` that would later misroute the user.
+ * If the mandate query fails (5xx etc.) we render an explicit error
+ * screen instead of leaking through to the protected children.
  */
 export type AuthGateLevel = 'login' | 'login+mandate';
 
@@ -33,12 +38,11 @@ export function AuthGate({
 }) {
   const router = useRouter();
   const { ready, connected, address } = useWallet();
-  const mandateQuery = useMandate();
-  const mandate = mandateQuery.data?.mandate ?? null;
   const demo = isDemo();
-
   const authPassed = demo || (ready && connected && !!address);
-  const mandatePassed = level === 'login' || mandate !== null;
+  const needsMandate = level === 'login+mandate';
+  const mandateQuery = useMandate({ enabled: authPassed && needsMandate });
+  const mandate = mandateQuery.data?.mandate ?? null;
 
   useEffect(() => {
     if (!ready) return;
@@ -46,11 +50,8 @@ export function AuthGate({
       router.replace('/login');
       return;
     }
-    if (level === 'login') return;
+    if (!needsMandate) return;
     if (mandateQuery.isLoading) return;
-    // Surface 5xx by staying put — the inner page can show its own error UI
-    // once we render children. We only redirect on the explicit "no mandate"
-    // (HTTP 200 + null body) success-with-empty case.
     if (mandateQuery.error) return;
     if (!mandate) {
       router.replace('/mandate');
@@ -58,7 +59,7 @@ export function AuthGate({
   }, [
     ready,
     authPassed,
-    level,
+    needsMandate,
     mandate,
     mandateQuery.isLoading,
     mandateQuery.error,
@@ -67,9 +68,12 @@ export function AuthGate({
 
   if (!ready) return <FullScreenSpinner />;
   if (!authPassed) return <FullScreenSpinner />;
-  if (level === 'login+mandate') {
+  if (needsMandate) {
+    if (mandateQuery.error) {
+      return <FullScreenError onRetry={() => void mandateQuery.refetch()} />;
+    }
     if (mandateQuery.isLoading) return <FullScreenSpinner />;
-    if (!mandatePassed && !mandateQuery.error) return <FullScreenSpinner />;
+    if (!mandate) return <FullScreenSpinner />;
   }
   return <>{children}</>;
 }
@@ -78,6 +82,25 @@ function FullScreenSpinner() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+    </div>
+  );
+}
+
+function FullScreenError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-5 text-center">
+      <span className="material-symbols-outlined text-[40px] text-negative">error</span>
+      <h2 className="text-title-lg text-on-background">Couldn&apos;t load your mandate</h2>
+      <p className="max-w-[320px] text-body-md text-on-surface-variant">
+        Something went wrong reaching the server. Try again, or sign out and back in.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="h-11 rounded-full bg-primary px-6 text-label-lg text-on-primary"
+      >
+        Retry
+      </button>
     </div>
   );
 }

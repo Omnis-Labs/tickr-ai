@@ -19,10 +19,9 @@ import { isDemo } from '@/lib/demo/flag';
 export default function LoginPage() {
   const router = useRouter();
   const { ready, connected, address, login } = useWallet();
-  const mandateQuery = useMandate();
   const demo = isDemo();
-
   const authPassed = demo || (ready && connected && !!address);
+  const mandateQuery = useMandate({ enabled: authPassed });
   const mandate = mandateQuery.data?.mandate ?? null;
 
   useEffect(() => {
@@ -44,12 +43,14 @@ export default function LoginPage() {
     router,
   ]);
 
-  if (!ready || authPassed) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
-      </div>
-    );
+  if (!ready) {
+    return <FullScreenSpinner />;
+  }
+  if (authPassed) {
+    if (mandateQuery.error) {
+      return <FullScreenError onRetry={() => void mandateQuery.refetch()} />;
+    }
+    return <FullScreenSpinner />;
   }
 
   return (
@@ -104,6 +105,33 @@ export default function LoginPage() {
           By continuing, you agree to our Terms and Privacy Policy
         </p>
       </motion.div>
+    </div>
+  );
+}
+
+function FullScreenSpinner() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+    </div>
+  );
+}
+
+function FullScreenError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-5 text-center">
+      <span className="material-symbols-outlined text-[40px] text-negative">error</span>
+      <h2 className="text-title-lg text-on-background">Couldn&apos;t load your mandate</h2>
+      <p className="max-w-[320px] text-body-md text-on-surface-variant">
+        Something went wrong reaching the server. Try again, or refresh the page.
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="h-11 rounded-full bg-primary px-6 text-label-lg text-on-primary"
+      >
+        Retry
+      </button>
     </div>
   );
 }
