@@ -19,7 +19,7 @@ import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { ensureNotificationPermission } from '@/lib/notifications/permission';
 import { unlockSound } from '@/components/notifications/sound-manager';
-import { QK } from '@/lib/hooks/queries';
+import { QK, useMandate } from '@/lib/hooks/queries';
 
 /**
  * Mandate setup / edit. Four cards: holding period, max drawdown, max
@@ -37,36 +37,49 @@ import { QK } from '@/lib/hooks/queries';
 export default function MandatePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { address, connected } = useWallet();
+  const { ready, address, connected } = useWallet();
   const demo = isDemo();
   const authedFetch = useAuthedFetch();
+
+  const authPassed = demo || (ready && connected && !!address);
+  const walletKey = demo ? 'demo-wallet' : address;
+
+  const mandateQuery = useMandate({ enabled: authPassed });
+  const existingMandate = mandateQuery.data?.mandate ?? null;
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
 
   const [holdingPeriod, setHoldingPeriod] = useState<HoldingPeriod>('1-2 weeks');
   const [maxDrawdown, setMaxDrawdown] = useState<number | null>(0.05);
   const [maxTradeSize, setMaxTradeSize] = useState<string>('500');
   const [marketFocus, setMarketFocus] = useState<string[]>(['no_preference']);
 
-  const walletKey = demo ? 'demo-wallet' : address;
+  useEffect(() => {
+    if (!ready) return;
+    if (!authPassed) router.replace('/login');
+  }, [ready, authPassed, router]);
 
   useEffect(() => {
-    if (!walletKey) return;
-    authedFetch(`/api/mandates`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        const m = j?.mandate;
-        if (!m) return;
-        setHoldingPeriod(m.holdingPeriod);
-        setMaxDrawdown(m.maxDrawdown ?? null);
-        setMaxTradeSize(String(m.maxTradeSize));
-        setMarketFocus(m.marketFocus ?? ['no_preference']);
-        setSubmitted(true);
-      })
-      .catch(() => {});
-  }, [walletKey, authedFetch]);
+    if (prefilled) return;
+    if (mandateQuery.isLoading) return;
+    if (mandateQuery.error) return;
+    if (existingMandate) {
+      setHoldingPeriod(existingMandate.holdingPeriod);
+      setMaxDrawdown(existingMandate.maxDrawdown ?? null);
+      setMaxTradeSize(String(existingMandate.maxTradeSize));
+      setMarketFocus(existingMandate.marketFocus ?? ['no_preference']);
+      setSubmitted(true);
+    }
+    setPrefilled(true);
+  }, [
+    prefilled,
+    existingMandate,
+    mandateQuery.isLoading,
+    mandateQuery.error,
+  ]);
 
   const noPreference = marketFocus.includes('no_preference');
   const tradeSize = Number(maxTradeSize);
@@ -142,6 +155,14 @@ export default function MandatePage() {
     `flex-1 flex items-center justify-center h-9 rounded-full text-label-md transition-colors duration-200 cursor-pointer ${
       active ? 'bg-primary text-on-primary' : 'bg-transparent text-on-surface hover:bg-surface-dim'
     }`;
+
+  if (!ready || !authPassed || (mandateQuery.isLoading && !prefilled)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-[100px]">
