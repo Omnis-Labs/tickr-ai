@@ -132,7 +132,6 @@ Fill in the root `.env` file, then re-copy it to both apps (`cp .env apps/web/.e
 | `LLM_DAILY_USD_CAP`            | Daily LLM spend guardrail                            |
 | `DATABASE_URL`                 | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
 | `NEXT_PUBLIC_WS_URL`           | Public ws-server URL for the browser, usually `http://localhost:4000` |
-| `WS_CRON_SECRET`               | Shared secret on the web → ws-server forwarding leg  |
 
 Make sure `DEMO_MODE` and `NEXT_PUBLIC_DEMO_MODE` are **not** set to `true`.
 

@@ -12,5 +12,5 @@ Email the maintainers with:
 ## Notes
 
 - Hunch uses Privy for authentication and wallet access. Private keys should never touch the Hunch server.
-- Keep API keys, database URLs, and `WS_CRON_SECRET` out of client bundles and public commits.
+- Keep API keys and database URLs out of client bundles and public commits.
 - Use small amounts when testing live trading flows.

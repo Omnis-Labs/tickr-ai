@@ -9,8 +9,7 @@
 #
 # NEXT_PUBLIC_* values are baked into the JS bundle at build time, so they
 # need to be passed as build args. Server-only env (DATABASE_URL,
-# WS_URL_INTERNAL, PRIVY_APP_SECRET, …) is read at runtime — leave those
-# for `docker run -e`.
+# PRIVY_APP_SECRET, …) is read at runtime — leave those for `docker run -e`.
 
 ARG NODE_VERSION=20-alpine
 

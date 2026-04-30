@@ -5,10 +5,7 @@ import { Server as IoServer } from 'socket.io';
 import {
   ApprovalDecisionPayloadSchema,
   AuthPayloadSchema,
-  BARE_TICKERS,
-  CronGenerateRequestSchema,
   WsClientEvents,
-  type BareTicker,
 } from '@hunch-it/shared';
 import { env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
@@ -25,73 +22,6 @@ app.use(express.json({ limit: '256kb' }));
 
 app.get('/healthz', (_req: Request, res: Response) => {
   res.json({ ok: true, uptime: process.uptime() });
-});
-
-// Vercel Cron hits this endpoint with the shared secret in the `Authorization`
-// header. It generates one signal on demand and pushes it to connected tabs.
-app.post('/cron/generate', async (req: Request, res: Response) => {
-  const auth = req.header('authorization') ?? '';
-  const expected = `Bearer ${env.WS_CRON_SECRET}`;
-  if (auth !== expected) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-
-  const parsed = CronGenerateRequestSchema.safeParse(req.body ?? {});
-  if (!parsed.success) {
-    return res.status(400).json({ error: 'invalid body', issues: parsed.error.flatten() });
-  }
-
-  // Accept bare tickers (AAPL) or xStock symbols (AAPLx).
-  const raw = parsed.data.ticker;
-  let requested: BareTicker | undefined;
-  if (raw) {
-    const bare = raw.endsWith('x') ? raw.slice(0, -1) : raw;
-    if (!BARE_TICKERS.includes(bare as BareTicker)) {
-      return res.status(400).json({ error: `unknown ticker: ${raw}` });
-    }
-    requested = bare as BareTicker;
-  }
-
-  const signal = await emitSignal(io, requested);
-  if (!signal) return res.status(502).json({ error: 'signal generation failed' });
-  return res.json({ ok: true, signal });
-});
-
-// Vercel Cron also hits this every 5 minutes. Idempotent: only updates rows
-// where evaluatedAt IS NULL.
-app.post('/cron/evaluate', async (req: Request, res: Response) => {
-  const auth = req.header('authorization') ?? '';
-  if (auth !== `Bearer ${env.WS_CRON_SECRET}`) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  const p = getPrisma();
-  if (!p) return res.status(503).json({ error: 'DATABASE_URL not configured' });
-  try {
-    const summary = await evaluatePendingSignals(p);
-    return res.json({ ok: true, ...summary });
-  } catch (err) {
-    console.warn('[eval] cron run failed', err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
-});
-
-// Vercel Cron also hits this every 30s (Vercel min granularity is 1m so it's
-// realistically driven by the in-process setInterval below). Reconciles
-// Jupiter Trigger Order state into our DB.
-app.post('/cron/track-orders', async (req: Request, res: Response) => {
-  const auth = req.header('authorization') ?? '';
-  if (auth !== `Bearer ${env.WS_CRON_SECRET}`) {
-    return res.status(401).json({ error: 'unauthorized' });
-  }
-  const p = getPrisma();
-  if (!p) return res.status(503).json({ error: 'DATABASE_URL not configured' });
-  try {
-    const summary = await runOrderTracker(p, io);
-    return res.json({ ok: true, ...summary });
-  } catch (err) {
-    console.warn('[tracker] cron run failed', err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-  }
 });
 
 const httpServer = createServer(app);

@@ -42,7 +42,6 @@ services:
       DATABASE_URL: postgresql://hunch:hunch@postgres:5432/hunchit
       WS_SERVER_PORT: "4000"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      WS_CRON_SECRET: ${WS_CRON_SECRET:-dev-shared-secret}
       DEMO_MODE: "${DEMO_MODE:-false}"
       LLM_ENABLED: "${LLM_ENABLED:-true}"
       LLM_DAILY_USD_CAP: "${LLM_DAILY_USD_CAP:-20}"
@@ -86,10 +85,6 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://hunch:hunch@postgres:5432/hunchit
-      # Server-side cron forwarder uses container DNS to reach ws-server.
-      WS_URL_INTERNAL: http://ws-server:4000
-      WS_CRON_SECRET: ${WS_CRON_SECRET:-dev-shared-secret}
-      CRON_SECRET: ${CRON_SECRET:-}
       PRIVY_APP_ID: ${PRIVY_APP_ID:-}
       PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
       DEMO_MODE: "${DEMO_MODE:-false}"

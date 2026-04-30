@@ -13,7 +13,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_API_PREFIXES = [
   '/api/bars/', // historical price proxy — read-only public data
-  '/api/cron/', // server-to-server cron, gated by WS_CRON_SECRET inside the handler
 ];
 
 function isPublicApi(path: string): boolean {

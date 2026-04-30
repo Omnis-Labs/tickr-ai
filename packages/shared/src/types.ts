@@ -274,8 +274,3 @@ export const ApprovalDecisionPayloadSchema = z.object({
   decision: z.boolean(),
 });
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
-
-export const CronGenerateRequestSchema = z.object({
-  ticker: z.string().optional(),
-});
-export type CronGenerateRequest = z.infer<typeof CronGenerateRequestSchema>;
