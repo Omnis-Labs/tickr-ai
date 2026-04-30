@@ -24,6 +24,8 @@ Common issues when running Hunch It locally.
 | Price chart unavailable                     | Pyth Benchmarks or Hermes is unreachable                                                 | Retry later; trading state can still be inspected without chart data                       |
 | `anthropic call failed` in logs             | Missing, invalid, or unfunded Anthropic key                                              | Check `ANTHROPIC_API_KEY`, or use demo mode                                                |
 | Prisma cannot connect                       | `DATABASE_URL` is missing or database is unreachable                                     | Verify the connection string and run `pnpm db:generate` / `pnpm db:push`                   |
+| `[rpc] endpoint ... marked unhealthy` in logs | A Solana RPC provider returned 429/5xx or timed out; the failover pool rotated to the next URL | Expected — system continues on the next endpoint. If every URL is unhealthy, check provider status pages and consider adding a paid endpoint (Helius/QuickNode) to the front of `NEXT_PUBLIC_SOLANA_RPC_URLS` |
+| `RpcFailoverExhaustedError` thrown          | Every configured RPC endpoint failed within the per-call deadline                        | Check `NEXT_PUBLIC_SOLANA_RPC_URLS` is populated with multiple working endpoints; portfolio reads degrade to empty data on total failure (not a hard error)                                                  |
 
 ## Demo Mode Checklist
 
