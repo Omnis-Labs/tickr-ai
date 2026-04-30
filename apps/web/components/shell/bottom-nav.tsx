@@ -11,9 +11,9 @@ interface NavItem {
   icon: string;
 }
 
-// Three signed-in surfaces. The marketing `/` is absent — AppShell hides
-// BottomNav there anyway. "Home" routes to /desk because that's the real
-// home for a logged-in user; / is just the auth gate.
+// Three signed-in surfaces. Mounted by `(app)/layout.tsx`, so it only
+// renders inside the (app) route group. "Home" routes to /desk because
+// that's the real home for a logged-in user; / is the marketing landing.
 const navItems: NavItem[] = [
   { name: 'Home', href: '/desk', icon: 'home' },
   { name: 'Portfolio', href: '/portfolio', icon: 'account_balance_wallet' },
