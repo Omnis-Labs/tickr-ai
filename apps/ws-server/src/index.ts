@@ -10,7 +10,13 @@ import {
   WsClientEvents,
   type BareTicker,
 } from '@hunch-it/shared';
+import { configureRpcPool, WS_SERVER_RPC_OPTIONS } from '@hunch-it/shared/rpc';
 import { env } from './env.js';
+
+configureRpcPool({
+  rawUrls: env.NEXT_PUBLIC_SOLANA_RPC_URLS,
+  options: WS_SERVER_RPC_OPTIONS,
+});
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
 import { runOrderTracker } from './orders/tracker/index.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';

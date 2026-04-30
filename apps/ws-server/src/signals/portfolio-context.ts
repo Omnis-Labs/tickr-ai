@@ -7,26 +7,17 @@
 // getMultipleAccounts — the read is GET getParsedTokenAccountsByOwner
 // per program (one call for SPL Token, one for Token-2022).
 
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import {
   TOKEN_2022_PROGRAM_ID,
   USDC_DECIMALS,
   USDC_MINT,
   XSTOCKS,
-  parseRpcUrls,
   type BareTicker,
 } from '@hunch-it/shared';
-import { env } from '../env.js';
+import { withRpcFailover } from '@hunch-it/shared/rpc';
 
 const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-
-let lazyConn: Connection | null = null;
-function getConn(): Connection {
-  if (lazyConn) return lazyConn;
-  const rpcUrls = parseRpcUrls(env.NEXT_PUBLIC_SOLANA_RPC_URLS);
-  lazyConn = new Connection(rpcUrls[0]!, 'confirmed');
-  return lazyConn;
-}
 
 interface BalancesByMint {
   /** mint base58 → human token amount (mint decimals applied) */
@@ -40,7 +31,6 @@ async function readBalances(walletAddress: string): Promise<BalancesByMint> {
   const cached = cache.get(walletAddress);
   if (cached && Date.now() - cached.at < TTL_MS) return cached.data;
 
-  const conn = getConn();
   let owner: PublicKey;
   try {
     owner = new PublicKey(walletAddress);
@@ -51,9 +41,11 @@ async function readBalances(walletAddress: string): Promise<BalancesByMint> {
   const byMint = new Map<string, number>();
   for (const programId of [SPL_TOKEN_PROGRAM, TOKEN_2022_PROGRAM_ID]) {
     try {
-      const res = await conn.getParsedTokenAccountsByOwner(owner, {
-        programId: new PublicKey(programId),
-      });
+      const res = await withRpcFailover((conn) =>
+        conn.getParsedTokenAccountsByOwner(owner, {
+          programId: new PublicKey(programId),
+        }),
+      );
       for (const acct of res.value) {
         const info = acct.account.data;
         if (!('parsed' in info) || !info.parsed?.info?.mint) continue;
