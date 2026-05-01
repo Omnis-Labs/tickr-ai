@@ -283,6 +283,13 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
   }
 
 
+  // Privy populates walletId only after the embedded wallet is delegated;
+  // if the toggle is on but walletId is still null after a few seconds,
+  // the most common cause is the Privy app being on the Free plan (server
+  // signers require Pro). Surface that explicitly so users don't think
+  // their assets are protected when they aren't.
+  const delegationStuck = !demo && active && !walletId && !busy;
+
   return (
     <Section icon="bolt" title="Auto-exit signing">
       <p className="text-body-sm text-on-surface-variant mb-3">
@@ -293,6 +300,17 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
         <li>You can revoke it any time below.</li>
         <li>Every server-signed transaction is recorded against your account.</li>
       </ul>
+      {delegationStuck && (
+        <div className="mb-4 rounded-lg border border-tertiary/40 bg-tertiary/10 px-3 py-2.5 flex items-start gap-2">
+          <span className="material-symbols-outlined text-tertiary text-[18px] mt-0.5">warning</span>
+          <div className="flex-1 min-w-0 text-body-sm text-on-surface">
+            <p className="font-semibold mb-0.5">Auto-exit may not fire</p>
+            <p className="text-on-surface-variant">
+              Privy server signers require the Pro plan. Toggle is recorded but TP / SL won't actually auto-place until the upstream app upgrades. You'll still get the manual prompt on Position Detail.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"

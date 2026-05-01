@@ -8,6 +8,7 @@ import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { ProposalsFeed } from '@/components/desk/proposals-feed';
 import { OpenOrders } from '@/components/desk/open-orders';
 import { DepositSection } from '@/components/desk/deposit-section';
+import { MarketHoursBanner } from '@/components/desk/market-hours-banner';
 import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
 import { usePortfolio, usePositions } from '@/lib/hooks/queries';
 
@@ -218,6 +219,7 @@ export default function DeskPage() {
           )}
         </section>
 
+        <MarketHoursBanner />
         <ProposalsFeed />
         <OpenOrders />
         <DepositSection />

@@ -19,6 +19,7 @@ import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
 import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
+import { usePortfolio } from '@/lib/hooks/queries';
 import { ProposalHeader } from './proposal-header';
 import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
@@ -50,6 +51,11 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const { placeBuy, loading: triggerLoading } = useJupiterTrigger();
   const persistOrder = usePersistOrder();
   const skipProposal = useSkipProposal();
+  // cashUsd is the user's USDC balance read by /api/portfolio. We use it
+  // pre-flight on the Approve button so the user sees "Insufficient USDC"
+  // before paying for a Privy signature, instead of after Jupiter rejects.
+  const portfolioQuery = usePortfolio();
+  const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [swapLoading, setSwapLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
@@ -294,36 +300,64 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         />
 
         {!skipOpen ? (
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              className="btn btn-ghost"
-              style={{ flex: 1, padding: '14px 24px', fontSize: 15 }}
-              disabled={executing}
-              onClick={() => setSkipOpen(true)}
-            >
-              Skip
-            </button>
-            <button
-              className="btn btn-buy"
-              style={{ flex: 2, padding: '14px 24px', fontSize: 15 }}
-              disabled={executing || size <= 0}
-              onClick={() => void handlePlace()}
-            >
-              {executing
-                ? triggerLoading === 'vault'
-                  ? 'Fetching vault…'
-                  : triggerLoading === 'craft'
-                    ? 'Building deposit…'
-                    : triggerLoading === 'sign' || swapLoading === 'sign'
-                      ? 'Awaiting signature…'
-                      : triggerLoading === 'submit' || swapLoading === 'execute'
-                        ? 'Submitting order…'
-                        : swapLoading === 'order'
-                          ? 'Quoting…'
-                          : 'Placing…'
-                : 'Place trigger order'}
-            </button>
-          </div>
+          <>
+            {(() => {
+              // Demo + portfolio-still-loading states bypass the gate so the
+              // button stays clickable. We only block on a confirmed
+              // shortfall.
+              const portfolioReady = !portfolioQuery.isLoading;
+              const insufficient = !isDemo() && portfolioReady && size > cashUsd;
+              return (
+                <>
+                  {insufficient && (
+                    <div className="mb-3 rounded-lg border border-negative/40 bg-negative/10 px-3 py-2 text-body-sm text-negative">
+                      Insufficient USDC. You have ${cashUsd.toFixed(2)}, this order needs ${size.toFixed(2)}.{' '}
+                      <a
+                        href="/desk#deposit-section"
+                        onClick={() => onClose(null)}
+                        className="underline font-semibold"
+                      >
+                        Deposit
+                      </a>
+                      .
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ flex: 1, padding: '14px 24px', fontSize: 15 }}
+                      disabled={executing}
+                      onClick={() => setSkipOpen(true)}
+                    >
+                      Skip
+                    </button>
+                    <button
+                      className="btn btn-buy"
+                      style={{ flex: 2, padding: '14px 24px', fontSize: 15 }}
+                      disabled={executing || size <= 0 || insufficient}
+                      onClick={() => void handlePlace()}
+                    >
+                      {executing
+                        ? triggerLoading === 'vault'
+                          ? 'Fetching vault…'
+                          : triggerLoading === 'craft'
+                            ? 'Building deposit…'
+                            : triggerLoading === 'sign' || swapLoading === 'sign'
+                              ? 'Awaiting signature…'
+                              : triggerLoading === 'submit' || swapLoading === 'execute'
+                                ? 'Submitting order…'
+                                : swapLoading === 'order'
+                                  ? 'Quoting…'
+                                  : 'Placing…'
+                        : insufficient
+                          ? 'Insufficient USDC'
+                          : 'Place trigger order'}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </>
         ) : (
           <SkipFlow
             reason={skipReason}
