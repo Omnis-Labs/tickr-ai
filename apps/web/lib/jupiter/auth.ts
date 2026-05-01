@@ -65,8 +65,9 @@ export function clearJupiterJwt(walletAddress: string): void {
 }
 
 interface ChallengeResponse {
-  /** UTF-8 message to sign — used when type='message'. */
-  message?: string;
+  type?: 'message' | 'transaction';
+  /** UTF-8 message to sign — Jupiter ships this when type='message'. */
+  challenge?: string;
   /** Some endpoints return a server-side challenge id we echo back. */
   challengeId?: string;
   expiresAt?: number;
@@ -106,12 +107,12 @@ export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
     throw new Error(`Jupiter challenge failed (${challengeRes.status}): ${text}`);
   }
   const challenge = (await challengeRes.json()) as ChallengeResponse;
-  if (!challenge.message) {
-    throw new Error('Jupiter challenge response missing `message`');
+  if (!challenge.challenge) {
+    throw new Error('Jupiter challenge response missing `challenge`');
   }
 
   // 2. Sign the message with the wallet. Returns base58 signature.
-  const signature = await input.signMessage(challenge.message);
+  const signature = await input.signMessage(challenge.challenge);
 
   // 3. Send the signature back to verify and exchange for a JWT.
   const verifyRes = await fetch(jupiterUrl(VERIFY_PATH), {
