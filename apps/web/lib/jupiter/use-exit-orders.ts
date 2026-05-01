@@ -6,32 +6,37 @@ import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useJupiterTrigger } from './use-jupiter-trigger';
 
 /**
- * Single source of truth for the open-exit-order lifecycle attached to a
- * Position: cancel + place + replace, including the snapshot/rollback
- * race-window protection on Adjust.
+ * Single source of truth for the open-exit-order lifecycle attached to
+ * a Position: cancel + place + replace.
  *
- * Three call sites previously each implemented some subset of this:
- *   - Position Detail: handleSubmitTpSl (cancel + re-place w/ rollback)
- *   - Position Detail: handleClose (cancel siblings then market sell)
+ * v2 API surface change: TP/SL are now placed as a single OCO order
+ * (`orderType: 'OCO'`) instead of two separate single orders. Jupiter
+ * handles sibling-cancel server-side. Our DB still keeps two Order
+ * rows per OCO (TAKE_PROFIT + STOP_LOSS sharing the same
+ * jupiterOrderId) so the rest of the app — UI, history, audit — keeps
+ * working unchanged.
+ *
+ * Call sites using this hook today:
+ *   - Position Detail: handleConfirmExit (ENTERING → place OCO)
+ *   - Position Detail: handleSubmitTpSl (Adjust → cancel + place OCO)
  *   - SellProposalView: cancelOpenExitOrders (cancel only)
- *   - Settings panic close-all: cancel siblings then market sell, per pos
- *
- * Centralising the API + Jupiter calls + rollback here means future fixes
- * (extra retries, partial-fail telemetry, cancel-confirm awaits) land in
- * one place.
+ *   - Settings panic close-all: cancel siblings then market sell
  */
 
-export interface ExitLeg {
-  kind: 'TAKE_PROFIT' | 'STOP_LOSS';
-  triggerPriceUsd: number;
+export interface ExitSnapshot {
+  tpPriceUsd: number | null;
+  slPriceUsd: number | null;
 }
 
-export interface PlaceExitArgs {
+export interface PlaceOcoExitArgs {
   inputMint: string;
   inputDecimals: number;
   tokenAmount: number;
-  triggerPriceUsd: number;
-  triggerCondition: 'above' | 'below';
+  tpPriceUsd: number;
+  slPriceUsd: number;
+  /** Per-leg slippage. Defaults to 75 bps each. */
+  tpSlippageBps?: number;
+  slSlippageBps?: number;
 }
 
 export function useExitOrders() {
@@ -40,12 +45,12 @@ export function useExitOrders() {
 
   /**
    * Cancel every open TP / SL trigger order attached to the given Position.
-   * Returns a snapshot of the cancelled legs so the caller can roll back if
-   * a follow-up step fails. Per-leg failures are surfaced via toast but
-   * don't abort the loop.
+   * Returns a single snapshot summarising the existing TP+SL prices so
+   * the caller can roll back if a follow-up step fails. Per-leg
+   * failures surface via toast but don't abort.
    */
   const cancelExits = useCallback(
-    async (positionId: string): Promise<ExitLeg[]> => {
+    async (positionId: string): Promise<ExitSnapshot> => {
       const r = await authedFetch('/api/orders');
       const j = (await r.json().catch(() => ({}))) as {
         orders?: Array<{
@@ -62,40 +67,48 @@ export function useExitOrders() {
           (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
           !!o.jupiterOrderId,
       );
-      const snapshot: ExitLeg[] = [];
+
+      // OCO: TP and SL share one jupiterOrderId. We cancel the Jupiter
+      // order once per unique id, then mark both DB rows cancelled.
+      const uniqueJupiterIds = Array.from(new Set(open.map((o) => o.jupiterOrderId)));
+      let tpPriceUsd: number | null = null;
+      let slPriceUsd: number | null = null;
       for (const o of open) {
+        if (o.kind === 'TAKE_PROFIT' && o.triggerPriceUsd != null) tpPriceUsd = o.triggerPriceUsd;
+        if (o.kind === 'STOP_LOSS' && o.triggerPriceUsd != null) slPriceUsd = o.triggerPriceUsd;
+      }
+      for (const jid of uniqueJupiterIds) {
         try {
-          await cancelTrigger(o.jupiterOrderId);
-          await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
-          if (o.triggerPriceUsd != null) {
-            snapshot.push({
-              kind: o.kind as 'TAKE_PROFIT' | 'STOP_LOSS',
-              triggerPriceUsd: o.triggerPriceUsd,
-            });
-          }
+          await cancelTrigger(jid);
         } catch (err) {
           toast.error(
-            `Cancel ${o.kind} failed: ${err instanceof Error ? err.message : String(err)}`,
+            `Cancel order ${jid.slice(0, 8)}… failed: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
-      return snapshot;
+      // Then mark every linked DB Order row CANCELLED.
+      for (const o of open) {
+        await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
+      }
+      return { tpPriceUsd, slPriceUsd };
     },
     [authedFetch, cancelTrigger],
   );
 
   /**
-   * Place a single SELL trigger order leg. Thin wrapper to keep the hook
-   * surface symmetric.
+   * Place a TP+SL OCO order against an existing position. The wallet
+   * signs once and Jupiter manages the sibling-cancel race natively.
    */
-  const placeExit = useCallback(
-    async (args: PlaceExitArgs) => {
+  const placeOcoExit = useCallback(
+    async (args: PlaceOcoExitArgs) => {
       return placeSellExit({
         inputMint: args.inputMint,
         inputDecimals: args.inputDecimals,
         tokenAmount: args.tokenAmount,
-        triggerPriceUsd: args.triggerPriceUsd,
-        triggerCondition: args.triggerCondition,
+        tpPriceUsd: args.tpPriceUsd,
+        slPriceUsd: args.slPriceUsd,
+        tpSlippageBps: args.tpSlippageBps,
+        slSlippageBps: args.slSlippageBps,
       });
     },
     [placeSellExit],
@@ -103,60 +116,57 @@ export function useExitOrders() {
 
   /**
    * Best-effort restore of a snapshot returned by cancelExits(). Called
-   * when re-placement of new TP/SL legs partially fails mid-Adjust so the
-   * Position isn't left exposed.
+   * when re-placement during Adjust partially fails so the Position
+   * isn't left exposed. Re-places as a fresh OCO with whatever prices
+   * the snapshot captured.
    */
   const rePlaceExits = useCallback(
     async (
-      snapshot: ExitLeg[],
+      snapshot: ExitSnapshot,
       meta: { mint: string; decimals: number },
       tokenAmount: number,
     ): Promise<void> => {
-      for (const leg of snapshot) {
-        try {
-          await placeSellExit({
-            inputMint: meta.mint,
-            inputDecimals: meta.decimals,
-            tokenAmount,
-            triggerPriceUsd: leg.triggerPriceUsd,
-            triggerCondition: leg.kind === 'TAKE_PROFIT' ? 'above' : 'below',
-          });
-        } catch (err) {
-          toast.error(
-            `Rollback ${leg.kind} @ $${leg.triggerPriceUsd.toFixed(2)} failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      if (snapshot.tpPriceUsd == null || snapshot.slPriceUsd == null) return;
+      try {
+        await placeSellExit({
+          inputMint: meta.mint,
+          inputDecimals: meta.decimals,
+          tokenAmount,
+          tpPriceUsd: snapshot.tpPriceUsd,
+          slPriceUsd: snapshot.slPriceUsd,
+        });
+      } catch (err) {
+        toast.error(
+          `Rollback OCO @ $${snapshot.tpPriceUsd}/$${snapshot.slPriceUsd} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     },
     [placeSellExit],
   );
 
   /**
-   * One-shot Adjust flow with rollback: cancel existing legs (capturing
-   * the snapshot), place the new legs the caller wants, and on any
-   * placement failure re-create the snapshot legs so the Position stays
-   * protected. The new legs that did land remain — caller can dedupe on
-   * the next Order Tracker tick.
+   * One-shot Adjust: cancel existing OCO, place new OCO, rollback on
+   * failure. The new OCO replaces the old in a single tx pair on
+   * Jupiter's side; if the cancel succeeds but the new place fails, we
+   * try to restore the snapshot.
    */
   const replaceExits = useCallback(
     async (
       positionId: string,
       meta: { mint: string; decimals: number },
       tokenAmount: number,
-      newLegs: Array<{ kind: 'TAKE_PROFIT' | 'STOP_LOSS'; triggerPriceUsd: number | null }>,
+      newLegs: { tpPriceUsd: number | null; slPriceUsd: number | null },
     ): Promise<void> => {
       const snapshot = await cancelExits(positionId);
+      if (newLegs.tpPriceUsd == null || newLegs.slPriceUsd == null) return;
       try {
-        for (const leg of newLegs) {
-          if (leg.triggerPriceUsd == null) continue;
-          await placeSellExit({
-            inputMint: meta.mint,
-            inputDecimals: meta.decimals,
-            tokenAmount,
-            triggerPriceUsd: leg.triggerPriceUsd,
-            triggerCondition: leg.kind === 'TAKE_PROFIT' ? 'above' : 'below',
-          });
-        }
+        await placeSellExit({
+          inputMint: meta.mint,
+          inputDecimals: meta.decimals,
+          tokenAmount,
+          tpPriceUsd: newLegs.tpPriceUsd,
+          slPriceUsd: newLegs.slPriceUsd,
+        });
       } catch (err) {
         toast.error('Re-place failed; restoring previous TP/SL…');
         await rePlaceExits(snapshot, meta, tokenAmount);
@@ -168,7 +178,7 @@ export function useExitOrders() {
 
   return {
     cancelExits,
-    placeExit,
+    placeOcoExit,
     rePlaceExits,
     replaceExits,
   };

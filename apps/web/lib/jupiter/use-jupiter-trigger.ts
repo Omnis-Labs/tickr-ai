@@ -1,21 +1,22 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { VersionedTransaction } from '@solana/web3.js';
-import { USDC_DECIMALS, USDC_MINT } from '@hunch-it/shared';
-
-const USDC_MINT_LOCAL = USDC_MINT;
+import { VersionedTransaction, Transaction } from '@solana/web3.js';
+import { USDC_DECIMALS } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { useAuthedFetch } from '@/lib/auth/fetch';
+import { getJupiterJwt } from './auth.js';
 import {
-  buildBuyOrderRequest,
+  buildBuySingleOrder,
+  buildSellOcoOrder,
   confirmCancel,
   craftDeposit,
+  createOrder,
   getVault,
   initiateCancel,
-  placePriceOrder,
-  type PlacePriceOrderResponse,
+  type CreateOrderResponse,
   type TriggerCondition,
-} from './trigger';
+} from './trigger.js';
 
 function toBase64(bytes: Uint8Array): string {
   if (typeof window === 'undefined') return Buffer.from(bytes).toString('base64');
@@ -31,7 +32,17 @@ function fromBase64(str: string): Uint8Array {
   return arr;
 }
 
+function deserializeTx(b64: string): VersionedTransaction | Transaction {
+  const bytes = fromBase64(b64);
+  try {
+    return VersionedTransaction.deserialize(bytes);
+  } catch {
+    return Transaction.from(bytes);
+  }
+}
+
 export type TriggerLoadingState =
+  | 'auth'
   | 'vault'
   | 'craft'
   | 'sign'
@@ -50,73 +61,105 @@ interface PlaceBuyArgs {
   triggerCondition?: TriggerCondition;
   /** basis points, e.g. 50 = 0.5%. */
   slippageBps?: number;
-  /** Unix seconds. Defaults to +24h. */
+  /** Unix MILLISECONDS. Defaults to +24h. */
   expiresAt?: number;
 }
 
-export interface PlaceBuyResult extends PlacePriceOrderResponse {
+export interface PlaceBuyResult extends CreateOrderResponse {
   vault: string;
   inputAmount: string;
 }
 
 interface PlaceSellExitArgs {
-  /** xStock mint we're selling (will be deposited into vault). */
   inputMint: string;
-  /** xStock decimals (typically 8). */
   inputDecimals: number;
-  /** Token amount of inputMint to sell, in human units (will be scaled to smallest units). */
+  /** Token amount of inputMint to sell across BOTH OCO legs (will be
+   *  scaled to smallest units). */
   tokenAmount: number;
-  /** TP/SL trigger price in USD. */
-  triggerPriceUsd: number;
-  /** "above" for TP, "below" for SL. */
-  triggerCondition: TriggerCondition;
-  slippageBps?: number;
+  tpPriceUsd: number;
+  slPriceUsd: number;
+  tpSlippageBps?: number;
+  slSlippageBps?: number;
   expiresAt?: number;
 }
 
 /**
- * React hook wrapping the four-step Jupiter Trigger Order v2 BUY flow plus
- * the two-step cancel flow. The hook drives the user wallet for both signing
- * steps; server-side persistence (Position + Order rows) is the caller's
+ * Hook wrapping Jupiter Trigger v2 BUY (single) + SELL (OCO) flows.
+ *
+ * v2 changes from the legacy hook:
+ *   - JWT auth step before vault. The wallet signs Jupiter's challenge
+ *     transaction once per 24h; cached in localStorage.
+ *   - vault → /vault (no ?wallet param), with /register fallback baked
+ *     in.
+ *   - deposit/craft now returns depositRequestId, threaded into create.
+ *   - SELL exits use native OCO instead of two singles.
+ *   - expiresAt is unix MILLISECONDS, not seconds.
+ *
+ * Server-side persistence (Position + Order rows) is the caller's
  * responsibility — see /api/orders.
  */
 export function useJupiterTrigger() {
   const { address, signTransaction } = useWallet();
+  const authedFetch = useAuthedFetch();
   const [loading, setLoading] = useState<TriggerLoadingState>(null);
   const [lastOrder, setLastOrder] = useState<PlaceBuyResult | null>(null);
+
+  const ensureJwt = useCallback(
+    async (walletAddress: string) => {
+      return getJupiterJwt({
+        walletAddress,
+        signTransaction,
+        // Push every freshly-issued JWT to the server so the
+        // ws-server tracker (which has no wallet of its own) can read
+        // the user's Jupiter order history.
+        persistToServer: async (jwt, expiresAt) => {
+          await authedFetch('/api/users/me/jupiter-jwt', {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jwt, expiresAt }),
+          });
+        },
+      });
+    },
+    [signTransaction, authedFetch],
+  );
 
   const placeBuy = useCallback(
     async (args: PlaceBuyArgs): Promise<PlaceBuyResult> => {
       if (!address) throw new Error('Wallet not connected');
       const inputAmount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
-      const expiresAt = args.expiresAt ?? Math.floor(Date.now() / 1000) + 24 * 3600;
+      const expiresAt = args.expiresAt ?? Date.now() + 24 * 3600 * 1000;
       const triggerCondition = args.triggerCondition ?? 'below';
       const slippageBps = args.slippageBps ?? 50;
 
+      setLoading('auth');
+      const jwt = await ensureJwt(address);
+      const carrier = { getJwt: async () => jwt };
+
       setLoading('vault');
-      const vault = await getVault(address);
+      const vault = await getVault(carrier);
 
       setLoading('craft');
-      const craft = await craftDeposit({
-        wallet: address,
-        vault: vault.vault,
-        mint: '', // USDC; trigger.ts fills it from constants
-        amount: inputAmount,
-      });
-      // The wrapper above passes mint as USDC explicitly via buildBuyOrderRequest;
-      // craftDeposit just shuttles the bytes back. Some Jupiter deployments expect
-      // the USDC mint string here — re-fetch craft if needed.
+      const { USDC_MINT } = await import('@hunch-it/shared');
+      const craft = await craftDeposit(
+        { inputMint: USDC_MINT, inputAmount },
+        carrier,
+      );
 
       setLoading('sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
+      const tx = deserializeTx(craft.transaction);
       const signed = await signTransaction(tx);
-      const signedB64 = toBase64(signed.serialize());
+      const signedB64 = toBase64(
+        signed instanceof VersionedTransaction
+          ? signed.serialize()
+          : (signed as Transaction).serialize(),
+      );
 
       setLoading('submit');
-      const placeReq = buildBuyOrderRequest({
-        walletAddress: address,
-        vault: vault.vault,
-        signedDepositTransaction: signedB64,
+      const req = buildBuySingleOrder({
+        userPubkey: address,
+        depositRequestId: craft.depositRequestId,
+        depositSignedTx: signedB64,
         outputMint: args.outputMint,
         usdcAmount: inputAmount,
         triggerPriceUsd: args.triggerPriceUsd,
@@ -124,7 +167,7 @@ export function useJupiterTrigger() {
         slippageBps,
         expiresAt,
       });
-      const placed = await placePriceOrder(placeReq);
+      const placed = await createOrder(req, carrier);
 
       setLoading(null);
       const result: PlaceBuyResult = {
@@ -135,80 +178,98 @@ export function useJupiterTrigger() {
       setLastOrder(result);
       return result;
     },
-    [address, signTransaction],
+    [address, signTransaction, ensureJwt],
   );
 
   /**
-   * Place a SELL trigger order against an existing position. Used for Phase F
-   * manual TP/SL placement after BUY fills (Position state=ENTERING). Same
-   * four-step flow as placeBuy but with input=xStock, output=USDC.
-   *
-   * NOTE: vault may already hold the post-BUY xStock balance; the
-   * deposit/craft step here may be a no-op or zero-value tx depending on
-   * Jupiter's current contract. Verify behavior before pushing live.
+   * Place a SELL OCO (TP+SL) order against an existing position. v2's
+   * native OCO replaces the two-singles workaround the old hook used.
    */
   const placeSellExit = useCallback(
     async (args: PlaceSellExitArgs): Promise<PlaceBuyResult> => {
       if (!address) throw new Error('Wallet not connected');
       const inputAmount = Math.round(args.tokenAmount * 10 ** args.inputDecimals).toString();
-      const expiresAt = args.expiresAt ?? Math.floor(Date.now() / 1000) + 24 * 3600;
-      const slippageBps = args.slippageBps ?? 75;
+      const expiresAt = args.expiresAt ?? Date.now() + 7 * 24 * 3600 * 1000;
+      const tpSlippageBps = args.tpSlippageBps ?? 75;
+      const slSlippageBps = args.slSlippageBps ?? 75;
+
+      setLoading('auth');
+      const jwt = await ensureJwt(address);
+      const carrier = { getJwt: async () => jwt };
 
       setLoading('vault');
-      const vault = await getVault(address);
+      const vault = await getVault(carrier);
 
       setLoading('craft');
-      const craft = await craftDeposit({
-        wallet: address,
-        vault: vault.vault,
-        mint: args.inputMint,
-        amount: inputAmount,
-      });
+      const craft = await craftDeposit(
+        { inputMint: args.inputMint, inputAmount },
+        carrier,
+      );
 
       setLoading('sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
+      const tx = deserializeTx(craft.transaction);
       const signed = await signTransaction(tx);
-      const signedB64 = toBase64(signed.serialize());
+      const signedB64 = toBase64(
+        signed instanceof VersionedTransaction
+          ? signed.serialize()
+          : (signed as Transaction).serialize(),
+      );
 
       setLoading('submit');
-      const placed = await placePriceOrder({
-        vault: vault.vault,
-        signedDepositTransaction: signedB64,
+      const req = buildSellOcoOrder({
+        userPubkey: address,
+        depositRequestId: craft.depositRequestId,
+        depositSignedTx: signedB64,
         inputMint: args.inputMint,
-        outputMint: USDC_MINT_LOCAL, // imported below
         inputAmount,
-        triggerPriceUsd: args.triggerPriceUsd,
-        triggerCondition: args.triggerCondition,
-        slippageBps,
+        tpPriceUsd: args.tpPriceUsd,
+        slPriceUsd: args.slPriceUsd,
+        tpSlippageBps,
+        slSlippageBps,
         expiresAt,
       });
+      const placed = await createOrder(req, carrier);
+
       setLoading(null);
       const result: PlaceBuyResult = { ...placed, vault: vault.vault, inputAmount };
       setLastOrder(result);
       return result;
     },
-    [address, signTransaction],
+    [address, signTransaction, ensureJwt],
   );
 
   const cancel = useCallback(
     async (orderId: string): Promise<{ txSignature: string }> => {
-      if (!signTransaction) throw new Error('Wallet not connected');
+      if (!address) throw new Error('Wallet not connected');
+
+      setLoading('auth');
+      const jwt = await ensureJwt(address);
+      const carrier = { getJwt: async () => jwt };
+
       setLoading('cancel-initiate');
-      const initiate = await initiateCancel(orderId);
+      const initiate = await initiateCancel(orderId, carrier);
 
       setLoading('cancel-sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(initiate.transaction));
+      const tx = deserializeTx(initiate.transaction);
       const signed = await signTransaction(tx);
 
       setLoading('cancel-confirm');
-      const confirm = await confirmCancel({
+      const confirm = await confirmCancel(
         orderId,
-        signedWithdrawalTx: toBase64(signed.serialize()),
-      });
+        {
+          signedTransaction: toBase64(
+            signed instanceof VersionedTransaction
+              ? signed.serialize()
+              : (signed as Transaction).serialize(),
+          ),
+          cancelRequestId: initiate.requestId,
+        },
+        carrier,
+      );
       setLoading(null);
       return { txSignature: confirm.txSignature };
     },
-    [signTransaction],
+    [address, signTransaction, ensureJwt],
   );
 
   return { placeBuy, placeSellExit, cancel, loading, lastOrder };

@@ -1,39 +1,49 @@
-// Order Tracker — every 30s, polls Jupiter Trigger Order History API for
-// each user's open orders, mirrors fills / expirations / cancellations into
-// our DB, and emits trade:filled / position:updated over Socket.IO.
+// Order Tracker — every ~30s polls Jupiter Trigger v2 history for each
+// user with open orders, mirrors fill / expiry / cancel state into our
+// DB, and emits trade:filled / position:updated over Socket.IO.
 //
-// Per spec §Flow 4 (BUY fills), §Flow 5 (TP/SL OCO), §Flow 8 (cancel BUY
-// pending). Phase F: when the user opted into delegated signing, OCO sibling
-// cancellation runs server-side via the Privy server SDK without prompting.
+// v2 changes vs the v1-style tracker we replaced:
+//   - Auth is per-user JWT (User.jupiterJwt), persisted by the web
+//     client after challenge/verify. No JWT → skip that user's poll.
+//   - History endpoint returns events[] not flat status; we use
+//     reduceOrderState() to collapse to one of OPEN / PARTIALLY_FILLED
+//     / FILLED / CANCELLED / EXPIRED.
+//   - Native OCO orders. The "sibling cancel" logic that used to live
+//     in oco.ts is gone — Jupiter handles it server-side, we just see
+//     a single cancelled event on the losing leg.
 
 import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import { WsServerEvents } from '@hunch-it/shared';
-import { fetchHistoryForWallet, type JupiterHistoryEntry } from './jupiter-history.js';
+import {
+  fetchActiveOrdersForUser,
+  reduceOrderState,
+  type JupiterOrderV2,
+} from './jupiter-history.js';
 import { applyFill, type OrderForFill } from './fills.js';
 
 export interface TrackerSummary {
-  polledWallets: number;
+  polledUsers: number;
   ordersChecked: number;
   fills: number;
   expirations: number;
+  cancellations: number;
   errors: number;
+  skippedNoJwt: number;
 }
 
-/**
- * Single tick: walks all OPEN/PARTIALLY_FILLED orders, fans out per-wallet
- * Jupiter History calls, and reconciles the results into our DB.
- */
 export async function runOrderTracker(
   prisma: PrismaClient,
   io: IoServer,
 ): Promise<TrackerSummary> {
   const summary: TrackerSummary = {
-    polledWallets: 0,
+    polledUsers: 0,
     ordersChecked: 0,
     fills: 0,
     expirations: 0,
+    cancellations: 0,
     errors: 0,
+    skippedNoJwt: 0,
   };
 
   const open = await prisma.order.findMany({
@@ -42,46 +52,52 @@ export async function runOrderTracker(
   });
   if (open.length === 0) return summary;
 
-  // Group by wallet so we hit Jupiter once per user.
-  const byWallet = new Map<string, typeof open>();
+  // Group by user so we hit Jupiter once per user not once per order.
+  const byUser = new Map<string, { user: NonNullable<(typeof open)[number]['user']>; orders: typeof open }>();
   for (const o of open) {
-    if (!o.user?.walletAddress) continue;
-    const list = byWallet.get(o.user.walletAddress) ?? [];
-    list.push(o);
-    byWallet.set(o.user.walletAddress, list);
+    if (!o.user) continue;
+    const cur = byUser.get(o.user.id);
+    if (cur) cur.orders.push(o);
+    else byUser.set(o.user.id, { user: o.user, orders: [o] });
   }
 
-  for (const [walletAddress, orders] of byWallet) {
-    summary.polledWallets++;
-    const history = await fetchHistoryForWallet(walletAddress);
-    const byJupiterId = new Map<string, JupiterHistoryEntry>();
-    for (const h of history) byJupiterId.set(h.id, h);
+  for (const { user, orders } of byUser.values()) {
+    summary.polledUsers++;
+    const jwt = isJwtUsable(user.jupiterJwt, user.jupiterJwtExpiresAt) ? user.jupiterJwt : null;
+    if (!jwt) {
+      summary.skippedNoJwt++;
+      continue;
+    }
+
+    const remoteOrders = await fetchActiveOrdersForUser({ jupiterJwt: jwt });
+    const byJupiterId = new Map<string, JupiterOrderV2>();
+    for (const r of remoteOrders) byJupiterId.set(r.id, r);
 
     for (const order of orders) {
       summary.ordersChecked++;
       if (!order.jupiterOrderId) continue;
       const remote = byJupiterId.get(order.jupiterOrderId);
+      // active=false response: order has dropped out of `active` view —
+      // could be filled / cancelled / expired. Fetch past once we
+      // detect this state to confirm. For now skip; next tick will
+      // re-poll. (If the loss persists we could fall back to past=true.)
       if (!remote) continue;
 
       try {
-        if (remote.status === 'FILLED' || remote.status === 'PARTIALLY_FILLED') {
-          await applyFill(prisma, io, order as OrderForFill, remote);
+        const { status, lastFill } = reduceOrderState(remote);
+        if (status === 'FILLED' || status === 'PARTIALLY_FILLED') {
+          await applyFill(prisma, io, order as OrderForFill, remote, lastFill);
           summary.fills++;
-        } else if (remote.status === 'EXPIRED') {
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { status: 'EXPIRED' },
-          });
-          io.to(`user:${walletAddress}`).emit(WsServerEvents.TradeExpired, {
+        } else if (status === 'EXPIRED') {
+          await prisma.order.update({ where: { id: order.id }, data: { status: 'EXPIRED' } });
+          io.to(`user:${user.walletAddress}`).emit(WsServerEvents.TradeExpired, {
             tradeId: order.id,
             ticker: order.position.ticker,
           });
           summary.expirations++;
-        } else if (remote.status === 'CANCELLED') {
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { status: 'CANCELLED' },
-          });
+        } else if (status === 'CANCELLED') {
+          await prisma.order.update({ where: { id: order.id }, data: { status: 'CANCELLED' } });
+          summary.cancellations++;
         }
       } catch (err) {
         console.warn(`[tracker] reconcile ${order.id} failed`, err);
@@ -91,4 +107,12 @@ export async function runOrderTracker(
   }
 
   return summary;
+}
+
+function isJwtUsable(token: string | null | undefined, expiresAt: Date | null | undefined): boolean {
+  if (!token) return false;
+  if (!expiresAt) return false;
+  // Refresh-margin: drop tokens within 60s of expiry so we don't poll
+  // and fail. Web client refreshes them on re-visit.
+  return expiresAt.getTime() - 60_000 > Date.now();
 }

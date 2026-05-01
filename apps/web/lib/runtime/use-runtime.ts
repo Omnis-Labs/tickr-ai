@@ -9,19 +9,19 @@ import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import type {
   Runtime,
   RuntimeCloseResult,
-  RuntimeExitLeg,
+  RuntimeExitSnapshot,
   RuntimeMeta,
 } from './types';
 
 /**
- * The single hook every page goes through to perform live-or-demo I/O.
- * Returns a Runtime impl whose strategy is selected by isDemo() once,
+ * Single hook every page goes through to perform live-or-demo I/O.
+ * Returns a Runtime whose strategy is selected by isDemo() once and
  * memoised across renders. Page handlers don't see the demo / live fork.
  */
 export function useRuntime(): Runtime {
   const demo = isDemo();
   const authedFetch = useAuthedFetch();
-  const { cancelExits, placeExit, replaceExits } = useExitOrders();
+  const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
   const { swap } = useJupiterSwap();
   const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
   const demoPositions = useDemoPositionsStore((s) => s.positions);
@@ -30,14 +30,12 @@ export function useRuntime(): Runtime {
     if (demo) {
       return {
         isDemo: true,
-        cancelExits: async () => {
-          // Demo runtime doesn't track exit orders separately — the
-          // demo store inlines TP/SL state on the Position itself, so
-          // cancel is a no-op here. Caller should still update local
-          // store via dismissCancelSibling() etc.
-          return [];
+        cancelExits: async (): Promise<RuntimeExitSnapshot> => {
+          // Demo store inlines TP/SL on Position itself, so cancel is a
+          // no-op. Caller still updates local store via dismissCancelSibling().
+          return { tpPriceUsd: null, slPriceUsd: null };
         },
-        placeExit: async () => ({ id: `demo-${Date.now()}` }),
+        placeOcoExit: async () => ({ id: `demo-${Date.now()}` }),
         replaceExits: async () => {
           /* demo store has no separate exit orders; Position Detail
            *  also calls adjustTpSl() in the demo branch directly */
@@ -58,22 +56,29 @@ export function useRuntime(): Runtime {
 
     return {
       isDemo: false,
-      cancelExits: (positionId: string): Promise<RuntimeExitLeg[]> =>
+      cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> =>
         cancelExits(positionId),
-      placeExit: ({ meta, tokenAmount, triggerPriceUsd, triggerCondition }) =>
-        placeExit({
+      placeOcoExit: async ({ meta, tokenAmount, tpPriceUsd, slPriceUsd }) => {
+        const r = await placeOcoExit({
           inputMint: meta.mint,
           inputDecimals: meta.decimals,
           tokenAmount,
-          triggerPriceUsd,
-          triggerCondition,
-        }),
-      replaceExits: ({ positionId, meta, tokenAmount, legs }) =>
-        replaceExits(positionId, meta, tokenAmount, legs),
+          tpPriceUsd,
+          slPriceUsd,
+        });
+        return { id: r.id };
+      },
+      replaceExits: ({ positionId, meta, tokenAmount, next }) =>
+        replaceExits(positionId, meta, tokenAmount, next),
       closePosition: async ({
         positionId,
         meta,
         sellProposalId,
+      }: {
+        positionId: string;
+        meta: RuntimeMeta;
+        fallbackMarkPrice: number;
+        sellProposalId?: string;
       }): Promise<RuntimeCloseResult> => {
         await cancelExits(positionId);
         const sell = await swap({
@@ -87,9 +92,6 @@ export function useRuntime(): Runtime {
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
         const txSignature = sell.exec.signature ?? null;
 
-        // Route through the SELL Proposal persistence path when this close
-        // came from a thesis-monitor signal — keeps the Trade row tied to
-        // the originating proposal for back-eval attribution.
         const persistUrl = sellProposalId
           ? `/api/proposals/${sellProposalId}/sell-confirm`
           : `/api/positions/${positionId}/close`;
@@ -107,7 +109,7 @@ export function useRuntime(): Runtime {
         return { executionPrice, tokenAmount: tokenAmt, txSignature };
       },
     };
-  }, [demo, authedFetch, cancelExits, placeExit, replaceExits, swap, closeDemoPosition, demoPositions]);
+  }, [demo, authedFetch, cancelExits, placeOcoExit, replaceExits, swap, closeDemoPosition, demoPositions]);
 }
 
-export type { Runtime, RuntimeExitLeg, RuntimeMeta, RuntimeCloseResult };
+export type { Runtime, RuntimeExitSnapshot, RuntimeMeta, RuntimeCloseResult };

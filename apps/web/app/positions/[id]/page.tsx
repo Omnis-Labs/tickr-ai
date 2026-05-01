@@ -41,7 +41,7 @@ export default function PositionDetailPage() {
   const cancelSiblingHint = useDemoPositionsStore((s) =>
     params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
   );
-  const { cancelExits, placeExit, replaceExits } = useExitOrders();
+  const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
   const runtime = useRuntime();
   const { address: _address } = useWallet();
   void _address;
@@ -136,22 +136,15 @@ export default function PositionDetailPage() {
         toast.error('TP / SL prices missing.');
         return;
       }
-      const legAmount = position!.tokenAmount;
-      const tp = await placeExit({
+      // v2 native OCO: one Jupiter order covers both TP and SL.
+      const placed = await placeOcoExit({
         inputMint: meta.mint,
         inputDecimals: meta.decimals,
-        tokenAmount: legAmount,
-        triggerPriceUsd: position!.currentTpPrice,
-        triggerCondition: 'above',
+        tokenAmount: position!.tokenAmount,
+        tpPriceUsd: position!.currentTpPrice,
+        slPriceUsd: position!.currentSlPrice,
       });
-      const sl = await placeExit({
-        inputMint: meta.mint,
-        inputDecimals: meta.decimals,
-        tokenAmount: legAmount,
-        triggerPriceUsd: position!.currentSlPrice,
-        triggerCondition: 'below',
-      });
-      toast.success(`TP ${tp.id.slice(0, 6)} + SL ${sl.id.slice(0, 6)} placed.`);
+      toast.success(`OCO ${placed.id.slice(0, 8)}… placed (TP + SL).`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -170,10 +163,11 @@ export default function PositionDetailPage() {
       }
       const cancelled = await cancelExits(position!.id);
       dismissCancelSibling(position!.id);
-      if (cancelled.length === 0) {
+      const hadAny = cancelled.tpPriceUsd != null || cancelled.slPriceUsd != null;
+      if (!hadAny) {
         toast('No open sibling order to cancel.');
       } else {
-        toast.success(`Vault withdrawn (${cancelled.length} leg cancelled).`);
+        toast.success('Vault withdrawn (OCO cancelled).');
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -205,10 +199,7 @@ export default function PositionDetailPage() {
           position.id,
           { mint: meta.mint, decimals: meta.decimals },
           position.tokenAmount,
-          [
-            { kind: 'TAKE_PROFIT', triggerPriceUsd: tp },
-            { kind: 'STOP_LOSS', triggerPriceUsd: sl },
-          ],
+          { tpPriceUsd: tp, slPriceUsd: sl },
         );
         adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');

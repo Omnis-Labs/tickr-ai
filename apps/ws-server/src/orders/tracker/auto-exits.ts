@@ -1,26 +1,23 @@
 // Auto TP/SL placement on BUY fill — Phase F's main payoff for delegated
 // signing. When a BUY_TRIGGER fills, we already know the user's preferred
-// TP/SL prices (set when they approved the proposal), so we can place
-// both legs without prompting them, by signing each Jupiter trigger
-// order server-side via the Privy server SDK.
+// TP/SL prices (set when they approved the proposal), so we place a
+// single OCO order server-side without prompting the user.
 //
-// Falls back silently if delegation isn't configured or the user hasn't
-// granted it — in that case the existing client-side flow on the
-// Position Detail page kicks in (state=ENTERING surfaces the manual
-// "Confirm exits" CTA).
+// v2 OCO is a single Jupiter order from their POV; in our DB we still
+// keep two Order rows (TAKE_PROFIT + STOP_LOSS sharing the same
+// jupiterOrderId) so existing UI / reporting code keeps working. The
+// tracker uses jupiterOrderId match to mark the losing leg CANCELLED
+// when the winning one fills.
 //
-// Mirrors the pattern in oco.ts: initiate → sign delegated → confirm,
-// then create the Order row so /api/orders + the desk widgets see it.
+// Falls back silently if any precondition is missing (delegation not
+// configured, no privy wallet id, no Jupiter JWT cached on User row,
+// vault setup fails). The Position stays at ENTERING and the user gets
+// the manual "Confirm exits" CTA on Position Detail.
 
 import type { PrismaClient } from '@hunch-it/db';
 import { Prisma } from '@prisma/client';
-import {
-  JUPITER_TRIGGER_DEPOSIT_CRAFT,
-  JUPITER_TRIGGER_ORDERS_PRICE,
-  JUPITER_TRIGGER_VAULT,
-  USDC_MINT,
-  getAssetById,
-} from '@hunch-it/shared';
+import { USDC_MINT, getAssetById } from '@hunch-it/shared';
+import { env } from '../../env.js';
 import { isDelegationConfigured, signTransactionDelegated } from '../../privy/index.js';
 import { jupiterUrl } from './jupiter-history.js';
 
@@ -30,88 +27,85 @@ interface AutoExitInput {
   userId: string;
   walletAddress: string;
   privyWalletId: string;
-  ticker: string; // e.g. AAPLx
-  tokenAmount: number; // total BUY-filled amount; we split evenly across legs
-}
-
-interface PlaceLegInput {
-  walletAddress: string;
-  privyWalletId: string;
-  vault: string;
-  inputMint: string;
-  inputDecimals: number;
+  ticker: string;
+  /** Total xStock balance acquired from the BUY. The OCO leg sells the
+   *  whole position; whichever side fires first wins, the other gets
+   *  cancelled by Jupiter natively. */
   tokenAmount: number;
-  triggerPriceUsd: number;
-  triggerCondition: 'above' | 'below';
 }
 
 const SLIPPAGE_BPS = 50;
-// 7-day expiry — Jupiter requires an explicit cutoff. Long enough for
-// the position to actually run; the user can cancel/edit anytime.
-const EXPIRY_SECONDS = 7 * 24 * 3600;
+const EXPIRY_MS = 7 * 24 * 3600 * 1000;
 
-async function getOrCreateVault(walletAddress: string): Promise<string | null> {
+interface JwtBundle {
+  jwt: string;
+  apiKey: string;
+}
+
+async function authedJupiterFetch<T>(
+  path: string,
+  bundle: JwtBundle,
+  init: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {},
+): Promise<T | null> {
   try {
-    const url = `${jupiterUrl(JUPITER_TRIGGER_VAULT)}?wallet=${encodeURIComponent(walletAddress)}`;
-    const res = await fetch(url, { headers: { accept: 'application/json' } });
-    if (!res.ok) return null;
-    const j = (await res.json()) as { vault?: string };
-    return j.vault ?? null;
-  } catch {
+    const res = await fetch(jupiterUrl(path), {
+      method: init.method ?? 'GET',
+      headers: {
+        'x-api-key': bundle.apiKey,
+        Authorization: `Bearer ${bundle.jwt}`,
+        ...(init.body ? { 'content-type': 'application/json' } : {}),
+        accept: 'application/json',
+      },
+      ...(init.body ? { body: JSON.stringify(init.body) } : {}),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[auto-exit] ${init.method ?? 'GET'} ${path} → ${res.status}: ${text.slice(0, 200)}`);
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch (err) {
+    console.warn(`[auto-exit] ${init.method ?? 'GET'} ${path} threw`, err);
     return null;
   }
 }
 
-async function placeLegDelegated(p: PlaceLegInput): Promise<string | null> {
-  const inputAmountSmallest = Math.floor(p.tokenAmount * 10 ** p.inputDecimals).toString();
+async function getOrRegisterVault(bundle: JwtBundle): Promise<string | null> {
+  const v = await authedJupiterFetch<{ vault: string }>('/trigger/v2/vault', bundle);
+  if (v?.vault) return v.vault;
+  const r = await authedJupiterFetch<{ vault: string }>('/trigger/v2/vault/register', bundle);
+  return r?.vault ?? null;
+}
 
-  const craftRes = await fetch(jupiterUrl(JUPITER_TRIGGER_DEPOSIT_CRAFT), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      wallet: p.walletAddress,
-      vault: p.vault,
-      mint: p.inputMint,
-      amount: inputAmountSmallest,
-    }),
-  });
-  if (!craftRes.ok) return null;
-  const craftJson = (await craftRes.json()) as { transaction?: string };
-  if (!craftJson.transaction) return null;
+interface CraftDepositResponse {
+  transaction: string;
+  depositRequestId: string;
+}
 
-  const signed = await signTransactionDelegated({
-    privyWalletId: p.privyWalletId,
-    transactionBase64: craftJson.transaction,
-  });
-  if (!signed) return null;
+interface CreateOrderResponse {
+  id: string;
+  txSignature: string;
+}
 
-  const placeRes = await fetch(jupiterUrl(JUPITER_TRIGGER_ORDERS_PRICE), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      vault: p.vault,
-      signedDepositTransaction: signed,
-      inputMint: p.inputMint,
-      outputMint: USDC_MINT,
-      inputAmount: inputAmountSmallest,
-      triggerPriceUsd: p.triggerPriceUsd,
-      triggerCondition: p.triggerCondition,
-      slippageBps: SLIPPAGE_BPS,
-      expiresAt: Math.floor(Date.now() / 1000) + EXPIRY_SECONDS,
-    }),
+async function loadJwtBundle(
+  prisma: PrismaClient,
+  userId: string,
+): Promise<JwtBundle | null> {
+  if (!env.JUPITER_API_KEY) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { jupiterJwt: true, jupiterJwtExpiresAt: true },
   });
-  if (!placeRes.ok) return null;
-  const placeJson = (await placeRes.json()) as { id?: string };
-  return placeJson.id ?? null;
+  if (!user?.jupiterJwt || !user.jupiterJwtExpiresAt) return null;
+  // 60s margin so we don't ship a token that expires mid-flight.
+  if (user.jupiterJwtExpiresAt.getTime() - 60_000 <= Date.now()) return null;
+  return { jwt: user.jupiterJwt, apiKey: env.JUPITER_API_KEY };
 }
 
 /**
- * Try to place TP + SL trigger orders for a freshly-filled BUY position.
- * Returns the count of legs successfully placed (0, 1, or 2). Failures
- * are swallowed: caller falls back to the existing user-prompted flow.
- *
- * Idempotent: skips legs that already have an OPEN Order row, so reruns
- * (e.g. tracker poll vs. socket fill) are safe.
+ * Place a TP+SL OCO order server-side. Returns the count of Order rows
+ * created (0 on failure, 2 on success). Idempotent — skips when an
+ * OPEN OCO already exists for this position.
  */
 export async function tryAutoPlaceExits(input: AutoExitInput): Promise<number> {
   if (!isDelegationConfigured()) return 0;
@@ -122,7 +116,13 @@ export async function tryAutoPlaceExits(input: AutoExitInput): Promise<number> {
   });
   const tp = position?.currentTpPrice?.toNumber() ?? null;
   const sl = position?.currentSlPrice?.toNumber() ?? null;
-  if (tp == null && sl == null) return 0;
+  if (tp == null || sl == null) {
+    // OCO needs both legs. If only one is set we'd need a single-side
+    // trigger, which we currently don't auto-place — user does it
+    // manually. (This is rare in practice; proposal generator always
+    // sets both.)
+    return 0;
+  }
 
   const existing = await input.prisma.order.findMany({
     where: {
@@ -130,13 +130,9 @@ export async function tryAutoPlaceExits(input: AutoExitInput): Promise<number> {
       kind: { in: ['TAKE_PROFIT', 'STOP_LOSS'] },
       status: { in: ['OPEN', 'PARTIALLY_FILLED'] },
     },
-    select: { kind: true },
+    select: { id: true },
   });
-  const haveTp = existing.some((o) => o.kind === 'TAKE_PROFIT');
-  const haveSl = existing.some((o) => o.kind === 'STOP_LOSS');
-  const needTp = tp != null && !haveTp;
-  const needSl = sl != null && !haveSl;
-  if (!needTp && !needSl) return 0;
+  if (existing.length > 0) return 0;
 
   const asset = getAssetById(input.ticker);
   if (!asset?.mint) {
@@ -144,89 +140,98 @@ export async function tryAutoPlaceExits(input: AutoExitInput): Promise<number> {
     return 0;
   }
 
-  const vault = await getOrCreateVault(input.walletAddress);
+  const bundle = await loadJwtBundle(input.prisma, input.userId);
+  if (!bundle) {
+    console.warn(`[auto-exit] no jupiter jwt for user ${input.userId.slice(0, 8)}…`);
+    return 0;
+  }
+
+  const vault = await getOrRegisterVault(bundle);
   if (!vault) return 0;
 
-  // Split the position evenly across both legs when both prices are set;
-  // otherwise the lone leg gets the full amount.
-  const haveBoth = needTp && needSl;
-  const tpAmount = needTp ? (haveBoth ? input.tokenAmount / 2 : input.tokenAmount) : 0;
-  const slAmount = needSl ? (haveBoth ? input.tokenAmount / 2 : input.tokenAmount) : 0;
+  const inputAmountSmallest = Math.floor(input.tokenAmount * 10 ** asset.decimals).toString();
 
-  const baseLeg = {
-    walletAddress: input.walletAddress,
+  // Step 1: craft the deposit (transferring the xStock into the vault).
+  const craft = await authedJupiterFetch<CraftDepositResponse>(
+    '/trigger/v2/deposit/craft',
+    bundle,
+    {
+      method: 'POST',
+      body: { inputMint: asset.mint, inputAmount: inputAmountSmallest },
+    },
+  );
+  if (!craft?.transaction || !craft.depositRequestId) return 0;
+
+  // Step 2: server-sign via Privy.
+  const signedTx = await signTransactionDelegated({
     privyWalletId: input.privyWalletId,
-    vault,
+    transactionBase64: craft.transaction,
+  });
+  if (!signedTx) return 0;
+
+  // Step 3: create OCO order. Single Jupiter id covers both TP + SL.
+  const ocoBody = {
+    orderType: 'OCO' as const,
+    depositRequestId: craft.depositRequestId,
+    depositSignedTx: signedTx,
+    userPubkey: input.walletAddress,
     inputMint: asset.mint,
-    inputDecimals: asset.decimals,
+    inputAmount: inputAmountSmallest,
+    outputMint: USDC_MINT,
+    triggerMint: asset.mint,
+    tpPriceUsd: tp,
+    slPriceUsd: sl,
+    tpSlippageBps: SLIPPAGE_BPS,
+    slSlippageBps: SLIPPAGE_BPS,
+    expiresAt: Date.now() + EXPIRY_MS,
   };
+  const placed = await authedJupiterFetch<CreateOrderResponse>(
+    '/trigger/v2/orders/price',
+    bundle,
+    { method: 'POST', body: ocoBody },
+  );
+  if (!placed?.id) return 0;
 
-  let placed = 0;
+  // Step 4: write two Order rows sharing the OCO id. The tracker reads
+  // events[].orderContext to attribute fills to TP vs SL on each row,
+  // and the sibling-cancel hook in fills.ts uses the shared
+  // jupiterOrderId to flip the losing leg to CANCELLED.
+  await input.prisma.order.createMany({
+    data: [
+      {
+        userId: input.userId,
+        positionId: input.positionId,
+        kind: 'TAKE_PROFIT',
+        side: 'SELL',
+        status: 'OPEN',
+        jupiterOrderId: placed.id,
+        triggerPriceUsd: new Prisma.Decimal(tp),
+        sizeUsd: new Prisma.Decimal(input.tokenAmount * tp),
+        tokenAmount: new Prisma.Decimal(input.tokenAmount),
+        slippageBps: SLIPPAGE_BPS,
+      },
+      {
+        userId: input.userId,
+        positionId: input.positionId,
+        kind: 'STOP_LOSS',
+        side: 'SELL',
+        status: 'OPEN',
+        jupiterOrderId: placed.id,
+        triggerPriceUsd: new Prisma.Decimal(sl),
+        sizeUsd: new Prisma.Decimal(input.tokenAmount * sl),
+        tokenAmount: new Prisma.Decimal(input.tokenAmount),
+        slippageBps: SLIPPAGE_BPS,
+      },
+    ],
+  });
 
-  if (needTp && tp != null) {
-    try {
-      const jupId = await placeLegDelegated({
-        ...baseLeg,
-        tokenAmount: tpAmount,
-        triggerPriceUsd: tp,
-        triggerCondition: 'above',
-      });
-      if (jupId) {
-        await input.prisma.order.create({
-          data: {
-            userId: input.userId,
-            positionId: input.positionId,
-            kind: 'TAKE_PROFIT',
-            side: 'SELL',
-            status: 'OPEN',
-            jupiterOrderId: jupId,
-            triggerPriceUsd: new Prisma.Decimal(tp),
-            sizeUsd: new Prisma.Decimal(tpAmount * tp),
-            tokenAmount: new Prisma.Decimal(tpAmount),
-          },
-        });
-        placed += 1;
-      }
-    } catch (err) {
-      console.warn('[auto-exit] TP placement failed', err);
-    }
-  }
+  await input.prisma.position.update({
+    where: { id: input.positionId },
+    data: { state: 'ACTIVE' },
+  });
 
-  if (needSl && sl != null) {
-    try {
-      const jupId = await placeLegDelegated({
-        ...baseLeg,
-        tokenAmount: slAmount,
-        triggerPriceUsd: sl,
-        triggerCondition: 'below',
-      });
-      if (jupId) {
-        await input.prisma.order.create({
-          data: {
-            userId: input.userId,
-            positionId: input.positionId,
-            kind: 'STOP_LOSS',
-            side: 'SELL',
-            status: 'OPEN',
-            jupiterOrderId: jupId,
-            triggerPriceUsd: new Prisma.Decimal(sl),
-            sizeUsd: new Prisma.Decimal(slAmount * sl),
-            tokenAmount: new Prisma.Decimal(slAmount),
-          },
-        });
-        placed += 1;
-      }
-    } catch (err) {
-      console.warn('[auto-exit] SL placement failed', err);
-    }
-  }
-
-  if (placed > 0) {
-    await input.prisma.position.update({
-      where: { id: input.positionId },
-      data: { state: 'ACTIVE' },
-    });
-  }
-
-  return placed;
+  console.log(
+    `[auto-exit] OCO placed id=${placed.id.slice(0, 8)}… for position ${input.positionId.slice(0, 8)}… tp=${tp} sl=${sl}`,
+  );
+  return 2;
 }

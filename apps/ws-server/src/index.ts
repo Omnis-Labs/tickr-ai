@@ -134,9 +134,9 @@ tasks.add(
       const p = getPrisma();
       if (!p) return;
       const s = await runOrderTracker(p, io);
-      if (s.fills > 0 || s.expirations > 0 || s.errors > 0) {
+      if (s.fills > 0 || s.expirations > 0 || s.cancellations > 0 || s.errors > 0) {
         console.log(
-          `[tracker] wallets=${s.polledWallets} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} errors=${s.errors}`,
+          `[tracker] users=${s.polledUsers} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} cancellations=${s.cancellations} skipped(no-jwt)=${s.skippedNoJwt} errors=${s.errors}`,
         );
       }
     },
