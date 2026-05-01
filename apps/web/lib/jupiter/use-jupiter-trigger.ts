@@ -93,47 +93,48 @@ export function useJupiterTrigger() {
       const triggerCondition = args.triggerCondition ?? 'below';
       const slippageBps = args.slippageBps ?? 50;
 
-      setLoading('vault');
-      const vault = await getVault(address);
+      try {
+        setLoading('vault');
+        const vault = await getVault(address);
 
-      setLoading('craft');
-      const craft = await craftDeposit({
-        wallet: address,
-        vault: vault.vault,
-        mint: '', // USDC; trigger.ts fills it from constants
-        amount: inputAmount,
-      });
-      // The wrapper above passes mint as USDC explicitly via buildBuyOrderRequest;
-      // craftDeposit just shuttles the bytes back. Some Jupiter deployments expect
-      // the USDC mint string here — re-fetch craft if needed.
+        setLoading('craft');
+        // BUY deposits in USDC; Jupiter rejects empty mint with HTTP 400.
+        const craft = await craftDeposit({
+          wallet: address,
+          vault: vault.vault,
+          mint: USDC_MINT,
+          amount: inputAmount,
+        });
 
-      setLoading('sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
-      const signed = await signTransaction(tx);
-      const signedB64 = toBase64(signed.serialize());
+        setLoading('sign');
+        const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
+        const signed = await signTransaction(tx);
+        const signedB64 = toBase64(signed.serialize());
 
-      setLoading('submit');
-      const placeReq = buildBuyOrderRequest({
-        walletAddress: address,
-        vault: vault.vault,
-        signedDepositTransaction: signedB64,
-        outputMint: args.outputMint,
-        usdcAmount: inputAmount,
-        triggerPriceUsd: args.triggerPriceUsd,
-        triggerCondition,
-        slippageBps,
-        expiresAt,
-      });
-      const placed = await placePriceOrder(placeReq);
+        setLoading('submit');
+        const placeReq = buildBuyOrderRequest({
+          walletAddress: address,
+          vault: vault.vault,
+          signedDepositTransaction: signedB64,
+          outputMint: args.outputMint,
+          usdcAmount: inputAmount,
+          triggerPriceUsd: args.triggerPriceUsd,
+          triggerCondition,
+          slippageBps,
+          expiresAt,
+        });
+        const placed = await placePriceOrder(placeReq);
 
-      setLoading(null);
-      const result: PlaceBuyResult = {
-        ...placed,
-        vault: vault.vault,
-        inputAmount,
-      };
-      setLastOrder(result);
-      return result;
+        const result: PlaceBuyResult = {
+          ...placed,
+          vault: vault.vault,
+          inputAmount,
+        };
+        setLastOrder(result);
+        return result;
+      } finally {
+        setLoading(null);
+      }
     },
     [address, signTransaction],
   );
@@ -154,38 +155,41 @@ export function useJupiterTrigger() {
       const expiresAt = args.expiresAt ?? Math.floor(Date.now() / 1000) + 24 * 3600;
       const slippageBps = args.slippageBps ?? 75;
 
-      setLoading('vault');
-      const vault = await getVault(address);
+      try {
+        setLoading('vault');
+        const vault = await getVault(address);
 
-      setLoading('craft');
-      const craft = await craftDeposit({
-        wallet: address,
-        vault: vault.vault,
-        mint: args.inputMint,
-        amount: inputAmount,
-      });
+        setLoading('craft');
+        const craft = await craftDeposit({
+          wallet: address,
+          vault: vault.vault,
+          mint: args.inputMint,
+          amount: inputAmount,
+        });
 
-      setLoading('sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
-      const signed = await signTransaction(tx);
-      const signedB64 = toBase64(signed.serialize());
+        setLoading('sign');
+        const tx = VersionedTransaction.deserialize(fromBase64(craft.transaction));
+        const signed = await signTransaction(tx);
+        const signedB64 = toBase64(signed.serialize());
 
-      setLoading('submit');
-      const placed = await placePriceOrder({
-        vault: vault.vault,
-        signedDepositTransaction: signedB64,
-        inputMint: args.inputMint,
-        outputMint: USDC_MINT_LOCAL, // imported below
-        inputAmount,
-        triggerPriceUsd: args.triggerPriceUsd,
-        triggerCondition: args.triggerCondition,
-        slippageBps,
-        expiresAt,
-      });
-      setLoading(null);
-      const result: PlaceBuyResult = { ...placed, vault: vault.vault, inputAmount };
-      setLastOrder(result);
-      return result;
+        setLoading('submit');
+        const placed = await placePriceOrder({
+          vault: vault.vault,
+          signedDepositTransaction: signedB64,
+          inputMint: args.inputMint,
+          outputMint: USDC_MINT_LOCAL,
+          inputAmount,
+          triggerPriceUsd: args.triggerPriceUsd,
+          triggerCondition: args.triggerCondition,
+          slippageBps,
+          expiresAt,
+        });
+        const result: PlaceBuyResult = { ...placed, vault: vault.vault, inputAmount };
+        setLastOrder(result);
+        return result;
+      } finally {
+        setLoading(null);
+      }
     },
     [address, signTransaction],
   );
@@ -193,20 +197,23 @@ export function useJupiterTrigger() {
   const cancel = useCallback(
     async (orderId: string): Promise<{ txSignature: string }> => {
       if (!signTransaction) throw new Error('Wallet not connected');
-      setLoading('cancel-initiate');
-      const initiate = await initiateCancel(orderId);
+      try {
+        setLoading('cancel-initiate');
+        const initiate = await initiateCancel(orderId);
 
-      setLoading('cancel-sign');
-      const tx = VersionedTransaction.deserialize(fromBase64(initiate.transaction));
-      const signed = await signTransaction(tx);
+        setLoading('cancel-sign');
+        const tx = VersionedTransaction.deserialize(fromBase64(initiate.transaction));
+        const signed = await signTransaction(tx);
 
-      setLoading('cancel-confirm');
-      const confirm = await confirmCancel({
-        orderId,
-        signedWithdrawalTx: toBase64(signed.serialize()),
-      });
-      setLoading(null);
-      return { txSignature: confirm.txSignature };
+        setLoading('cancel-confirm');
+        const confirm = await confirmCancel({
+          orderId,
+          signedWithdrawalTx: toBase64(signed.serialize()),
+        });
+        return { txSignature: confirm.txSignature };
+      } finally {
+        setLoading(null);
+      }
     },
     [signTransaction],
   );

@@ -50,6 +50,15 @@ interface UseSharedWorkerOptions {
    * In demo mode, defaults to the demo wallet.
    */
   walletAddress?: string;
+  /**
+   * Catch-all observer fired for every server → client Socket.IO event,
+   * including ones not matched by the typed `on*` handlers above. Intended
+   * for the dev-tools Signal Monitor and similar diagnostic surfaces — the
+   * production app should keep using the typed handlers.
+   *
+   * Engine.IO transport pings/pongs are not routed through this callback.
+   */
+  onAnyEvent?: (event: string, ...args: unknown[]) => void;
 }
 
 interface UseSharedWorkerReturn {
@@ -68,9 +77,13 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
     opts.onPositionUpdated,
   );
+  const onAnyEventRef = useRef<((event: string, ...args: unknown[]) => void) | undefined>(
+    opts.onAnyEvent,
+  );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
   onPositionUpdatedRef.current = opts.onPositionUpdated;
+  onAnyEventRef.current = opts.onAnyEvent;
 
   // The wallet address we'll auth as. Demo defaults to the demo userId so
   // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
@@ -131,6 +144,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
       onPositionUpdatedRef.current?.(payload);
+    });
+    socket.onAny((event: string, ...args: unknown[]) => {
+      onAnyEventRef.current?.(event, ...args);
     });
 
     return () => {

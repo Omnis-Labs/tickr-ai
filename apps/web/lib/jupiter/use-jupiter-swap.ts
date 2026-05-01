@@ -68,8 +68,8 @@ export type SwapArgs = BuyArgs | SellArgs;
  * 2) wallet.signTransaction(VersionedTransaction)
  * 3) POST /ultra/v1/execute
  *
- * Used by both the manual `/debug/trade` page and the SignalModal "Yes, Execute"
- * flow so they can't drift.
+ * Used by both the manual `/dev-tools` page (S3 Ultra Swap) and the
+ * ProposalModal "Yes, Execute" flow so they can't drift.
  */
 export function useJupiterSwap() {
   const { connection } = useConnection();
@@ -83,105 +83,111 @@ export function useJupiterSwap() {
       // still shows Quoting → Awaiting signature → Submitting, then return a
       // synthetic SwapResult. No wallet required.
       if (isDemo()) {
-        setLoading('order');
-        await sleep(600);
-        setLoading('sign');
-        await sleep(1100);
-        setLoading('execute');
-        await sleep(800);
-        setLoading(null);
+        try {
+          setLoading('order');
+          await sleep(600);
+          setLoading('sign');
+          await sleep(1100);
+          setLoading('execute');
+          await sleep(800);
 
-        const DEMO_PRICE_GUESS = 230; // rough price so tokenAmount looks plausible
-        const usd = args.direction === 'BUY' ? args.usdAmount : 4.8;
-        const tokenAmount = +(usd / DEMO_PRICE_GUESS).toFixed(4);
-        const inAmount =
-          args.direction === 'BUY'
-            ? Math.round(usd * 10 ** USDC_DECIMALS).toString()
-            : Math.round(tokenAmount * 1e8).toString();
-        const outAmount =
-          args.direction === 'BUY'
-            ? Math.round(tokenAmount * 1e8).toString()
-            : Math.round(usd * 10 ** USDC_DECIMALS).toString();
-        const sig = `demo${Math.random().toString(36).slice(2, 14)}`;
-        const fakeOrder: UltraOrderResponse = {
-          requestId: `demo-${Date.now()}`,
-          transaction: '',
-          inAmount,
-          outAmount,
-          otherAmountThreshold: '0',
-          priceImpactPct: '0.01',
-        };
-        const fakeExec: UltraExecuteResponse = { status: 'Success', signature: sig };
-        return {
-          order: fakeOrder,
-          exec: fakeExec,
-          inputMint: args.direction === 'BUY' ? USDC_MINT : args.xStockMint,
-          outputMint: args.direction === 'BUY' ? args.xStockMint : USDC_MINT,
-          inputAmount: inAmount,
-          outputAmount: outAmount,
-        };
+          const DEMO_PRICE_GUESS = 230;
+          const usd = args.direction === 'BUY' ? args.usdAmount : 4.8;
+          const tokenAmount = +(usd / DEMO_PRICE_GUESS).toFixed(4);
+          const inAmount =
+            args.direction === 'BUY'
+              ? Math.round(usd * 10 ** USDC_DECIMALS).toString()
+              : Math.round(tokenAmount * 1e8).toString();
+          const outAmount =
+            args.direction === 'BUY'
+              ? Math.round(tokenAmount * 1e8).toString()
+              : Math.round(usd * 10 ** USDC_DECIMALS).toString();
+          const sig = `demo${Math.random().toString(36).slice(2, 14)}`;
+          const fakeOrder: UltraOrderResponse = {
+            requestId: `demo-${Date.now()}`,
+            transaction: '',
+            inAmount,
+            outAmount,
+            otherAmountThreshold: '0',
+            priceImpactPct: '0.01',
+          };
+          const fakeExec: UltraExecuteResponse = { status: 'Success', signature: sig };
+          return {
+            order: fakeOrder,
+            exec: fakeExec,
+            inputMint: args.direction === 'BUY' ? USDC_MINT : args.xStockMint,
+            outputMint: args.direction === 'BUY' ? args.xStockMint : USDC_MINT,
+            inputAmount: inAmount,
+            outputAmount: outAmount,
+          };
+        } finally {
+          setLoading(null);
+        }
       }
 
       if (!publicKey || !signTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 
-      let inputMint: string;
-      let outputMint: string;
-      let amount: string;
+      try {
+        let inputMint: string;
+        let outputMint: string;
+        let amount: string;
 
-      if (args.direction === 'BUY') {
-        inputMint = USDC_MINT;
-        outputMint = args.xStockMint;
-        amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
-      } else {
-        // SELL: read the wallet's Token-2022 balance for this mint and sell all.
-        const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-          programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+        if (args.direction === 'BUY') {
+          inputMint = USDC_MINT;
+          outputMint = args.xStockMint;
+          amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
+        } else {
+          // SELL: read the wallet's Token-2022 balance for this mint and sell all.
+          const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+            programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+          });
+          const found = accounts.value.find((a) => {
+            const info = a.account.data;
+            if ('parsed' in info && info.parsed?.info?.mint === args.xStockMint) return true;
+            return false;
+          });
+          const raw =
+            (found?.account.data as unknown as {
+              parsed?: { info?: { tokenAmount?: { amount?: string } } };
+            })?.parsed?.info?.tokenAmount?.amount ?? '0';
+          if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
+          inputMint = args.xStockMint;
+          outputMint = USDC_MINT;
+          amount = raw;
+        }
+
+        setLoading('order');
+        const order = await requestUltraOrder({
+          inputMint,
+          outputMint,
+          amount,
+          taker: publicKey.toBase58(),
         });
-        const found = accounts.value.find((a) => {
-          const info = a.account.data;
-          if ('parsed' in info && info.parsed?.info?.mint === args.xStockMint) return true;
-          return false;
+        setLastOrder(order);
+
+        setLoading('sign');
+        const txBytes = fromBase64(order.transaction);
+        const tx = VersionedTransaction.deserialize(txBytes);
+        const signed = await signTransaction(tx);
+
+        setLoading('execute');
+        const exec = await executeUltraOrder({
+          requestId: order.requestId,
+          signedTransaction: toBase64(signed.serialize()),
         });
-        const raw =
-          (found?.account.data as unknown as {
-            parsed?: { info?: { tokenAmount?: { amount?: string } } };
-          })?.parsed?.info?.tokenAmount?.amount ?? '0';
-        if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
-        inputMint = args.xStockMint;
-        outputMint = USDC_MINT;
-        amount = raw;
+
+        return {
+          order,
+          exec,
+          inputMint,
+          outputMint,
+          inputAmount: order.inAmount,
+          outputAmount: order.outAmount,
+        };
+      } finally {
+        setLoading(null);
       }
-
-      setLoading('order');
-      const order = await requestUltraOrder({
-        inputMint,
-        outputMint,
-        amount,
-        taker: publicKey.toBase58(),
-      });
-      setLastOrder(order);
-
-      setLoading('sign');
-      const txBytes = fromBase64(order.transaction);
-      const tx = VersionedTransaction.deserialize(txBytes);
-      const signed = await signTransaction(tx);
-
-      setLoading('execute');
-      const exec = await executeUltraOrder({
-        requestId: order.requestId,
-        signedTransaction: toBase64(signed.serialize()),
-      });
-
-      setLoading(null);
-      return {
-        order,
-        exec,
-        inputMint,
-        outputMint,
-        inputAmount: order.inAmount,
-        outputAmount: order.outAmount,
-      };
     },
     [connection, publicKey, signTransaction],
   );

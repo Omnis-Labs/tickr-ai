@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
+import { deriveTriggerCondition } from '@/lib/jupiter/trigger';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
@@ -200,7 +201,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         outputMint: meta.mint,
         usdAmount: size,
         triggerPriceUsd: trigger,
-        triggerCondition: trigger < proposal!.priceAtProposal ? 'below' : 'above',
+        triggerCondition: deriveTriggerCondition(trigger, proposal!.priceAtProposal),
         slippageBps: 50,
         expiresAt: Math.floor(new Date(proposal!.expiresAt).getTime() / 1000),
       });
