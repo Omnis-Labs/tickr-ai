@@ -13,6 +13,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const PUBLIC_API_PREFIXES = [
   '/api/bars/', // historical price proxy — read-only public data
+  // Jupiter Trigger v2 auth endpoints. The user has a Privy session
+  // but no Jupiter JWT yet (the whole point of these calls is to
+  // obtain one), so we can't enforce Bearer here. Other
+  // /api/jupiter/* paths still get gated because by then the browser
+  // does have the Jupiter JWT and sends it in Authorization. The
+  // catch-all proxy already locks the upstream to /trigger/v2/* so
+  // it can't be abused as an open relay beyond that namespace.
+  '/api/jupiter/trigger/v2/auth/',
 ];
 
 function isPublicApi(path: string): boolean {
