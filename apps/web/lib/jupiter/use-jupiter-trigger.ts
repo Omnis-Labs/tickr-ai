@@ -99,7 +99,7 @@ interface PlaceSellExitArgs {
  * responsibility — see /api/orders.
  */
 export function useJupiterTrigger() {
-  const { address, signTransaction } = useWallet();
+  const { address, signTransaction, signMessage } = useWallet();
   const authedFetch = useAuthedFetch();
   const [loading, setLoading] = useState<TriggerLoadingState>(null);
   const [lastOrder, setLastOrder] = useState<PlaceBuyResult | null>(null);
@@ -108,7 +108,7 @@ export function useJupiterTrigger() {
     async (walletAddress: string) => {
       return getJupiterJwt({
         walletAddress,
-        signTransaction,
+        signMessage,
         // Push every freshly-issued JWT to the server so the
         // ws-server tracker (which has no wallet of its own) can read
         // the user's Jupiter order history.
@@ -121,7 +121,7 @@ export function useJupiterTrigger() {
         },
       });
     },
-    [signTransaction, authedFetch],
+    [signMessage, authedFetch],
   );
 
   const placeBuy = useCallback(

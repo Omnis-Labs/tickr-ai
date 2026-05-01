@@ -3,21 +3,20 @@
 // v2 mandates a per-wallet JWT obtained via a 2-step challenge/verify
 // flow. The wallet signs Jupiter's challenge with its private key,
 // proves ownership, and gets a 24h JWT back. The JWT goes on every
-// user-scoped request as `Authorization: Bearer <jwt>` alongside the
-// `x-api-key` header.
+// user-scoped request as `Authorization: Bearer <jwt>`.
 //
-// Two signing paths exist on Jupiter's side: `message` (sign a UTF-8
-// string, base58-encode the signature) and `transaction` (sign a
-// base64 tx, return signed base64). We use `transaction` because
-// our UnifiedWallet exposes signTransaction natively across providers
-// (Privy, demo stub, future Phantom direct), but doesn't yet expose
-// signMessage.
+// We use Jupiter's `message` signing path (not `transaction`). The
+// transaction path passes a memo-style tx through Privy's
+// signTransaction → Privy v3's pre-flight tries to simulate it via the
+// configured solana rpc and chokes (`t.slice is not a function` deep
+// inside Privy's tx prep). Message signing skips simulation entirely
+// — we get a UTF-8 challenge string, ask the wallet to sign it, send
+// back base58 signature, done.
 //
 // JWTs are cached per wallet address in localStorage so a tab refresh
 // doesn't re-trigger a Privy modal. They also live in an in-memory
 // Map for fast access during a single page lifetime.
 
-import { VersionedTransaction, Transaction } from '@solana/web3.js';
 import { jupiterUrl } from './config.js';
 
 const CHALLENGE_PATH = '/trigger/v2/auth/challenge';
@@ -66,27 +65,21 @@ export function clearJupiterJwt(walletAddress: string): void {
 }
 
 interface ChallengeResponse {
-  /** base64 transaction we sign and bounce back. */
-  transaction: string;
-  /** Some endpoints also return a server-side challenge id — capture it
-   *  loosely so the verify call can echo whatever Jupiter expects. */
+  /** UTF-8 message to sign — used when type='message'. */
+  message?: string;
+  /** Some endpoints return a server-side challenge id we echo back. */
   challengeId?: string;
   expiresAt?: number;
 }
 
 interface VerifyResponse {
   token: string;
-  /** Spec says JWT is 24h; if the server tells us, prefer that. */
   expiresAt?: number;
-}
-
-interface SignTransaction {
-  <T extends VersionedTransaction | Transaction>(tx: T): Promise<T>;
 }
 
 export interface JupiterAuthInput {
   walletAddress: string;
-  signTransaction: SignTransaction;
+  signMessage: (message: string) => Promise<string>;
   /** When provided, after a successful challenge/verify the new JWT is
    *  PATCHed to /api/users/me/jupiter-jwt so the ws-server tracker can
    *  poll Jupiter on the user's behalf. Cache-hit calls skip this — we
@@ -96,54 +89,37 @@ export interface JupiterAuthInput {
 
 /**
  * Returns a JWT good for at least REFRESH_MARGIN_MS more. Reads cache
- * first; on miss runs challenge → wallet sign → verify. Throws if the
- * api-key isn't configured (caller should surface a banner) or if the
- * Privy modal was rejected.
+ * first; on miss runs challenge → wallet sign → verify.
  */
 export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
   const cached = readCached(input.walletAddress);
   if (cached) return cached.token;
 
-  // 1. Ask Jupiter for a challenge transaction tied to this wallet. The
-  //    /api/jupiter proxy attaches x-api-key server-side; browser
-  //    calling api.jup.ag directly would fail CORS preflight on that
-  //    header.
+  // 1. Ask Jupiter for a challenge MESSAGE tied to this wallet.
   const challengeRes = await fetch(jupiterUrl(CHALLENGE_PATH), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ walletPubkey: input.walletAddress, type: 'transaction' }),
+    body: JSON.stringify({ walletPubkey: input.walletAddress, type: 'message' }),
   });
   if (!challengeRes.ok) {
     const text = await challengeRes.text().catch(() => '');
     throw new Error(`Jupiter challenge failed (${challengeRes.status}): ${text}`);
   }
   const challenge = (await challengeRes.json()) as ChallengeResponse;
-  if (!challenge.transaction) {
-    throw new Error('Jupiter challenge response missing `transaction`');
+  if (!challenge.message) {
+    throw new Error('Jupiter challenge response missing `message`');
   }
 
-  // 2. Decode the unsigned tx, ask the wallet to sign.
-  const txBytes = Uint8Array.from(Buffer.from(challenge.transaction, 'base64'));
-  let unsigned: VersionedTransaction | Transaction;
-  try {
-    unsigned = VersionedTransaction.deserialize(txBytes);
-  } catch {
-    unsigned = Transaction.from(txBytes);
-  }
-  const signed = await input.signTransaction(unsigned);
-  const signedBytes =
-    signed instanceof VersionedTransaction
-      ? signed.serialize()
-      : (signed as Transaction).serialize();
-  const signedB64 = Buffer.from(signedBytes).toString('base64');
+  // 2. Sign the message with the wallet. Returns base58 signature.
+  const signature = await input.signMessage(challenge.message);
 
-  // 3. Send the signed tx back to verify and exchange for a JWT.
+  // 3. Send the signature back to verify and exchange for a JWT.
   const verifyRes = await fetch(jupiterUrl(VERIFY_PATH), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       walletPubkey: input.walletAddress,
-      transaction: signedB64,
+      signature,
       ...(challenge.challengeId ? { challengeId: challenge.challengeId } : {}),
     }),
   });
@@ -158,10 +134,6 @@ export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
 
   const expiresAt = verify.expiresAt ?? Date.now() + 24 * 3600 * 1000;
   persist(input.walletAddress, { token: verify.token, expiresAt });
-  // Best-effort sync to server so the tracker can use the JWT too. We
-  // don't await because a network blip here shouldn't block the user
-  // from placing their order — the next tracker tick that 401s will
-  // self-heal once the next refresh lands.
   if (input.persistToServer) {
     void input.persistToServer(verify.token, expiresAt).catch((err) => {
       console.warn('[jupiter] persistToServer failed', err);

@@ -6,9 +6,11 @@ import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
+  useSignMessage,
   useFundWallet,
   useSolanaFundingPlugin,
 } from '@privy-io/react-auth/solana';
+import bs58 from 'bs58';
 import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
 
 /**
@@ -23,6 +25,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout, getAccessToken, user } = usePrivy();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
+  const { signMessage: privySignMessage } = useSignMessage();
   const { delegateWallet, revokeWallets } = useDelegatedActions();
   // Register Solana funding capabilities so useFundWallet has providers wired.
   useSolanaFundingPlugin();
@@ -66,6 +69,17 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
             return result.signedTransaction;
           }
         : STUB_WALLET.signTransaction,
+      signMessage: wallet
+        ? async (message: string): Promise<string> => {
+            const bytes = new TextEncoder().encode(message);
+            const result = await privySignMessage({
+              message: bytes,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              wallet: wallet as any,
+            });
+            return bs58.encode(result.signature);
+          }
+        : STUB_WALLET.signMessage,
       login,
       logout,
       getAccessToken: async () => {
@@ -99,6 +113,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     login,
     logout,
     privySign,
+    privySignMessage,
     getAccessToken,
     delegateWallet,
     revokeWallets,

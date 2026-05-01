@@ -24,6 +24,12 @@ export interface UnifiedWallet {
   connected: boolean;
   ready: boolean;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
+  /** Sign a UTF-8 message and return a base58 signature. Used by the
+   *  Jupiter Trigger v2 auth handshake — message-signing avoids
+   *  Privy's transaction-simulation pre-flight, which chokes on
+   *  Jupiter's challenge tx (memo-style transaction without sufficient
+   *  state for simulation). */
+  signMessage: (message: string) => Promise<string>;
   login: () => void;
   logout: () => Promise<void>;
   /** Privy access token. null in demo / disconnected state. Used as the
@@ -50,6 +56,9 @@ export const STUB_WALLET: UnifiedWallet = {
   connected: false,
   ready: true, // "ready to NOT auth" so the WalletButton renders Connect
   signTransaction: async () => {
+    throw new Error('Wallet not connected — call login() first.');
+  },
+  signMessage: async () => {
     throw new Error('Wallet not connected — call login() first.');
   },
   login: () => {
