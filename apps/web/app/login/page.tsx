@@ -1,11 +1,27 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
+/**
+ * Login surface. Public, hits before any Privy session exists.
+ *
+ * useSearchParams forces the page out of static prerender into the
+ * client. Next 15 requires that hook to live inside a <Suspense>
+ * boundary so the prerender can short-circuit the params subtree
+ * without crashing the export. Inner component owns the params read.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginShell sessionExpired={false} onLogin={() => {}} />}>
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { connected, ready, login } = useWallet();
@@ -20,10 +36,16 @@ export default function LoginPage() {
     if (ready && connected) router.replace(nextPath);
   }, [ready, connected, router, nextPath]);
 
-  const handleLogin = () => {
-    login();
-  };
+  return <LoginShell sessionExpired={sessionExpired} onLogin={() => login()} />;
+}
 
+function LoginShell({
+  sessionExpired,
+  onLogin,
+}: {
+  sessionExpired: boolean;
+  onLogin: () => void;
+}) {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-between overflow-hidden px-5 py-12">
       <div className="absolute left-1/2 top-[-10%] h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-accent/10 blur-[120px]" />
@@ -63,7 +85,7 @@ export default function LoginPage() {
           className="flex w-full flex-col gap-4"
         >
           <button
-            onClick={handleLogin}
+            onClick={onLogin}
             className="flex h-14 w-full items-center justify-center whitespace-nowrap rounded-full bg-accent text-label-lg text-on-accent shadow-[0_8px_24px_rgba(208,233,6,0.25)] transition-transform hover:scale-[0.98] active:scale-[0.97]"
           >
             Get Started
