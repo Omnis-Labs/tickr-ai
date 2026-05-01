@@ -1,30 +1,15 @@
-// Jupiter Trigger v2 client configuration.
+// Jupiter Trigger v2 client configuration (browser side).
 //
-// v2 base URL is `https://api.jup.ag` (NOT `https://lite-api.jup.ag` —
-// that's the legacy Quote/Ultra endpoint). Every Trigger v2 request
-// requires `x-api-key`; user-scoped endpoints additionally require a
-// per-wallet JWT (see ./auth.ts).
+// Browser code MUST go through our same-origin proxy at /api/jupiter/*
+// because Jupiter's CORS preflight rejects the `x-api-key` header from
+// cross-origin callers. The proxy adds the api-key on the server side
+// and preserves the rest of the request unchanged.
 //
-// Apply for an API key at https://portal.jup.ag (sign in with a Solana
-// wallet → API Keys → create). Free tier is enough for hackathon
-// volume; production traffic eventually needs a paid plan.
+// Server-side code (ws-server tracker, /api/* route handlers) can hit
+// api.jup.ag directly and reads NEXT_PUBLIC_JUPITER_API_BASE_V2 / the
+// JUPITER_API_KEY env there. This file is only the BROWSER's view.
 
-export const JUPITER_BASE_URL =
-  process.env.NEXT_PUBLIC_JUPITER_API_BASE_V2 ?? 'https://api.jup.ag';
-
-/**
- * Public + server-readable. We expose the key in the bundle on purpose:
- * Jupiter v2 auth always pairs the api-key with a per-wallet JWT, so
- * leaking the key alone gives an attacker only the same rate-limited
- * unauthenticated surface anyone gets by visiting the docs page.
- */
-export function getJupiterApiKey(): string | null {
-  // NEXT_PUBLIC_ so it's available both in the browser bundle and in
-  // server-side route handlers / ws-server. Returns null when unset so
-  // callers can degrade gracefully (we surface a banner instead of
-  // throwing).
-  return process.env.NEXT_PUBLIC_JUPITER_API_KEY ?? null;
-}
+export const JUPITER_BASE_URL = '/api/jupiter';
 
 export function jupiterUrl(path: string): string {
   if (!path.startsWith('/')) throw new Error(`jupiterUrl: path must start with / (got "${path}")`);

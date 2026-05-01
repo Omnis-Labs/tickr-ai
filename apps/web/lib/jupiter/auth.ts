@@ -18,7 +18,7 @@
 // Map for fast access during a single page lifetime.
 
 import { VersionedTransaction, Transaction } from '@solana/web3.js';
-import { getJupiterApiKey, jupiterUrl } from './config.js';
+import { jupiterUrl } from './config.js';
 
 const CHALLENGE_PATH = '/trigger/v2/auth/challenge';
 const VERIFY_PATH = '/trigger/v2/auth/verify';
@@ -101,18 +101,16 @@ export interface JupiterAuthInput {
  * Privy modal was rejected.
  */
 export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
-  const apiKey = getJupiterApiKey();
-  if (!apiKey) {
-    throw new Error('NEXT_PUBLIC_JUPITER_API_KEY not configured. Set it before calling Trigger v2.');
-  }
-
   const cached = readCached(input.walletAddress);
   if (cached) return cached.token;
 
-  // 1. Ask Jupiter for a challenge transaction tied to this wallet.
+  // 1. Ask Jupiter for a challenge transaction tied to this wallet. The
+  //    /api/jupiter proxy attaches x-api-key server-side; browser
+  //    calling api.jup.ag directly would fail CORS preflight on that
+  //    header.
   const challengeRes = await fetch(jupiterUrl(CHALLENGE_PATH), {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ walletPubkey: input.walletAddress, type: 'transaction' }),
   });
   if (!challengeRes.ok) {
@@ -142,7 +140,7 @@ export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
   // 3. Send the signed tx back to verify and exchange for a JWT.
   const verifyRes = await fetch(jupiterUrl(VERIFY_PATH), {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       walletPubkey: input.walletAddress,
       transaction: signedB64,

@@ -1,19 +1,15 @@
-// Jupiter Trigger v2 fetch wrapper.
+// Jupiter Trigger v2 fetch wrapper (browser-side, via proxy).
 //
-// Centralises base URL, x-api-key header, and the optional JWT bearer.
-// Every call site picks one of two helpers:
-//   - jupiterPublicFetch  → only x-api-key (challenge/verify endpoints)
-//   - jupiterAuthedFetch  → x-api-key + Authorization: Bearer <jwt>
-// The authed variant takes a JWT-getter callback so the wallet/auth lib
-// can lazily run challenge → verify on cache miss without this module
-// having to import wallet plumbing.
+// Hits /api/jupiter/* on our origin; the server attaches the x-api-key
+// header that Jupiter's CORS rejects in browsers. JWT (Authorization)
+// rides through the proxy unchanged because Jupiter does allow that
+// header cross-origin (and the proxy preserves it).
 
-import { getJupiterApiKey, jupiterUrl } from './config.js';
+import { jupiterUrl } from './config.js';
 
 interface BaseOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
-  /** Override response parser when the endpoint isn't JSON. */
   expect?: 'json' | 'text';
 }
 
@@ -30,18 +26,6 @@ export class JupiterApiError extends Error {
     this.status = status;
     this.body = body;
   }
-}
-
-function requireApiKey(): string {
-  const key = getJupiterApiKey();
-  if (!key) {
-    throw new JupiterApiError(
-      'NEXT_PUBLIC_JUPITER_API_KEY not configured',
-      0,
-      'Jupiter Trigger v2 requires an API key. Apply at https://portal.jup.ag.',
-    );
-  }
-  return key;
 }
 
 async function run(path: string, init: RequestInit, expect: 'json' | 'text'): Promise<unknown> {
@@ -67,25 +51,19 @@ async function run(path: string, init: RequestInit, expect: 'json' | 'text'): Pr
 }
 
 export async function jupiterPublicFetch<T>(path: string, opts: BaseOptions = {}): Promise<T> {
-  const apiKey = requireApiKey();
   const init: RequestInit = {
     method: opts.method ?? 'GET',
-    headers: {
-      'x-api-key': apiKey,
-      ...(opts.body ? { 'content-type': 'application/json' } : {}),
-    },
+    headers: opts.body ? { 'content-type': 'application/json' } : undefined,
     ...(opts.body ? { body: JSON.stringify(opts.body) } : {}),
   };
   return run(path, init, opts.expect ?? 'json') as Promise<T>;
 }
 
 export async function jupiterAuthedFetch<T>(path: string, opts: AuthedOptions): Promise<T> {
-  const apiKey = requireApiKey();
   const jwt = await opts.getJwt();
   const init: RequestInit = {
     method: opts.method ?? 'GET',
     headers: {
-      'x-api-key': apiKey,
       Authorization: `Bearer ${jwt}`,
       ...(opts.body ? { 'content-type': 'application/json' } : {}),
     },
