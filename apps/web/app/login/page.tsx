@@ -2,16 +2,23 @@
 
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 export default function LoginPage() {
   const router = useRouter();
+  const params = useSearchParams();
   const { connected, ready, login } = useWallet();
+  // useAuthedFetch redirects users with an expired Privy session here
+  // with `?reason=session-expired&next=<original-path>` so the login
+  // page can explain why they got bounced and route them back after
+  // re-auth.
+  const sessionExpired = params?.get('reason') === 'session-expired';
+  const nextPath = params?.get('next') ?? '/';
 
   useEffect(() => {
-    if (ready && connected) router.replace('/');
-  }, [ready, connected, router]);
+    if (ready && connected) router.replace(nextPath);
+  }, [ready, connected, router, nextPath]);
 
   const handleLogin = () => {
     login();
@@ -42,6 +49,11 @@ export default function LoginPage() {
           <p className="max-w-[280px] text-body-lg text-on-surface-variant">
             Set your mandate. Get BUY proposals. Execute with one tap.
           </p>
+          {sessionExpired && (
+            <div className="mt-2 rounded-lg border border-tertiary/40 bg-tertiary/10 px-3 py-2 text-body-sm text-on-surface">
+              Your session expired. Sign in again to continue.
+            </div>
+          )}
         </motion.div>
 
         <motion.div

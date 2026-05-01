@@ -7,6 +7,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { isDemo } from '@/lib/demo';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
+import { num } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 
 interface ProposalsFeedProps {
@@ -123,12 +124,12 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
                 </div>
               </div>
               <div style={{ textAlign: 'right', fontSize: 12, lineHeight: 1.4 }}>
-                <div style={{ fontWeight: 600 }}>${p.suggestedSizeUsd.toFixed(0)}</div>
+                <div style={{ fontWeight: 600 }}>${num(p.suggestedSizeUsd).toFixed(0)}</div>
                 <div style={{ color: 'var(--color-buy)' }}>
-                  TP ${p.suggestedTakeProfitPrice.toFixed(2)}
+                  TP ${num(p.suggestedTakeProfitPrice).toFixed(2)}
                 </div>
                 <div style={{ color: 'var(--color-sell)' }}>
-                  SL ${p.suggestedStopLossPrice.toFixed(2)}
+                  SL ${num(p.suggestedStopLossPrice).toFixed(2)}
                 </div>
                 <div style={{ color: 'var(--color-fg-muted)', marginTop: 2 }}>
                   {fmtTtl(p.expiresAt)}

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { DemoProposalShape } from '@hunch-it/shared';
 import { useProposals } from '@/lib/hooks/queries';
 import { useProposalsStore } from '@/lib/store/proposals';
+import { fmtUsd } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 
 function timeUntil(expiresAt: string): string {
@@ -142,14 +143,13 @@ export function ProposalsFeed() {
                 <div>
                   <div className="text-body-sm text-on-surface-variant mb-1">Suggested Size</div>
                   <div className="text-title-md text-on-surface">
-                    ${proposal.suggestedSizeUsd.toLocaleString()}
+                    {fmtUsd(proposal.suggestedSizeUsd, { digits: 0 })}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-body-sm text-on-surface-variant mb-1">Targets</div>
                   <div className="text-label-md text-on-surface">
-                    TP ${proposal.suggestedTakeProfitPrice.toLocaleString()} / SL $
-                    {proposal.suggestedStopLossPrice.toLocaleString()}
+                    TP {fmtUsd(proposal.suggestedTakeProfitPrice)} / SL {fmtUsd(proposal.suggestedStopLossPrice)}
                   </div>
                 </div>
               </div>

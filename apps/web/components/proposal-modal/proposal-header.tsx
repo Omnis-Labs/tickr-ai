@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { fmtPct, num } from '@/lib/utils/fmt';
 import type { DemoProposalShape } from '@hunch-it/shared';
 
 interface ProposalHeaderProps {
@@ -26,7 +27,7 @@ export function ProposalHeader({ proposal, metaName, exitTtl, bars }: ProposalHe
       <div className="mb-3.5 flex items-baseline justify-between">
         <div>
           <div className="text-xs uppercase tracking-wider text-on-surface-variant">
-            AI PROPOSAL · conf {(proposal.confidence * 100).toFixed(0)}%
+            AI PROPOSAL · conf {fmtPct(num(proposal.confidence), { digits: 0 })}
           </div>
           <div className="text-4xl font-extrabold tracking-tight">{proposal.ticker}</div>
           <div className="text-sm text-on-surface-variant">{metaName ?? '—'}</div>
@@ -67,12 +68,15 @@ export function ProposalHeader({ proposal, metaName, exitTtl, bars }: ProposalHe
       <div className="my-3 mb-4 grid grid-cols-3 gap-2.5 text-sm">
         <Stat
           label="Weight"
-          value={`${(proposal.positionImpact.weight_before * 100).toFixed(1)}% → ${(proposal.positionImpact.weight_after * 100).toFixed(1)}%`}
+          value={`${fmtPct(num(proposal.positionImpact?.weight_before))} → ${fmtPct(num(proposal.positionImpact?.weight_after))}`}
         />
-        <Stat label="Cash after" value={`$${proposal.positionImpact.cash_after.toFixed(0)}`} />
+        <Stat
+          label="Cash after"
+          value={`$${num(proposal.positionImpact?.cash_after).toFixed(0)}`}
+        />
         <Stat
           label="Sector"
-          value={`${(proposal.positionImpact.sector_before * 100).toFixed(0)}% → ${(proposal.positionImpact.sector_after * 100).toFixed(0)}%`}
+          value={`${fmtPct(num(proposal.positionImpact?.sector_before), { digits: 0 })} → ${fmtPct(num(proposal.positionImpact?.sector_after), { digits: 0 })}`}
         />
       </div>
     </>
