@@ -22,6 +22,7 @@
     "@solana-program/memo": "^0.8.0",
     "@hunch-it/db": "workspace:*",
     "@hunch-it/shared": "workspace:*",
+    "@solana/kit": "^5.5.1",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
     "@solana/web3.js": "^1.98.0",
