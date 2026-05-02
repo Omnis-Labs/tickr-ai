@@ -1,0 +1,36 @@
+# Caddy auto-provisions Let's Encrypt certs for both subdomains.
+# DOMAIN_WEB / DOMAIN_WS / LETSENCRYPT_EMAIL come from .env on the VM.
+
+{
+	email {$LETSENCRYPT_EMAIL}
+}
+
+{$DOMAIN_WEB} {
+	encode zstd gzip
+	# Standard reverse proxy to the Next.js standalone server.
+	reverse_proxy web:3000
+
+	# Security headers — kept minimal so we don't accidentally break
+	# Privy / Jupiter cross-origin loads.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Permissions-Policy intentionally left off — Privy embedded
+		# wallet popups need a few permissive bits we'd otherwise have
+		# to enumerate.
+	}
+}
+
+{$DOMAIN_WS} {
+	encode zstd gzip
+	# Socket.IO needs both polling fallback and websocket upgrade. Caddy's
+	# default reverse_proxy preserves Upgrade/Connection headers, so the
+	# block looks identical to the http one.
+	reverse_proxy ws-server:4000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+	}
+}
