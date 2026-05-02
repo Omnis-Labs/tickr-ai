@@ -18,6 +18,7 @@ import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { isDemo } from '@/lib/demo';
 import { useSkipProposal } from '@/lib/hooks/mutations';
+import { usePosition } from '@/lib/hooks/queries';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { SkipFlow } from './skip-flow';
 
@@ -44,6 +45,10 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const demoPosition = useDemoPositionsStore((s) =>
     proposal.positionId ? s.positions.find((p) => p.id === proposal.positionId) ?? null : null,
   );
+  // Live position used for accurate tokenAmount on the close — without
+  // this the swap falls back to sellAll and would sweep dust / siblings
+  // sharing the same mint.
+  const livePositionQuery = usePosition(proposal.positionId ?? undefined);
   const runtime = useRuntime();
   const skipProposal = useSkipProposal();
 
@@ -89,10 +94,14 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
         toast.error(`${proposal.ticker} mint not configured.`);
         return;
       }
+      const tokenAmount = demo
+        ? demoPosition?.tokenAmount ?? null
+        : livePositionQuery.data?.tokenAmount ?? null;
       const result = await runtime.closePosition({
         positionId: proposal.positionId,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: demoPosition?.markPrice ?? proposal.priceAtProposal,
+        tokenAmount,
         // Routes the persistence step through the SELL Proposal endpoint
         // so the Trade row carries proposalId + Proposal flips EXECUTED.
         sellProposalId: proposal.id,

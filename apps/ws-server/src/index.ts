@@ -10,6 +10,7 @@ import {
 import { env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
 import { runOrderTracker } from './orders/tracker/index.js';
+import { runTriggerMonitor } from './orders/trigger-monitor.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 import { runThesisMonitor } from './signals/thesis-monitor.js';
@@ -137,6 +138,28 @@ tasks.add(
       if (s.fills > 0 || s.expirations > 0 || s.cancellations > 0 || s.errors > 0) {
         console.log(
           `[tracker] users=${s.polledUsers} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} cancellations=${s.cancellations} skipped(no-jwt)=${s.skippedNoJwt} errors=${s.errors}`,
+        );
+      }
+    },
+  }),
+);
+
+// Synthetic-order price monitor — same cadence as the Jupiter tracker
+// but for orders we own (xStocks via Ultra) rather than orders Jupiter
+// owns. Phase 2 of the Trigger v2 → Ultra pivot.
+tasks.add(
+  registerTask({
+    name: 'trigger-monitor',
+    intervalMs: 30_000,
+    kickoffMs: 20_000,
+    enabled: !env.DEMO_MODE,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
+      const s = await runTriggerMonitor(p, io);
+      if (s.hits > 0) {
+        console.log(
+          `[trigger-monitor] orders=${s.polledOrders} tickers=${s.uniqueTickers} hits=${s.hits}`,
         );
       }
     },

@@ -31,7 +31,12 @@ const PersistOrderSchema = z.object({
   triggerPriceUsd: z.number().nullable(),
   sizeUsd: z.number().positive(),
   tokenAmount: z.number().nullable().optional(),
-  jupiterOrderId: z.string().min(1),
+  // xStocks are off Jupiter Trigger v2's allowlist, so our BUY/TP/SL
+  // orders are now synthetic: ws-server's price monitor watches Pyth
+  // and pushes a `trigger:hit` event to the user when the condition
+  // fires; the user signs an Ultra swap at that moment. jupiterOrderId
+  // is filled in once the Ultra swap returns a tx signature.
+  jupiterOrderId: z.string().nullable().optional(),
   txSignature: z.string().nullable().optional(),
   slippageBps: z.number().int().nullable().optional(),
   // For BUY trigger orders we also create a Position(BUY_PENDING) so subsequent
@@ -108,7 +113,7 @@ export async function POST(req: NextRequest) {
       sizeUsd: p.sizeUsd,
       tokenAmount: p.tokenAmount ?? null,
       status: 'OPEN',
-      jupiterOrderId: p.jupiterOrderId,
+      jupiterOrderId: p.jupiterOrderId ?? null,
       txSignature: p.txSignature ?? null,
       slippageBps: p.slippageBps ?? null,
     },

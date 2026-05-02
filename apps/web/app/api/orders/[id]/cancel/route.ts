@@ -7,9 +7,12 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
 /**
  * POST /api/orders/[id]/cancel
  *
- * Records that an order has been cancelled on-chain. The actual Jupiter
- * cancel flow (initiate → sign withdrawal → confirm) runs client-side via
- * useJupiterTrigger().cancel — this endpoint is just the persistence ack.
+ * Marks an order CANCELLED in our DB. After the synthetic-trigger pivot
+ * (xStocks aren't on Jupiter Trigger v2's allowlist), our exit Orders
+ * carry `jupiterOrderId IS NULL` — there's no off-chain escrow to
+ * release, this single DB write is the whole cancel. For BUY_TRIGGER
+ * cancels we also close the parent Position so /desk doesn't keep
+ * showing a "watching" row the user already abandoned.
  *
  * Auth: Privy access token; the order must belong to the authed user.
  * Demo: returns ok.

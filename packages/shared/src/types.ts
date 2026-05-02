@@ -249,6 +249,11 @@ export const WsServerEvents = {
   TradeFilled: 'trade:filled',
   TradeExpired: 'trade:expired',
   PositionUpdated: 'position:updated',
+  // ws-server price monitor → user. Fires when an OPEN synthetic order
+  // (xStock, no Jupiter Trigger v2 routing) matches its trigger
+  // condition against Pyth. The web app shows a sticky toast and lets
+  // the user 1-tap-execute via Jupiter Ultra.
+  TriggerHit: 'trigger:hit',
 } as const;
 
 export const WsClientEvents = {
@@ -274,3 +279,27 @@ export const ApprovalDecisionPayloadSchema = z.object({
   decision: z.boolean(),
 });
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
+
+// ws-server → tab. Fired by trigger-monitor when an OPEN synthetic order
+// (xStock, no Jupiter Trigger v2 routing) matches its condition against
+// Pyth. Payload is everything the tap-to-execute UI needs to build the
+// Ultra swap without another round-trip.
+export const TriggerHitPayloadSchema = z.object({
+  orderId: z.string(),
+  positionId: z.string(),
+  ticker: z.string(), // assetId, e.g. "GOOGLx"
+  mint: z.string(),
+  kind: OrderKindSchema, // BUY_TRIGGER | TAKE_PROFIT | STOP_LOSS
+  side: z.enum(['BUY', 'SELL']),
+  triggerPriceUsd: z.number(),
+  currentPriceUsd: z.number(),
+  sizeUsd: z.number(),
+  /** xStock units to sell (TP/SL) or buy (BUY_TRIGGER, usually null —
+   *  BUY size is dollar-denominated via sizeUsd). Nullable so callers
+   *  can fall back to wallet balance, but for TP/SL on a synthetic
+   *  exit leg the trigger-monitor will populate this from the Order
+   *  row written at BUY-fill time so the close sells exactly the
+   *  position's tokens, not the full wallet balance. */
+  tokenAmount: z.number().nullable().optional(),
+});
+export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;

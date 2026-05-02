@@ -10,6 +10,7 @@ import {
   type ApprovalDecisionPayload,
   type DemoProposalShape,
   type Signal,
+  type TriggerHitPayload,
 } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo/flag';
 import { useWallet } from '@/lib/wallet/use-wallet';
@@ -44,6 +45,7 @@ interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
   onProposal?: (proposal: DemoProposalShape) => void;
   onPositionUpdated?: (payload: PositionUpdatedPayload) => void;
+  onTriggerHit?: (payload: TriggerHitPayload) => void;
   /**
    * Wallet to bind this socket to. The hook emits an `auth` event with this
    * walletAddress on connect so the ws-server can route per-user proposals.
@@ -68,9 +70,13 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
     opts.onPositionUpdated,
   );
+  const onTriggerHitRef = useRef<((p: TriggerHitPayload) => void) | undefined>(
+    opts.onTriggerHit,
+  );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
   onPositionUpdatedRef.current = opts.onPositionUpdated;
+  onTriggerHitRef.current = opts.onTriggerHit;
 
   // The wallet address we'll auth as. Demo defaults to the demo userId so
   // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
@@ -131,6 +137,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
       onPositionUpdatedRef.current?.(payload);
+    });
+    socket.on(WsServerEvents.TriggerHit, (payload: TriggerHitPayload) => {
+      onTriggerHitRef.current?.(payload);
     });
 
     return () => {

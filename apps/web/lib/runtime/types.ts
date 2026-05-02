@@ -5,10 +5,11 @@
 // the same interface; pages call methods without knowing which one is
 // active.
 //
-// v2 update: TP/SL are now placed as a single OCO order (Jupiter Trigger
-// v2 native). The runtime exposes one `placeOcoExit` instead of the
-// per-leg `placeExit`, and replaceExits / cancelExits work on the OCO
-// pair as a unit.
+// Synthetic-trigger architecture: TP/SL legs are DB-only synthetic
+// Orders (jupiterOrderId NULL); the ws-server price monitor watches
+// them against Pyth and emits trigger:hit when the user needs to sign
+// an Ultra swap. placeOcoExit / cancelExits / replaceExits operate on
+// those DB rows directly, no Jupiter Trigger v2 escrow involved.
 
 export interface RuntimeExitSnapshot {
   tpPriceUsd: number | null;
@@ -36,18 +37,23 @@ export interface Runtime {
    *  follow-up step fails. */
   cancelExits(positionId: string): Promise<RuntimeExitSnapshot>;
 
-  /** Place a TP+SL OCO order. Single Jupiter order, two DB Order rows. */
+  /** Place TP + SL synthetic exit Orders (two DB rows, no Jupiter
+   *  call). The ws-server trigger-monitor will pick them up. */
   placeOcoExit(args: {
     positionId: string;
+    walletAddress: string;
+    ticker: string;
     meta: RuntimeMeta;
     tokenAmount: number;
     tpPriceUsd: number;
     slPriceUsd: number;
   }): Promise<{ id: string }>;
 
-  /** Cancel current OCO, then place a new one; rollback on failure. */
+  /** Cancel current exits, then place new ones; rollback on failure. */
   replaceExits(args: {
     positionId: string;
+    walletAddress: string;
+    ticker: string;
     meta: RuntimeMeta;
     tokenAmount: number;
     next: { tpPriceUsd: number | null; slPriceUsd: number | null };
@@ -60,6 +66,11 @@ export interface Runtime {
     /** Mark price for the local PnL fallback when the swap output
      *  doesn't return an executionPrice (demo mode). */
     fallbackMarkPrice: number;
+    /** Sell exactly this many tokens. When set (recommended for the
+     *  CloseButton flow), avoids sweeping unrelated dust or a separate
+     *  position in the same mint. Null/omit falls back to sellAll
+     *  (drains the wallet for that mint — panic-close semantics). */
+    tokenAmount?: number | null;
     /** When set, the runtime persists via
      *  POST /api/proposals/<id>/sell-confirm so the SELL Proposal flips
      *  status=EXECUTED and the Trade row carries the proposal id. */

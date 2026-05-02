@@ -10,6 +10,7 @@ import { OpenOrders } from '@/components/desk/open-orders';
 import { DepositSection } from '@/components/desk/deposit-section';
 import { MarketHoursBanner } from '@/components/desk/market-hours-banner';
 import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
+import { PanicCloseAll } from '@/components/desk/panic-close-all';
 import { usePortfolio, usePositions } from '@/lib/hooks/queries';
 
 export default function DeskPage() {
@@ -219,6 +220,15 @@ export default function DeskPage() {
           )}
         </section>
 
+        <PanicCloseAll
+          positions={positions.map((p) => ({
+            id: p.id,
+            ticker: p.assetId,
+            tokenAmount: p.tokenAmount,
+            entryPrice: p.entryPrice,
+            state: p.state,
+          }))}
+        />
         <MarketHoursBanner />
         <ProposalsFeed />
         <OpenOrders />

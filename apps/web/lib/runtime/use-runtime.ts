@@ -58,35 +58,57 @@ export function useRuntime(): Runtime {
       isDemo: false,
       cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> =>
         cancelExits(positionId),
-      placeOcoExit: async ({ meta, tokenAmount, tpPriceUsd, slPriceUsd }) => {
+      placeOcoExit: async ({
+        positionId,
+        walletAddress,
+        ticker,
+        tokenAmount,
+        tpPriceUsd,
+        slPriceUsd,
+      }) => {
         const r = await placeOcoExit({
-          inputMint: meta.mint,
-          inputDecimals: meta.decimals,
+          positionId,
+          walletAddress,
+          ticker,
           tokenAmount,
           tpPriceUsd,
           slPriceUsd,
         });
         return { id: r.id };
       },
-      replaceExits: ({ positionId, meta, tokenAmount, next }) =>
-        replaceExits(positionId, meta, tokenAmount, next),
+      replaceExits: ({ positionId, walletAddress, ticker, tokenAmount, next }) =>
+        replaceExits({ positionId, walletAddress, ticker, tokenAmount, next }),
       closePosition: async ({
         positionId,
         meta,
+        tokenAmount,
         sellProposalId,
       }: {
         positionId: string;
         meta: RuntimeMeta;
         fallbackMarkPrice: number;
+        /** Position.tokenAmount — sell exactly this so we don't sweep
+         *  dust or a separate position in the same mint. Nullable so
+         *  legacy panic-close-everything callers can still pass null
+         *  to fall back to sellAll. */
+        tokenAmount?: number | null;
         sellProposalId?: string;
       }): Promise<RuntimeCloseResult> => {
         await cancelExits(positionId);
-        const sell = await swap({
-          direction: 'SELL',
-          xStockMint: meta.mint,
-          xStockDecimals: meta.decimals,
-          sellAll: true,
-        });
+        const sell =
+          tokenAmount && tokenAmount > 0
+            ? await swap({
+                direction: 'SELL',
+                xStockMint: meta.mint,
+                xStockDecimals: meta.decimals,
+                tokenAmount,
+              })
+            : await swap({
+                direction: 'SELL',
+                xStockMint: meta.mint,
+                xStockDecimals: meta.decimals,
+                sellAll: true,
+              });
         const tokenAmt = Number(sell.inputAmount) / 10 ** meta.decimals;
         const usdOut = Number(sell.outputAmount) / 1_000_000;
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;

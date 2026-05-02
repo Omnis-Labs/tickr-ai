@@ -85,6 +85,52 @@ export function usePositions() {
   });
 }
 
+interface PositionDetailRow {
+  id: string;
+  userId: string;
+  ticker: string;
+  mint: string;
+  state: string;
+  tokenAmount: number;
+  entryPrice: number;
+  totalCost: number;
+  currentTpPrice: number | null;
+  currentSlPrice: number | null;
+  firstEntryAt: string;
+  closedAt: string | null;
+  closedReason: string | null;
+  realizedPnl: number | null;
+  orders?: Array<{
+    id: string;
+    kind: string;
+    side: string;
+    status: string;
+    triggerPriceUsd: number | null;
+    jupiterOrderId: string | null;
+  }>;
+}
+
+/**
+ * Single-position detail. Detail page falls back to demo-positions store
+ * in demo mode; in live mode this drives it. 404 / unauthorized return
+ * null so the page can show "Position not found" without throwing.
+ */
+export function usePosition(id: string | undefined) {
+  const authedFetch = useAuthedFetch();
+  return useQuery<PositionDetailRow | null>({
+    queryKey: id ? QK.position(id) : ['position', 'null'],
+    enabled: !!id && !isDemo(),
+    queryFn: async () => {
+      if (!id) return null;
+      const r = await authedFetch(`/api/positions/${id}`);
+      if (!r.ok) return null;
+      const j = (await r.json()) as { position?: PositionDetailRow };
+      return j.position ?? null;
+    },
+    refetchInterval: 20_000,
+  });
+}
+
 // ── Orders (open) ───────────────────────────────────────────────────────
 interface OrderRow {
   id: string;

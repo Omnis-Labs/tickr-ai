@@ -10,7 +10,6 @@ import {
   USDC_MINT,
 } from '@hunch-it/shared';
 import {
-  executeUltraOrder,
   requestUltraOrder,
   type UltraExecuteResponse,
   type UltraOrderResponse,
@@ -32,6 +31,8 @@ function fromBase64(str: string): Uint8Array {
   for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
   return arr;
 }
+// toBase64 retained for potential future Ultra /execute fallback path.
+void toBase64;
 
 export interface SwapResult {
   order: UltraOrderResponse;
@@ -53,14 +54,26 @@ interface BuyArgs {
   /** USD amount of USDC to spend. */
   usdAmount: number;
 }
-interface SellArgs {
+interface SellAllArgs {
   direction: 'SELL';
   xStockMint: string;
   xStockDecimals: number;
-  /** If true, sell the wallet's entire xStock balance. */
+  /** Drain the wallet's full xStock balance. Bypasses DB and reads from
+   *  the chain — use only for "panic close everything" / dev-tools paths
+   *  where the user explicitly wants the wallet emptied of the mint. */
   sellAll: true;
 }
-export type SwapArgs = BuyArgs | SellArgs;
+interface SellAmountArgs {
+  direction: 'SELL';
+  xStockMint: string;
+  xStockDecimals: number;
+  /** Sell exactly this many xStock token units (decimals already
+   *  applied — i.e. position.tokenAmount). Use this for closing a
+   *  specific Position so we don't accidentally sweep dust or other
+   *  positions in the same mint that happen to share the wallet. */
+  tokenAmount: number;
+}
+export type SwapArgs = BuyArgs | SellAllArgs | SellAmountArgs;
 
 /**
  * Hook that wraps the full Jupiter Ultra round-trip:
@@ -73,7 +86,7 @@ export type SwapArgs = BuyArgs | SellArgs;
  */
 export function useJupiterSwap() {
   const { connection } = useConnection();
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signAndSendTransaction } = useWallet();
   const [loading, setLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
   const [lastOrder, setLastOrder] = useState<UltraOrderResponse | null>(null);
 
@@ -122,7 +135,7 @@ export function useJupiterSwap() {
         };
       }
 
-      if (!publicKey || !signTransaction) throw new Error('Wallet not connected');
+      if (!publicKey || !signAndSendTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 
       let inputMint: string;
@@ -133,15 +146,41 @@ export function useJupiterSwap() {
         inputMint = USDC_MINT;
         outputMint = args.xStockMint;
         amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
-      } else {
-        // SELL: read the wallet's Token-2022 balance for this mint and sell all.
+      } else if ('tokenAmount' in args) {
+        // Targeted SELL: caller specified exactly how many xStock units to
+        // sell (typically position.tokenAmount). We still cap at the wallet
+        // balance to avoid an Ultra failure if the chain has less than the
+        // DB thinks (e.g. a separate manual transfer happened).
         const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
         });
         const found = accounts.value.find((a) => {
           const info = a.account.data;
-          if ('parsed' in info && info.parsed?.info?.mint === args.xStockMint) return true;
-          return false;
+          return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
+        });
+        const walletRaw = BigInt(
+          (found?.account.data as unknown as {
+            parsed?: { info?: { tokenAmount?: { amount?: string } } };
+          })?.parsed?.info?.tokenAmount?.amount ?? '0',
+        );
+        const wantRaw = BigInt(Math.round(args.tokenAmount * 10 ** args.xStockDecimals));
+        const sellRaw = wantRaw < walletRaw ? wantRaw : walletRaw;
+        if (sellRaw === 0n) throw new Error(`No xStock balance for ${args.xStockMint}`);
+        inputMint = args.xStockMint;
+        outputMint = USDC_MINT;
+        amount = sellRaw.toString();
+      } else {
+        // sellAll: drain whatever's in the wallet for this mint. Reserved
+        // for /debug/trade and panic-close-balance flows where the user
+        // explicitly wants the wallet emptied — closePosition() does NOT
+        // use this path because it would sweep unrelated dust / other
+        // positions that share the same mint.
+        const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+          programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+        });
+        const found = accounts.value.find((a) => {
+          const info = a.account.data;
+          return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
         });
         const raw =
           (found?.account.data as unknown as {
@@ -165,13 +204,22 @@ export function useJupiterSwap() {
       setLoading('sign');
       const txBytes = fromBase64(order.transaction);
       const tx = VersionedTransaction.deserialize(txBytes);
-      const signed = await signTransaction(tx);
 
+      // Pivot away from Jupiter Ultra `/execute` (which would relay via
+      // Ultra's MEV-protected bundler) because Privy v3's signTransaction
+      // hook always pops a confirmation modal whose internal tx-introspection
+      // borsh decoder crashes on Ultra's multi-hop / ALT layout
+      // ("t.slice is not a function"), greying out Approve and trapping
+      // the user. signAndSendTransaction goes through `useSendTransaction`,
+      // which honours `uiOptions.showWalletUIs=false` and skips the modal,
+      // broadcasting through Privy's RPC. Fine for the v1 hackathon UX;
+      // we lose Ultra's bundling but preserve the route Ultra picked.
       setLoading('execute');
-      const exec = await executeUltraOrder({
-        requestId: order.requestId,
-        signedTransaction: toBase64(signed.serialize()),
-      });
+      const sent = await signAndSendTransaction(tx);
+      const exec: UltraExecuteResponse = {
+        status: 'Success',
+        signature: sent.signature,
+      };
 
       setLoading(null);
       return {
@@ -183,7 +231,7 @@ export function useJupiterSwap() {
         outputAmount: order.outAmount,
       };
     },
-    [connection, publicKey, signTransaction],
+    [connection, publicKey, signAndSendTransaction],
   );
 
   return { swap, loading, lastOrder };

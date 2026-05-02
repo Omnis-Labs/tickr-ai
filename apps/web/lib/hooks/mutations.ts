@@ -142,7 +142,7 @@ interface PersistOrderArgs {
   triggerPriceUsd: number | null;
   sizeUsd: number;
   tokenAmount?: number | null;
-  jupiterOrderId: string;
+  jupiterOrderId?: string | null;
   txSignature?: string | null;
   slippageBps?: number | null;
   createPosition?: {

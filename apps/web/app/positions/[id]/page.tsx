@@ -12,6 +12,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useRuntime } from '@/lib/runtime/use-runtime';
+import { usePosition } from '@/lib/hooks/queries';
 import { PositionStats } from '@/components/positions/position-stats';
 import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
 import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
@@ -30,7 +31,7 @@ export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const demo = isDemo();
-  const position = useDemoPositionsStore((s) =>
+  const demoPosition = useDemoPositionsStore((s) =>
     params?.id ? s.positions.find((p) => p.id === params.id) ?? null : null,
   );
   const adjustTpSl = useDemoPositionsStore((s) => s.adjustTpSl);
@@ -43,13 +44,48 @@ export default function PositionDetailPage() {
   );
   const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
   const runtime = useRuntime();
-  const { address: _address } = useWallet();
-  void _address;
+  const { address: walletAddress } = useWallet();
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
   const [slDraft, setSlDraft] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Live mode: read from /api/positions/[id]. Demo mode: useDemoPositionsStore
+  // owns the data. We unify into the shape the page uses (markPrice overlaid
+  // from the most recent bar, since the API returns DB state only).
+  const livePositionQuery = usePosition(params?.id);
+  const livePosition = livePositionQuery.data ?? null;
+  const liveMarkPrice =
+    bars.length > 0 ? (bars[bars.length - 1]?.close ?? null) : null;
+  const position = useMemo(() => {
+    if (demo) return demoPosition;
+    if (!livePosition) return null;
+    return {
+      id: livePosition.id,
+      proposalId: null,
+      ticker: livePosition.ticker,
+      mint: livePosition.mint,
+      state: livePosition.state as
+        | 'BUY_PENDING'
+        | 'ENTERING'
+        | 'ACTIVE'
+        | 'CLOSING'
+        | 'CLOSED',
+      tokenAmount: livePosition.tokenAmount,
+      entryPrice: livePosition.entryPrice,
+      totalCost: livePosition.totalCost,
+      // markPrice has no DB column; fall back to entryPrice when bars
+      // haven't loaded yet so PnL displays as 0% rather than NaN.
+      markPrice: liveMarkPrice ?? livePosition.entryPrice,
+      currentTpPrice: livePosition.currentTpPrice,
+      currentSlPrice: livePosition.currentSlPrice,
+      firstEntryAt: livePosition.firstEntryAt,
+      closedAt: livePosition.closedAt,
+      closedReason: livePosition.closedReason,
+      realizedPnl: livePosition.realizedPnl,
+    };
+  }, [demo, demoPosition, livePosition, liveMarkPrice]);
 
   useEffect(() => {
     if (!position) return;
@@ -136,15 +172,21 @@ export default function PositionDetailPage() {
         toast.error('TP / SL prices missing.');
         return;
       }
-      // v2 native OCO: one Jupiter order covers both TP and SL.
+      if (!walletAddress) {
+        toast.error('Wallet not connected.');
+        return;
+      }
+      // Synthetic exits: two DB rows, no Jupiter call. ws-server's
+      // trigger-monitor watches them against Pyth.
       const placed = await placeOcoExit({
-        inputMint: meta.mint,
-        inputDecimals: meta.decimals,
+        positionId: position!.id,
+        walletAddress,
+        ticker: position!.ticker,
         tokenAmount: position!.tokenAmount,
         tpPriceUsd: position!.currentTpPrice,
         slPriceUsd: position!.currentSlPrice,
       });
-      toast.success(`OCO ${placed.id.slice(0, 8)}… placed (TP + SL).`);
+      toast.success(`Exits ${placed.id.slice(0, 8)}… placed (TP + SL).`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -195,12 +237,17 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        await replaceExits(
-          position.id,
-          { mint: meta.mint, decimals: meta.decimals },
-          position.tokenAmount,
-          { tpPriceUsd: tp, slPriceUsd: sl },
-        );
+        if (!walletAddress) {
+          toast.error('Wallet not connected.');
+          return;
+        }
+        await replaceExits({
+          positionId: position.id,
+          walletAddress,
+          ticker: position.ticker,
+          tokenAmount: position.tokenAmount,
+          next: { tpPriceUsd: tp, slPriceUsd: sl },
+        });
         adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');
         return;
@@ -226,6 +273,10 @@ export default function PositionDetailPage() {
         positionId: position.id,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: position.markPrice,
+        // Sell exactly the position size — avoids sweeping unrelated
+        // dust or a sibling position in the same mint, which is what
+        // bit us on 2026-05-02 (sold 2× DB amount).
+        tokenAmount: position.tokenAmount,
       });
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);

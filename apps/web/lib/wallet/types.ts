@@ -24,6 +24,14 @@ export interface UnifiedWallet {
   connected: boolean;
   ready: boolean;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
+  /** Sign + broadcast in one round-trip, bypassing Privy v3's
+   *  transaction-preview modal (which chokes on Jupiter Ultra multi-hop
+   *  txs with `t.slice is not a function`). Returns the on-chain signature.
+   *  Use when you don't need the signed-but-unbroadcast tx (i.e. you're
+   *  not handing off to Jupiter Ultra `/execute` for bundled relay). */
+  signAndSendTransaction: (
+    tx: VersionedTransaction | Transaction,
+  ) => Promise<{ signature: string }>;
   /** Sign a UTF-8 message and return a base58 signature. Used by the
    *  Jupiter Trigger v2 auth handshake — message-signing avoids
    *  Privy's transaction-simulation pre-flight, which chokes on
@@ -56,6 +64,9 @@ export const STUB_WALLET: UnifiedWallet = {
   connected: false,
   ready: true, // "ready to NOT auth" so the WalletButton renders Connect
   signTransaction: async () => {
+    throw new Error('Wallet not connected — call login() first.');
+  },
+  signAndSendTransaction: async () => {
     throw new Error('Wallet not connected — call login() first.');
   },
   signMessage: async () => {
