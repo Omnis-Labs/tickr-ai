@@ -83,7 +83,10 @@ services:
       - NEXT_PUBLIC_JUPITER_API_BASE=${NEXT_PUBLIC_JUPITER_API_BASE}
       - DEMO_MODE=false
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ -O /dev/null || exit 1"]
+      # Hit /login (static, 200) instead of / which 307-redirects to
+      # /desk or /login depending on auth and confuses wget into a
+      # non-zero exit. /login is the cheapest deterministic 200 we have.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/login || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
