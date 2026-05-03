@@ -60,7 +60,11 @@ export function WalletContextProvider({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={RAW_PRIVY_APP_ID as string}
       config={{
-        loginMethods: ['email', 'google', 'apple', 'wallet'],
+        // Google / Apple require dashboard toggles we haven't located
+        // yet (Privy v3 UI keeps moving them); listing them in code
+        // alone renders dead buttons on /login. Re-add once social is
+        // verified working in the dashboard.
+        loginMethods: ['email', 'wallet'],
         appearance: {
           theme: 'dark',
           accentColor: '#7c5cff',
