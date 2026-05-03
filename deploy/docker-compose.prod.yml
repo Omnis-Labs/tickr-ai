@@ -14,24 +14,26 @@ services:
     # service account (metadata server credentials), exposes a plain
     # TCP socket inside the compose network so the apps connect via
     # postgresql://hunch:<pw>@db:5432/hunchit.
+    #
+    # No healthcheck: the proxy ships as a distroless image with no
+    # shell / nc / wget, so any CMD-SHELL test fails and compose stalls
+    # downstream services on `condition: service_healthy`. The proxy
+    # logs "ready for new connections!" within 1-2s of start; web /
+    # ws-server retry on connect during their own warm-up, so a plain
+    # `service_started` dependency is enough.
     image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.16.0
     restart: always
     command:
       - "--address=0.0.0.0"
       - "--port=5432"
       - "${GCP_SQL_CONNECTION_NAME}"
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 5432 || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
 
   ws-server:
     image: ${REGISTRY}/ws-server:latest
     restart: always
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_started
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
@@ -62,7 +64,7 @@ services:
     restart: always
     depends_on:
       db:
-        condition: service_healthy
+        condition: service_started
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
