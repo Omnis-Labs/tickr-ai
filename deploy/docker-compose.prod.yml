@@ -85,8 +85,10 @@ services:
     healthcheck:
       # Hit /login (static, 200) instead of / which 307-redirects to
       # /desk or /login depending on auth and confuses wget into a
-      # non-zero exit. /login is the cheapest deterministic 200 we have.
-      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:3000/login || exit 1"]
+      # non-zero exit. Use 127.0.0.1 explicitly: alpine's wget resolves
+      # `localhost` to ::1 first (IPv6), but Next binds 0.0.0.0 (IPv4
+      # only) by default — connection refused on the v6 path.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://127.0.0.1:3000/login || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
