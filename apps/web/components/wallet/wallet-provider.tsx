@@ -60,7 +60,11 @@ export function WalletContextProvider({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={RAW_PRIVY_APP_ID as string}
       config={{
-        loginMethods: ['email', 'google', 'apple', 'wallet'],
+        // Privy free tier doesn't expose Google / Apple OAuth toggles
+        // in the dashboard — listing them here just shows dead buttons
+        // on the login page. Stick to email + external Solana wallet
+        // until we upgrade the plan.
+        loginMethods: ['email', 'wallet'],
         appearance: {
           theme: 'dark',
           accentColor: '#7c5cff',
