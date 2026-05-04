@@ -1,4 +1,17 @@
 export { prisma, shutdownPrisma } from './client.js';
+export {
+  acceptBuyProposal,
+  cancelPendingBuy,
+  confirmBuyFill,
+  confirmExitFill,
+  userCloseActive,
+  replaceProtectionOrders,
+  LifecycleInvariantError,
+} from './lifecycle/position-lifecycle.js';
+export type {
+  LifecycleStatus,
+  LifecycleResult,
+} from './lifecycle/position-lifecycle.js';
 export type {
   Prisma,
   PrismaClient,
