@@ -14,7 +14,7 @@ export interface SessionState {
   nextPath: '/login' | '/mandate' | '/desk' | null;
 }
 
-const PRIVY_COOKIE_NAMES = ['privy-token', 'privy-id-token'];
+const PRIVY_ACCESS_TOKEN_COOKIE = 'privy-token';
 const DEMO_PRIVY_ID = 'did:privy:demo-user';
 const DEMO_WALLET = 'demo-wallet';
 
@@ -107,14 +107,7 @@ export async function resolveSession(req: Request): Promise<SessionState> {
 export async function resolveSessionFromCookies(): Promise<SessionState> {
   if (isDemoServer()) return demoState();
   const jar = await cookies();
-  let token: string | null = null;
-  for (const name of PRIVY_COOKIE_NAMES) {
-    const v = jar.get(name)?.value;
-    if (v) {
-      token = v;
-      break;
-    }
-  }
+  const token = jar.get(PRIVY_ACCESS_TOKEN_COOKIE)?.value ?? null;
   const privyUserId = token ? await privyUserIdForToken(token) : null;
   return stateForPrivyUserId(privyUserId);
 }
