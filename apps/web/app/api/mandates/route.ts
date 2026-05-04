@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { MandateInputSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
+import { verifyPrivyToken } from '@/lib/auth/privy';
+import { isDemoServer } from '@/lib/demo/flag';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
@@ -20,10 +22,35 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  */
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // First-touch users have a valid Privy session but no `User` row yet — the
+  // row is upserted lazily on POST below. `requireAuth` would 401 those users
+  // (it returns null when the DB lookup misses), and `useAuthedFetch` treats
+  // any /api/* 401 as a session-expiry event and bounces to /login. Combined
+  // with /login's auto-replay to `next`, that produces a /mandate ↔ /login
+  // redirect loop the user can never break out of.
+  //
+  // The correct semantics here mirror SessionGate.stateForPrivyUserId: a
+  // Privy-authed but unprovisioned user is in the NEEDS_MANDATE stage, which
+  // for this route means "no mandate yet" — a 200 with `mandate: null`, not
+  // a 401. POST/PUT below still go through requireAuth(OrUpsert) so writes
+  // remain authenticated end-to-end.
+  if (isDemoServer()) {
+    const auth = await requireAuth(req);
+    if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    const mandate = await prisma.mandate.findUnique({ where: { userId: auth.userId } });
+    return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
+  }
 
-  const mandate = await prisma.mandate.findUnique({ where: { userId: auth.userId } });
+  const claims = await verifyPrivyToken(req);
+  if (!claims) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const user = await prisma.user.findUnique({
+    where: { privyUserId: claims.userId },
+    select: { id: true },
+  });
+  if (!user) return NextResponse.json({ mandate: null });
+
+  const mandate = await prisma.mandate.findUnique({ where: { userId: user.id } });
   return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
 }
 

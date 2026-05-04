@@ -11,7 +11,7 @@ import { BottomNav } from './bottom-nav';
  *
  * Add new "no-nav" routes to NAVLESS_PATHS as they appear.
  */
-const NAVLESS_PATHS = ['/', '/login', '/offline'];
+const NAVLESS_PATHS = ['/', '/login', '/offline', '/mandate'];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/';
