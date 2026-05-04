@@ -4,7 +4,9 @@
 
 Mandate-driven AI trading proposals for tokenized stocks & crypto on Solana.
 
-Users define a simple investment mandate, receive AI-assisted BUY proposals for tokenized stocks, tokenized ETFs, and bluechip crypto, then execute those proposals through Jupiter Trigger Orders. After a BUY fills, Hunch automatically places take-profit and stop-loss orders so every position has an exit plan.
+Users define a simple investment mandate, receive AI-assisted BUY proposals for tokenized stocks, tokenized ETFs, and bluechip crypto, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
+
+> The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). xStocks (Backed Finance Token-2022 mints) are not on Jupiter Trigger Order v2's allowlist, so triggers are tracked as DB rows watched by `apps/ws-server` against Pyth, and the user signs a Jupiter Ultra swap via Privy at fire time. Trigger Order v2 is **not** used.
 
 > Hunch It is experimental software and not financial advice. Use demo mode first, and only use real funds if you understand the risks.
 
@@ -19,20 +21,23 @@ Users define a simple investment mandate, receive AI-assisted BUY proposals for 
 ## How It Works
 
 ```text
-Login → Mandate setup → Home → Review BUY proposal → Place Jupiter Trigger Order
-  → BUY fills → TP/SL auto-protected → Adjust TP/SL or close the position
+Login → Mandate setup → Desk → Review BUY proposal → Approve (DB-only Order)
+  → ws-server detects price hit → toast → tap Execute (Jupiter Ultra swap)
+  → Position ACTIVE + TP/SL Orders armed atomically
+  → Either tap to fire TP/SL, or tap Close to exit; sibling exit Order
+    cancelled in the same transaction; realized P&L recorded.
 ```
 
-The app is built around proposals, not a manual trading terminal. Trades start from BUY proposals; exits happen through take-profit, stop-loss, or user-initiated full close.
+The app is built around proposals, not a manual trading terminal. All trade-state transitions go through `packages/db/src/lifecycle/position-lifecycle.ts` so race conditions and partial fills can't leak. See `docs/adr/0001-frozen-synthetic-trigger-architecture.md` and `docs/manual-test-core.md` for the architecture freeze and the 10-step click-through DoD.
 
 ## Current Scope
 
 - **Base currency:** USDC on Solana
 - **Supported assets:** Jupiter-listed xStocks, tokenized ETFs, SOL, BTC, and ETH representations on Solana
 - **Wallet:** Privy auth with embedded Solana wallet support
-- **Execution:** Jupiter Trigger Order API v2 for BUY / TP / SL, Jupiter Swap API for full position close
-- **Data:** Pyth live and historical prices, PostgreSQL via Prisma
-- **Signal engine:** standalone `ws-server` process using indicators plus an LLM for base market analysis
+- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap signed client-side via Privy when the user taps Execute. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
+- **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
+- **Signal engine:** standalone `ws-server` process. Default runtime starts only the `trigger-monitor` task; `ENABLE_BACK_EVAL`, `ENABLE_JUPITER_ORDER_TRACKER`, `ENABLE_THESIS_MONITOR`, `ENABLE_SIGNAL_LOOP` are opt-in.
 
 See [docs/product-overview.md](docs/product-overview.md) for the full product scope.
 
@@ -120,7 +125,10 @@ hunch-it/
 
 | Doc                                          | What it covers                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------- |
-| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets                             |
+| [ADR-0001](docs/adr/0001-frozen-synthetic-trigger-architecture.md) | Architecture freeze: synthetic-trigger / tap-to-execute model        |
+| [CONTEXT.md](CONTEXT.md)                     | Domain glossary used by reviews + future ADRs                        |
+| [Manual test core](docs/manual-test-core.md) | 10-step click-through that defines "the system works"                |
+| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets (pre-freeze; see ADR-0001)  |
 | [Getting Started](docs/getting-started.md)   | Demo mode, live setup, local development commands                    |
 | [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
 | [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |
