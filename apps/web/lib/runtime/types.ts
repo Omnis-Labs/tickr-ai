@@ -49,13 +49,12 @@ export interface Runtime {
     slPriceUsd: number;
   }): Promise<{ id: string }>;
 
-  /** Cancel current exits, then place new ones; rollback on failure. */
+  /** Atomic Adjust TP/SL via PUT /api/positions/[id]/protection. The
+   *  server cancels the matching OPEN exit Orders and creates new ones
+   *  in one transaction. At least one of next.tpPriceUsd /
+   *  next.slPriceUsd must be non-null; the other leg is left as-is. */
   replaceExits(args: {
     positionId: string;
-    walletAddress: string;
-    ticker: string;
-    meta: RuntimeMeta;
-    tokenAmount: number;
     next: { tpPriceUsd: number | null; slPriceUsd: number | null };
   }): Promise<void>;
 

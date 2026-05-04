@@ -76,8 +76,7 @@ export function useRuntime(): Runtime {
         });
         return { id: r.id };
       },
-      replaceExits: ({ positionId, walletAddress, ticker, tokenAmount, next }) =>
-        replaceExits({ positionId, walletAddress, ticker, tokenAmount, next }),
+      replaceExits: ({ positionId, next }) => replaceExits({ positionId, next }),
       closePosition: async ({
         positionId,
         meta,

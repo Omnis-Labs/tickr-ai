@@ -58,6 +58,26 @@ export default function PositionDetailPage() {
   const livePosition = livePositionQuery.data ?? null;
   const liveMarkPrice =
     bars.length > 0 ? (bars[bars.length - 1]?.close ?? null) : null;
+
+  // Per ADR-0001: OPEN TP/SL Order rows are the canonical source of
+  // truth for active protection prices. Position.currentTp/SlPrice
+  // remains as a denormalized cache (written by the lifecycle) and is
+  // read here only as a fallback for non-ACTIVE states where exit
+  // Orders may not exist yet (BUY_PENDING) or have been CANCELLED
+  // (CLOSED).
+  const liveDerivedTp = useMemo(() => {
+    const tp = livePosition?.orders?.find(
+      (o) => o.kind === 'TAKE_PROFIT' && o.status === 'OPEN',
+    );
+    return tp?.triggerPriceUsd ?? null;
+  }, [livePosition?.orders]);
+  const liveDerivedSl = useMemo(() => {
+    const sl = livePosition?.orders?.find(
+      (o) => o.kind === 'STOP_LOSS' && o.status === 'OPEN',
+    );
+    return sl?.triggerPriceUsd ?? null;
+  }, [livePosition?.orders]);
+
   const position = useMemo(() => {
     if (demo) return demoPosition;
     if (!livePosition) return null;
@@ -75,17 +95,15 @@ export default function PositionDetailPage() {
       tokenAmount: livePosition.tokenAmount,
       entryPrice: livePosition.entryPrice,
       totalCost: livePosition.totalCost,
-      // markPrice has no DB column; fall back to entryPrice when bars
-      // haven't loaded yet so PnL displays as 0% rather than NaN.
       markPrice: liveMarkPrice ?? livePosition.entryPrice,
-      currentTpPrice: livePosition.currentTpPrice,
-      currentSlPrice: livePosition.currentSlPrice,
+      currentTpPrice: liveDerivedTp ?? livePosition.currentTpPrice,
+      currentSlPrice: liveDerivedSl ?? livePosition.currentSlPrice,
       firstEntryAt: livePosition.firstEntryAt,
       closedAt: livePosition.closedAt,
       closedReason: livePosition.closedReason,
       realizedPnl: livePosition.realizedPnl,
     };
-  }, [demo, demoPosition, livePosition, liveMarkPrice]);
+  }, [demo, demoPosition, livePosition, liveMarkPrice, liveDerivedTp, liveDerivedSl]);
 
   useEffect(() => {
     if (!position) return;
@@ -233,23 +251,16 @@ export default function PositionDetailPage() {
     setBusy(true);
     try {
       if (!demo) {
-        if (!meta || !meta.mint) {
-          toast.error(`${position.ticker} mint not configured.`);
-          return;
-        }
         if (!walletAddress) {
           toast.error('Wallet not connected.');
           return;
         }
         await replaceExits({
           positionId: position.id,
-          walletAddress,
-          ticker: position.ticker,
-          tokenAmount: position.tokenAmount,
           next: { tpPriceUsd: tp, slPriceUsd: sl },
         });
-        adjustTpSl(position.id, tp, sl);
-        toast.success('TP / SL re-placed.');
+        await livePositionQuery.refetch();
+        toast.success('TP / SL updated.');
         return;
       }
       adjustTpSl(position.id, tp, sl);
