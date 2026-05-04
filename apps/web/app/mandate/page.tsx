@@ -104,7 +104,7 @@ export default function MandatePage() {
       }
       toast.success('Mandate saved.');
       setSubmitted(true);
-      void ensureNotificationPermission();
+      await ensureNotificationPermission();
       router.push('/');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
