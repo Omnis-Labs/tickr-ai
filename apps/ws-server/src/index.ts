@@ -106,47 +106,15 @@ const tasks = new TaskGroup();
 
 const stopFakeLoop = startSignalLoop(io);
 
-tasks.add(
-  registerTask({
-    name: 'eval',
-    intervalMs: 5 * 60_000,
-    kickoffMs: 30_000,
-    enabled: !env.DEMO_MODE,
-    handler: async () => {
-      const p = getPrisma();
-      if (!p) return;
-      const s = await evaluatePendingSignals(p);
-      if (s.evaluated > 0 || s.errors > 0) {
-        console.log(
-          `[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`,
-        );
-      }
-    },
-  }),
-);
+// Default runtime services for the frozen synthetic-trigger model:
+//   trigger-monitor — REQUIRED. Polls Pyth, emits trigger:hit. Core flow.
+//   eval, tracker, thesis — OPTIONAL. Off by default; opt-in via env.
+//
+// trigger-monitor is the only path the minimal cohesive core depends on.
+// The other three remain in-tree but disabled until they're proven against
+// the synthetic model (tracker is Jupiter-Trigger-v2-era; thesis competes
+// with the OCO close model; back-eval is analytics, not core).
 
-tasks.add(
-  registerTask({
-    name: 'tracker',
-    intervalMs: 30_000,
-    kickoffMs: 15_000,
-    enabled: !env.DEMO_MODE,
-    handler: async () => {
-      const p = getPrisma();
-      if (!p) return;
-      const s = await runOrderTracker(p, io);
-      if (s.fills > 0 || s.expirations > 0 || s.cancellations > 0 || s.errors > 0) {
-        console.log(
-          `[tracker] users=${s.polledUsers} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} cancellations=${s.cancellations} skipped(no-jwt)=${s.skippedNoJwt} errors=${s.errors}`,
-        );
-      }
-    },
-  }),
-);
-
-// Synthetic-order price monitor — same cadence as the Jupiter tracker
-// but for orders we own (xStocks via Ultra) rather than orders Jupiter
-// owns. Phase 2 of the Trigger v2 → Ultra pivot.
 tasks.add(
   registerTask({
     name: 'trigger-monitor',
@@ -168,10 +136,48 @@ tasks.add(
 
 tasks.add(
   registerTask({
+    name: 'eval',
+    intervalMs: 5 * 60_000,
+    kickoffMs: 30_000,
+    enabled: !env.DEMO_MODE && env.ENABLE_BACK_EVAL,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
+      const s = await evaluatePendingSignals(p);
+      if (s.evaluated > 0 || s.errors > 0) {
+        console.log(
+          `[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`,
+        );
+      }
+    },
+  }),
+);
+
+tasks.add(
+  registerTask({
+    name: 'tracker',
+    intervalMs: 30_000,
+    kickoffMs: 15_000,
+    enabled: !env.DEMO_MODE && env.ENABLE_JUPITER_ORDER_TRACKER,
+    handler: async () => {
+      const p = getPrisma();
+      if (!p) return;
+      const s = await runOrderTracker(p, io);
+      if (s.fills > 0 || s.expirations > 0 || s.cancellations > 0 || s.errors > 0) {
+        console.log(
+          `[tracker] users=${s.polledUsers} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} cancellations=${s.cancellations} skipped(no-jwt)=${s.skippedNoJwt} errors=${s.errors}`,
+        );
+      }
+    },
+  }),
+);
+
+tasks.add(
+  registerTask({
     name: 'thesis',
     intervalMs: 5 * 60_000,
     kickoffMs: 60_000,
-    enabled: !env.DEMO_MODE,
+    enabled: !env.DEMO_MODE && env.ENABLE_THESIS_MONITOR,
     handler: async () => {
       const p = getPrisma();
       if (!p) return;
