@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { OrderKindSchema } from '@hunch-it/shared';
+import { acceptBuyProposal } from '@hunch-it/db';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
@@ -68,36 +69,45 @@ export async function POST(req: NextRequest) {
   const ctx = await requireAuthOrUpsert(req, p.walletAddress);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  // For a BUY trigger order without an existing positionId, open a new
-  // Position in BUY_PENDING state. Subsequent TP/SL orders will reference it.
-  let positionId = p.positionId ?? null;
-  if (!positionId && p.createPosition && p.kind === 'BUY_TRIGGER') {
-    const pos = await prisma.position.create({
-      data: {
-        userId: ctx.userId,
-        ticker: p.ticker,
-        mint: p.createPosition.mint,
-        tokenAmount: 0,
-        entryPrice: 0,
-        totalCost: 0,
-        currentTpPrice: p.createPosition.tpPrice,
-        currentSlPrice: p.createPosition.slPrice,
-        state: 'BUY_PENDING',
-        firstEntryAt: new Date(),
-      },
+  if (p.kind === 'BUY_TRIGGER') {
+    if (!p.proposalId || !p.createPosition || p.triggerPriceUsd == null) {
+      return NextResponse.json(
+        { error: 'BUY_TRIGGER requires proposalId, createPosition, triggerPriceUsd' },
+        { status: 400 },
+      );
+    }
+    const result = await acceptBuyProposal({
+      userId: ctx.userId,
+      proposalId: p.proposalId,
+      ticker: p.ticker,
+      mint: p.createPosition.mint,
+      sizeUsd: p.sizeUsd,
+      triggerPriceUsd: p.triggerPriceUsd,
+      tpPrice: p.createPosition.tpPrice ?? 0,
+      slPrice: p.createPosition.slPrice ?? 0,
+      entryPriceEstimate: p.createPosition.entryPriceEstimate,
     });
-    positionId = pos.id;
+    if (result.status === 'conflict') {
+      return NextResponse.json({ error: result.reason }, { status: 409 });
+    }
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: result.data.orderId },
+    });
+    return NextResponse.json({
+      ok: true,
+      order: decimalsToNumbers(order),
+      positionId: result.data.positionId,
+    });
   }
 
+  let positionId = p.positionId ?? null;
   if (!positionId) {
     return NextResponse.json(
-      { error: 'positionId is required for non-BUY orders, or createPosition for BUY_TRIGGER' },
+      { error: 'positionId is required for non-BUY orders' },
       { status: 400 },
     );
   }
 
-  // Verify the position belongs to this user — prevents writing orders into
-  // someone else's position by passing a foreign positionId.
   const pos = await prisma.position.findUnique({ where: { id: positionId } });
   if (!pos || pos.userId !== ctx.userId) {
     return NextResponse.json({ error: 'position not found' }, { status: 404 });
@@ -118,18 +128,6 @@ export async function POST(req: NextRequest) {
       slippageBps: p.slippageBps ?? null,
     },
   });
-
-  // Mark proposal EXECUTED if this BUY came from one — but only the user's own.
-  if (p.proposalId && p.kind === 'BUY_TRIGGER') {
-    await prisma.proposal
-      .updateMany({
-        where: { id: p.proposalId, userId: ctx.userId },
-        data: { status: 'EXECUTED' },
-      })
-      .catch(() => {
-        /* proposal may not exist yet (Phase B emits to memory only) */
-      });
-  }
 
   return NextResponse.json({ ok: true, order: decimalsToNumbers(order), positionId });
 }
