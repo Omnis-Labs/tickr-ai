@@ -168,38 +168,35 @@ export function useExitOrders() {
   );
 
   /**
-   * One-shot Adjust: cancel existing exits, place new ones, rollback
-   * on failure.
+   * One-shot Adjust: PUT /api/positions/[id]/protection. The server's
+   * replaceProtectionOrders lifecycle cancels OPEN TP/SL exit Orders
+   * and creates new ones in one prisma.\$transaction, so this replaces
+   * the old client-driven cancel-then-place dance (which left a window
+   * where trigger-monitor could fire on a cancelled-but-not-replaced
+   * leg). At least one of tpPriceUsd / slPriceUsd must be non-null;
+   * the other leg is left as-is.
    */
   const replaceExits = useCallback(
-    async (
-      args: Omit<PlaceOcoExitArgs, 'tpPriceUsd' | 'slPriceUsd'> & {
-        next: { tpPriceUsd: number | null; slPriceUsd: number | null };
-      },
-    ): Promise<void> => {
-      const snapshot = await cancelExits(args.positionId);
-      if (args.next.tpPriceUsd == null || args.next.slPriceUsd == null) return;
-      try {
-        await placeOcoExit({
-          positionId: args.positionId,
-          walletAddress: args.walletAddress,
-          ticker: args.ticker,
-          tokenAmount: args.tokenAmount,
-          tpPriceUsd: args.next.tpPriceUsd,
-          slPriceUsd: args.next.slPriceUsd,
-        });
-      } catch (err) {
-        toast.error('Re-place failed; restoring previous TP/SL…');
-        await rePlaceExits(snapshot, {
-          positionId: args.positionId,
-          walletAddress: args.walletAddress,
-          ticker: args.ticker,
-          tokenAmount: args.tokenAmount,
-        });
-        throw err;
+    async (args: {
+      positionId: string;
+      next: { tpPriceUsd: number | null; slPriceUsd: number | null };
+    }): Promise<void> => {
+      const body: Record<string, number> = {};
+      if (args.next.tpPriceUsd != null) body.tpPrice = args.next.tpPriceUsd;
+      if (args.next.slPriceUsd != null) body.slPrice = args.next.slPriceUsd;
+      if (Object.keys(body).length === 0) return;
+
+      const r = await authedFetch(`/api/positions/${args.positionId}/protection`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `protection update ${r.status}`);
       }
     },
-    [cancelExits, placeOcoExit, rePlaceExits],
+    [authedFetch],
   );
 
   return {
