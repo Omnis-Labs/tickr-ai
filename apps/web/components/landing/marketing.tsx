@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { useMandate } from '@/lib/hooks/queries';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
@@ -36,16 +36,35 @@ const STEPS: Array<{ icon: string; title: string; body: string }> = [
 export function LandingMarketing() {
   const router = useRouter();
   const { ready, connected } = useWallet();
-  const mandateQuery = useMandate();
+  const authedFetch = useAuthedFetch();
 
-  // Cookie-less Privy session fallback: server SessionGate already redirected
-  // any user with a Privy cookie. If we got here despite being authed, push
-  // once based on mandate presence — no localStorage flag, no loop.
+  // Cookie-less-but-Privy-authed fallback: server SessionGate already
+  // redirected any user with a verifiable privy-token cookie. If we got
+  // here despite Privy reporting authed, ask /api/me/state (never 401s —
+  // returns SIGNED_OUT for missing/invalid token) and push once. We DON'T
+  // call /api/mandates here, because a 401 from any other /api/* trips
+  // useAuthedFetch's global session-expiry redirect into /login and
+  // breaks the public landing for genuinely-signed-out visitors.
   useEffect(() => {
     if (!ready || !connected) return;
-    if (mandateQuery.isLoading) return;
-    router.replace(mandateQuery.data?.mandate ? '/desk' : '/mandate');
-  }, [ready, connected, mandateQuery.isLoading, mandateQuery.data, router]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authedFetch('/api/me/state');
+        if (!res.ok) return;
+        const state = (await res.json()) as { nextPath: string | null };
+        if (cancelled) return;
+        if (state.nextPath && state.nextPath !== '/login') {
+          router.replace(state.nextPath);
+        }
+      } catch {
+        /* landing renders; user can click Login manually */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, connected, authedFetch, router]);
 
   return (
     <div className="min-h-screen bg-background text-on-background pb-32">
