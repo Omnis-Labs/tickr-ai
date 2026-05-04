@@ -70,9 +70,15 @@ export async function POST(req: NextRequest) {
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   if (p.kind === 'BUY_TRIGGER') {
-    if (!p.proposalId || !p.createPosition || p.triggerPriceUsd == null) {
+    if (
+      !p.proposalId ||
+      !p.createPosition ||
+      p.triggerPriceUsd == null ||
+      p.createPosition.tpPrice == null ||
+      p.createPosition.slPrice == null
+    ) {
       return NextResponse.json(
-        { error: 'BUY_TRIGGER requires proposalId, createPosition, triggerPriceUsd' },
+        { error: 'BUY_TRIGGER requires proposalId, createPosition with tpPrice/slPrice, triggerPriceUsd' },
         { status: 400 },
       );
     }
@@ -83,20 +89,23 @@ export async function POST(req: NextRequest) {
       mint: p.createPosition.mint,
       sizeUsd: p.sizeUsd,
       triggerPriceUsd: p.triggerPriceUsd,
-      tpPrice: p.createPosition.tpPrice ?? 0,
-      slPrice: p.createPosition.slPrice ?? 0,
+      tpPrice: p.createPosition.tpPrice,
+      slPrice: p.createPosition.slPrice,
       entryPriceEstimate: p.createPosition.entryPriceEstimate,
     });
     if (result.status === 'conflict') {
       return NextResponse.json({ error: result.reason }, { status: 409 });
     }
-    const order = await prisma.order.findUniqueOrThrow({
-      where: { id: result.data.orderId },
-    });
+    const orderId =
+      result.status === 'success' ? result.data.orderId : result.orderId;
+    const positionId =
+      result.status === 'success' ? result.data.positionId : result.positionId;
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     return NextResponse.json({
       ok: true,
+      duplicate: result.status === 'duplicate',
       order: decimalsToNumbers(order),
-      positionId: result.data.positionId,
+      positionId,
     });
   }
 
