@@ -3,18 +3,47 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./constants": "./src/constants.ts",
-    "./types": "./src/types.ts",
-    "./assets": "./src/assets.ts",
-    "./thesis": "./src/thesis.ts",
-    "./demo": "./src/demo.ts",
-    "./rpc": "./src/rpc.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "development": "./src/constants.ts",
+      "default": "./dist/constants.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "development": "./src/types.ts",
+      "default": "./dist/types.js"
+    },
+    "./assets": {
+      "types": "./dist/assets.d.ts",
+      "development": "./src/assets.ts",
+      "default": "./dist/assets.js"
+    },
+    "./thesis": {
+      "types": "./dist/thesis.d.ts",
+      "development": "./src/thesis.ts",
+      "default": "./dist/thesis.js"
+    },
+    "./demo": {
+      "types": "./dist/demo.d.ts",
+      "development": "./src/demo.ts",
+      "default": "./dist/demo.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "development": "./src/rpc.ts",
+      "default": "./dist/rpc.js"
+    }
   },
   "scripts": {
+    "dev": "tsc --watch --preserveWatchOutput",
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
