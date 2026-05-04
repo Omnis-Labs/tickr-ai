@@ -64,10 +64,20 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 ## Manual click-through that defines "the system works"
 
+> **To exercise step 4**, the operator must turn on a proposal source.
+> The two supported modes are: `DEMO_MODE=true` (in-memory demo loop
+> generates fake proposals — best for click-through smoke tests) or
+> `ENABLE_SIGNAL_LOOP=true` (live Pyth + LLM proposal generator —
+> requires `ANTHROPIC_API_KEY`, real DB connection, and respects
+> `LLM_DAILY_USD_CAP`). Both default to false in the freeze; the
+> system is ship-ready WITHOUT proposals — the trade execution +
+> protection lifecycle is the load-bearing core.
+
 1. Open `/` while signed out → see the marketing landing.
 2. Sign in via Privy → if no mandate, land on `/mandate`.
 3. Fill the four mandate inputs and save → land on `/desk`.
-4. See at least one BUY proposal.
+4. See at least one BUY proposal (requires the operator to enable a
+   proposal source, see note above).
 5. Tap **Approve** → `Order(BUY_TRIGGER, status=OPEN)` and `Position(BUY_PENDING)` exist.
 6. Force or wait for the BUY trigger to fire → toast appears.
 7. Tap **Execute** → Jupiter Ultra swap signs and broadcasts; `/execute` settles `Order=FILLED`, `Position=ACTIVE`; **two** OPEN exit Orders (TP, SL) exist.
