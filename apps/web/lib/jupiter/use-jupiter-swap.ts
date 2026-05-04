@@ -81,8 +81,8 @@ export type SwapArgs = BuyArgs | SellAllArgs | SellAmountArgs;
  * 2) wallet.signTransaction(VersionedTransaction)
  * 3) POST /ultra/v1/execute
  *
- * Used by both the manual `/debug/trade` page and the SignalModal "Yes, Execute"
- * flow so they can't drift.
+ * Used by the proposal modal "Approve / Yes, Execute" flow and by
+ * panic-close-all so they can't drift.
  */
 export function useJupiterSwap() {
   const { connection } = useConnection();
@@ -92,7 +92,7 @@ export function useJupiterSwap() {
 
   const swap = useCallback(
     async (args: SwapArgs): Promise<SwapResult> => {
-      // Demo mode: simulate the three round-trip phases so the modal/debug UI
+      // Demo mode: simulate the three round-trip phases so the modal UI
       // still shows Quoting → Awaiting signature → Submitting, then return a
       // synthetic SwapResult. No wallet required.
       if (isDemo()) {
@@ -171,10 +171,10 @@ export function useJupiterSwap() {
         amount = sellRaw.toString();
       } else {
         // sellAll: drain whatever's in the wallet for this mint. Reserved
-        // for /debug/trade and panic-close-balance flows where the user
-        // explicitly wants the wallet emptied — closePosition() does NOT
-        // use this path because it would sweep unrelated dust / other
-        // positions that share the same mint.
+        // for panic-close-balance flows where the user explicitly wants the
+        // wallet emptied — closePosition() does NOT use this path because
+        // it would sweep unrelated dust / other positions that share the
+        // same mint.
         const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
         });
