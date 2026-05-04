@@ -59,9 +59,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const position = await prisma.position.findUnique({ where: { id } });
+  if (result.status === 'duplicate') {
+    return NextResponse.json({
+      ok: true,
+      duplicate: true,
+      position: decimalsToNumbers(position),
+      cancelledExitOrderIds: [],
+      closeOrderId: result.orderId,
+    });
+  }
   return NextResponse.json({
     ok: true,
-    duplicate: result.status === 'duplicate',
+    duplicate: false,
     position: decimalsToNumbers(position),
     cancelledExitOrderIds: result.data.cancelledExitOrderIds,
     closeOrderId: result.data.closeOrderId,

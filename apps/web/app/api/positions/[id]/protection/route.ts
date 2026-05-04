@@ -23,7 +23,6 @@ const Schema = z
   .object({
     tpPrice: z.number().positive().optional(),
     slPrice: z.number().positive().optional(),
-    tokenAmount: z.number().positive(),
   })
   .refine((d) => d.tpPrice != null || d.slPrice != null, {
     message: 'at least one of tpPrice / slPrice required',
@@ -51,11 +50,13 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     positionId: id,
     tpPrice: parsed.data.tpPrice,
     slPrice: parsed.data.slPrice,
-    tokenAmount: parsed.data.tokenAmount,
   });
 
   if (result.status === 'conflict') {
     return NextResponse.json({ error: result.reason }, { status: 409 });
+  }
+  if (result.status !== 'success') {
+    return NextResponse.json({ error: 'unexpected_status' }, { status: 500 });
   }
 
   const orders = await prisma.order.findMany({

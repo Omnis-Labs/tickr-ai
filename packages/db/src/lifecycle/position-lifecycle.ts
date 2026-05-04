@@ -5,8 +5,8 @@ export type LifecycleStatus = 'success' | 'duplicate' | 'conflict';
 
 export type LifecycleResult<T> =
   | { status: 'success'; data: T }
-  | { status: 'duplicate'; data: T }
-  | { status: 'conflict'; reason: string; data?: T };
+  | { status: 'duplicate'; orderId: string; positionId: string }
+  | { status: 'conflict'; reason: string };
 
 export class LifecycleInvariantError extends Error {
   constructor(message: string) {
@@ -15,10 +15,55 @@ export class LifecycleInvariantError extends Error {
   }
 }
 
+class PositionRaceRollback extends Error {
+  constructor(public reason: string) {
+    super(reason);
+    this.name = 'PositionRaceRollback';
+  }
+}
+
 type Tx = Prisma.TransactionClient;
 
-async function findOrderByTxSignature(tx: Tx | typeof prisma, txSignature: string) {
-  return tx.order.findUnique({ where: { txSignature } });
+async function findOrderByTxSignature(client: Tx | typeof prisma, txSignature: string) {
+  return client.order.findUnique({ where: { txSignature } });
+}
+
+async function buildDuplicateResult<T>(
+  client: Tx | typeof prisma,
+  orderId: string,
+  txSignature: string,
+): Promise<LifecycleResult<T>> {
+  const existing = await findOrderByTxSignature(client, txSignature);
+  if (existing && existing.id === orderId) {
+    return {
+      status: 'duplicate',
+      orderId: existing.id,
+      positionId: existing.positionId,
+    };
+  }
+  if (existing) {
+    return {
+      status: 'conflict',
+      reason: 'tx_signature_belongs_to_another_order',
+    };
+  }
+  const cur = await client.order.findUnique({
+    where: { id: orderId },
+    select: { status: true },
+  });
+  return {
+    status: 'conflict',
+    reason: cur ? `order_${cur.status.toLowerCase()}` : 'order_not_found',
+  };
+}
+
+function isUniqueTxSignatureViolation(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== 'P2002') return false;
+  const target = err.meta?.target;
+  if (Array.isArray(target)) return target.includes('txSignature');
+  if (typeof target === 'string') return target.includes('txSignature');
+  return false;
 }
 
 export async function acceptBuyProposal(input: {
@@ -37,20 +82,39 @@ export async function acceptBuyProposal(input: {
     positionId: string;
   }>
 > {
+  if (!(input.tpPrice > 0) || !(input.slPrice > 0)) {
+    return { status: 'conflict', reason: 'tp_sl_required_positive' };
+  }
+  if (!(input.triggerPriceUsd > 0) || !(input.entryPriceEstimate > 0)) {
+    return { status: 'conflict', reason: 'invalid_prices' };
+  }
+
   return prisma.$transaction(async (tx) => {
-    const proposal = await tx.proposal.findUnique({
-      where: { id: input.proposalId },
-      select: { id: true, userId: true, status: true },
+    const claimed = await tx.proposal.updateMany({
+      where: {
+        id: input.proposalId,
+        userId: input.userId,
+        status: 'ACTIVE',
+        action: 'BUY',
+      },
+      data: { status: 'EXECUTED' },
     });
-    if (!proposal || proposal.userId !== input.userId) {
+    if (claimed.count === 0) {
+      const proposal = await tx.proposal.findUnique({
+        where: { id: input.proposalId },
+        select: { id: true, userId: true, status: true, action: true },
+      });
+      if (!proposal || proposal.userId !== input.userId) {
+        return { status: 'conflict', reason: 'proposal_not_found' };
+      }
+      if (proposal.action !== 'BUY') {
+        return {
+          status: 'conflict',
+          reason: `proposal_action_${proposal.action.toLowerCase()}`,
+        };
+      }
       return {
-        status: 'conflict' as const,
-        reason: 'proposal_not_found',
-      };
-    }
-    if (proposal.status !== 'ACTIVE') {
-      return {
-        status: 'conflict' as const,
+        status: 'conflict',
         reason: `proposal_status_${proposal.status.toLowerCase()}`,
       };
     }
@@ -83,13 +147,8 @@ export async function acceptBuyProposal(input: {
       },
     });
 
-    await tx.proposal.updateMany({
-      where: { id: input.proposalId, userId: input.userId, status: 'ACTIVE' },
-      data: { status: 'EXECUTED' },
-    });
-
     return {
-      status: 'success' as const,
+      status: 'success',
       data: { orderId: order.id, positionId: position.id },
     };
   });
@@ -122,10 +181,10 @@ export async function cancelPendingBuy(input: {
         select: { id: true, userId: true, status: true, kind: true },
       });
       if (!existing || existing.userId !== input.userId) {
-        return { status: 'conflict' as const, reason: 'order_not_found' };
+        return { status: 'conflict', reason: 'order_not_found' };
       }
       return {
-        status: 'conflict' as const,
+        status: 'conflict',
         reason: `order_${existing.kind.toLowerCase()}_${existing.status.toLowerCase()}`,
       };
     }
@@ -135,7 +194,7 @@ export async function cancelPendingBuy(input: {
       select: { positionId: true },
     });
 
-    await tx.position.updateMany({
+    const closedPos = await tx.position.updateMany({
       where: {
         id: order.positionId,
         userId: input.userId,
@@ -148,9 +207,15 @@ export async function cancelPendingBuy(input: {
         realizedPnl: 0,
       },
     });
+    if (closedPos.count === 0) {
+      throw new LifecycleInvariantError(
+        `cancelPendingBuy: BUY_TRIGGER ${input.orderId} cancelled but parent ` +
+          `Position ${order.positionId} was not BUY_PENDING`,
+      );
+    }
 
     return {
-      status: 'success' as const,
+      status: 'success',
       data: {
         orderId: input.orderId,
         orderStatus: 'CANCELLED',
@@ -194,9 +259,8 @@ export async function confirmBuyFill(input: {
           filledAt: new Date(),
         },
       });
-
       if (claimed.count === 0) {
-        return resolveDuplicateOrConflict(tx, input.orderId, input.txSignature);
+        return buildDuplicateResult(tx, input.orderId, input.txSignature);
       }
 
       const order = await tx.order.findUniqueOrThrow({
@@ -223,8 +287,12 @@ export async function confirmBuyFill(input: {
 
       const totalCost = input.executionPrice * input.tokenAmount;
 
-      await tx.position.update({
-        where: { id: order.position.id },
+      const positionClaimed = await tx.position.updateMany({
+        where: {
+          id: order.position.id,
+          userId: input.userId,
+          state: 'BUY_PENDING',
+        },
         data: {
           state: 'ACTIVE',
           entryPrice: input.executionPrice,
@@ -232,6 +300,9 @@ export async function confirmBuyFill(input: {
           totalCost,
         },
       });
+      if (positionClaimed.count === 0) {
+        throw new PositionRaceRollback('position_not_buy_pending');
+      }
 
       const trade = await tx.trade.create({
         data: {
@@ -287,8 +358,11 @@ export async function confirmBuyFill(input: {
       };
     });
   } catch (err) {
+    if (err instanceof PositionRaceRollback) {
+      return { status: 'conflict', reason: err.reason };
+    }
     if (isUniqueTxSignatureViolation(err)) {
-      return resolveDuplicateOrConflict(prisma, input.orderId, input.txSignature);
+      return buildDuplicateResult(prisma, input.orderId, input.txSignature);
     }
     throw err;
   }
@@ -329,7 +403,7 @@ export async function confirmExitFill(input: {
         },
       });
       if (claimed.count === 0) {
-        return resolveDuplicateOrConflict(tx, input.orderId, input.txSignature);
+        return buildDuplicateResult(tx, input.orderId, input.txSignature);
       }
 
       const order = await tx.order.findUniqueOrThrow({
@@ -348,8 +422,12 @@ export async function confirmExitFill(input: {
         (input.executionPrice - order.position.entryPrice.toNumber()) *
         input.tokenAmount;
 
-      await tx.position.update({
-        where: { id: order.position.id },
+      const positionClaimed = await tx.position.updateMany({
+        where: {
+          id: order.position.id,
+          userId: input.userId,
+          state: 'ACTIVE',
+        },
         data: {
           state: 'CLOSED',
           closedAt: new Date(),
@@ -357,6 +435,9 @@ export async function confirmExitFill(input: {
           realizedPnl: new Prisma.Decimal(realizedPnl),
         },
       });
+      if (positionClaimed.count === 0) {
+        throw new PositionRaceRollback('position_not_active');
+      }
 
       const sibling = await tx.order.findFirst({
         where: {
@@ -402,8 +483,11 @@ export async function confirmExitFill(input: {
       };
     });
   } catch (err) {
+    if (err instanceof PositionRaceRollback) {
+      return { status: 'conflict', reason: err.reason };
+    }
     if (isUniqueTxSignatureViolation(err)) {
-      return resolveDuplicateOrConflict(prisma, input.orderId, input.txSignature);
+      return buildDuplicateResult(prisma, input.orderId, input.txSignature);
     }
     throw err;
   }
@@ -433,27 +517,13 @@ export async function userCloseActive(input: {
           existingByTx.positionId === input.positionId &&
           existingByTx.kind === 'CLOSE_SWAP'
         ) {
-          const pos = await tx.position.findUnique({
-            where: { id: input.positionId },
-            select: { state: true },
-          });
-          if (pos?.state === 'CLOSED') {
-            return {
-              status: 'duplicate' as const,
-              data: {
-                closeOrderId: existingByTx.id,
-                positionId: input.positionId,
-                positionStatus: 'CLOSED' as const,
-                tradeId: '',
-                cancelledExitOrderIds: [],
-              },
-            };
-          }
+          return {
+            status: 'duplicate',
+            orderId: existingByTx.id,
+            positionId: input.positionId,
+          };
         }
-        return {
-          status: 'conflict' as const,
-          reason: 'tx_signature_already_used',
-        };
+        return { status: 'conflict', reason: 'tx_signature_already_used' };
       }
 
       const claimed = await tx.position.updateMany({
@@ -469,15 +539,28 @@ export async function userCloseActive(input: {
         },
       });
       if (claimed.count === 0) {
+        const dup = await findOrderByTxSignature(tx, input.txSignature);
+        if (
+          dup &&
+          dup.userId === input.userId &&
+          dup.positionId === input.positionId &&
+          dup.kind === 'CLOSE_SWAP'
+        ) {
+          return {
+            status: 'duplicate',
+            orderId: dup.id,
+            positionId: input.positionId,
+          };
+        }
         const pos = await tx.position.findUnique({
           where: { id: input.positionId },
           select: { id: true, userId: true, state: true },
         });
         if (!pos || pos.userId !== input.userId) {
-          return { status: 'conflict' as const, reason: 'position_not_found' };
+          return { status: 'conflict', reason: 'position_not_found' };
         }
         return {
-          status: 'conflict' as const,
+          status: 'conflict',
           reason: `position_state_${pos.state.toLowerCase()}`,
         };
       }
@@ -557,10 +640,7 @@ export async function userCloseActive(input: {
     });
   } catch (err) {
     if (isUniqueTxSignatureViolation(err)) {
-      return {
-        status: 'conflict' as const,
-        reason: 'tx_signature_already_used',
-      };
+      return { status: 'conflict', reason: 'tx_signature_already_used' };
     }
     throw err;
   }
@@ -571,7 +651,6 @@ export async function replaceProtectionOrders(input: {
   positionId: string;
   tpPrice?: number;
   slPrice?: number;
-  tokenAmount: number;
 }): Promise<
   LifecycleResult<{
     positionId: string;
@@ -583,10 +662,22 @@ export async function replaceProtectionOrders(input: {
   if (input.tpPrice == null && input.slPrice == null) {
     return { status: 'conflict', reason: 'no_prices_provided' };
   }
+  if (input.tpPrice != null && !(input.tpPrice > 0)) {
+    return { status: 'conflict', reason: 'invalid_tp_price' };
+  }
+  if (input.slPrice != null && !(input.slPrice > 0)) {
+    return { status: 'conflict', reason: 'invalid_sl_price' };
+  }
+
   return prisma.$transaction(async (tx) => {
     const position = await tx.position.findUnique({
       where: { id: input.positionId },
-      select: { id: true, userId: true, state: true },
+      select: {
+        id: true,
+        userId: true,
+        state: true,
+        tokenAmount: true,
+      },
     });
     if (!position || position.userId !== input.userId) {
       return { status: 'conflict', reason: 'position_not_found' };
@@ -596,6 +687,18 @@ export async function replaceProtectionOrders(input: {
         status: 'conflict',
         reason: `position_state_${position.state.toLowerCase()}`,
       };
+    }
+    const tokenAmount = position.tokenAmount?.toNumber() ?? 0;
+    if (!(tokenAmount > 0)) {
+      return { status: 'conflict', reason: 'position_token_amount_invalid' };
+    }
+
+    const lockedActive = await tx.position.updateMany({
+      where: { id: input.positionId, state: 'ACTIVE' },
+      data: { updatedAt: new Date() },
+    });
+    if (lockedActive.count === 0) {
+      return { status: 'conflict', reason: 'position_not_active' };
     }
 
     const kindsToReplace: Array<'TAKE_PROFIT' | 'STOP_LOSS'> = [];
@@ -626,8 +729,8 @@ export async function replaceProtectionOrders(input: {
           kind: 'TAKE_PROFIT',
           side: 'SELL',
           triggerPriceUsd: input.tpPrice,
-          sizeUsd: input.tpPrice * input.tokenAmount,
-          tokenAmount: input.tokenAmount,
+          sizeUsd: input.tpPrice * tokenAmount,
+          tokenAmount,
           status: 'OPEN',
           jupiterOrderId: null,
         },
@@ -648,8 +751,8 @@ export async function replaceProtectionOrders(input: {
           kind: 'STOP_LOSS',
           side: 'SELL',
           triggerPriceUsd: input.slPrice,
-          sizeUsd: input.slPrice * input.tokenAmount,
-          tokenAmount: input.tokenAmount,
+          sizeUsd: input.slPrice * tokenAmount,
+          tokenAmount,
           status: 'OPEN',
           jupiterOrderId: null,
         },
@@ -662,7 +765,7 @@ export async function replaceProtectionOrders(input: {
     }
 
     return {
-      status: 'success' as const,
+      status: 'success',
       data: {
         positionId: input.positionId,
         cancelledOrderIds: stale.map((s) => s.id),
@@ -671,41 +774,4 @@ export async function replaceProtectionOrders(input: {
       },
     };
   });
-}
-
-async function resolveDuplicateOrConflict<T>(
-  client: Tx | typeof prisma,
-  orderId: string,
-  txSignature: string,
-): Promise<LifecycleResult<T>> {
-  const existing = await findOrderByTxSignature(client, txSignature);
-  if (existing && existing.id === orderId) {
-    return {
-      status: 'duplicate',
-      data: { orderId, positionId: existing.positionId } as unknown as T,
-    };
-  }
-  if (existing) {
-    return {
-      status: 'conflict',
-      reason: 'tx_signature_belongs_to_another_order',
-    };
-  }
-  const cur = await client.order.findUnique({
-    where: { id: orderId },
-    select: { status: true },
-  });
-  return {
-    status: 'conflict',
-    reason: cur ? `order_${cur.status.toLowerCase()}` : 'order_not_found',
-  };
-}
-
-function isUniqueTxSignatureViolation(err: unknown): boolean {
-  return (
-    err instanceof Prisma.PrismaClientKnownRequestError &&
-    err.code === 'P2002' &&
-    Array.isArray(err.meta?.target) &&
-    (err.meta.target as string[]).includes('txSignature')
-  );
 }
