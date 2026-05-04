@@ -34,6 +34,18 @@ const EnvSchema = z.object({
     .transform((v) => v === 'true')
     .default('false'),
   DEMO_INTERVAL_SECONDS: z.coerce.number().int().positive().default(20),
+  ENABLE_BACK_EVAL: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_JUPITER_ORDER_TRACKER: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_THESIS_MONITOR: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
