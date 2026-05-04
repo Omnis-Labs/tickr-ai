@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { DEMO_MANDATE, MandateInputSchema } from '@hunch-it/shared';
+import { MandateInputSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -15,13 +14,12 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * for first-touch user upsert (so a brand-new user can be created the moment
  * they finish mandate setup), and is reconciled against the verified Privy id.
  *
- * Demo mode: GET returns DEMO_MANDATE; POST/PUT echo back the submitted shape.
+ * Demo mode: requireAuth(OrUpsert) returns the canonical demo user, so all
+ * reads/writes flow through the same Prisma path as live. SessionGate's
+ * demoState() reads the same row, so the funnel is consistent end-to-end.
  */
 
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    return NextResponse.json({ mandate: DEMO_MANDATE });
-  }
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
@@ -30,7 +28,7 @@ export async function GET(req: NextRequest) {
 }
 
 const PostSchema = MandateInputSchema.extend({
-  walletAddress: z.string().min(32),
+  walletAddress: z.string().min(11),
 });
 
 async function upsertMandate(
@@ -46,12 +44,6 @@ async function upsertMandate(
     );
   }
   const { walletAddress, ...mandateInput } = parsed.data;
-
-  if (isDemoServer()) {
-    return NextResponse.json({
-      mandate: { ...DEMO_MANDATE, ...mandateInput, updatedAt: new Date().toISOString() },
-    });
-  }
 
   const auth = upsert
     ? await requireAuthOrUpsert(req, walletAddress)
