@@ -6,11 +6,10 @@ import { requireAuth } from '@/lib/auth/context';
 /**
  * GET /api/users/me
  *
- * Single source of truth for the signed-in user's profile flags. We had
- * /api/users/delegation already returning delegation state; centralising
- * here means future flags (trial expiry, onboarding completion, daily
- * cap left, etc.) get ONE place to live and the client can hydrate the
- * settings + onboarding redirects from a single round-trip.
+ * Single source of truth for the signed-in user's profile flags. The
+ * SessionGate (server-side funnel resolver) reads `hasMandate` from
+ * here to decide whether to send the user to /mandate or /desk; clients
+ * can also hydrate settings off the same response.
  *
  * Demo mode returns a stub so the cold-tour UX renders identically.
  */
