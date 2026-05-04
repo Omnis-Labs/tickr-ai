@@ -9,7 +9,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useMandate } from '@/lib/hooks/queries';
-import { hasOnboarded } from '@/lib/onboarding/state';
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
@@ -39,13 +38,14 @@ export default function LandingPage() {
   const { ready, connected, address } = useWallet();
   const mandateQuery = useMandate();
 
-  // Routing rules for the marketing landing:
-  //   - not logged in            → stay (show marketing copy + Login CTA)
-  //   - logged in, mandate       → /desk (the real signed-in home)
-  //   - logged in, no mandate,
-  //     not onboarded yet        → /onboarding (4-step prep wizard)
-  //   - logged in, no mandate,
-  //     already onboarded        → /mandate (they backed out before saving)
+  // Routing rules for the marketing landing — mandate presence is the
+  // only setup signal. Local-storage flags + the browser-permission
+  // /onboarding wizard are gone (they fragmented the funnel + caused
+  // first-load redirect loops). A proper server-side SessionGate
+  // arrives next; this is the interim client-side resolver.
+  //   - not logged in       → stay (show marketing copy + Login CTA)
+  //   - logged in, mandate  → /desk (the real signed-in home)
+  //   - logged in, no mandate → /mandate (capture the 4 inputs)
   useEffect(() => {
     if (!ready || !connected) return;
     if (mandateQuery.isLoading) return;
@@ -53,7 +53,7 @@ export default function LandingPage() {
       router.replace('/desk');
       return;
     }
-    router.replace(hasOnboarded(address) ? '/mandate' : '/onboarding');
+    router.replace('/mandate');
   }, [ready, connected, address, mandateQuery.isLoading, mandateQuery.data, router]);
 
   return (
