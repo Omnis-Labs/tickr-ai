@@ -93,7 +93,15 @@ export function useRuntime(): Runtime {
         tokenAmount?: number | null;
         sellProposalId?: string;
       }): Promise<RuntimeCloseResult> => {
-        await cancelExits(positionId);
+        // Pre-swap exit cancellation is ONLY for the legacy
+        // /sell-confirm path — that route does not run inside
+        // PositionLifecycle and won't cancel exits server-side. The
+        // normal manual close path lets userCloseActive cancel exits
+        // atomically AFTER the swap succeeds, so a failed swap leaves
+        // the Position protected (TP/SL still OPEN) instead of naked.
+        if (sellProposalId) {
+          await cancelExits(positionId);
+        }
         const sell =
           tokenAmount && tokenAmount > 0
             ? await swap({
@@ -117,7 +125,7 @@ export function useRuntime(): Runtime {
           ? `/api/proposals/${sellProposalId}/sell-confirm`
           : `/api/positions/${positionId}/close`;
 
-        await authedFetch(persistUrl, {
+        const res = await authedFetch(persistUrl, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -125,7 +133,11 @@ export function useRuntime(): Runtime {
             tokenAmount: tokenAmt,
             txSignature,
           }),
-        }).catch(() => {});
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `close persist ${res.status}`);
+        }
 
         return { executionPrice, tokenAmount: tokenAmt, txSignature };
       },
