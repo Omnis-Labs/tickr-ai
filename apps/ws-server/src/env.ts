@@ -46,6 +46,10 @@ const EnvSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
     .default('false'),
+  ENABLE_SIGNAL_LOOP: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

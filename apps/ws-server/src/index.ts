@@ -104,7 +104,13 @@ io.on('connection', (socket) => {
 // each task body stays just its core logic.
 const tasks = new TaskGroup();
 
-const stopFakeLoop = startSignalLoop(io);
+// In demo mode startSignalLoop runs the in-memory demo proposal loop (the
+// cold-tour UX depends on it). In live mode it walks tickers, calls Pyth +
+// the LLM, and writes Signal/Proposal rows — opt-in via ENABLE_SIGNAL_LOOP
+// because the LLM-driven proposal generator is its own deepening track and
+// not part of the frozen synthetic-trigger core.
+const stopFakeLoop =
+  env.DEMO_MODE || env.ENABLE_SIGNAL_LOOP ? startSignalLoop(io) : () => {};
 
 // Default runtime services for the frozen synthetic-trigger model:
 //   trigger-monitor — REQUIRED. Polls Pyth, emits trigger:hit. Core flow.
