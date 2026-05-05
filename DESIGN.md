@@ -57,79 +57,79 @@ colors:
   divider: '#ECE9E2'
 typography:
   display-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 40px
     fontWeight: 700
     lineHeight: 44px
     letterSpacing: -0.03em
   headline-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 32px
     fontWeight: 700
     lineHeight: 38px
     letterSpacing: -0.02em
   headline-md:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 24px
     fontWeight: 700
     lineHeight: 30px
     letterSpacing: -0.01em
   title-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 20px
     fontWeight: 600
     lineHeight: 26px
   title-md:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 16px
     fontWeight: 600
     lineHeight: 22px
   body-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 16px
     fontWeight: 400
     lineHeight: 24px
   body-md:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 14px
     fontWeight: 400
     lineHeight: 20px
   body-sm:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 12px
     fontWeight: 400
     lineHeight: 16px
   label-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 14px
     fontWeight: 600
     lineHeight: 20px
     letterSpacing: 0.01em
   label-md:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 12px
     fontWeight: 600
     lineHeight: 16px
   label-sm:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Sans
     fontSize: 10px
     fontWeight: 500
     lineHeight: 14px
     letterSpacing: 0.02em
   number-xl:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Mono
     fontSize: 40px
     fontWeight: 700
     lineHeight: 44px
     letterSpacing: -0.04em
   number-lg:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Mono
     fontSize: 28px
     fontWeight: 700
     lineHeight: 34px
     letterSpacing: -0.03em
   number-md:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Geist Mono
     fontSize: 20px
     fontWeight: 700
     lineHeight: 26px
@@ -387,7 +387,7 @@ Avoid introducing additional hues. The restraint of four accent colors keeps the
 
 ## Typography
 
-The typeface is **Plus Jakarta Sans**, a geometric sans-serif with softened, rounded terminals that harmonizes with the app's bubbly shape language. Its wide x-height ensures legibility at small sizes on mobile.
+The display and body typeface is **Geist Sans** (paired with **Geist Mono** for prices, tickers, percentages, and any tabular figure). Geist Sans holds confident hierarchy at huge display sizes, stays legible on mobile at body sizes, and ships via `next/font` so we never hit a Google Fonts CDN at runtime. Geist Mono gives prices a steady tabular rhythm that does not jitter as numbers update, which matters in a trading surface.
 
 - **Headlines**: Bold weight (700) with tight negative letter-spacing for page titles ("Report & Analytics", "Expense Tracking"). Headlines are always charcoal on the warm background — never colored, never light-weight. They should feel authoritative and immediately scannable.
 - **Numbers**: Financial figures and key metrics use dedicated number typography at bold weight with extra-tight tracking. The hero number on each screen (e.g., "$120.00", "$54.00") must be the single most prominent element — larger than any headline on the same screen.
