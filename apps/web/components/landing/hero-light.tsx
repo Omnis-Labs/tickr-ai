@@ -1,100 +1,54 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { MeshGradient } from '@paper-design/shaders-react';
+import { useReducedMotion } from 'framer-motion';
 
 /**
- * Atmospheric chartreuse light layer for the marketing hero.
+ * Atmospheric WebGL mesh-gradient for the marketing hero.
  *
- * Two large soft chartreuse blooms drift across the cream canvas on
- * offset loops, translating only (no width/height/top/left animation)
- * so this stays GPU-friendly and never reflows. A faint SVG turbulence
- * grain sits on top to break up the gradient banding that otherwise
- * shows on cream backgrounds at large blur radii.
+ * Uses paper-design's MeshGradient fragment shader to produce flowing
+ * silk-like fluid motion. The internal turbulence (color folding,
+ * swirl, organic distortion) is what makes this read as alive instead
+ * of "translated gradient image"; CSS transforms can't do this.
  *
- * `prefers-reduced-motion`: both blooms freeze in mid-position. The page
- * still looks deliberate, just static.
+ * Palette: cream base + soft beige tonal sibling + acid chartreuse as
+ * specular accent. Chartreuse stays a minority colour (one of four
+ * stops) so the shader breathes warm cream most of the time and the
+ * acid only blooms through where the mesh folds.
  *
- * The component is `pointer-events-none` with `-z-10` so it never
- * intercepts clicks on the hero copy or CTA above it.
+ * Performance: minPixelRatio capped at 1.5 to keep mid-tier mobile
+ * GPUs at 60fps. `prefers-reduced-motion` flips speed to 0; the shader
+ * still renders a static frame so the hero keeps its atmosphere
+ * instead of going pure flat.
+ *
+ * The container is `pointer-events-none` with `-z-10` so it never
+ * intercepts hero copy or CTA. A bottom-edge mask fades the shader
+ * into the cream canvas so the section seam is not a hard rectangle.
  */
 export function HeroLight() {
   const reduce = useReducedMotion();
-
-  // Long-period easeInOut chosen deliberately over the design-system
-  // springy ease. Atmospheric light shouldn't bounce; springy easing on
-  // a 22s loop reads mechanical at the apex.
-  const driftA = reduce
-    ? { x: -40, y: 30 }
-    : { x: [0, -120, -40, -80, 0], y: [0, 50, 30, 70, 0] };
-  const driftB = reduce
-    ? { x: 60, y: -20 }
-    : { x: [0, 140, 80, 100, 0], y: [0, -60, -20, -40, 0] };
 
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      style={{
+        maskImage:
+          'linear-gradient(to bottom, black 0%, black 65%, transparent 100%)',
+        WebkitMaskImage:
+          'linear-gradient(to bottom, black 0%, black 65%, transparent 100%)',
+      }}
     >
-      {/* Bloom A — upper-right origin, drifts diagonally */}
-      <motion.div
-        className="absolute -right-[20vw] -top-[30vw] h-[90vw] w-[90vw] rounded-full"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(208, 233, 6, 0.55) 0%, rgba(208, 233, 6, 0.18) 35%, transparent 65%)',
-          willChange: 'transform',
-          filter: 'blur(40px)',
-        }}
-        animate={driftA}
-        transition={
-          reduce
-            ? { duration: 0 }
-            : {
-                duration: 22,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                times: [0, 0.25, 0.5, 0.75, 1],
-              }
-        }
+      <MeshGradient
+        colors={['#F2EFE8', '#E5E1D5', '#D7F20A', '#F2EFE8']}
+        speed={reduce ? 0 : 0.18}
+        distortion={0.85}
+        swirl={0.55}
+        grainMixer={0.25}
+        grainOverlay={0.16}
+        minPixelRatio={1.5}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
-
-      {/* Bloom B — lower-left origin, longer period */}
-      <motion.div
-        className="absolute -bottom-[25vw] -left-[15vw] h-[80vw] w-[80vw] rounded-full"
-        style={{
-          background:
-            'radial-gradient(circle, rgba(232, 247, 128, 0.55) 0%, rgba(232, 247, 128, 0.18) 35%, transparent 65%)',
-          willChange: 'transform',
-          filter: 'blur(40px)',
-        }}
-        animate={driftB}
-        transition={
-          reduce
-            ? { duration: 0 }
-            : {
-                duration: 30,
-                repeat: Infinity,
-                ease: 'easeInOut',
-                times: [0, 0.25, 0.5, 0.75, 1],
-              }
-        }
-      />
-
-      {/* Grain — inline SVG turbulence keeps the cream from looking flat */}
-      <svg
-        className="absolute inset-0 h-full w-full opacity-[0.07] mix-blend-multiply"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <filter id="hero-grain">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.9"
-            numOctaves="2"
-            stitchTiles="stitch"
-          />
-          <feColorMatrix type="saturate" values="0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#hero-grain)" />
-      </svg>
     </div>
   );
 }
