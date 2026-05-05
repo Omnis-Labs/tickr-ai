@@ -10,6 +10,7 @@ import { useAuthedFetch } from '@/lib/auth/fetch';
 import { HeroLight } from './hero-light';
 import { MechanicSection } from './mechanic-section';
 import { ProposalStack } from './proposal-stack';
+import { SpecsGrid } from './specs-grid';
 
 export function LandingMarketing() {
   const router = useRouter();
@@ -130,6 +131,7 @@ export function LandingMarketing() {
 
       <MechanicSection />
       <ProposalStack />
+      <SpecsGrid />
     </div>
   );
 }
