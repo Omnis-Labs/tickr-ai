@@ -1,7 +1,3 @@
-'use client';
-
-import { motion, useReducedMotion } from 'framer-motion';
-
 const ITEMS = [
   'Mandate-first sizing',
   'TP / SL pre-armed',
@@ -18,8 +14,6 @@ const ITEMS = [
 ] as const;
 
 export function CapabilitiesMarquee() {
-  const reduce = useReducedMotion();
-
   return (
     <section
       aria-label="Hunch It capabilities"
@@ -34,20 +28,7 @@ export function CapabilitiesMarquee() {
         aria-hidden
       />
 
-      <motion.div
-        className="flex w-max gap-10 whitespace-nowrap"
-        animate={
-          reduce
-            ? { x: 0 }
-            : { x: ['0%', '-50%'] }
-        }
-        transition={
-          reduce
-            ? { duration: 0 }
-            : { duration: 60, repeat: Infinity, ease: 'linear' }
-        }
-        style={{ willChange: 'transform' }}
-      >
+      <div className="animate-marquee flex w-max gap-10 whitespace-nowrap group-hover:[animation-play-state:paused]">
         {[...ITEMS, ...ITEMS].map((item, idx) => (
           <span
             key={idx}
@@ -61,7 +42,7 @@ export function CapabilitiesMarquee() {
             />
           </span>
         ))}
-      </motion.div>
+      </div>
     </section>
   );
 }

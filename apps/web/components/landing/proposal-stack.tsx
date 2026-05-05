@@ -72,7 +72,10 @@ export function ProposalStack() {
   }, [reduce]);
 
   return (
-    <section className="mx-auto max-w-[1200px] px-6 pb-32 pt-12 sm:px-10 sm:pt-16">
+    <section
+      id="proposal"
+      className="mx-auto max-w-[1200px] px-6 pb-32 pt-12 sm:px-10 sm:pt-16"
+    >
       <div className="mb-16 flex items-baseline justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
