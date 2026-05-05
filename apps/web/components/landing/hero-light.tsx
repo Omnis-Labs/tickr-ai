@@ -40,12 +40,12 @@ export function HeroLight() {
       }}
     >
       <MeshGradient
-        colors={['#F2EFE8', '#E5E1D5', '#D7F20A', '#F2EFE8']}
-        speed={reduce ? 0 : 0.18}
-        distortion={0.85}
-        swirl={0.55}
-        grainMixer={0.25}
-        grainOverlay={0.16}
+        colors={['#F2EFE8', '#D7F20A', '#F5C896', '#E5E1D5']}
+        speed={reduce ? 0 : 0.55}
+        distortion={0.9}
+        swirl={0.75}
+        grainMixer={0.3}
+        grainOverlay={0.18}
         minPixelRatio={1.5}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
       />
