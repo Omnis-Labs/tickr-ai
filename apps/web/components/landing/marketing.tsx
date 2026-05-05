@@ -65,10 +65,7 @@ export function LandingMarketing() {
       <section className="relative isolate mx-auto flex min-h-[88vh] max-w-[1200px] flex-col justify-center px-6 pb-32 pt-20 sm:px-10 sm:pt-28">
         <HeroLight />
 
-        <motion.h1
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        <h1
           className="font-semibold tracking-[-0.04em] text-on-background"
           style={{
             fontSize: 'clamp(56px, 13vw, 168px)',
@@ -100,25 +97,15 @@ export function LandingMarketing() {
                   }
             }
           />
-        </motion.h1>
+        </h1>
 
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
-          className="mt-10 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[18px] sm:leading-[1.55]"
-        >
+        <p className="mt-10 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[18px] sm:leading-[1.55]">
           An AI quant analyst proposes trades sized to your mandate, with
           take-profit and stop-loss pre-armed. Tap once to execute. Trade on
           your terms.
-        </motion.p>
+        </p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.22 }}
-          className="mt-10 flex items-center gap-5"
-        >
+        <div className="mt-10 flex items-center gap-5">
           <Button variant="accent" size="lg" asChild>
             <Link href="/login">Get started</Link>
           </Button>
@@ -128,7 +115,7 @@ export function LandingMarketing() {
           >
             See how it works
           </Link>
-        </motion.div>
+        </div>
       </section>
 
       <MechanicSection />
