@@ -1,50 +1,27 @@
 'use client';
 
-import { motion, type Variants } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-
-const cardVariants: Variants = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' } },
-};
-
-const STEPS: Array<{ icon: string; title: string; body: string }> = [
-  {
-    icon: 'tune',
-    title: 'Set your mandate',
-    body: 'Tell the engine your holding period, drawdown tolerance, max trade size, and the markets you actually care about.',
-  },
-  {
-    icon: 'campaign',
-    title: 'Receive proposals',
-    body: 'When momentum, volume, and macro line up, you get a single proposal — sized, priced, and reasoned against your mandate.',
-  },
-  {
-    icon: 'shield',
-    title: 'Execute with one tap',
-    body: 'Approve and the BUY trigger places automatically. Take-profit and stop-loss go in alongside it, so the exit is set before you walk away.',
-  },
-];
+import { HeroLight } from './hero-light';
 
 export function LandingMarketing() {
   const router = useRouter();
   const { ready, connected } = useWallet();
   const authedFetch = useAuthedFetch();
+  const reduce = useReducedMotion();
 
   // Cookie-less-but-Privy-authed fallback: server SessionGate already
   // redirected any user with a verifiable privy-token cookie. If we got
-  // here despite Privy reporting authed, ask /api/me/state (never 401s —
-  // returns SIGNED_OUT for missing/invalid token) and push once. We DON'T
-  // call /api/mandates here, because a 401 from any other /api/* trips
-  // useAuthedFetch's global session-expiry redirect into /login and
-  // breaks the public landing for genuinely-signed-out visitors.
+  // here despite Privy reporting authed, ask /api/me/state (never 401s,
+  // returns SIGNED_OUT for missing/invalid token) and push once. We
+  // don't call /api/mandates here because a 401 from any other /api/*
+  // trips useAuthedFetch's global session-expiry redirect into /login
+  // and breaks the public landing for genuinely-signed-out visitors.
   useEffect(() => {
     if (!ready || !connected) return;
     let cancelled = false;
@@ -58,7 +35,7 @@ export function LandingMarketing() {
           router.replace(state.nextPath);
         }
       } catch {
-        /* landing renders; user can click Login manually */
+        /* landing renders; user can click Sign in manually */
       }
     })();
     return () => {
@@ -67,114 +44,87 @@ export function LandingMarketing() {
   }, [ready, connected, authedFetch, router]);
 
   return (
-    <div className="min-h-screen bg-background text-on-background pb-32">
-      <header className="px-5 pt-8 pb-4 flex justify-between items-center max-w-[1040px] mx-auto">
-        <div className="text-title-lg font-bold flex items-center gap-2">
-          Hunch It<span className="text-accent">.</span>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/login">Login</Link>
-          </Button>
-        </div>
+    <div className="min-h-screen bg-background text-on-background">
+      <header className="relative z-10 mx-auto flex max-w-[1200px] items-center justify-between px-6 pt-7 sm:px-10">
+        <Link href="/" className="text-title-md font-semibold tracking-tight">
+          Hunch It<span className="text-on-surface-variant">.</span>
+        </Link>
+        <Link
+          href="/login"
+          className="text-label-lg text-on-surface-variant transition-colors hover:text-on-background"
+        >
+          Sign in
+        </Link>
       </header>
 
-      <main className="px-5 max-w-[1040px] mx-auto">
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.32 }}
-          className="py-12"
-        >
-          <h1 className="text-display-lg sm:text-[56px] sm:leading-[60px] font-bold tracking-tight mb-6 max-w-2xl">
-            Market moves.<br />
-            Clear signals.<br />
-            <span className="text-accent-bright bg-primary px-2 rounded-lg inline-block mt-2">One tap.</span>
-          </h1>
-          <p className="text-body-lg text-on-surface-variant max-w-xl mb-8">
-            AI-driven trading signals for tokenized US stocks on Solana. We translate market data into clear proposals, you execute in seconds. Every position is protected.
-          </p>
-          <Button variant="accent" size="lg" className="w-full sm:w-auto shadow-soft" asChild>
-            <Link href="/login">Get Started</Link>
-          </Button>
-        </motion.section>
+      <section className="relative isolate mx-auto flex min-h-[88vh] max-w-[1200px] flex-col justify-center px-6 pb-32 pt-20 sm:px-10 sm:pt-28">
+        <HeroLight />
 
-        <motion.section
-          initial={{ opacity: 0, y: 12 }}
+        <motion.h1
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.22, delay: 0.15 }}
-          className="mb-12"
-        >
-          <div className="flex justify-between items-baseline mb-4">
-            <h2 className="text-title-lg font-bold">How it works</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {STEPS.map((s, i) => (
-              <Card key={s.title} className="bg-surface shadow-micro">
-                <CardContent className="p-5 flex flex-col gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
-                      <span className="material-symbols-outlined text-[22px]">{s.icon}</span>
-                    </div>
-                    <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
-                      Step {i + 1}
-                    </span>
-                  </div>
-                  <h3 className="text-title-md text-primary">{s.title}</h3>
-                  <p className="text-body-md text-on-surface-variant">{s.body}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </motion.section>
-
-        <motion.section
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: {},
-            show: { transition: { staggerChildren: 0.08, delayChildren: 0.22 } },
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="font-semibold tracking-[-0.04em] text-on-background"
+          style={{
+            fontSize: 'clamp(56px, 13vw, 168px)',
+            lineHeight: 0.92,
           }}
+          aria-label="Trust your hunch."
         >
-          <div className="flex justify-between items-baseline mb-4">
-            <h2 className="text-title-lg font-bold">A proposal looks like this</h2>
-            <span className="text-label-sm text-on-surface-variant">Sample</span>
-          </div>
-          <motion.div variants={cardVariants}>
-            <Card className="bg-accent border-transparent shadow-soft">
-              <CardContent className="p-5">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <Badge className="bg-primary text-on-primary mb-2 border-transparent">SAMPLE</Badge>
-                    <h3 className="text-title-lg font-bold text-on-accent">Long AAPL</h3>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-primary shadow-micro">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-                    </svg>
-                  </div>
-                </div>
-                <p className="text-body-md text-on-accent/80 mb-6">
-                  Earnings momentum breaking overhead resistance. Tech sector rotation confirms strength. Sized within mandate, exits prefilled.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-surface/40 p-3 rounded-xl">
-                    <div className="text-label-sm opacity-70 mb-1 text-on-accent">Take profit</div>
-                    <div className="font-bold text-on-accent">+8% target</div>
-                  </div>
-                  <div className="bg-surface/40 p-3 rounded-xl">
-                    <div className="text-label-sm opacity-70 mb-1 text-on-accent">Stop loss</div>
-                    <div className="font-bold text-on-accent">−5% guard</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-          <p className="mt-3 text-body-sm text-on-surface-variant text-center">
-            Real proposals are tailored to your mandate and live market data once you sign in.
-          </p>
-        </motion.section>
-      </main>
+          Trust your hunch
+          <motion.span
+            aria-hidden
+            className="ml-[0.04em] inline-block rounded-full bg-accent align-baseline"
+            style={{
+              width: '0.42em',
+              height: '0.42em',
+              marginBottom: '0.02em',
+            }}
+            animate={
+              reduce
+                ? { scale: 1, opacity: 1 }
+                : { scale: [1, 1.12, 1], opacity: [0.85, 1, 0.85] }
+            }
+            transition={
+              reduce
+                ? { duration: 0 }
+                : {
+                    duration: 5.8,
+                    repeat: Infinity,
+                    ease: [0.22, 1, 0.36, 1],
+                  }
+            }
+          />
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.12 }}
+          className="mt-10 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[18px] sm:leading-[1.55]"
+        >
+          An AI quant analyst proposes trades sized to your mandate, with
+          take-profit and stop-loss pre-armed. Tap once to execute. Trade on
+          your terms.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.22 }}
+          className="mt-10 flex items-center gap-5"
+        >
+          <Button variant="accent" size="lg" asChild>
+            <Link href="/login">Get started</Link>
+          </Button>
+          <Link
+            href="#mechanic"
+            className="text-label-lg text-on-surface-variant transition-colors hover:text-on-background"
+          >
+            See how it works
+          </Link>
+        </motion.div>
+      </section>
     </div>
   );
 }
