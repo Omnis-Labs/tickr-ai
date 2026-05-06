@@ -74,7 +74,6 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
     if (secondsLeft <= 0 && !executing) {
       void submit(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, signal?.id, executing]);
 
   async function submit(decision: boolean) {

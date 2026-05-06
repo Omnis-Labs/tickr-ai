@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  let positionId = p.positionId ?? null;
+  const positionId = p.positionId ?? null;
   if (!positionId) {
     return NextResponse.json(
       { error: 'positionId is required for non-BUY orders' },
