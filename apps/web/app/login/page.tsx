@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 /**
@@ -25,27 +26,55 @@ function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { connected, ready, login } = useWallet();
+  const authedFetch = useAuthedFetch();
   // useAuthedFetch redirects users with an expired Privy session here
   // with `?reason=session-expired&next=<original-path>` so the login
   // page can explain why they got bounced and route them back after
   // re-auth.
   const sessionExpired = params?.get('reason') === 'session-expired';
-  const nextPath = params?.get('next') ?? '/';
+  const nextPath = normalizeInternalNextPath(params?.get('next'));
 
   useEffect(() => {
-    if (ready && connected) router.replace(nextPath);
-  }, [ready, connected, router, nextPath]);
+    if (!ready || !connected) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authedFetch('/api/me/state');
+        if (!res.ok) return;
+        const state = (await res.json()) as {
+          stage: 'SIGNED_OUT' | 'NEEDS_MANDATE' | 'READY';
+          nextPath: '/login' | '/mandate' | '/desk' | null;
+        };
+        if (cancelled || state.stage === 'SIGNED_OUT') return;
+
+        if (state.stage === 'NEEDS_MANDATE') {
+          router.replace('/mandate');
+          return;
+        }
+
+        router.replace(nextPath ?? state.nextPath ?? '/desk');
+      } catch {
+        /* stay on login; user can start a fresh login attempt */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, connected, authedFetch, router, nextPath]);
 
   return <LoginShell sessionExpired={sessionExpired} onLogin={() => login()} />;
 }
 
-function LoginShell({
-  sessionExpired,
-  onLogin,
-}: {
-  sessionExpired: boolean;
-  onLogin: () => void;
-}) {
+function normalizeInternalNextPath(path: string | null): string | null {
+  if (!path || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/login')) {
+    return null;
+  }
+  return path;
+}
+
+function LoginShell({ sessionExpired, onLogin }: { sessionExpired: boolean; onLogin: () => void }) {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-between overflow-hidden px-5 py-12">
       <div className="absolute left-1/2 top-[-10%] h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-accent/10 blur-[120px]" />
