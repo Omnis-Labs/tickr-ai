@@ -60,13 +60,12 @@ export function WalletContextProvider({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={RAW_PRIVY_APP_ID as string}
       config={{
-        // Google / Apple require dashboard toggles we haven't located
-        // yet (Privy v3 UI keeps moving them); listing them in code
-        // alone renders dead buttons on /login. Re-add once social is
-        // verified working in the dashboard.
-        loginMethods: ['email', 'wallet'],
+        // Keep login email-only. The embedded Solana wallet is still
+        // created after auth for signing/funding, but users cannot enter
+        // via an external wallet connector.
+        loginMethods: ['email'],
         appearance: {
-          theme: 'dark',
+          theme: 'light',
           accentColor: '#7c5cff',
           walletChainType: 'solana-only',
         },
