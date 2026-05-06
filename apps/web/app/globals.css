@@ -1,5 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 @import "tailwindcss";
+
+/* Material Symbols loads via <link> in layout.tsx, NOT @import url() here:
+   next/font (Geist) injects @font-face rules ahead of this file in the
+   bundled CSS, which pushes any @import in this file past those rules. Per
+   CSS spec @import must come first, so the browser silently drops it and
+   the icon font never loads. Don't "clean up" the <link> back into here. */
 
 @theme inline {
   --color-background: #F2EFE8;
