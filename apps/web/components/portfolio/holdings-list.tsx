@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 /**
  * Compact card-row holdings list. Caller hydrates `holdings[]` from
- * usePositions / useDemoPositionsStore — keeps this component a pure
+ * usePositions — keeps this component a pure
  * presentation layer and avoids the React 19 snapshot loop we hit
  * earlier when filtering inside Zustand selectors.
  */

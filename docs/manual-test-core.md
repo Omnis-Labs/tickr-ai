@@ -7,11 +7,11 @@ This is the executable contract for "the system works" under the synthetic-trigg
 ```bash
 pnpm install
 cp .env.example .env
-# Pick one mode:
-#   • DEMO_MODE=true             (cold-tour, fake proposals, no external APIs)
-#   • ENABLE_SIGNAL_LOOP=true    (live Pyth + LLM proposals; needs ANTHROPIC_API_KEY)
-# Either way the trade lifecycle is the load-bearing core; demo and live both
-# go through PositionLifecycle in packages/db.
+# For local deterministic proposal/trigger testing:
+#   ENABLE_DEV_TOOLS=true
+#   DEV_TOOLS_PASSWORD=<choose-a-local-password>
+# For background proposals:
+#   ENABLE_SIGNAL_LOOP=true      (live Pyth + Gemini proposals; needs GEMINI_API_KEY)
 cp .env apps/web/.env.local
 cp .env apps/ws-server/.env
 pnpm db:up && pnpm db:push
@@ -38,9 +38,9 @@ Pick a holding period, drawdown, max trade size, and one or more market focus ta
 **What's being verified**: `POST /api/mandates` upserts the User (first-touch) and creates the Mandate row in one shot via `requireAuthOrUpsert`. `router.push('/')` then triggers the server SessionGate, which now returns `READY` and redirects to `/desk`. No localStorage flag is involved.
 
 ### 4. The desk shows at least one BUY proposal
-You should see a proposal card. If you don't, you forgot to enable a proposal source — see the operator note in ADR-0001. The card has a ticker, suggested size, TP/SL prices, expiry, and short reasoning.
+You should see a proposal card. If you don't, open `/dev-tools`, unlock it, and generate a `[DEV_TOOLS]` BUY proposal for the signed-in user. The card has a ticker, suggested size, TP/SL prices, expiry, and short reasoning.
 
-**What's being verified**: in DEMO_MODE the demo loop generated fake proposals. In live mode `ENABLE_SIGNAL_LOOP=true` ran Pyth + LLM and persisted Proposal rows for users whose mandate `marketFocus` overlaps the asset's tags.
+**What's being verified**: `/dev-tools` or `ENABLE_SIGNAL_LOOP=true` ran Pyth + Gemini and persisted Proposal rows for the signed-in user.
 
 ### 5. Approving a BUY creates the BUY_PENDING row pair
 Click **Review** on the card → adjust parameters if needed → tap **Approve / Place Order**. The card disappears from the feed.
@@ -57,7 +57,7 @@ SELECT id, kind, status, "triggerPriceUsd" FROM "Order" ORDER BY "createdAt" DES
 ```
 
 ### 6. Trigger-monitor fires a sticky toast when price hits
-Open `/desk` and wait for the trigger condition. In DEMO_MODE the demo store bypasses the monitor; in live mode the ws-server polls Pyth every 30 s. When the condition matches (BUY: price within ±0.5 % of trigger) you should see a sticky toast.
+Open `/desk` and wait for the trigger condition, or use `/dev-tools` to force trigger the owned dev order. In normal runtime the ws-server polls Pyth every 30 s. When the condition matches (BUY: price within ±0.5 % of trigger) you should see a sticky toast.
 
 **What's being verified**: `apps/ws-server/src/orders/trigger-monitor.ts` selects OPEN synthetic Orders, checks Pyth, and emits `trigger:hit` to the user's Socket.IO room. **No DB writes happen here.** The toast can fire repeatedly (every poll) until the user executes — that's intentional idempotent re-firing.
 

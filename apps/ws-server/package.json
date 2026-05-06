@@ -15,7 +15,7 @@
     "smoke": "tsx scripts/smoke-test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.70.0",
+    "@google/genai": "^1.52.0",
     "@hunch-it/db": "workspace:*",
     "@hunch-it/shared": "workspace:*",
     "@privy-io/server-auth": "^1.18.0",

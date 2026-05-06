@@ -1,6 +1,6 @@
 'use client';
 
-import type { DemoProposalShape } from '@hunch-it/shared';
+import type { Proposal } from '@hunch-it/shared';
 import type { PositionUpdatedPayload } from '@/lib/shared-worker/use-shared-worker';
 import type { UIEffect } from './effects';
 
@@ -17,7 +17,7 @@ export interface HandlerCtx {
 }
 
 export const proposalNewHandler = (
-  proposal: DemoProposalShape,
+  proposal: Proposal,
   ctx: HandlerCtx,
 ): UIEffect[] => {
   const verb = proposal.action === 'SELL' ? 'SELL' : 'BUY';
@@ -57,8 +57,8 @@ export const positionUpdatedHandler = (
     return [
       {
         kind: 'toast',
-        message: `OCO: ${kindLabel} still parked in vault.`,
-        description: 'Open Position Detail to sign the withdrawal.',
+        message: `OCO: ${kindLabel} still open.`,
+        description: 'Open Position Detail to inspect the exit pair.',
         action: {
           label: 'Open',
           onClick: () => navigateTo(`/positions/${payload.positionId}`),

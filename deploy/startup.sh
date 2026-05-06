@@ -89,7 +89,7 @@ fetch_secret() { gcloud secrets versions access latest --secret="$1"; }
 DATABASE_URL=$(fetch_secret database-url)
 SOLANA_RPC_URLS=$(fetch_secret solana-rpc-urls)
 PRIVY_APP_SECRET_VAL=$(fetch_secret privy-app-secret)
-ANTHROPIC_KEY=$(fetch_secret anthropic-key)
+GEMINI_KEY=$(fetch_secret gemini-key)
 WS_CRON_SECRET_VAL=$(fetch_secret ws-cron-secret)
 
 cat > /opt/hunchit/.env <<EOF
@@ -107,7 +107,7 @@ LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
 DATABASE_URL=${DATABASE_URL}
 NEXT_PUBLIC_SOLANA_RPC_URLS=${SOLANA_RPC_URLS}
 PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAL}
-ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
+GEMINI_API_KEY=${GEMINI_KEY}
 WS_CRON_SECRET=${WS_CRON_SECRET_VAL}
 
 # Static / public — also embedded in the web image at build time, but
@@ -117,8 +117,7 @@ NEXT_PUBLIC_PRIVY_APP_ID=<privy-app-id>
 NEXT_PUBLIC_APP_URL=https://${DOMAIN_WEB}
 NEXT_PUBLIC_WS_URL=https://${DOMAIN_WS}
 NEXT_PUBLIC_DEFAULT_TRADE_USD=5
-NEXT_PUBLIC_DEMO_MODE=false
-DEMO_MODE=false
+ENABLE_DEV_TOOLS=false
 NEXT_PUBLIC_JUPITER_API_BASE=https://lite-api.jup.ag
 
 # LLM signal engine

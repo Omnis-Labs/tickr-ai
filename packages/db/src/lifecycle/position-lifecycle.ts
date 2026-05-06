@@ -147,6 +147,11 @@ export async function acceptBuyProposal(input: {
       },
     });
 
+    await tx.proposal.update({
+      where: { id: input.proposalId },
+      data: { positionId: position.id },
+    });
+
     return {
       status: 'success',
       data: { orderId: order.id, positionId: position.id },

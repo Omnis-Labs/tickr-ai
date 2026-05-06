@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { SkipReasonSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 
 /**
@@ -29,10 +28,6 @@ export async function POST(req: NextRequest) {
     );
   }
   const { proposalId, reason, detail } = parsed.data;
-
-  if (isDemoServer()) {
-    return NextResponse.json({ ok: true, demo: true });
-  }
 
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

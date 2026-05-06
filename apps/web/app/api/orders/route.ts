@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { OrderKindSchema } from '@hunch-it/shared';
 import { acceptBuyProposal } from '@hunch-it/db';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -53,9 +52,6 @@ const PersistOrderSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  if (isDemoServer()) {
-    return NextResponse.json({ ok: true, demo: true });
-  }
   const body: unknown = await req.json().catch(() => null);
   const parsed = PersistOrderSchema.safeParse(body);
   if (!parsed.success) {
@@ -142,9 +138,6 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    return NextResponse.json({ orders: [] });
-  }
   const ctx = await requireAuth(req);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

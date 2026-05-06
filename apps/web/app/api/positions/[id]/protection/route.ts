@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { replaceProtectionOrders, prisma } from '@hunch-it/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -31,7 +30,6 @@ const Schema = z
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-  if (isDemoServer()) return NextResponse.json({ ok: true, demo: true });
 
   const body: unknown = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);

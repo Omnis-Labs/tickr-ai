@@ -13,8 +13,7 @@ import { QK } from './queries';
  *   3. Invalidates the matching query keys on success — no need for pages
  *      to remember which lists need to refetch after which action
  *
- * Demo mode short-circuiting is the consumer's job — these talk to the
- * real API. Pages still call demo store mutators directly when isDemo().
+ * These mutations always talk to the real API.
  */
 
 interface SkipProposalArgs {

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback } from 'react';
-import { isDemo } from '@/lib/demo';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 /**
@@ -16,8 +15,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
  * session expired (refresh token > 30 days unused, or app secret
  * rotated). Rather than letting the page silently render with null
  * data — which often crashes downstream toFixed/toLocaleString calls —
- * we kick the user back to /login so they can re-auth cleanly. Demo
- * mode skips this entirely; demo flows have no real auth.
+ * we kick the user back to /login so they can re-auth cleanly.
  *
  * The redirect uses window.location.href so it works from anywhere
  * (page handlers, hooks, mutations) without needing a router ref. We
@@ -54,12 +52,12 @@ export function useAuthedFetch() {
   return useCallback(
     async (input: string | URL, init: RequestInit = {}): Promise<Response> => {
       const headers = new Headers(init.headers);
-      if (!isDemo() && !headers.has('authorization')) {
+      if (!headers.has('authorization')) {
         const token = await getAccessToken();
         if (token) headers.set('authorization', `Bearer ${token}`);
       }
       const res = await fetch(input, { ...init, headers });
-      if (res.status === 401 && !isDemo()) {
+      if (res.status === 401) {
         maybeRedirectOnUnauthorized(typeof input === 'string' ? input : input.toString());
       }
       return res;

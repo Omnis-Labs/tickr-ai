@@ -9,21 +9,19 @@ import {
   XSTOCKS,
   getThesisTag,
   xStockToBare,
-  type DemoProposalShape,
+  type Proposal,
   type SkipReason,
   type XStockTicker,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useRuntime } from '@/lib/runtime/use-runtime';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
-import { isDemo } from '@/lib/demo';
 import { useSkipProposal } from '@/lib/hooks/mutations';
 import { usePosition } from '@/lib/hooks/queries';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { SkipFlow } from './skip-flow';
 
 interface SellProposalViewProps {
-  proposal: DemoProposalShape;
+  proposal: Proposal;
   onClose: (decision: 'placed' | 'skipped' | null) => void;
 }
 
@@ -40,12 +38,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const router = useRouter();
   const { address: _address } = useWallet();
   void _address;
-  const demo = isDemo();
-  const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
-  const demoPosition = useDemoPositionsStore((s) =>
-    proposal.positionId ? s.positions.find((p) => p.id === proposal.positionId) ?? null : null,
-  );
-  // Live position used for accurate tokenAmount on the close — without
+  // Position detail is used for accurate tokenAmount on the close. Without
   // this the swap falls back to sellAll and would sweep dust / siblings
   // sharing the same mint.
   const livePositionQuery = usePosition(proposal.positionId ?? undefined);
@@ -94,22 +87,16 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
         toast.error(`${proposal.ticker} mint not configured.`);
         return;
       }
-      const tokenAmount = demo
-        ? demoPosition?.tokenAmount ?? null
-        : livePositionQuery.data?.tokenAmount ?? null;
+      const tokenAmount = livePositionQuery.data?.tokenAmount ?? null;
       const result = await runtime.closePosition({
         positionId: proposal.positionId,
         meta: { mint: meta.mint, decimals: meta.decimals },
-        fallbackMarkPrice: demoPosition?.markPrice ?? proposal.priceAtProposal,
+        fallbackMarkPrice: proposal.priceAtProposal,
         tokenAmount,
         // Routes the persistence step through the SELL Proposal endpoint
         // so the Trade row carries proposalId + Proposal flips EXECUTED.
         sellProposalId: proposal.id,
       });
-      // Mirror in the demo store so demo mode UI updates instantly.
-      if (demo && demoPosition) {
-        closeDemoPosition(demoPosition.id, 'USER_CLOSE', demoPosition.markPrice);
-      }
       const sigSlice = result.txSignature ? `(${result.txSignature.slice(0, 8)}…)` : '';
       toast.success(`Sold ${proposal.ticker} ${sigSlice}`.trim(), {
         action: {
@@ -126,15 +113,13 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   }
 
   async function handleSkip() {
-    if (!demo) {
-      void skipProposal
-        .mutateAsync({
-          proposalId: proposal.id,
-          reason: skipReason,
-          detail: skipReason === 'OTHER' ? skipDetail : undefined,
-        })
-        .catch(() => {});
-    }
+    void skipProposal
+      .mutateAsync({
+        proposalId: proposal.id,
+        reason: skipReason,
+        detail: skipReason === 'OTHER' ? skipDetail : undefined,
+      })
+      .catch(() => {});
     toast(`Kept ${proposal.ticker} (${SKIP_REASON_LABELS[skipReason] ?? skipReason})`);
     onClose('skipped');
   }

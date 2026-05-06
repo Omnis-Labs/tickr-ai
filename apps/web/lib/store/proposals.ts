@@ -1,12 +1,9 @@
 'use client';
 
 import { create } from 'zustand';
-import type { DemoProposalShape } from '@hunch-it/shared';
+import type { Proposal } from '@hunch-it/shared';
 
-// We use the demo shape as the in-memory contract because it covers all the
-// fields the UI needs (incl. reasoning + positionImpact). Live proposals from
-// Prisma have the same shape via /api/proposals.
-export type ProposalUI = DemoProposalShape;
+export type ProposalUI = Proposal;
 
 interface ProposalsState {
   proposalsById: Record<string, ProposalUI>;

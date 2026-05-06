@@ -4,7 +4,6 @@ import { MandateInputSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 import { verifyPrivyToken } from '@/lib/auth/privy';
-import { isDemoServer } from '@/lib/demo/flag';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
 /**
@@ -15,10 +14,6 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * Auth: Privy access token. walletAddress in the body is used only on POST/PUT
  * for first-touch user upsert (so a brand-new user can be created the moment
  * they finish mandate setup), and is reconciled against the verified Privy id.
- *
- * Demo mode: requireAuth(OrUpsert) returns the canonical demo user, so all
- * reads/writes flow through the same Prisma path as live. SessionGate's
- * demoState() reads the same row, so the funnel is consistent end-to-end.
  */
 
 export async function GET(req: NextRequest) {
@@ -34,13 +29,6 @@ export async function GET(req: NextRequest) {
   // for this route means "no mandate yet" — a 200 with `mandate: null`, not
   // a 401. POST/PUT below still go through requireAuth(OrUpsert) so writes
   // remain authenticated end-to-end.
-  if (isDemoServer()) {
-    const auth = await requireAuth(req);
-    if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    const mandate = await prisma.mandate.findUnique({ where: { userId: auth.userId } });
-    return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
-  }
-
   const claims = await verifyPrivyToken(req);
   if (!claims) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

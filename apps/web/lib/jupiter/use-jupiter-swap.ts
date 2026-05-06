@@ -14,9 +14,6 @@ import {
   type UltraExecuteResponse,
   type UltraOrderResponse,
 } from '@/lib/jupiter';
-import { isDemo } from '@/lib/demo';
-
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function toBase64(bytes: Uint8Array): string {
   if (typeof window === 'undefined') return Buffer.from(bytes).toString('base64');
@@ -92,49 +89,6 @@ export function useJupiterSwap() {
 
   const swap = useCallback(
     async (args: SwapArgs): Promise<SwapResult> => {
-      // Demo mode: simulate the three round-trip phases so the modal UI
-      // still shows Quoting → Awaiting signature → Submitting, then return a
-      // synthetic SwapResult. No wallet required.
-      if (isDemo()) {
-        setLoading('order');
-        await sleep(600);
-        setLoading('sign');
-        await sleep(1100);
-        setLoading('execute');
-        await sleep(800);
-        setLoading(null);
-
-        const DEMO_PRICE_GUESS = 230; // rough price so tokenAmount looks plausible
-        const usd = args.direction === 'BUY' ? args.usdAmount : 4.8;
-        const tokenAmount = +(usd / DEMO_PRICE_GUESS).toFixed(4);
-        const inAmount =
-          args.direction === 'BUY'
-            ? Math.round(usd * 10 ** USDC_DECIMALS).toString()
-            : Math.round(tokenAmount * 1e8).toString();
-        const outAmount =
-          args.direction === 'BUY'
-            ? Math.round(tokenAmount * 1e8).toString()
-            : Math.round(usd * 10 ** USDC_DECIMALS).toString();
-        const sig = `demo${Math.random().toString(36).slice(2, 14)}`;
-        const fakeOrder: UltraOrderResponse = {
-          requestId: `demo-${Date.now()}`,
-          transaction: '',
-          inAmount,
-          outAmount,
-          otherAmountThreshold: '0',
-          priceImpactPct: '0.01',
-        };
-        const fakeExec: UltraExecuteResponse = { status: 'Success', signature: sig };
-        return {
-          order: fakeOrder,
-          exec: fakeExec,
-          inputMint: args.direction === 'BUY' ? USDC_MINT : args.xStockMint,
-          outputMint: args.direction === 'BUY' ? args.xStockMint : USDC_MINT,
-          inputAmount: inAmount,
-          outputAmount: outAmount,
-        };
-      }
-
       if (!publicKey || !signAndSendTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 

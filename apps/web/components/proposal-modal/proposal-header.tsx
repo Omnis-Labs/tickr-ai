@@ -5,10 +5,10 @@ import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { fmtPct, num } from '@/lib/utils/fmt';
-import type { DemoProposalShape } from '@hunch-it/shared';
+import type { Proposal } from '@hunch-it/shared';
 
 interface ProposalHeaderProps {
-  proposal: DemoProposalShape;
+  proposal: Proposal;
   metaName: string | undefined;
   exitTtl: string | null;
   bars: ChartBar[];

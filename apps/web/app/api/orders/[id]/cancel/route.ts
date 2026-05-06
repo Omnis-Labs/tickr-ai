@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { cancelPendingBuy, prisma } from '@hunch-it/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -19,7 +18,6 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  if (isDemoServer()) return NextResponse.json({ ok: true, demo: true });
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 
   const auth = await requireAuth(req);

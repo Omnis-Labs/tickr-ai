@@ -9,13 +9,12 @@ import { REQUEST_PATHNAME_HEADER } from './lib/auth/page-gate';
  * lib/auth/context.ts and lib/auth/session.ts) — middleware can't run
  * @privy-io/server-auth on the Edge runtime.
  *
- * Demo mode (`NEXT_PUBLIC_DEMO_MODE=true`) bypasses entirely so the zero-cred
- * UX path keeps working without a Privy session.
  */
 
 const PUBLIC_API_PREFIXES = [
   '/api/bars/', // historical price proxy — read-only public data
   '/api/me/state', // SessionGate state resolver returns SIGNED_OUT without a bearer
+  '/api/dev-tools/', // route-level guard handles dev cookie + Privy auth
 ];
 
 function isPublicApi(path: string): boolean {
@@ -31,8 +30,6 @@ export function middleware(req: NextRequest) {
   }
 
   if (isPublicApi(pathname)) return NextResponse.next();
-
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') return NextResponse.next();
 
   const auth = req.headers.get('authorization') ?? '';
   if (!auth.toLowerCase().startsWith('bearer ')) {

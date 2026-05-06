@@ -8,7 +8,7 @@ Users define a simple investment mandate, receive AI-assisted BUY proposals for 
 
 > The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). xStocks (Backed Finance Token-2022 mints) are not on Jupiter Trigger Order v2's allowlist, so triggers are tracked as DB rows watched by `apps/ws-server` against Pyth, and the user signs a Jupiter Ultra swap via Privy at fire time. Trigger Order v2 is **not** used.
 
-> Hunch It is experimental software and not financial advice. Use demo mode first, and only use real funds if you understand the risks.
+> Hunch It is experimental software and not financial advice. Use small real-fund test amounts only if you understand the risks.
 
 ## What It Does
 
@@ -64,7 +64,7 @@ cp .env apps/ws-server/.env
 pnpm db:push      # push the Prisma schema to the (still empty) docker postgres volume
 ```
 
-> **Want to click around without external services?** Set `DEMO_MODE=true` and `NEXT_PUBLIC_DEMO_MODE=true` in `.env` (and re-copy to the two app env files). Demo mode generates fake signals and never places real trades. See [docs/getting-started.md](docs/getting-started.md#demo-mode) for the full demo walkthrough.
+> **Need deterministic local testing?** Set `ENABLE_DEV_TOOLS=true`, run web + ws-server, then open `/dev-tools`. The page is password-gated, creates real `[DEV_TOOLS]` proposals, persists real DB orders, and can force synthetic `trigger:hit` events for owned dev orders.
 
 ### Run — pick one
 
@@ -89,7 +89,7 @@ pnpm dev                       # auto-starts OrbStack/Docker → postgres → pr
 - Web UI: http://localhost:3000
 - ws-server: http://localhost:4000 (`/healthz` for a liveness check)
 
-For the full env reference, live trading setup, and the demo walkthrough, see [docs/getting-started.md](docs/getting-started.md). If something breaks, see [docs/troubleshooting.md](docs/troubleshooting.md).
+For the full env reference, live trading setup, and `/dev-tools` testing flow, see [docs/getting-started.md](docs/getting-started.md). If something breaks, see [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Repo Structure
 
@@ -129,7 +129,7 @@ hunch-it/
 | [CONTEXT.md](CONTEXT.md)                     | Domain glossary used by reviews + future ADRs                        |
 | [Manual test core](docs/manual-test-core.md) | 10-step click-through that defines "the system works"                |
 | [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets (pre-freeze; see ADR-0001)  |
-| [Getting Started](docs/getting-started.md)   | Demo mode, live setup, local development commands                    |
+| [Getting Started](docs/getting-started.md)   | Local setup, `/dev-tools`, live setup, development commands          |
 | [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
 | [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |
 | [Signal Engine](docs/signal-engine.md)       | Market scanner, proposal generation, order tracking, back-evaluation |

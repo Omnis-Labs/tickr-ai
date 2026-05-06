@@ -8,7 +8,7 @@ import {
   USDC_DECIMALS,
   XSTOCKS,
   xStockToBare,
-  type DemoProposalShape,
+  type Proposal,
   type Signal,
   type TriggerHitPayload,
   type XStockTicker,
@@ -19,7 +19,6 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
@@ -57,7 +56,7 @@ export function NotificationClient() {
   }, [router]);
 
   const handleProposal = useCallback(
-    (proposal: DemoProposalShape) => {
+    (proposal: Proposal) => {
       upsertProposal(proposal);
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const effects = proposalNewHandler(proposal, { isHidden });
@@ -79,20 +78,6 @@ export function NotificationClient() {
 
   const handlePositionUpdated = useCallback(
     (payload: PositionUpdatedPayload) => {
-      // Cross-store side effect: surface the cancel-sibling banner via the
-      // demo positions store so Position Detail picks it up consistently
-      // across demo + live runtimes.
-      if (payload.action === 'cancel-sibling' && payload.siblingKind) {
-        useDemoPositionsStore.setState((s) => ({
-          cancelSiblingHints: {
-            ...s.cancelSiblingHints,
-            [payload.positionId]: {
-              siblingKind: payload.siblingKind === 'TAKE_PROFIT' ? 'TP' : 'SL',
-              createdAt: new Date().toISOString(),
-            },
-          },
-        }));
-      }
       const effects = positionUpdatedHandler(payload);
       runEffects(effects, {
         navigate: (href) => router.push(href),

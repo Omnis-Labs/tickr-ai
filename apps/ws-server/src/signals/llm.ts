@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
@@ -9,11 +9,12 @@ import { env } from '../env.js';
 import { getLlmSpendUsd, recordLlmSpendUsd } from '../cache/index.js';
 import type { IndicatorResult } from './indicators.js';
 
-const MODEL = 'claude-haiku-4-5-20251001';
+export const GEMINI_SIGNAL_MODEL = 'gemini-3.1-flash-lite-preview';
 
-// Anthropic price card (as of Phase 2): Haiku 4.5 ≈ $1/MTok input, $5/MTok output.
-const HAIKU_INPUT_PER_MTOK = 1;
-const HAIKU_OUTPUT_PER_MTOK = 5;
+// Keep the cost guard conservative. Gemini preview prices can move, but
+// this estimate is good enough for a daily cap and is surfaced in logs.
+const GEMINI_INPUT_PER_MTOK = 0.25;
+const GEMINI_OUTPUT_PER_MTOK = 1.5;
 
 export const LlmSignalSchema = z.object({
   action: z.enum(['BUY', 'SELL', 'HOLD']),
@@ -38,11 +39,11 @@ export interface LlmResult {
   costUsd?: number;
 }
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic | null {
+let client: GoogleGenAI | null = null;
+function getClient(): GoogleGenAI | null {
   if (client) return client;
-  if (!env.ANTHROPIC_API_KEY) return null;
-  client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  if (!env.GEMINI_API_KEY) return null;
+  client = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
   return client;
 }
 
@@ -134,7 +135,10 @@ export function ruleBasedSignal(input: LlmInput): LlmSignal {
 }
 
 function estimateCostUsd(inputTokens: number, outputTokens: number): number {
-  return (inputTokens * HAIKU_INPUT_PER_MTOK + outputTokens * HAIKU_OUTPUT_PER_MTOK) / 1_000_000;
+  return (
+    (inputTokens * GEMINI_INPUT_PER_MTOK + outputTokens * GEMINI_OUTPUT_PER_MTOK) /
+    1_000_000
+  );
 }
 
 export async function generateLlmSignal(input: LlmInput): Promise<LlmResult> {
@@ -152,22 +156,22 @@ export async function generateLlmSignal(input: LlmInput): Promise<LlmResult> {
   }
 
   const prompt = buildPrompt(input);
-  let response: Anthropic.Message;
+  let response: GenerateContentResponse;
   try {
-    response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }],
+    response = await client.models.generateContent({
+      model: GEMINI_SIGNAL_MODEL,
+      contents: prompt,
+      config: {
+        maxOutputTokens: 400,
+        responseMimeType: 'application/json',
+      },
     });
   } catch (err) {
-    console.warn('[llm] anthropic call failed, falling back to rules', err);
+    console.warn('[llm] gemini call failed, falling back to rules', err);
     return { signal: ruleBasedSignal(input), degraded: true };
   }
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('');
+  const text = response.text ?? '';
 
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -188,14 +192,14 @@ export async function generateLlmSignal(input: LlmInput): Promise<LlmResult> {
     return { signal: ruleBasedSignal(input), degraded: true };
   }
 
-  const inputTokens = response.usage.input_tokens;
-  const outputTokens = response.usage.output_tokens;
+  const inputTokens = response.usageMetadata?.promptTokenCount ?? 0;
+  const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
   const costUsd = estimateCostUsd(inputTokens, outputTokens);
   const newSpend = await recordLlmSpendUsd(costUsd);
 
   console.log(
     `[llm] ${input.ticker} ${validated.data.action} conf=${validated.data.confidence.toFixed(2)} ` +
-      `tokens=${inputTokens}/${outputTokens} cost=$${costUsd.toFixed(4)} spend=$${newSpend.toFixed(2)}`,
+      `model=${GEMINI_SIGNAL_MODEL} tokens=${inputTokens}/${outputTokens} cost=$${costUsd.toFixed(4)} spend=$${newSpend.toFixed(2)}`,
   );
 
   return {

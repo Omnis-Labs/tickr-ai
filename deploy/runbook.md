@@ -126,7 +126,6 @@ docker buildx build \
   --build-arg NEXT_PUBLIC_PRIVY_APP_ID=<privy-app-id> \
   --build-arg NEXT_PUBLIC_APP_URL=https://${DOMAIN_WEB} \
   --build-arg NEXT_PUBLIC_WS_URL=https://${DOMAIN_WS} \
-  --build-arg NEXT_PUBLIC_DEMO_MODE=false \
   --build-arg "NEXT_PUBLIC_SOLANA_RPC_URLS=https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>,https://solana-rpc.publicnode.com/" \
   --build-arg NEXT_PUBLIC_DEFAULT_TRADE_USD=5 \
   --build-arg NEXT_PUBLIC_JUPITER_API_BASE=https://lite-api.jup.ag \
@@ -159,9 +158,9 @@ echo -n "https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>,https://so
 echo -n "<paste-PRIVY_APP_SECRET-from-.env.local>" | \
   gcloud secrets create privy-app-secret --data-file=-
 
-# Anthropic key (from your local .env.local)
-echo -n "<paste-ANTHROPIC_API_KEY-from-.env.local>" | \
-  gcloud secrets create anthropic-key --data-file=-
+# Gemini key (from your local .env.local)
+echo -n "<paste-GEMINI_API_KEY-from-.env.local>" | \
+  gcloud secrets create gemini-key --data-file=-
 
 # WS cron secret (fresh)
 openssl rand -hex 32 | gcloud secrets create ws-cron-secret --data-file=-
@@ -310,7 +309,7 @@ curl -s -X POST "https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>" \
 gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
 gcloud sql instances delete "$SQL_INSTANCE" --quiet
 gcloud artifacts repositories delete "$AR_REPO" --location="$REGION" --quiet
-for s in database-url solana-rpc-urls privy-app-secret anthropic-key ws-cron-secret; do
+for s in database-url solana-rpc-urls privy-app-secret gemini-key ws-cron-secret; do
   gcloud secrets delete "$s" --quiet
 done
 ```

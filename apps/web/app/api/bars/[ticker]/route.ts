@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server';
 import {
   BARE_TICKERS,
   PYTH_BENCHMARKS_BASE,
-  bareToXStock,
-  makeDemoBars,
   type BareTicker,
 } from '@hunch-it/shared';
-import { isDemoServer } from '@/lib/demo/flag';
 
 interface TvResponse {
   s: 'ok' | 'no_data' | 'error';
@@ -32,9 +29,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ ticker: string 
   const bare = (ticker.endsWith('x') ? ticker.slice(0, -1) : ticker).toUpperCase() as BareTicker;
   if (!BARE_TICKERS.includes(bare)) {
     return NextResponse.json({ error: `unknown ticker ${ticker}` }, { status: 400 });
-  }
-  if (isDemoServer()) {
-    return NextResponse.json({ bars: makeDemoBars(bareToXStock(bare), 24) });
   }
   const url = new URL(req.url);
   const resolution = url.searchParams.get('resolution') ?? '5';

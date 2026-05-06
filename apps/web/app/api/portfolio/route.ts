@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { demoInitialPositions, demoInitialTrades } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
@@ -15,25 +13,8 @@ import { readUsdcBalance } from '@/lib/solana/usdc-balance';
  * ACTIVE / ENTERING / BUY_PENDING positions). Mark price is the position's
  * stored `entryPrice` until the frontend joins live Pyth quotes — good
  * enough for portfolio screen seed.
- *
- * Demo: returns the in-memory fixtures.
  */
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    const positions = demoInitialPositions();
-    const trades = demoInitialTrades();
-    const realized = trades
-      .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
-      .reduce((acc, t) => acc + t.realizedPnl, 0);
-    const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-    return NextResponse.json({
-      positions,
-      trades,
-      pnl: { realized, unrealized },
-      cashUsd: 1234.56, // demo placeholder
-    });
-  }
-
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

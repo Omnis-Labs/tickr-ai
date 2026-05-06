@@ -79,8 +79,7 @@ export function Footer() {
       <div className="mt-16 flex flex-col gap-3 border-t border-outline-variant pt-7 text-body-sm text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
         <span className="font-mono">AGPL-3.0 · © {year} Hunch It</span>
         <span className="max-w-[60ch]">
-          Experimental software, not financial advice. Use demo mode first; only
-          use real funds if you understand the risks.
+          Experimental software, not financial advice. Only use real funds if you understand the risks.
         </span>
       </div>
     </footer>
