@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 const EnvSchema = z.object({
   WS_SERVER_PORT: z.coerce.number().int().positive().default(4000),
-  ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  ENABLE_DEV_TOOLS: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
+  DEV_TOOLS_PASSWORD: z.string().default('Omnis-2026'),
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
   PYTH_HERMES_URL: z.string().url().default('https://hermes.pyth.network'),
@@ -29,11 +34,6 @@ const EnvSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
     .default('true'),
-  DEMO_MODE: z
-    .union([z.literal('true'), z.literal('false')])
-    .transform((v) => v === 'true')
-    .default('false'),
-  DEMO_INTERVAL_SECONDS: z.coerce.number().int().positive().default(20),
   ENABLE_BACK_EVAL: z
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')

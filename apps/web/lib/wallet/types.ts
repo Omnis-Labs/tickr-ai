@@ -5,8 +5,8 @@ import type { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.
 
 /**
  * Unified wallet surface across the app — keeps every call site identical
- * regardless of which provider (Privy, demo stub, or a future Phantom
- * direct connect) is mounted underneath.
+ * regardless of which provider (Privy or a future Phantom direct connect)
+ * is mounted underneath.
  *
  * Provider implementations live under lib/wallet/providers/*. They're the
  * only place that imports a vendor SDK; everything else uses useWallet().
@@ -40,7 +40,7 @@ export interface UnifiedWallet {
   signMessage: (message: string) => Promise<string>;
   login: () => void;
   logout: () => Promise<void>;
-  /** Privy access token. null in demo / disconnected state. Used as the
+  /** Privy access token. null when disconnected. Used as the
    *  Authorization: Bearer credential for /api/* + the ws-server socket. */
   getAccessToken: () => Promise<string | null>;
   /** Phase F — request the delegation grant for the user's embedded wallet.

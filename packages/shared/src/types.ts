@@ -53,6 +53,9 @@ export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
 export const ProposalOutcomeSchema = z.enum(['WIN', 'LOSS', 'NEUTRAL']);
 export type ProposalOutcome = z.infer<typeof ProposalOutcomeSchema>;
 
+export const ProposalOriginSchema = z.enum(['SIGNAL_ENGINE', 'DEV_TOOLS']);
+export type ProposalOrigin = z.infer<typeof ProposalOriginSchema>;
+
 export const SkipReasonSchema = z.enum([
   'TOO_RISKY',
   'DISAGREE_THESIS',
@@ -126,6 +129,11 @@ export const ProposalSchema = z.object({
   confidence: z.number().min(0).max(1),
   priceAtProposal: z.number(),
   indicators: z.unknown(),
+  thesisTags: z.unknown().nullable().optional(),
+  sourceBuyProposalId: z.string().nullable().optional(),
+  positionId: z.string().nullable().optional(),
+  triggeringTag: z.string().nullable().optional(),
+  origin: ProposalOriginSchema.default('SIGNAL_ENGINE'),
   status: ProposalStatusSchema,
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -140,8 +148,8 @@ export const SkipInputSchema = z.object({
 export type SkipInput = z.infer<typeof SkipInputSchema>;
 
 // ────────────────────────────────────────────────────────────────────────
-// Legacy (v1.2) shapes — still emitted by the demo signal loop and the
-// existing SignalModal until Proposal Generator + ProposalModal land.
+// Legacy (v1.2) shapes — still emitted by the SignalModal path until
+// Proposal Generator + ProposalModal fully replace it.
 // ────────────────────────────────────────────────────────────────────────
 
 export const SignalActionSchema = z.enum(['BUY', 'SELL', 'HOLD']);
@@ -265,9 +273,9 @@ export const WsClientEvents = {
 } as const;
 
 export const AuthPayloadSchema = z.object({
-  /** Demo / dev only — live mode requires privyAccessToken. */
+  /** Deprecated wallet hint; ws-server auth requires privyAccessToken. */
   walletAddress: z.string().min(1).optional(),
-  /** Privy access token (live mode). The server verifies it and looks up the
+  /** Privy access token. The server verifies it and looks up the
    * walletAddress from the User row, ignoring any wallet hint above. */
   privyAccessToken: z.string().min(1).optional(),
 });

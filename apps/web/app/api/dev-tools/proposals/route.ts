@@ -1,0 +1,39 @@
+import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
+import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
+import { requireAuth } from '@/lib/auth/context';
+import { devToolsGuard } from '@/lib/dev-tools/auth';
+import { createDevToolsProposal } from '@/lib/dev-tools/server';
+
+const Schema = z.object({
+  ticker: z.enum(BARE_TICKERS),
+});
+
+export async function POST(req: NextRequest) {
+  const guard = devToolsGuard(req);
+  if (guard) return guard;
+
+  const auth = await requireAuth(req);
+  if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const body: unknown = await req.json().catch(() => null);
+  const parsed = Schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'invalid payload', issues: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const result = await createDevToolsProposal({
+      userId: auth.userId,
+      ticker: parsed.data.ticker as BareTicker,
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn('[dev-tools] proposal create failed', err);
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 
 /**
@@ -10,21 +9,8 @@ import { requireAuth } from '@/lib/auth/context';
  * SessionGate (server-side funnel resolver) reads `hasMandate` from
  * here to decide whether to send the user to /mandate or /desk; clients
  * can also hydrate settings off the same response.
- *
- * Demo mode returns a stub so the cold-tour UX renders identically.
  */
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    return NextResponse.json({
-      demo: true,
-      walletAddress: 'demo-wallet',
-      delegationActive: false,
-      privyWalletId: null,
-      hasMandate: true, // demo mandate is always present
-      createdAt: new Date(0).toISOString(),
-    });
-  }
-
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
@@ -41,7 +27,6 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   return NextResponse.json({
-    demo: false,
     walletAddress: user.walletAddress,
     privyWalletId: user.privyWalletId,
     delegationActive: user.delegationActive,

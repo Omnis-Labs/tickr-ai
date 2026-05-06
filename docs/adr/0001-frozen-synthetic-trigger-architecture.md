@@ -65,12 +65,11 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 ## Manual click-through that defines "the system works"
 
 > **To exercise step 4**, the operator must turn on a proposal source.
-> The two supported modes are: `DEMO_MODE=true` (in-memory demo loop
-> generates fake proposals — best for click-through smoke tests) or
-> `ENABLE_SIGNAL_LOOP=true` (live Pyth + LLM proposal generator —
-> requires `ANTHROPIC_API_KEY`, real DB connection, and respects
-> `LLM_DAILY_USD_CAP`). Both default to false in the freeze; the
-> system is ship-ready WITHOUT proposals — the trade execution +
+> Use `/dev-tools` locally (`ENABLE_DEV_TOOLS=true`) for deterministic
+> `[DEV_TOOLS]` proposals and forced owned triggers, or set
+> `ENABLE_SIGNAL_LOOP=true` for live Pyth + Gemini background proposals
+> (`GEMINI_API_KEY`, real DB connection, `LLM_DAILY_USD_CAP`). The system
+> is ship-ready WITHOUT background proposals — the trade execution +
 > protection lifecycle is the load-bearing core.
 
 1. Open `/` while signed out → see the marketing landing.

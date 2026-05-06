@@ -1,9 +1,4 @@
-// Runtime adapter — the demo/live strategy boundary.
-//
-// Goal: replace `if (isDemo()) … else …` scattered across page handlers
-// with a single dispatch on a typed Runtime. Live and demo each implement
-// the same interface; pages call methods without knowing which one is
-// active.
+// Runtime façade for the real synthetic-trigger product path.
 //
 // Synthetic-trigger architecture: TP/SL legs are DB-only synthetic
 // Orders (jupiterOrderId NULL); the ws-server price monitor watches
@@ -62,8 +57,8 @@ export interface Runtime {
   closePosition(args: {
     positionId: string;
     meta: RuntimeMeta;
-    /** Mark price for the local PnL fallback when the swap output
-     *  doesn't return an executionPrice (demo mode). */
+    /** Mark price retained for callers that need a fallback when the swap
+     *  output cannot produce an execution price. */
     fallbackMarkPrice: number;
     /** Sell exactly this many tokens. When set (recommended for the
      *  CloseButton flow), avoids sweeping unrelated dust or a separate
@@ -75,7 +70,4 @@ export interface Runtime {
      *  status=EXECUTED and the Trade row carries the proposal id. */
     sellProposalId?: string;
   }): Promise<RuntimeCloseResult>;
-
-  /** True if this runtime simulates state in memory. */
-  readonly isDemo: boolean;
 }

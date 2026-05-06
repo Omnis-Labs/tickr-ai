@@ -8,7 +8,6 @@ import { HoldingsList, type Holding } from '@/components/portfolio/holdings-list
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { usePortfolio } from '@/lib/hooks/queries';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
 
 /**
  * Portfolio surface: total value + PnL header, holdings card list, and
@@ -18,7 +17,6 @@ import { isDemo } from '@/lib/demo';
  */
 export default function PortfolioPage() {
   const { connected } = useWallet();
-  const demo = isDemo();
   const portfolioQuery = usePortfolio();
   const data = portfolioQuery.data;
   const isLoading = portfolioQuery.isLoading;
@@ -63,7 +61,7 @@ export default function PortfolioPage() {
       <TopAppBar title="Portfolio" />
 
       <main className="px-5 py-6 pb-24 max-w-md mx-auto">
-        {!connected && !demo ? (
+        {!connected ? (
           <div className="bg-surface rounded-lg p-6 shadow-soft flex flex-col items-center text-center">
             <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
               <span className="material-symbols-outlined text-primary text-[24px]">login</span>

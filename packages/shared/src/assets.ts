@@ -1,5 +1,5 @@
 // Asset abstraction — one registry that every consumer (Proposal Generator,
-// Order Tracker, Position Detail, ProposalModal, demo data) reads through.
+// Order Tracker, Position Detail, ProposalModal, and tests) reads through.
 //
 // Why this exists: the ws-server, schema and frontend used to look up xStock
 // mints + Pyth feed ids via `XSTOCKS[xStockToBare(p.ticker)]`. That pattern
@@ -80,7 +80,7 @@ export const ASSET_REGISTRY: readonly Asset[] = [...xStockEntries, ...cryptoEntr
 const byId = new Map<string, Asset>();
 for (const a of ASSET_REGISTRY) byId.set(a.assetId, a);
 
-export type AssetId = string; // not a literal union — registry can grow at runtime in tests / demos
+export type AssetId = string; // not a literal union — registry can grow at runtime in tests
 
 export function getAssetById(assetId: string): Asset | undefined {
   return byId.get(assetId);

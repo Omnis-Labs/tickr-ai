@@ -17,8 +17,8 @@ export interface ScheduledTask {
   intervalMs: number;
   /** First-run delay after boot. Defaults to intervalMs/4 if omitted. */
   kickoffMs?: number;
-  /** When true, the task is registered but not started. Used to gate by
-   *  DEMO_MODE without scattering `if` checks in the call sites. */
+  /** When false, the task is registered but not started. Used to keep
+   *  optional loops gated without scattering checks in the call sites. */
   enabled?: boolean;
   /** Per-tick body. Throwing is fine — the scheduler logs and continues. */
   handler: () => Promise<void>;

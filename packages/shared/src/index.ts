@@ -8,6 +8,7 @@ export {
   MandateInputSchema,
   MandateSchema,
   ProposalActionSchema,
+  ProposalOriginSchema,
   ProposalStatusSchema,
   ProposalOutcomeSchema,
   ProposalReasoningSchema,
@@ -26,6 +27,7 @@ export type {
   MandateInput,
   Mandate,
   ProposalAction,
+  ProposalOrigin,
   ProposalStatus,
   ProposalOutcome,
   ProposalReasoning,
@@ -39,7 +41,7 @@ export type {
   SkipInput,
 } from './types.js';
 
-// ── legacy v1.2 types still used by demo signal loop ─────────────────────
+// ── legacy v1.2 signal types ─────────────────────────────────────────────
 export {
   ApprovalDecisionPayloadSchema,
   ApprovalSchema,
@@ -146,21 +148,3 @@ export type {
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
-
-// ── demo fixtures ────────────────────────────────────────────────────────
-export {
-  DEMO_FAKE_MINT,
-  DEMO_LEADERBOARD,
-  DEMO_MANDATE,
-  demoInitialPositions,
-  demoInitialProposals,
-  demoInitialTrades,
-  makeDemoBars,
-  makeDemoProposal,
-  makeDemoSignal,
-} from './demo.js';
-export type {
-  DemoPortfolioPosition,
-  DemoPortfolioTrade,
-  DemoProposalShape,
-} from './demo.js';

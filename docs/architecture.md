@@ -86,12 +86,12 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
 | State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
 | Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
-| Order Execution        | Jupiter Trigger Order API v2 (BUY, TP, SL) + Jupiter Swap API (Close Position)                                       |
+| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra swaps signed by the user at fire time                                    |
 | Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
 | Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |
 | On-chain Data          | Solana RPC (@solana/web3.js)                                                                                         |
 | Realtime Communication | Socket.IO (server) + Shared Worker + BroadcastChannel (client)                                                       |
-| Signal Engine LLM      | Claude Sonnet or Opus (@anthropic-ai/sdk)                                                                            |
+| Signal Engine LLM      | Gemini via `@google/genai`                                                                                           |
 | Technical Indicators   | technicalindicators library                                                                                          |
 | Database               | PostgreSQL 15 (self-managed, in Docker on the prod VM)                                                               |
 | ORM                    | Prisma                                                                                                               |
@@ -157,4 +157,4 @@ pnpm db:push
 pnpm dev   # Runs web + ws-server concurrently
 ```
 
-**Demo Mode**: Set `DEMO_MODE=true` to run the full UX without any external API keys. The ws-server generates fake signals. By default, demo trades are persisted to PostgreSQL like real trades. Set `DEMO_IN_MEMORY=true` to skip DB persistence entirely.
+**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. Production builds block this surface.

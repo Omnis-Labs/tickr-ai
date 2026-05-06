@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { confirmBuyFill, confirmExitFill, prisma } from '@hunch-it/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -25,8 +24,6 @@ const Schema = z.object({
 });
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  if (isDemoServer()) return NextResponse.json({ ok: true, demo: true });
-
   const { id } = await ctx.params;
   const body: unknown = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);

@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Early Hunch It prototype for AI-assisted trading signals on Solana.
 - Realtime browser experience using Socket.IO, Shared Worker, BroadcastChannel, browser notifications, and audio alerts.
 - Portfolio tracking with position and P&L views.
-- Demo mode for exploring the local UX without real trades.
+- Password-gated `/dev-tools` for exercising real proposal, order, trigger, and swap paths locally.
 - Initial onboarding, documentation, and AGPL-3.0 license.
 
 ### Changed

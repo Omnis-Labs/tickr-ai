@@ -19,7 +19,7 @@ import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
  * PrivyProvider; bridges Privy's various hooks into our UnifiedWallet
  * context so consumers stay vendor-agnostic.
  *
- * Future providers (DemoBridge, PhantomBridge, …) implement the same
+ * Future providers (PhantomBridge, …) implement the same
  * shape and replace this in components/wallet/wallet-provider.tsx.
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {

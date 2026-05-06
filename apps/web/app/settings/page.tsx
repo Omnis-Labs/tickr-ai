@@ -15,9 +15,7 @@ import {
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useMandate, usePortfolio } from '@/lib/hooks/queries';
 
@@ -26,9 +24,8 @@ function shorten(addr: string): string {
 }
 
 export default function SettingsPage() {
-  const demo = isDemo();
   const { address, connected, logout } = useWallet();
-  const wallet = demo ? 'demo-wallet' : address;
+  const wallet = address;
 
   const mandateQuery = useMandate();
   const portfolioQuery = usePortfolio();
@@ -63,16 +60,15 @@ export default function SettingsPage() {
 
       <main className="px-5 py-6 pb-24 max-w-md mx-auto flex flex-col gap-6">
         <Section icon="person" title="Account">
-          {!connected && !demo ? (
+          {!connected ? (
             <p className="text-body-md text-on-surface-variant">Not signed in.</p>
           ) : (
             <div className="flex flex-col gap-4">
-              <Row label="Mode">{demo ? 'Demo' : 'Live'}</Row>
               <div className="flex flex-col gap-1">
                 <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Wallet</span>
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-mono text-body-md text-on-surface truncate">
-                    {address ? shorten(address) : 'demo-wallet'}
+                    {address ? shorten(address) : 'Not connected'}
                   </span>
                   {address && (
                     <button
@@ -88,7 +84,7 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
-              {!demo && connected && (
+              {connected && (
                 <button
                   type="button"
                   onClick={() => void logout()}
@@ -191,7 +187,6 @@ export default function SettingsPage() {
  * re-publishes the user state.
  */
 function DelegationCard({ wallet }: { wallet: string | null }) {
-  const demo = isDemo();
   const [active, setActive] = useState<boolean>(false);
   const [persistedWalletId, setPersistedWalletId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -199,7 +194,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
   const { delegateSolanaWallet, revokeDelegations, walletId } = useWallet();
 
   useEffect(() => {
-    if (demo || !wallet) return;
+    if (!wallet) return;
     let cancelled = false;
     authedFetch('/api/users/delegation')
       .then((r) => (r.ok ? r.json() : null))
@@ -213,13 +208,13 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [wallet, demo, authedFetch]);
+  }, [wallet, authedFetch]);
 
   // Privy populates `walletId` after the user has delegated. If the user
   // toggled on but we PATCHed without an id (because Privy hadn't re-
   // published the user state yet), backfill it as soon as it appears.
   useEffect(() => {
-    if (demo || !wallet || !active || !walletId) return;
+    if (!wallet || !active || !walletId) return;
     if (walletId === persistedWalletId) return;
     void authedFetch('/api/users/delegation', {
       method: 'PATCH',
@@ -237,7 +232,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
         }
       })
       .catch(() => {});
-  }, [demo, wallet, active, walletId, persistedWalletId, authedFetch]);
+  }, [wallet, active, walletId, persistedWalletId, authedFetch]);
 
   async function toggle(next: boolean) {
     if (!wallet) {
@@ -246,16 +241,14 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
     }
     setBusy(true);
     try {
-      if (!demo) {
-        try {
-          if (next) await delegateSolanaWallet();
-          else await revokeDelegations();
-        } catch (err) {
-          console.warn('[delegation] grant/revoke failed', err);
-          toast.error(
-            `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      try {
+        if (next) await delegateSolanaWallet();
+        else await revokeDelegations();
+      } catch (err) {
+        console.warn('[delegation] grant/revoke failed', err);
+        toast.error(
+          `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
 
       const res = await authedFetch('/api/users/delegation', {
@@ -288,7 +281,7 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
   // the most common cause is the Privy app being on the Free plan (server
   // signers require Pro). Surface that explicitly so users don't think
   // their assets are protected when they aren't.
-  const delegationStuck = !demo && active && !walletId && !busy;
+  const delegationStuck = active && !walletId && !busy;
 
   return (
     <Section icon="bolt" title="Auto-exit signing">
@@ -336,17 +329,12 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
  * stack.
  */
 function CloseAllPositionsCard() {
-  const demo = isDemo();
   const router = useRouter();
-  const positions = useDemoPositionsStore((s) => s.positions);
-  const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
   const runtime = useRuntime();
   const authedFetch = useAuthedFetch();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-
-  const openCount = demo ? positions.filter((p) => p.state !== 'CLOSED').length : null;
 
   async function closeOne(p: {
     id: string;
@@ -360,35 +348,24 @@ function CloseAllPositionsCard() {
       positionId: p.id,
       meta: { mint: meta.mint, decimals: meta.decimals },
       fallbackMarkPrice: p.markPrice,
+      tokenAmount: p.tokenAmount,
     });
-    if (demo) closeDemoPosition(p.id, 'USER_CLOSE', p.markPrice);
   }
 
   async function handleCloseAll() {
     setBusy(true);
     try {
-      let targets: Array<{ id: string; ticker: string; tokenAmount: number; markPrice: number }>;
-      if (demo) {
-        targets = positions
-          .filter((p) => p.state !== 'CLOSED')
-          .map((p) => ({
-            id: p.id,
-            ticker: p.ticker,
-            tokenAmount: p.tokenAmount,
-            markPrice: p.markPrice,
-          }));
-      } else {
-        const r = await authedFetch('/api/positions');
-        const j = (await r.json().catch(() => ({ positions: [] }))) as {
-          positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
-        };
-        targets = (j.positions ?? []).map((p) => ({
-          id: p.id,
-          ticker: p.ticker,
-          tokenAmount: p.tokenAmount,
-          markPrice: p.entryPrice,
-        }));
-      }
+      const r = await authedFetch('/api/positions');
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `${r.status}`);
+      const j = (await r.json().catch(() => ({ positions: [] }))) as {
+        positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
+      };
+      const targets = (j.positions ?? []).map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        tokenAmount: p.tokenAmount,
+        markPrice: p.entryPrice,
+      }));
 
       if (targets.length === 0) {
         toast('No open positions.');
@@ -419,12 +396,7 @@ function CloseAllPositionsCard() {
   return (
     <Section icon="warning" title="Panic close">
       <p className="text-body-sm text-on-surface-variant mb-3">
-        Cancel every open TP / SL trigger order and market-sell every position you currently hold. Each position needs one wallet signature (cancel) plus one swap signature in live mode.
-        {demo && openCount != null && (
-          <>
-            {' '}Demo store has <strong>{openCount}</strong> open position{openCount === 1 ? '' : 's'}.
-          </>
-        )}
+        Cancel every open TP / SL trigger order and market-sell every position you currently hold. Each position needs a wallet signature for the swap.
       </p>
       {!confirm ? (
         <button

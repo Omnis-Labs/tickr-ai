@@ -33,13 +33,13 @@ export async function readSignal(id: string): Promise<Signal | null> {
   }
 }
 
-// LLM daily spend counter — keyed by UTC date so it auto-resets at 00:00 UTC.
+// Gemini daily spend counter — keyed by UTC date so it auto-resets at 00:00 UTC.
 // Uses Upstash Redis when configured (production / multi-process), otherwise
 // falls back to a per-process in-memory map (single dev process). The cap
 // gating in signals/llm.ts works either way; Redis just lets multiple
 // ws-server instances share the same bucket.
 function todayKey(): string {
-  return `llm:spend:${new Date().toISOString().slice(0, 10)}`;
+  return `gemini:spend:${new Date().toISOString().slice(0, 10)}`;
 }
 
 const memSpend = new Map<string, number>();

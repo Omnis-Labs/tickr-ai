@@ -5,7 +5,6 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  DEMO_FAKE_MINT,
   USDC_DECIMALS,
   XSTOCKS,
   xStockToBare,
@@ -14,7 +13,6 @@ import {
 } from '@hunch-it/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { isDemo, useDemoStore } from '@/lib/demo';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 
 const DEFAULT_TRADE_USD = Number(process.env.NEXT_PUBLIC_DEFAULT_TRADE_USD ?? '5');
@@ -82,30 +80,26 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
       return;
     }
 
-    const demo = isDemo();
-    const walletKey = publicKey?.toBase58() ?? (demo ? 'demo-wallet' : null);
+    const walletKey = publicKey?.toBase58() ?? null;
     if (!walletKey) {
       toast.error('Connect a wallet to approve signals');
       return;
     }
 
-    // Always record the approval decision first (Yes or No) unless demo.
-    if (!demo) {
-      sendApproval({
+    sendApproval({
+      signalId: signal.id,
+      walletAddress: walletKey,
+      decision,
+    });
+    void fetch('/api/approvals', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
         signalId: signal.id,
         walletAddress: walletKey,
         decision,
-      });
-      void fetch('/api/approvals', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          signalId: signal.id,
-          walletAddress: walletKey,
-          decision,
-        }),
-      }).catch(() => {});
-    }
+      }),
+    }).catch(() => {});
 
     if (!decision) {
       toast('Signal skipped');
@@ -128,7 +122,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
       onClose(decision);
       return;
     }
-    const mintForSwap = meta.mint || (demo ? DEMO_FAKE_MINT : '');
+    const mintForSwap = meta.mint;
     if (!mintForSwap) {
       toast.error(
         `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
@@ -164,39 +158,24 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
           : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
       const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : signal.priceAtSignal;
 
-      if (demo) {
-        // Track the trade in the in-memory demo store — portfolio + P&L pick it up.
-        useDemoStore.getState().appendTrade({
+      await fetch('/api/trades', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: walletKey,
           signalId: signal.id,
           ticker: signal.ticker,
           side: action,
           amountUsd: usdValue,
           tokenAmount,
           executionPrice,
-          realizedPnl: 0,
-          txSignature: result.exec.signature ?? `demo-${Date.now()}`,
+          txSignature: result.exec.signature ?? `unknown-${Date.now()}`,
           status: result.exec.status === 'Success' ? 'CONFIRMED' : 'FAILED',
-        });
-      } else {
-        await fetch('/api/trades', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: walletKey,
-            signalId: signal.id,
-            ticker: signal.ticker,
-            side: action,
-            amountUsd: usdValue,
-            tokenAmount,
-            executionPrice,
-            txSignature: result.exec.signature ?? `unknown-${Date.now()}`,
-            status: result.exec.status === 'Success' ? 'CONFIRMED' : 'FAILED',
-          }),
-        });
-      }
+        }),
+      });
 
       if (result.exec.status === 'Success') {
-        toast.success(`${signal.action} ${signal.ticker} confirmed${demo ? ' (demo)' : ''}`);
+        toast.success(`${signal.action} ${signal.ticker} confirmed`);
       } else {
         toast.error(`Swap failed: ${result.exec.error ?? 'unknown'}`);
       }

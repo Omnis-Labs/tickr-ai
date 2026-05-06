@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import type { DemoProposalShape } from '@hunch-it/shared';
+import type { Proposal } from '@hunch-it/shared';
 import { useProposals } from '@/lib/hooks/queries';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { fmtUsd } from '@/lib/utils/fmt';
@@ -28,9 +28,9 @@ export function ProposalsFeed() {
   const order = useProposalsStore((s) => s.order);
   const proposalsById = useProposalsStore((s) => s.proposalsById);
 
-  const proposals = useMemo<DemoProposalShape[]>(() => {
+  const proposals = useMemo<Proposal[]>(() => {
     const seen = new Set<string>();
-    const out: DemoProposalShape[] = [];
+    const out: Proposal[] = [];
     for (const id of order) {
       const p = proposalsById[id];
       if (!p || seen.has(p.id)) continue;

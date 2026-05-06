@@ -2,7 +2,6 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import type { PrivyClient } from '@privy-io/server-auth';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 
 export type SessionStage = 'SIGNED_OUT' | 'NEEDS_MANDATE' | 'READY';
 
@@ -15,8 +14,6 @@ export interface SessionState {
 }
 
 export const PRIVY_ACCESS_TOKEN_COOKIE = 'privy-token';
-const DEMO_PRIVY_ID = 'did:privy:demo-user';
-const DEMO_WALLET = 'demo-wallet';
 
 let cachedClient: PrivyClient | null = null;
 async function getPrivy(): Promise<PrivyClient | null> {
@@ -79,25 +76,7 @@ async function stateForPrivyUserId(privyUserId: string | null): Promise<SessionS
   };
 }
 
-async function demoState(): Promise<SessionState> {
-  const user = await prisma.user.upsert({
-    where: { walletAddress: DEMO_WALLET },
-    update: {},
-    create: { privyUserId: DEMO_PRIVY_ID, walletAddress: DEMO_WALLET },
-    select: { id: true, walletAddress: true, mandate: { select: { id: true } } },
-  });
-  const hasMandate = !!user.mandate;
-  return {
-    stage: hasMandate ? 'READY' : 'NEEDS_MANDATE',
-    userId: user.id,
-    walletAddress: user.walletAddress,
-    hasMandate,
-    nextPath: hasMandate ? '/desk' : '/mandate',
-  };
-}
-
 export async function resolveSession(req: Request): Promise<SessionState> {
-  if (isDemoServer()) return demoState();
   const token = privyAccessTokenFromAuthorization(req);
   const privyUserId = token ? await privyUserIdForToken(token) : null;
   return stateForPrivyUserId(privyUserId);
@@ -109,7 +88,6 @@ export function privyAccessTokenFromAuthorization(req: Request): string | null {
 }
 
 export async function resolveSessionFromCookies(): Promise<SessionState> {
-  if (isDemoServer()) return demoState();
   const jar = await cookies();
   const token = jar.get(PRIVY_ACCESS_TOKEN_COOKIE)?.value ?? null;
   const privyUserId = token ? await privyUserIdForToken(token) : null;

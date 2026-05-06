@@ -76,7 +76,7 @@ export function isDelegationConfigured(): boolean {
 /**
  * Verify a Privy access token forwarded by the frontend on socket connect.
  * Returns the canonical `did:privy:...` userId on success, or null on failure
- * / missing creds. Demo mode callers should bypass this entirely.
+ * / missing creds.
  */
 export async function verifyPrivyToken(token: string): Promise<string | null> {
   const client = await getPrivyClient();

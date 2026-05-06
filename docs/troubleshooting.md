@@ -22,25 +22,17 @@ Common issues when running Hunch It locally.
 | TP/SL edit fails                            | The order or position is not editable                                                    | Only active TP/SL orders for an `ACTIVE` position can be edited                            |
 | Close Position fails before swap            | One of the exit-order cancellations failed                                               | The app should retry cancellation before attempting the market sell                        |
 | Price chart unavailable                     | Pyth Benchmarks or Hermes is unreachable                                                 | Retry later; trading state can still be inspected without chart data                       |
-| `anthropic call failed` in logs             | Missing, invalid, or unfunded Anthropic key                                              | Check `ANTHROPIC_API_KEY`, or use demo mode                                                |
+| `gemini call failed` in logs                | Missing, invalid, or unfunded Gemini key                                                 | Check `GEMINI_API_KEY`; the signal loop falls back to rules when LLM is unavailable         |
 | Prisma cannot connect                       | `DATABASE_URL` is missing or database is unreachable                                     | Verify the connection string and run `pnpm db:generate` / `pnpm db:push`                   |
 
-## Demo Mode Checklist
+## Dev Tools Checklist
 
-If demo mode does not behave as expected:
+If `/dev-tools` does not unlock or emit triggers:
 
-1. Confirm both flags are set:
-   ```bash
-   DEMO_MODE=true
-   NEXT_PUBLIC_DEMO_MODE=true
-   ```
-2. Copy the updated env file into both apps:
-   ```bash
-   cp .env apps/web/.env.local
-   cp .env apps/ws-server/.env
-   ```
+1. Confirm `ENABLE_DEV_TOOLS=true` in both web and ws-server env files.
+2. Confirm `DEV_TOOLS_PASSWORD` matches on web and ws-server.
 3. Restart `pnpm dev` after changing env vars.
-4. Check browser console and ws-server logs for connection errors.
+4. Check browser console and ws-server logs for `[dev-tools]`.
 
 ## Browser Notifications
 

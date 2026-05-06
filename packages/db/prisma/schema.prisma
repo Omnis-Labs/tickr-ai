@@ -3,9 +3,7 @@
 //
 // v1 → v1.3 migration: Signal / Approval / Trade / Position have been
 // replaced by Proposal / Skip / Order / Trade / Position with the new state
-// machine. The ws-server signal-emit loop continues to broadcast over
-// Socket.IO for demo mode; its DB writes are now no-ops until the Proposal
-// Generator (Phase B) ships.
+// machine.
 
 generator client {
   provider = "prisma-client-js"
@@ -20,7 +18,7 @@ datasource db {
 
 model User {
   id                    String    @id @default(cuid())
-  privyUserId           String?   @unique // null for legacy demo wallets
+  privyUserId           String?   @unique
   privyWalletId         String?   // Privy wallet id used by server signers
   walletAddress         String    @unique
   /// Phase F — when true, server signers may submit Jupiter cancel/place
@@ -94,6 +92,10 @@ model Proposal {
   /// majority threshold (informational; the tag set itself lives in
   /// `thesisTags`).
   triggeringTag            String?
+  /// Origin marks proposals created by the production signal loop versus the
+  /// password-gated dev-tools surface. Dev-only actions prove lineage through
+  /// this field before emitting trigger events.
+  origin                   ProposalOrigin @default(SIGNAL_ENGINE)
   status                   ProposalStatus  @default(ACTIVE)
   expiresAt                DateTime
   createdAt                DateTime        @default(now())
@@ -111,6 +113,7 @@ model Proposal {
   @@index([userId, status, createdAt])
   @@index([evaluatedAt])
   @@index([positionId])
+  @@index([origin])
 }
 
 // ─── Skip ─────────────────────────────────────────────────────────────────
@@ -241,6 +244,11 @@ enum ProposalOutcome {
   WIN
   LOSS
   NEUTRAL
+}
+
+enum ProposalOrigin {
+  SIGNAL_ENGINE
+  DEV_TOOLS
 }
 
 enum SkipReason {

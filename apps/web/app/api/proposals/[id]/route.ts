@@ -1,15 +1,7 @@
 import { NextResponse } from 'next/server';
-import { makeDemoProposal } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
-
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return h;
-}
 
 /**
  * GET /api/proposals/[id]
@@ -18,11 +10,6 @@ function hash(s: string): number {
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-
-  if (isDemoServer()) {
-    const proposal = { ...makeDemoProposal(Math.abs(hash(id))), id };
-    return NextResponse.json({ proposal, source: 'demo' });
-  }
 
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

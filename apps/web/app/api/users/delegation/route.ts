@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 
 /**
@@ -10,7 +9,7 @@ import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
  *   GET   /api/users/delegation
  *           returns { delegationActive, privyWalletId } from the DB so the
  *           Settings toggle can hydrate from server state on mount instead
- *           of localStorage. Demo mode short-circuits to a stub.
+ *           of localStorage.
  *
  *   PATCH /api/users/delegation
  *           body: { walletAddress, privyWalletId?, delegationActive }
@@ -24,9 +23,6 @@ import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
  */
 
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    return NextResponse.json({ delegationActive: false, privyWalletId: null, demo: true });
-  }
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
@@ -55,10 +51,6 @@ export async function PATCH(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (isDemoServer()) {
-    return NextResponse.json({ ok: true, demo: true, ...parsed.data });
-  }
-
   const ctx = await requireAuthOrUpsert(req, parsed.data.walletAddress);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

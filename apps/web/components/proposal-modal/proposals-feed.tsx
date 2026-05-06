@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { XSTOCKS, xStockToBare, type DemoProposalShape, type XStockTicker } from '@hunch-it/shared';
+import { XSTOCKS, xStockToBare, type Proposal, type XStockTicker } from '@hunch-it/shared';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
 import { num } from '@/lib/utils/fmt';
@@ -39,7 +39,7 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   // Merge: in-memory first, then API seed (de-duped by id), sorted by expiry.
   const merged = useMemo(() => {
     const seen = new Set<string>();
-    const out: DemoProposalShape[] = [];
+    const out: Proposal[] = [];
     for (const p of live) {
       if (!p || seen.has(p.id)) continue;
       out.push(p);

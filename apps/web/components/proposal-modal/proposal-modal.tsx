@@ -4,18 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
-  DEMO_FAKE_MINT,
   SKIP_REASON_LABELS,
   XSTOCKS,
   xStockToBare,
-  type DemoProposalShape,
+  type Proposal,
   type SkipReason,
   type XStockTicker,
 } from '@hunch-it/shared';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
 import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { usePortfolio } from '@/lib/hooks/queries';
@@ -25,7 +22,7 @@ import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
 import { SellProposalView } from './sell-proposal-view';
 
-type ProposalUI = DemoProposalShape;
+type ProposalUI = Proposal;
 
 interface ProposalModalProps {
   proposal: ProposalUI | null;
@@ -47,7 +44,6 @@ const overlayStyle: React.CSSProperties = {
 export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalProps) {
   const { publicKey } = useWallet();
   const router = useRouter();
-  const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
   const persistOrder = usePersistOrder();
   const skipProposal = useSkipProposal();
   // cashUsd is the user's USDC balance read by /api/portfolio. We use it
@@ -145,9 +141,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   }
 
   const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
-  const demo = isDemo();
-  const walletKey = publicKey?.toBase58() ?? (demo ? 'demo-wallet' : null);
-  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const walletKey = publicKey?.toBase58() ?? null;
 
   async function handlePlace() {
     if (!walletKey) {
@@ -158,8 +152,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       toast.error(`Unknown ticker ${proposal!.ticker}`);
       return;
     }
-    const mintForSwap = meta.mint || (demo ? DEMO_FAKE_MINT : '');
-    if (!mintForSwap) {
+    if (!meta.mint) {
       toast.error(
         `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
       );
@@ -168,33 +161,6 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
 
     setExecuting(true);
     try {
-      if (demo) {
-        setSwapLoading('order');
-        await sleep(600);
-        setSwapLoading('sign');
-        await sleep(900);
-        setSwapLoading('execute');
-        await sleep(700);
-        setSwapLoading(null);
-
-        const position = addPosition({
-          proposalId: proposal!.id,
-          ticker: proposal!.ticker,
-          sizeUsd: size,
-          entryPrice: trigger,
-          tpPrice: tp,
-          slPrice: sl,
-        });
-        toast.success(`BUY ${proposal!.ticker} placed (demo). TP/SL attached on fill.`, {
-          action: {
-            label: 'View position',
-            onClick: () => router.push(`/positions/${position.id}`),
-          },
-        });
-        onClose('placed');
-        return;
-      }
-
       // xStocks aren't on Jupiter Trigger v2's allowlist (Backed Finance
       // tokens, traded only on a few Solana DEXs Jupiter Ultra aggregates).
       // So we don't deposit into Jupiter's vault on Approve — instead we
@@ -248,15 +214,13 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       toast.error('Connect a wallet first.');
       return;
     }
-    if (!demo) {
-      void skipProposal
-        .mutateAsync({
-          proposalId: proposal!.id,
-          reason: skipReason,
-          detail: skipReason === 'OTHER' ? skipDetail : undefined,
-        })
-        .catch(() => {});
-    }
+    void skipProposal
+      .mutateAsync({
+        proposalId: proposal!.id,
+        reason: skipReason,
+        detail: skipReason === 'OTHER' ? skipDetail : undefined,
+      })
+      .catch(() => {});
     toast(`Proposal skipped (${SKIP_REASON_LABELS[skipReason] ?? skipReason})`);
     onClose('skipped');
   }
@@ -302,13 +266,12 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         {!skipOpen ? (
           <>
             {(() => {
-              // Demo + portfolio-still-loading states bypass the gate so the
-              // button stays clickable. We only block on a confirmed
-              // shortfall.
+              // Portfolio-still-loading bypasses the gate so the button stays
+              // clickable. We only block on a confirmed shortfall.
               const portfolioReady = !portfolioQuery.isLoading;
               const sizeNum = num(size);
               const cashNum = num(cashUsd);
-              const insufficient = !isDemo() && portfolioReady && sizeNum > cashNum;
+              const insufficient = portfolioReady && sizeNum > cashNum;
               return (
                 <>
                   {insufficient && (

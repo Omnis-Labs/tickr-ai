@@ -4,15 +4,13 @@ import { BroadcastChannel } from 'broadcast-channel';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import {
-  DEMO_MANDATE,
   WsClientEvents,
   WsServerEvents,
   type ApprovalDecisionPayload,
-  type DemoProposalShape,
+  type Proposal,
   type Signal,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
-import { isDemo } from '@/lib/demo/flag';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 export const BROADCAST_CHANNEL = 'hunch-it';
@@ -21,7 +19,7 @@ type WorkerToTab =
   | { type: 'connected' }
   | { type: 'disconnected'; reason: string }
   | { type: 'signal:new'; signal: Signal }
-  | { type: 'proposal:new'; proposal: DemoProposalShape };
+  | { type: 'proposal:new'; proposal: Proposal };
 
 type TabToWorker =
   | { type: 'hello' }
@@ -43,15 +41,9 @@ export interface PositionUpdatedPayload {
 
 interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
-  onProposal?: (proposal: DemoProposalShape) => void;
+  onProposal?: (proposal: Proposal) => void;
   onPositionUpdated?: (payload: PositionUpdatedPayload) => void;
   onTriggerHit?: (payload: TriggerHitPayload) => void;
-  /**
-   * Wallet to bind this socket to. The hook emits an `auth` event with this
-   * walletAddress on connect so the ws-server can route per-user proposals.
-   * In demo mode, defaults to the demo wallet.
-   */
-  walletAddress?: string;
 }
 
 interface UseSharedWorkerReturn {
@@ -66,7 +58,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const portRef = useRef<MessagePort | null>(null);
   const directSocketRef = useRef<Socket | null>(null);
   const onSignalRef = useRef<((s: Signal) => void) | undefined>(opts.onSignal);
-  const onProposalRef = useRef<((p: DemoProposalShape) => void) | undefined>(opts.onProposal);
+  const onProposalRef = useRef<((p: Proposal) => void) | undefined>(opts.onProposal);
   const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
     opts.onPositionUpdated,
   );
@@ -78,12 +70,8 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   onPositionUpdatedRef.current = opts.onPositionUpdated;
   onTriggerHitRef.current = opts.onTriggerHit;
 
-  // The wallet address we'll auth as. Demo defaults to the demo userId so
-  // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
-  const wallet = opts.walletAddress ?? (isDemo() ? DEMO_MANDATE.userId : undefined);
-
-  // In live mode, send a Privy access token instead — the server verifies it
-  // and resolves the wallet from our DB.
+  // Send a Privy access token; the server verifies it and resolves the
+  // wallet from our DB.
   const { ready, connected: walletConnected, getAccessToken } = useWallet();
 
   useEffect(() => {
@@ -111,12 +99,6 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on('connect', async () => {
       console.info('[ws] direct socket connected', socket.id);
       setConnected(true);
-      if (isDemo()) {
-        socket.emit(WsClientEvents.Auth, { walletAddress: wallet ?? DEMO_MANDATE.userId });
-        return;
-      }
-      // Live: forward a Privy access token. The server verifies + maps to
-      // the user's walletAddress before joining the room.
       if (!ready || !walletConnected) return;
       const token = await getAccessToken();
       if (!token) {
@@ -132,7 +114,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on(WsServerEvents.SignalNew, (signal: Signal) => {
       onSignalRef.current?.(signal);
     });
-    socket.on(WsServerEvents.ProposalNew, (proposal: DemoProposalShape) => {
+    socket.on(WsServerEvents.ProposalNew, (proposal: Proposal) => {
       onProposalRef.current?.(proposal);
     });
     socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
@@ -151,7 +133,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       }
       portRef.current = null;
     };
-  }, [wallet, ready, walletConnected]);
+  }, [ready, walletConnected]);
 
   function sendApproval(payload: ApprovalDecisionPayload) {
     const port = portRef.current;

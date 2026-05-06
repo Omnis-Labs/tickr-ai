@@ -6,18 +6,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
-import { isDemo } from '@/lib/demo';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { usePosition } from '@/lib/hooks/queries';
 import { PositionStats } from '@/components/positions/position-stats';
-import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
+import { EnterBanner } from '@/components/positions/banners';
 import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
 import { ClosedSummary, CloseButton } from '@/components/positions/close-button';
-import { DemoSimulator } from '@/components/positions/demo-simulator';
 
 const STATE_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   ACTIVE: { bg: 'bg-positive/20', text: 'text-positive', label: 'Active' },
@@ -30,19 +27,7 @@ const STATE_BADGE: Record<string, { bg: string; text: string; label: string }> =
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const demo = isDemo();
-  const demoPosition = useDemoPositionsStore((s) =>
-    params?.id ? s.positions.find((p) => p.id === params.id) ?? null : null,
-  );
-  const adjustTpSl = useDemoPositionsStore((s) => s.adjustTpSl);
-  const closePosition = useDemoPositionsStore((s) => s.closePosition);
-  const confirmExitOrders = useDemoPositionsStore((s) => s.confirmExitOrders);
-  const simulateExitFill = useDemoPositionsStore((s) => s.simulateExitFill);
-  const dismissCancelSibling = useDemoPositionsStore((s) => s.dismissCancelSibling);
-  const cancelSiblingHint = useDemoPositionsStore((s) =>
-    params?.id ? s.cancelSiblingHints[params.id] ?? null : null,
-  );
-  const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
+  const { placeOcoExit, replaceExits } = useExitOrders();
   const runtime = useRuntime();
   const { address: walletAddress } = useWallet();
 
@@ -51,9 +36,8 @@ export default function PositionDetailPage() {
   const [slDraft, setSlDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Live mode: read from /api/positions/[id]. Demo mode: useDemoPositionsStore
-  // owns the data. We unify into the shape the page uses (markPrice overlaid
-  // from the most recent bar, since the API returns DB state only).
+  // Read from /api/positions/[id] and overlay markPrice from the most recent
+  // bar since the API returns DB state only.
   const livePositionQuery = usePosition(params?.id);
   const livePosition = livePositionQuery.data ?? null;
   const liveMarkPrice =
@@ -79,7 +63,6 @@ export default function PositionDetailPage() {
   }, [livePosition?.orders]);
 
   const position = useMemo(() => {
-    if (demo) return demoPosition;
     if (!livePosition) return null;
     return {
       id: livePosition.id,
@@ -103,7 +86,7 @@ export default function PositionDetailPage() {
       closedReason: livePosition.closedReason,
       realizedPnl: livePosition.realizedPnl,
     };
-  }, [demo, demoPosition, livePosition, liveMarkPrice, liveDerivedTp, liveDerivedSl]);
+  }, [livePosition, liveMarkPrice, liveDerivedTp, liveDerivedSl]);
 
   useEffect(() => {
     if (!position) return;
@@ -176,12 +159,6 @@ export default function PositionDetailPage() {
   async function handleConfirmExit() {
     setBusy(true);
     try {
-      if (demo) {
-        await new Promise((r) => setTimeout(r, 700));
-        confirmExitOrders(position!.id);
-        toast.success('TP / SL trigger orders placed.');
-        return;
-      }
       if (!meta || !meta.mint) {
         toast.error(`${position!.ticker} mint not configured.`);
         return;
@@ -212,30 +189,6 @@ export default function PositionDetailPage() {
     }
   }
 
-  async function handleWithdraw() {
-    setBusy(true);
-    try {
-      if (demo) {
-        await new Promise((r) => setTimeout(r, 600));
-        dismissCancelSibling(position!.id);
-        toast.success('Vault funds withdrawn.');
-        return;
-      }
-      const cancelled = await cancelExits(position!.id);
-      dismissCancelSibling(position!.id);
-      const hadAny = cancelled.tpPriceUsd != null || cancelled.slPriceUsd != null;
-      if (!hadAny) {
-        toast('No open sibling order to cancel.');
-      } else {
-        toast.success('Vault withdrawn (OCO cancelled).');
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleSubmitTpSl() {
     if (!position) return;
     const tp = tpDraft === '' ? null : Number(tpDraft);
@@ -250,20 +203,15 @@ export default function PositionDetailPage() {
     }
     setBusy(true);
     try {
-      if (!demo) {
-        if (!walletAddress) {
-          toast.error('Wallet not connected.');
-          return;
-        }
-        await replaceExits({
-          positionId: position.id,
-          next: { tpPriceUsd: tp, slPriceUsd: sl },
-        });
-        await livePositionQuery.refetch();
-        toast.success('TP / SL updated.');
+      if (!walletAddress) {
+        toast.error('Wallet not connected.');
         return;
       }
-      adjustTpSl(position.id, tp, sl);
+      await replaceExits({
+        positionId: position.id,
+        next: { tpPriceUsd: tp, slPriceUsd: sl },
+      });
+      await livePositionQuery.refetch();
       toast.success('TP / SL updated.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -289,7 +237,6 @@ export default function PositionDetailPage() {
         // bit us on 2026-05-02 (sold 2× DB amount).
         tokenAmount: position.tokenAmount,
       });
-      closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);
       router.replace('/');
     } catch (err) {
@@ -359,15 +306,6 @@ export default function PositionDetailPage() {
           <EnterBanner position={position} busy={busy} onConfirm={handleConfirmExit} />
         )}
 
-        {position.state === 'CLOSED' && cancelSiblingHint && (
-          <CancelSiblingBanner
-            closedReason={position.closedReason ?? null}
-            siblingKind={cancelSiblingHint.siblingKind}
-            busy={busy}
-            onWithdraw={handleWithdraw}
-          />
-        )}
-
         {bars.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-lg p-5 shadow-soft">
             <h3 className="text-title-lg text-on-surface mb-3">Price history</h3>
@@ -407,19 +345,6 @@ export default function PositionDetailPage() {
               {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades against USDC via Jupiter; underlying exposure is held by the issuer.
             </p>
           </div>
-        )}
-
-        {demo && position.state === 'ACTIVE' && (
-          <DemoSimulator
-            onSimTp={() => {
-              simulateExitFill(position.id, 'TP');
-              toast.success('TP filled (simulated). SL cancel banner queued.');
-            }}
-            onSimSl={() => {
-              simulateExitFill(position.id, 'SL');
-              toast('SL filled (simulated). TP cancel banner queued.');
-            }}
-          />
         )}
 
         {position.state === 'ACTIVE' && (

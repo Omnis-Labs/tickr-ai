@@ -1,15 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import {
   BARE_TICKERS,
-  DEMO_MANDATE,
   MIN_ACTIONABLE_CONFIDENCE,
   SIGNAL_TTL_DEFAULT,
   WsServerEvents,
   bareToXStock,
-  makeDemoProposal,
-  makeDemoSignal,
   type BareTicker,
-  type DemoProposalShape,
   type IndicatorSnapshot,
   type Signal,
 } from '@hunch-it/shared';
@@ -116,8 +112,7 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
 
   // v1.3 Stage 2: hand the base analysis to the per-user Proposal Generator,
   // which writes Proposal rows for every matching mandate and emits per-user.
-  // Skipped in demo mode (demo loop already emits hand-crafted proposals).
-  if (!env.DEMO_MODE && signal.action === 'BUY') {
+  if (signal.action === 'BUY') {
     const prisma = getPrisma();
     if (prisma) {
       const baseTicker = signal.ticker.endsWith('x')
@@ -160,48 +155,6 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
   return signal;
 }
 
-// --- Demo mode --------------------------------------------------------------
-let demoCursor = 0;
-
-function emitDemoProposal(io: IoServer): DemoProposalShape {
-  const proposal = makeDemoProposal(demoCursor++);
-  // v1.3: per-user Socket.IO rooms. In demo we route to the demo wallet room.
-  // Client auth event joins that room, so any browser running demo mode
-  // receives the proposal.
-  io.to(`user:${DEMO_MANDATE.userId}`).emit(WsServerEvents.ProposalNew, proposal);
-  console.log(
-    `[demo] proposal ${proposal.ticker} ${proposal.action} TP=$${proposal.suggestedTakeProfitPrice} SL=$${proposal.suggestedStopLossPrice} id=${proposal.id}`,
-  );
-  return proposal;
-}
-
-function startDemoProposalLoop(io: IoServer): () => void {
-  const intervalMs = env.DEMO_INTERVAL_SECONDS * 1000;
-  let stopped = false;
-  // Kick off immediately so the user doesn't wait.
-  setTimeout(() => {
-    if (!stopped) emitDemoProposal(io);
-  }, 3_000);
-  const handle = setInterval(() => {
-    if (!stopped) emitDemoProposal(io);
-  }, intervalMs);
-  console.log(`[demo] proposal loop running every ${env.DEMO_INTERVAL_SECONDS}s`);
-  return () => {
-    stopped = true;
-    clearInterval(handle);
-  };
-}
-
-// Kept around in case the legacy SignalNew path is needed for testing; not
-// invoked by startSignalLoop in v1.3 demo mode.
-function emitDemoSignal(io: IoServer): Signal {
-  const signal = makeDemoSignal(demoCursor++);
-  io.emit(WsServerEvents.SignalNew, signal);
-  console.log(`[demo] emitted ${signal.ticker} ${signal.action} id=${signal.id}`);
-  return signal;
-}
-void emitDemoSignal;
-
 function pickRandomTicker(): BareTicker {
   const idx = Math.floor(Math.random() * BARE_TICKERS.length);
   return BARE_TICKERS[idx] ?? 'AAPL';
@@ -210,12 +163,9 @@ function pickRandomTicker(): BareTicker {
 /**
  * Long-running loop that walks the full ticker list every `intervalSeconds`.
  * Tickers are processed sequentially with `staggerSeconds` between each call
- * so we don't burst Hermes / Anthropic.
+ * so we don't burst Hermes / Gemini.
  */
 export function startSignalLoop(io: IoServer): () => void {
-  // v1.3 demo mode emits Proposals (not Signals) into per-user rooms.
-  if (env.DEMO_MODE) return startDemoProposalLoop(io);
-
   const intervalSeconds = env.SIGNAL_INTERVAL_SECONDS;
   const staggerSeconds = env.TICKER_STAGGER_SECONDS;
   let stopped = false;
