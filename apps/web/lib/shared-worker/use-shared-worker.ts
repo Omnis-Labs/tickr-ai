@@ -151,7 +151,6 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       }
       portRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, ready, walletConnected]);
 
   function sendApproval(payload: ApprovalDecisionPayload) {

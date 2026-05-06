@@ -3,8 +3,6 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { XSTOCKS, xStockToBare, type DemoProposalShape, type XStockTicker } from '@hunch-it/shared';
-import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
 import { num } from '@/lib/utils/fmt';
@@ -23,10 +21,6 @@ function fmtTtl(expiresAt: string): string {
 }
 
 export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
-  const { address } = useWallet();
-  const demo = isDemo();
-  const wallet = demo ? 'demo-wallet' : address;
-
   // Pull seed proposals via the centralised hook so cache invalidation from
   // mutations (skip / execute) updates this feed without local plumbing.
   const { data, isLoading } = useProposals();
