@@ -82,9 +82,9 @@ Response `404`: Proposal not found or not owned by user.
 
 ---
 
-**`POST /api/proposals/[id]/execute`** — Execute a proposal (approve BUY, create Position + Trade + Order).
+**`POST /api/proposals/[id]/execute`** — Accept a proposal into synthetic trigger state.
 
-This is the primary "Place Order" endpoint. Called after the frontend completes the Jupiter 4-step flow.
+This is the primary "Approve" endpoint. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. The later `trigger:hit` tap-to-execute flow performs the Jupiter Ultra swap.
 
 Request:
 
@@ -94,8 +94,8 @@ Request:
   "actualTriggerPrice": 174.5,
   "actualTpPrice": 195.0,
   "actualSlPrice": 168.0,
-  "jupiterOrderId": "jupiter-order-id-string",
-  "txSignature": "solana-tx-signature"
+  "jupiterOrderId": null,
+  "txSignature": null
 }
 ```
 
@@ -362,65 +362,62 @@ Expired, skipped, and executed proposals are still queryable via `GET /api/propo
 
 ## Order State Transitions
 
-| From    | Event                           | To        | Side Effects                                                                              |
-| ------- | ------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| PENDING | Jupiter submit succeeds         | OPEN      | Store `jupiterOrderId`, `txSignature`                                                     |
-| PENDING | Submit fails                    | FAILED    | Show retry option                                                                         |
-| OPEN    | Fill detected (Order Tracker)   | FILLED    | Set `executionPrice`, `filledAmount`, `filledAt`. Trigger downstream (Auto TP/SL or OCO). |
-| OPEN    | Expiry detected (Order Tracker) | EXPIRED   | Prompt vault fund reclaim                                                                 |
-| OPEN    | User cancel succeeds            | CANCELLED | Return vault funds                                                                        |
-| OPEN    | Jupiter in-place edit succeeds  | OPEN      | Update `triggerPriceUsd`                                                                  |
+| From    | Event                                                      | To        | Side Effects                                                                                                  |
+| ------- | ---------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| OPEN    | `POST /execution-claim` succeeds                           | PENDING   | Claim execution before any wallet signing; BUY moves `BUY_PENDING → ENTERING`, exits move `ACTIVE → CLOSING`. |
+| PENDING | Jupiter Ultra `/execute` returns signature, then DB settles | FILLED    | Set `txSignature`, execution price, token amount. BUY arms TP/SL Orders; TP/SL cancels sibling exit.           |
+| PENDING | Swap fails before Jupiter Ultra returns signature           | OPEN      | `DELETE /execution-claim` releases the claim for retry.                                                       |
+| OPEN    | User cancel succeeds                                       | CANCELLED | Cancel synthetic BUY trigger; close parent `BUY_PENDING` Position.                                            |
+| OPEN    | TP/SL edit succeeds                                        | OPEN      | Replace the matching synthetic exit Order in DB.                                                              |
 
 ---
 
-## Jupiter Trigger Order v2 — Execution Flow
+## Synthetic Trigger + Jupiter Ultra Execution Flow
 
-### BUY Order Placement (4-step flow)
+### BUY Proposal Acceptance
 
-When a user approves a proposal and taps "Place Order":
+When a user approves a proposal:
 
 ```
-Step 1: GET  /trigger/v2/vault
-        -> Get or register the user's Jupiter vault address
-
-Step 2: POST /trigger/v2/deposit/craft
-        -> Build a deposit transaction (wallet -> vault)
-        -> Returns unsigned transaction
-
-Step 3: Privy embedded wallet signs the deposit transaction
-
-Step 4: POST /trigger/v2/orders/price
-        -> Submit signed deposit tx + order parameters
-        -> Returns { id, txSignature }
+POST /api/proposals/[id]/execute
+  -> Position(BUY_PENDING)
+  -> Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)
 ```
 
-**Failure recovery by step:**
+No Jupiter request happens here.
 
-- Step 1-2 fail: No funds moved. Show error, retry.
-- Step 3 (user rejects signature): No funds moved. Show "Transaction was not signed. No order was placed."
-- Step 3 succeeds, Step 4 fails: Deposit may be confirmed but order not created. Funds are in Jupiter vault. Show "Deposit confirmed but order creation failed." Offer retry order creation or fund withdrawal.
-- Step 4 succeeds: Call `POST /api/proposals/[id]/execute` to persist all records atomically.
+### Tap-to-Execute Trigger Fill
 
-**Record creation timing**: DB records (Position, Trade, Order) are created ONLY after Step 4 succeeds, via the `/execute` endpoint. No records are created before the Jupiter order is confirmed.
+When the ws-server emits `trigger:hit` and the user taps Execute:
 
-### Auto TP/SL Placement (after BUY fills)
+1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
+2. Browser requests Jupiter Ultra `/order`.
+3. Browser asks Privy `signTransaction` to sign the user/taker signature slot.
+4. Browser sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
+5. If Jupiter returns a signature, browser posts `{ txSignature, executionPrice, tokenAmount }` to `POST /api/orders/[id]/execute`.
+6. If the swap fails before Jupiter returns a signature, browser releases the claim with `DELETE /api/orders/[id]/execution-claim`.
 
-When the Order Tracker detects a BUY fill:
+**Failure recovery by phase:**
 
-1. Update BUY Order: `status = FILLED`, set `executionPrice`, `filledAmount`, `filledAt`
-2. Update Position: set `entryPrice`, `tokenAmount`, `totalCost`, `firstEntryAt`, `state = ENTERING`
-3. Create Order `(kind = TAKE_PROFIT, side = SELL, status = PENDING)`, place via Jupiter, set `status = OPEN`, store `jupiterOrderId`
-4. Create Order `(kind = STOP_LOSS, side = SELL, status = PENDING)`, place via Jupiter, set `status = OPEN`, store `jupiterOrderId`
-5. Update Position: set `currentTpPrice`, `currentSlPrice`, `state = ACTIVE`
-6. If either placement fails, retry. Position stays `ENTERING` until both succeed.
-7. Emit `position:updated` to user
+- Claim fails: another tab/user action already owns or settled the Order; do not start a swap.
+- Ultra `/order`, signing, or `/execute` fails before a signature: release claim and allow retry.
+- Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
+
+### BUY Fill Settlement
+
+When `POST /api/orders/[id]/execute` settles a BUY:
+
+1. `Order.status` moves `PENDING` (or legacy `OPEN`) to `FILLED`.
+2. `Position.state` moves `ENTERING` (or legacy `BUY_PENDING`) to `ACTIVE`.
+3. Trade row records `source=BUY_APPROVAL`.
+4. Two synthetic exit Orders are created: `TAKE_PROFIT(OPEN)` and `STOP_LOSS(OPEN)`.
 
 ### OCO Behavior (One-Cancels-Other)
 
-When the Order Tracker detects a TP or SL fill:
+When a TP or SL synthetic Order is executed and settled:
 
-1. Update filled Order: `status = FILLED`
-2. Cancel the other exit order, update: `status = CANCELLED`
+1. Filled exit Order moves `PENDING` (or legacy `OPEN`) to `FILLED`.
+2. Sibling exit Order moves `OPEN` to `CANCELLED`.
 3. Calculate `realizedPnl` on the Position
 4. Update Position: `state = CLOSED`, set `closedAt`, `closedReason` (TP_FILLED or SL_FILLED)
 5. Record a Trade with `source = TP_FILL` or `SL_FILL`, `proposalId` pointing to original BUY proposal
@@ -442,13 +439,9 @@ If swap fails after both cancels succeed: Position stays `CLOSING` with no exit 
 
 ### Cancel BUY Pending Order
 
-1. Initiate cancellation via `POST /api/orders/[id]/cancel`
-2. Build withdrawal transaction (vault to wallet)
-3. Privy wallet signs the withdrawal
-4. Confirm the withdrawal
-5. Funds return from Jupiter vault to wallet
-6. Update Order: `status = CANCELLED`
-7. Update Position: `state = CLOSED`, `closedReason = BUY_CANCELLED`
+1. Cancel via `POST /api/orders/[id]/cancel`
+2. Server atomically updates Order: `status = CANCELLED`
+3. Server closes the parent `BUY_PENDING` Position with `closedReason = BUY_CANCELLED`
 
 ### Open Orders — Allowed Actions
 

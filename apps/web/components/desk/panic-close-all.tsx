@@ -26,10 +26,10 @@ interface Props {
  * sells exactly the position size — not the wallet's full balance for
  * that mint, which would sweep dust or sibling holdings.
  *
- * Sequential, not parallel: Privy's signAndSendTransaction broadcasts
- * via a shared RPC, and parallel fires would race the same blockhash
- * window + thrash the wallet's tx queue. One position at a time keeps
- * each fill cleanly attributable in the DB.
+ * Sequential, not parallel: each close requests a Jupiter Ultra order,
+ * obtains the user's signature, and submits through Ultra /execute. One
+ * position at a time keeps wallet prompts orderly and each fill cleanly
+ * attributable in the DB.
  *
  * BUY_PENDING / ENTERING positions are not closed here — they have no
  * tokens to sell. Filter happens at the caller; we only render when

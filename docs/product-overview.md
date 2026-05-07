@@ -1,6 +1,6 @@
 # Hunch — Product Overview
 
-> AI trading signals with one-tap execution for tokenized stocks & crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute via Jupiter Trigger Orders, and get automatic exit protection on every position.
+> AI trading signals with tap-to-execute swaps for tokenized stocks & crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute synthetic trigger Orders through Jupiter Ultra, and get automatic exit protection on every position.
 >
 > Domain: <app-domain> | v1.3 | 2026-04-27
 
@@ -15,8 +15,9 @@ The entire experience runs as a PWA with an embedded Solana wallet (via Privy). 
 ## The Core Loop
 
 ```
-Login → Mandate Setup → Home → Review BUY Proposal → Place Order
-→ BUY Fills → TP/SL Auto-Protected → Adjust TP/SL or Close Position
+Login → Mandate Setup → Home → Review BUY Proposal → Accept Synthetic Order
+→ trigger:hit → Tap Execute → Jupiter Ultra /execute → TP/SL Protected
+→ Adjust TP/SL or Close Position
 ```
 
 ## Minimum Wowable Product (MWP) Definition
@@ -29,9 +30,9 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 
 2. **Proposals are actionable.** Each proposal includes: asset, suggested size, trigger price, take-profit price, stop-loss price, expiry, and three-part reasoning (what changed, why this trade, why it fits your mandate). Users can adjust parameters before executing.
 
-3. **Execution has built-in protection.** After a BUY fills, the system automatically places TP and SL trigger orders. One-Cancels-Other (OCO) behavior: when one side fills, the system cancels the other.
+3. **Execution has built-in protection.** After a BUY fills, the system automatically creates TP and SL synthetic exit Orders. One-Cancels-Other (OCO) behavior: when one side fills, the system cancels the other.
 
-4. **The trust path is complete.** Users always know: where their funds are (wallet vs. Jupiter vault), what state each order is in, and what state each position is in.
+4. **The trust path is complete.** Users always know that funds stay in their wallet until they tap Execute, what state each synthetic Order is in, and what state each Position is in.
 
 ---
 
@@ -42,8 +43,8 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **PWA** (single interface with manifest + service worker, no native app)
 - **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
-- **Trigger-based limit order execution** via Jupiter Trigger Order API v2
-- **Automatic TP/SL**: system places exit orders after BUY fills, with OCO behavior
+- **Synthetic trigger execution**: ws-server watches Pyth, emits `trigger:hit`, and the user taps Execute to run a Jupiter Ultra sponsored swap
+- **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
 - **Signal Engine**: independent backend (ws-server) using Pyth price feeds + technical indicators + Claude Sonnet/Opus LLM to generate personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
 - **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
@@ -61,7 +62,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 | Integrator swap fees                   | v2                                                                                                                                                                  |
 | Remote push notifications              | PWA web push is unreliable on iOS. In-session browser desktop notifications (via HTML5 Notification API) ARE included when the app has an active tab/Shared Worker. |
 | Fiat onramp                            | Users must bring their own USDC on Solana                                                                                                                           |
-| Gas sponsoring                         | Users must bring their own SOL                                                                                                                                      |
+| Autonomous execution                   | The frozen architecture is tap-to-execute; server-side delegated signing is out of scope                                                                            |
 | Historical performance charts          | v1 shows current state only                                                                                                                                         |
 | Multi-language                         | English only                                                                                                                                                        |
 | Leaderboard                            | v2                                                                                                                                                                  |
@@ -103,8 +104,10 @@ Issued by Backed Finance, traded via Jupiter on Solana.
 - [ ] Proposal includes TP/SL exit conditions
 - [ ] User can adjust size, trigger price, TP, SL
 - [ ] User can skip and provide a reason
-- [ ] User can place a Jupiter Trigger Order
-- [ ] BUY fill triggers automatic TP/SL placement
+- [ ] User can accept a synthetic BUY trigger Order
+- [ ] `trigger:hit` toast lets the user tap Execute
+- [ ] Jupiter Ultra `/order` + Privy user signature + `/execute` fills the BUY
+- [ ] BUY fill creates automatic TP/SL synthetic exit Orders
 - [ ] TP/SL fill triggers automatic cancellation of the other side (OCO)
 - [ ] User can adjust TP/SL on Position Detail
 - [ ] User can manually Close Position (market price, full sell)

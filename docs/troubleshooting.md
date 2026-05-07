@@ -14,11 +14,10 @@ Common issues when running Hunch It locally.
 | App cannot connect to ws-server             | `apps/ws-server` is not running or `NEXT_PUBLIC_WS_URL` is wrong                         | Run `pnpm dev` or `pnpm dev:ws`; check `NEXT_PUBLIC_WS_URL=http://localhost:4000`          |
 | No proposals appear                         | No mandate, no USDC, market scanner has not produced a BUY, or ws-server is disconnected | Create a mandate, add USDC in live mode, check ws-server logs, and refresh the Home screen |
 | Deposit section never goes away             | Portfolio sync has not seen the wallet balance yet                                       | Confirm USDC is on Solana, then reload or trigger portfolio sync                           |
-| Order placement says insufficient USDC      | Available USDC excludes funds locked in open Jupiter trigger order vaults                | Check Open Orders and cancel/withdraw expired BUY orders if needed                         |
-| Order placement says SOL is required        | Wallet has USDC but no SOL for transaction fees                                          | Send a small amount of SOL to the Privy wallet                                             |
+| Order placement says insufficient USDC      | Wallet USDC is lower than the proposal size; synthetic Orders do not lock funds in a vault | Fund the wallet or reduce size before accepting/executing                                  |
 | Proposal disappeared after editing mandate  | Active proposals are invalidated when the mandate changes                                | This is expected; wait for new proposals based on the updated mandate                      |
-| BUY order is open but no position is active | Trigger order has not filled yet                                                         | Check Open Orders; the position stays `BUY_PENDING` until fill                             |
-| Position is stuck in `ENTERING`             | BUY filled, but TP/SL placement is still retrying                                        | Keep ws-server running and check logs for Jupiter errors                                   |
+| BUY order is open but no position is active | Synthetic trigger has not been executed yet                                               | Wait for/force `trigger:hit`, then tap Execute                                             |
+| Position is stuck in `ENTERING` or `CLOSING` | A trigger execution claim is still pending after signing/submission                       | Check `/dev-tools` logs and retry/reconcile; claims release only for pre-signature failures |
 | TP/SL edit fails                            | The order or position is not editable                                                    | Only active TP/SL orders for an `ACTIVE` position can be edited                            |
 | Close Position fails before swap            | One of the exit-order cancellations failed                                               | The app should retry cancellation before attempting the market sell                        |
 | Price chart unavailable                     | Pyth Benchmarks or Hermes is unreachable                                                 | Retry later; trading state can still be inspected without chart data                       |
@@ -32,7 +31,7 @@ If `/dev-tools` does not unlock or emit triggers:
 1. Confirm `ENABLE_DEV_TOOLS=true` in both web and ws-server env files.
 2. Confirm `DEV_TOOLS_PASSWORD` matches on web and ws-server.
 3. Restart `pnpm dev` or `docker compose up --build -d` after changing env vars.
-4. Check browser console and ws-server logs for `[dev-tools]`.
+4. Check `/dev-tools` structured logs first. Client diagnostics stay in the browser log so local terminals do not fill with copied swap payloads.
 
 ## Browser Notifications
 

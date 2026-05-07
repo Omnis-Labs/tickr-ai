@@ -8,13 +8,12 @@
 
 ## Overview
 
-The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. It has five responsibilities:
+The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In the frozen synthetic-trigger architecture, only proposal generation and trigger monitoring are in the default runtime; tracker/eval/thesis jobs are env-gated.
 
 1. **Market Scanner** — monitor all supported assets for trading opportunities
 2. **Proposal Generator** — convert opportunities into personalized BUY proposals per user
-3. **Order Tracker** — poll Jupiter for order status changes (fills, expirations, cancellations)
-4. **Auto TP/SL Placer** — place exit orders after BUY fills
-5. **Back-Evaluator** — score proposal quality after the fact
+3. **Trigger Monitor** — poll Pyth for OPEN synthetic Orders and emit `trigger:hit`
+4. **Back-Evaluator** — score proposal quality after the fact (env-gated)
 
 The pipeline is split into two stages to balance performance and cost (LLM calls) against personalization (per-user context).
 
@@ -152,45 +151,42 @@ Users can adjust the size on Proposal Detail. If the adjusted size exceeds `maxT
 
 ---
 
-## Order Tracker
+## Trigger Monitor
 
 Runs every 30 seconds in the ws-server.
 
 ### Cycle
 
-1. Query all Orders with `status = OPEN`
-2. Batch call Jupiter Trigger Order History API to get latest statuses
-3. **Filled** → update Order + Position + Trade, trigger downstream actions:
-   - BUY fill → invoke Auto TP/SL Placer
-   - TP or SL fill → invoke OCO cancel logic
-4. **Expired** → update Order status, notify user to reclaim vault funds
-5. **Cancelled** → update Order status
+1. Query all synthetic Orders with `status = OPEN`
+2. Fetch current Pyth price for each ticker
+3. Check trigger condition:
+   - BUY: current price within the configured trigger band
+   - TP: current price >= trigger price
+   - SL: current price <= trigger price
+4. Emit `trigger:hit` to the user's Socket.IO room. **No DB writes happen here.**
+5. The browser performs tap-to-execute: execution claim, Jupiter Ultra `/order`, Privy user signature, Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` to settle DB state.
 
-The tracker is idempotent: it selects only OPEN orders and updates them atomically. Jupiter API 5xx errors do not mark orders as FAILED; the tracker retries on the next cycle.
+The monitor is intentionally idempotent: it may re-emit the same OPEN Order every poll until the user executes, cancels, or the Order is filled.
 
 ---
 
-## Auto TP/SL Placer
+## TP/SL Arming And OCO Settlement
 
-Triggered by the Order Tracker when a BUY order fills.
+Handled by `POST /api/orders/[id]/execute` after a Jupiter Ultra swap succeeds.
 
 ### Flow
 
-1. Update Position: set `entryPrice`, `tokenAmount`, `state = ENTERING`
-2. Place TP trigger order using the user's confirmed TP price
-3. Place SL trigger order using the user's confirmed SL price
-4. Both succeed → Position `state = ACTIVE`
-5. Either fails → retry; Position remains `ENTERING` until both are placed
+1. BUY fill: update Position with actual entry data and create OPEN synthetic TP + SL Orders.
+2. TP/SL fill: mark the filled exit Order, cancel the sibling exit Order, close the Position, and record realized P&L.
 
 ### OCO (One-Cancels-Other)
 
-When the Order Tracker detects a TP or SL fill:
+When the browser executes and settles a TP or SL fill:
 
-1. Cancel the other unfilled exit order
+1. Cancel the sibling OPEN exit Order
 2. Calculate `realizedPnl`
 3. Update Position: `state = CLOSED`
 4. Record Trade (source = `TP_FILL` or `SL_FILL`)
-5. Push notification to user
 
 ---
 

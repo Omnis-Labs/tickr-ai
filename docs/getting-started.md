@@ -95,7 +95,7 @@ DEV_TOOLS_PASSWORD=<choose-a-local-password>
 GEMINI_API_KEY=<optional-for-LLM-proposals>
 ```
 
-Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from live Pyth bars, accept them into real `Position` and `Order` rows, force `trigger:hit` for owned dev orders, execute the real Jupiter Ultra swap, adjust TP/SL, and copy structured logs.
+Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from live Pyth bars, accept them into real `Position` and `Order` rows, force `trigger:hit` for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, adjust TP/SL, and copy the full structured browser diagnostics from the `/dev-tools` log.
 
 ---
 

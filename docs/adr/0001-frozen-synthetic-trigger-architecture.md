@@ -14,8 +14,8 @@ The product is frozen on the synthetic-trigger model. Its shape:
 
 1. **Approve** a BUY proposal writes a `Position(BUY_PENDING)` and a single `Order(kind=BUY_TRIGGER, status=OPEN, jupiterOrderId=null)` to Postgres. **No Jupiter call. No signature. No USDC lock.**
 2. **`apps/ws-server`** runs `runTriggerMonitor` every 30 s. It polls Pyth Hermes for every OPEN synthetic order's ticker, checks the trigger condition (BUY: within 0.5 % of trigger; TP: ≥; SL: ≤), and emits `trigger:hit` over Socket.IO to `user:<walletAddress>`. **No DB writes.**
-3. **The user** sees a sticky toast and taps **Execute**. The frontend signs and broadcasts a Jupiter **Ultra** swap (Privy `useSignAndSendTransaction` with raw `Uint8Array` + `skipPreflight=true`).
-4. **`POST /api/orders/[id]/execute`** settles: marks the Order `FILLED`, transitions `Position` to `ACTIVE` (BUY) or `CLOSED` (TP/SL), records a `Trade`, arms or OCO-cancels exit Orders.
+3. **The user** sees a sticky toast and taps **Execute**. The frontend claims the Order (`OPEN → PENDING`), requests a Jupiter **Ultra** `/order`, has Privy sign the user's/taker's signature slot with `signTransaction`, then submits the signed bytes to Jupiter Ultra `/execute`. Jupiter returns the on-chain signature for the sponsored swap.
+4. **`POST /api/orders/[id]/execute`** settles after the Ultra swap returns a signature: marks the Order `FILLED`, transitions `Position` to `ACTIVE` (BUY) or `CLOSED` (TP/SL), records a `Trade`, arms or OCO-cancels exit Orders.
 
 The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-server detects, user confirms, frontend swaps. Server-side delegated signing is out of scope for this freeze.
 
@@ -27,7 +27,7 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 - `apps/ws-server` `trigger-monitor` task (the only required ws-server service)
 - Privy embedded wallet (Solana)
 - Pyth Hermes price feeds
-- Jupiter Ultra swap aggregator (client-side, user-signed)
+- Jupiter Ultra swap aggregator (client-side user signature, Jupiter `/execute` relay for sponsored execution)
 - Postgres / Prisma; one shared DB; one Prisma client per process
 
 ### What is now opt-in (env-gated, default off)
@@ -47,7 +47,7 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 ### What is residual but kept (deliberate)
 
 - **`Order.jupiterOrderId`** column. Always `null` under the frozen model but retained because (a) dropping a column requires a Postgres migration that's not on the cohesive-core critical path, (b) the gated `runOrderTracker` task still type-references it. Treat it as vestigial; do not write it.
-- **`Position.state` values `ENTERING` and `CLOSING`**. These are now used as short-lived execution-claim states while the browser is signing/broadcasting a synthetic trigger swap: `BUY_PENDING → ENTERING → ACTIVE` for BUY fills and `ACTIVE → CLOSING → CLOSED` for TP/SL fills. If the wallet swap fails before broadcast, the claim is released back to `BUY_PENDING` or `ACTIVE`.
+- **`Position.state` values `ENTERING` and `CLOSING`**. These are now used as short-lived execution-claim states while the browser is signing/submitting a synthetic trigger swap: `BUY_PENDING → ENTERING → ACTIVE` for BUY fills and `ACTIVE → CLOSING → CLOSED` for TP/SL fills. If the wallet swap fails before Jupiter Ultra `/execute` returns a signature, the claim is released back to `BUY_PENDING` or `ACTIVE`.
 - **`Order.status` value `PENDING`**. This is now the short-lived execution-claim status for synthetic trigger Orders. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING` before any on-chain swap starts; `/execute` consumes either `OPEN` (legacy/no-claim path) or `PENDING`; `DELETE /execution-claim` releases only pre-broadcast failures. `PARTIALLY_FILLED`, `EXPIRED`, and `FAILED` remain residual enum values in the frozen synthetic path.
 - **Legacy v1.2 types in `packages/shared/src/types.ts`** (`Signal`, `SignalSchema`, `Approval*`, `LlmSignalOutput`, `TradeStatus`, the legacy `Trade`/`Position` Zod shapes that collide with Prisma names, `WsServerEvents.SignalNew/SignalExpired`, `WsClientEvents.ApprovalDecision`). Still wired through the parallel signal/proposal flow (`signal-modal`, `apps/ws-server/src/signals/generator.ts`, `/signals/[id]`). Merging that flow into the proposal flow is its own deepening candidate; do not touch in this pass.
 
@@ -79,7 +79,7 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
    proposal source, see note above).
 5. Tap **Approve** → `Order(BUY_TRIGGER, status=OPEN)` and `Position(BUY_PENDING)` exist.
 6. Force or wait for the BUY trigger to fire → toast appears.
-7. Tap **Execute** → Jupiter Ultra swap signs and broadcasts; `/execute` settles `Order=FILLED`, `Position=ACTIVE`; **two** OPEN exit Orders (TP, SL) exist.
+7. Tap **Execute** → Jupiter Ultra `/order` is signed by the user, Jupiter Ultra `/execute` returns a signature, then our `/execute` settles `Order=FILLED`, `Position=ACTIVE`; **two** OPEN exit Orders (TP, SL) exist.
 8. Open `/positions/[id]` → TP and SL render from the OPEN exit Orders; adjust either → the corresponding Order updates.
 9. Force or wait for a TP or SL trigger → toast → tap **Execute** → `Order=FILLED`, sibling Order = `CANCELLED`, `Position=CLOSED`, realized P&L recorded.
 10. From `/desk`, **panic-close** any open `Position` → cleanly closes and cancels its open exits.

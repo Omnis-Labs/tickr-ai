@@ -7,9 +7,10 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
 /**
  * POST /api/positions/[id]/close
  *
- * Manual market-close of an ACTIVE position. The client has already broadcast
- * the Jupiter Ultra SELL swap and supplies its (txSignature, executionPrice,
- * tokenAmount). This route delegates to userCloseActive which:
+ * Manual market-close of an ACTIVE position. The client has already submitted
+ * a user-signed Jupiter Ultra SELL swap to `/execute` and supplies its
+ * (txSignature, executionPrice, tokenAmount). This route delegates to
+ * userCloseActive which:
  *   • cancels both OPEN exit Orders (TP + SL) for the Position,
  *   • flips Position state ACTIVE → CLOSED with closedReason=USER_CLOSE,
  *   • creates a synthetic CLOSE_SWAP Order carrying the txSignature (this is
