@@ -2,7 +2,6 @@
 
 import { useCallback } from 'react';
 import {
-  LAMPORTS_PER_SOL,
   PublicKey,
   Transaction,
   TransactionInstruction,
