@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
-import { readUsdcBalance } from '@/lib/solana/usdc-balance';
+import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
 
 /**
  * GET /api/portfolio
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const [openPositions, recentTrades, cashUsd] = await Promise.all([
+  const [openPositions, recentTrades, cashUsd, solBalance] = await Promise.all([
     prisma.position.findMany({
       where: { userId: auth.userId, state: { not: 'CLOSED' } },
       orderBy: { firstEntryAt: 'desc' },
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     // per wallet inside the helper so the desk page's 15s portfolio
     // refetch doesn't pound the RPC. Returns 0 on failure.
     readUsdcBalance(auth.walletAddress),
+    readSolBalance(auth.walletAddress),
   ]);
 
   // Realized PnL = sum of all SELL-side Trade.realizedPnl (BUY trades have
@@ -75,5 +76,6 @@ export async function GET(req: NextRequest) {
     trades,
     pnl: { realized, unrealized },
     cashUsd,
+    solBalance,
   });
 }
