@@ -83,6 +83,7 @@ export default function WithdrawPage() {
   const [prepared, setPrepared] = useState<PreparedWalletTransfer | null>(null);
   const [result, setResult] = useState<WalletTransferResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMax, setIsLoadingMax] = useState(false);
@@ -103,6 +104,7 @@ export default function WithdrawPage() {
     setPrepared(null);
     setResult(null);
     setError(null);
+    setSendError(null);
   }
 
   function changeAsset(next: TransferAsset) {
@@ -140,6 +142,7 @@ export default function WithdrawPage() {
       setAmount(max);
       setPrepared(null);
       setResult(null);
+      setSendError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -150,6 +153,7 @@ export default function WithdrawPage() {
   async function prepareTransfer() {
     setError(null);
     setResult(null);
+    setSendError(null);
     setIsPreparing(true);
     try {
       const next = await transfer.prepare({
@@ -168,7 +172,7 @@ export default function WithdrawPage() {
 
   async function sendTransfer() {
     if (!prepared) return;
-    setError(null);
+    setSendError(null);
     setIsSending(true);
     try {
       const nextResult = await transfer.send(prepared);
@@ -176,7 +180,7 @@ export default function WithdrawPage() {
       void queryClient.invalidateQueries({ queryKey: QK.portfolio() });
     } catch (err) {
       setResult(null);
-      setError(err instanceof Error ? err.message : String(err));
+      setSendError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSending(false);
     }
@@ -383,7 +387,11 @@ export default function WithdrawPage() {
               <ReviewCard
                 prepared={prepared}
                 isSending={isSending}
-                onEdit={() => setPrepared(null)}
+                sendError={sendError}
+                onEdit={() => {
+                  setPrepared(null);
+                  setSendError(null);
+                }}
                 onSend={sendTransfer}
               />
             )}
@@ -395,6 +403,7 @@ export default function WithdrawPage() {
                 onNewTransfer={() => {
                   setPrepared(null);
                   setResult(null);
+                  setSendError(null);
                   setAmount('');
                   setDestinationAddress('');
                 }}
@@ -410,11 +419,13 @@ export default function WithdrawPage() {
 function ReviewCard({
   prepared,
   isSending,
+  sendError,
   onEdit,
   onSend,
 }: {
   prepared: PreparedWalletTransfer;
   isSending: boolean;
+  sendError: string | null;
   onEdit: () => void;
   onSend: () => void;
 }) {
@@ -451,6 +462,11 @@ function ReviewCard({
       <p className="text-body-sm text-on-surface-variant mt-3">
         Fees may still be charged if a submitted transaction fails on-chain.
       </p>
+      {sendError && (
+        <div className="rounded-lg bg-negative-container text-on-error-container px-4 py-3 text-body-sm mt-3">
+          {sendError}
+        </div>
+      )}
 
       <button
         type="button"
