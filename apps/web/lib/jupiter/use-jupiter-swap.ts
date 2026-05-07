@@ -2,14 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { parseRpcUrls, TOKEN_2022_PROGRAM_ID, USDC_DECIMALS, USDC_MINT } from '@hunch-it/shared';
 import {
-  TOKEN_2022_PROGRAM_ID,
-  USDC_DECIMALS,
-  USDC_MINT,
-} from '@hunch-it/shared';
-import {
+  executeUltraOrder,
   requestUltraOrder,
   type UltraExecuteResponse,
   type UltraOrderResponse,
@@ -28,8 +25,67 @@ function fromBase64(str: string): Uint8Array {
   for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
   return arr;
 }
-// toBase64 retained for potential future Ultra /execute fallback path.
-void toBase64;
+// Jupiter Ultra /execute accepts the signed transaction as base64.
+
+const BLOCKHASH_WARN_MS = 15_000;
+const BLOCKHASH_RISK_MS = 30_000;
+const BLOCKHASH_REFRESH_MS = 45_000;
+const BLOCKHASH_CHECK_TIMEOUT_MS = 900;
+const BLOCKHASH_CHECK_RPC_LIMIT = 3;
+const PRE_BROADCAST_SIMULATION_TIMEOUT_MS = 2_500;
+const PRE_BROADCAST_SIMULATION_RPC_LIMIT = 3;
+const PROGRAM_ID_SAMPLE_LIMIT = 10;
+
+export type BlockhashAgeBucket = 'healthy' | 'warn' | 'risk' | 'refresh-recommended' | 'unknown';
+
+export interface BlockhashValidityDiagnostic {
+  index: number;
+  rpc: string;
+  isPrivyPrimary: boolean;
+  valid: boolean | null;
+  contextSlot: number | null;
+  latencyMs: number;
+  error: string | null;
+}
+
+export interface SwapSellBalanceDebug {
+  walletRaw: string;
+  requestedRaw: string | null;
+  submittedRaw: string;
+}
+
+export interface TransactionShapeDebug {
+  version: string;
+  signatureCount: number;
+  zeroSignatureCount: number;
+  requiredSignatures: number;
+  readonlySignedAccounts: number;
+  readonlyUnsignedAccounts: number;
+  staticAccountKeys: number;
+  addressTableLookups: number;
+  compiledInstructions: number;
+  feePayer: string | null;
+  signerKeys: string[];
+  instructionProgramIds: string[];
+}
+
+export interface PreBroadcastSimulationDiagnostic {
+  index: number;
+  rpc: string;
+  isPrivyPrimary: boolean;
+  err: string | null;
+  logsCount: number | null;
+  logsSample: string[] | null;
+  unitsConsumed: number | null;
+  contextSlot: number | null;
+  latencyMs: number;
+  error: string | null;
+}
+
+export interface SwapDiagnosticsOptions {
+  source?: string;
+  checkBlockhash?: boolean;
+}
 
 export interface SwapResult {
   order: UltraOrderResponse;
@@ -40,9 +96,10 @@ export interface SwapResult {
   inputAmount: string;
   /** Token-units of the output asset that should arrive. */
   outputAmount: string;
+  debug: JupiterSwapDebug;
 }
 
-export type JupiterSwapPhase = 'prepare' | 'balance' | 'order' | 'deserialize' | 'broadcast';
+export type JupiterSwapPhase = 'prepare' | 'balance' | 'order' | 'deserialize' | 'sign' | 'execute';
 
 export interface JupiterSwapDebug {
   phase: JupiterSwapPhase;
@@ -57,6 +114,28 @@ export interface JupiterSwapDebug {
   orderOutAmount: string | null;
   otherAmountThreshold: string | null;
   priceImpactPct: string | null;
+  diagnosticsSource: string | null;
+  selectedPrivyRpc: string | null;
+  rpcUrls: string[];
+  orderFetchedAt: string | null;
+  orderLatencyMs: number | null;
+  deserializedAt: string | null;
+  transactionBytes: number | null;
+  transactionShape: TransactionShapeDebug | null;
+  recentBlockhash: string | null;
+  blockhashValidity: BlockhashValidityDiagnostic[] | null;
+  preBroadcastSimulation: PreBroadcastSimulationDiagnostic[] | null;
+  broadcastStartedAt: string | null;
+  broadcastEndedAt: string | null;
+  broadcastLatencyMs: number | null;
+  orderAgeMsAtBroadcast: number | null;
+  orderAgeBucket: BlockhashAgeBucket;
+  signedTransactionBytes: number | null;
+  signedTransactionShape: TransactionShapeDebug | null;
+  executeStatus: UltraExecuteResponse['status'] | null;
+  executeError: string | null;
+  signature: string | null;
+  sellBalance: SwapSellBalanceDebug | null;
   originalMessage: string;
 }
 
@@ -99,10 +178,188 @@ interface SellAmountArgs {
    *  positions in the same mint that happen to share the wallet. */
   tokenAmount: number;
 }
-export type SwapArgs = BuyArgs | SellAllArgs | SellAmountArgs;
+export type SwapArgs = (BuyArgs | SellAllArgs | SellAmountArgs) & {
+  diagnostics?: SwapDiagnosticsOptions;
+};
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function stringifySmall(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, (_key, item) =>
+      typeof item === 'bigint' ? `${item.toString()}n` : item,
+    );
+  } catch {
+    return String(value);
+  }
+}
+
+function maskRpcUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const hasPathSecret = parsed.pathname !== '' && parsed.pathname !== '/';
+    return `${parsed.protocol}//${parsed.host}${hasPathSecret ? '/...' : ''}`;
+  } catch {
+    return url.length > 48 ? `${url.slice(0, 24)}...${url.slice(-12)}` : url;
+  }
+}
+
+function blockhashAgeBucket(ms: number | null): BlockhashAgeBucket {
+  if (ms == null) return 'unknown';
+  if (ms < BLOCKHASH_WARN_MS) return 'healthy';
+  if (ms < BLOCKHASH_RISK_MS) return 'warn';
+  if (ms < BLOCKHASH_REFRESH_MS) return 'risk';
+  return 'refresh-recommended';
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+async function checkBlockhashValidity(
+  blockhash: string,
+  rpcUrls: string[],
+  primaryConnection: Connection,
+): Promise<BlockhashValidityDiagnostic[]> {
+  const targets = rpcUrls.slice(0, BLOCKHASH_CHECK_RPC_LIMIT);
+  const checks = targets.map(async (url, index): Promise<BlockhashValidityDiagnostic> => {
+    const startedAt = performance.now();
+    try {
+      const rpc =
+        index === 0 ? primaryConnection : new Connection(url, { commitment: 'confirmed' });
+      const result = await withTimeout(
+        rpc.isBlockhashValid(blockhash, { commitment: 'processed' }),
+        BLOCKHASH_CHECK_TIMEOUT_MS,
+      );
+      return {
+        index,
+        rpc: maskRpcUrl(url),
+        isPrivyPrimary: index === 0,
+        valid: result.value,
+        contextSlot: result.context.slot,
+        latencyMs: Math.round(performance.now() - startedAt),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        index,
+        rpc: maskRpcUrl(url),
+        isPrivyPrimary: index === 0,
+        valid: null,
+        contextSlot: null,
+        latencyMs: Math.round(performance.now() - startedAt),
+        error: errorMessage(err),
+      };
+    }
+  });
+
+  return Promise.all(checks);
+}
+
+function describeTransaction(tx: VersionedTransaction): TransactionShapeDebug {
+  const message = tx.message as VersionedTransaction['message'] & {
+    staticAccountKeys?: PublicKey[];
+    accountKeys?: PublicKey[];
+    compiledInstructions?: Array<{ programIdIndex: number }>;
+    instructions?: Array<{ programIdIndex: number }>;
+    addressTableLookups?: unknown[];
+  };
+  const staticKeys = message.staticAccountKeys ?? message.accountKeys ?? [];
+  const compiledInstructions = message.compiledInstructions ?? message.instructions ?? [];
+  const header = tx.message.header;
+  const requiredSignatures = header.numRequiredSignatures;
+  const signerKeys = staticKeys.slice(0, requiredSignatures).map((key) => key.toBase58());
+  const instructionProgramIds = compiledInstructions
+    .slice(0, PROGRAM_ID_SAMPLE_LIMIT)
+    .map((instruction) => {
+      const key = staticKeys[instruction.programIdIndex];
+      return key ? key.toBase58() : `lookup-account-index-${instruction.programIdIndex}`;
+    });
+
+  return {
+    version: String(tx.version),
+    signatureCount: tx.signatures.length,
+    zeroSignatureCount: tx.signatures.filter((signature) => signature.every((byte) => byte === 0))
+      .length,
+    requiredSignatures,
+    readonlySignedAccounts: header.numReadonlySignedAccounts,
+    readonlyUnsignedAccounts: header.numReadonlyUnsignedAccounts,
+    staticAccountKeys: staticKeys.length,
+    addressTableLookups: message.addressTableLookups?.length ?? 0,
+    compiledInstructions: compiledInstructions.length,
+    feePayer: staticKeys[0]?.toBase58() ?? null,
+    signerKeys,
+    instructionProgramIds,
+  };
+}
+
+async function simulatePreBroadcastTransaction(
+  tx: VersionedTransaction,
+  rpcUrls: string[],
+  primaryConnection: Connection,
+): Promise<PreBroadcastSimulationDiagnostic[]> {
+  const targets = rpcUrls.slice(0, PRE_BROADCAST_SIMULATION_RPC_LIMIT);
+  const simulations = targets.map(async (url, index): Promise<PreBroadcastSimulationDiagnostic> => {
+    const startedAt = performance.now();
+    try {
+      const rpc =
+        index === 0 ? primaryConnection : new Connection(url, { commitment: 'confirmed' });
+      const result = await withTimeout(
+        rpc.simulateTransaction(tx, {
+          sigVerify: false,
+          replaceRecentBlockhash: false,
+          commitment: 'processed',
+          innerInstructions: true,
+        }),
+        PRE_BROADCAST_SIMULATION_TIMEOUT_MS,
+      );
+      const logs = result.value.logs ?? null;
+      return {
+        index,
+        rpc: maskRpcUrl(url),
+        isPrivyPrimary: index === 0,
+        err: result.value.err ? stringifySmall(result.value.err) : null,
+        logsCount: logs?.length ?? null,
+        logsSample: logs?.slice(0, 8) ?? null,
+        unitsConsumed: result.value.unitsConsumed ?? null,
+        contextSlot: result.context.slot,
+        latencyMs: Math.round(performance.now() - startedAt),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        index,
+        rpc: maskRpcUrl(url),
+        isPrivyPrimary: index === 0,
+        err: null,
+        logsCount: null,
+        logsSample: null,
+        unitsConsumed: null,
+        contextSlot: null,
+        latencyMs: Math.round(performance.now() - startedAt),
+        error: errorMessage(err),
+      };
+    }
+  });
+
+  return Promise.all(simulations);
 }
 
 /**
@@ -116,13 +373,13 @@ function errorMessage(err: unknown): string {
  */
 export function useJupiterSwap() {
   const { connection } = useConnection();
-  const { publicKey, signAndSendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const [loading, setLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
   const [lastOrder, setLastOrder] = useState<UltraOrderResponse | null>(null);
 
   const swap = useCallback(
     async (args: SwapArgs): Promise<SwapResult> => {
-      if (!publicKey || !signAndSendTransaction) throw new Error('Wallet not connected');
+      if (!publicKey || !signTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 
       let phase: JupiterSwapPhase = 'prepare';
@@ -131,14 +388,65 @@ export function useJupiterSwap() {
       let amount: string | null = null;
       let order: UltraOrderResponse | null = null;
       const taker = publicKey.toBase58();
+      const rpcUrls = parseRpcUrls(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS);
+      const debug: JupiterSwapDebug = {
+        phase,
+        direction: args.direction,
+        xStockMint: args.xStockMint,
+        inputMint,
+        outputMint,
+        amount,
+        taker,
+        orderRequestId: null,
+        orderInAmount: null,
+        orderOutAmount: null,
+        otherAmountThreshold: null,
+        priceImpactPct: null,
+        diagnosticsSource: args.diagnostics?.source ?? null,
+        selectedPrivyRpc: rpcUrls[0] ? maskRpcUrl(rpcUrls[0]) : null,
+        rpcUrls: rpcUrls.map(maskRpcUrl),
+        orderFetchedAt: null,
+        orderLatencyMs: null,
+        deserializedAt: null,
+        transactionBytes: null,
+        transactionShape: null,
+        recentBlockhash: null,
+        blockhashValidity: null,
+        preBroadcastSimulation: null,
+        broadcastStartedAt: null,
+        broadcastEndedAt: null,
+        broadcastLatencyMs: null,
+        orderAgeMsAtBroadcast: null,
+        orderAgeBucket: 'unknown',
+        signedTransactionBytes: null,
+        signedTransactionShape: null,
+        executeStatus: null,
+        executeError: null,
+        signature: null,
+        sellBalance: null,
+        originalMessage: '',
+      };
+      let orderFetchedAtMs: number | null = null;
+      let broadcastStartedAtMs: number | null = null;
+
+      const setPhase = (next: JupiterSwapPhase) => {
+        phase = next;
+        debug.phase = next;
+      };
+      const updatePreparedFields = () => {
+        debug.inputMint = inputMint;
+        debug.outputMint = outputMint;
+        debug.amount = amount;
+      };
 
       try {
         if (args.direction === 'BUY') {
           inputMint = USDC_MINT;
           outputMint = args.xStockMint;
           amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
+          updatePreparedFields();
         } else if ('tokenAmount' in args) {
-          phase = 'balance';
+          setPhase('balance');
           // Targeted SELL: caller specified exactly how many xStock units to
           // sell (typically position.tokenAmount). We still cap at the wallet
           // balance to avoid an Ultra failure if the chain has less than the
@@ -151,9 +459,11 @@ export function useJupiterSwap() {
             return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
           });
           const walletRaw = BigInt(
-            (found?.account.data as unknown as {
-              parsed?: { info?: { tokenAmount?: { amount?: string } } };
-            })?.parsed?.info?.tokenAmount?.amount ?? '0',
+            (
+              found?.account.data as unknown as {
+                parsed?: { info?: { tokenAmount?: { amount?: string } } };
+              }
+            )?.parsed?.info?.tokenAmount?.amount ?? '0',
           );
           const wantRaw = BigInt(Math.round(args.tokenAmount * 10 ** args.xStockDecimals));
           const sellRaw = wantRaw < walletRaw ? wantRaw : walletRaw;
@@ -161,8 +471,14 @@ export function useJupiterSwap() {
           inputMint = args.xStockMint;
           outputMint = USDC_MINT;
           amount = sellRaw.toString();
+          debug.sellBalance = {
+            walletRaw: walletRaw.toString(),
+            requestedRaw: wantRaw.toString(),
+            submittedRaw: sellRaw.toString(),
+          };
+          updatePreparedFields();
         } else {
-          phase = 'balance';
+          setPhase('balance');
           // sellAll: drain whatever's in the wallet for this mint. Reserved
           // for panic-close-balance flows where the user explicitly wants the
           // wallet emptied — closePosition() does NOT use this path because
@@ -176,50 +492,97 @@ export function useJupiterSwap() {
             return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
           });
           const raw =
-            (found?.account.data as unknown as {
-              parsed?: { info?: { tokenAmount?: { amount?: string } } };
-            })?.parsed?.info?.tokenAmount?.amount ?? '0';
+            (
+              found?.account.data as unknown as {
+                parsed?: { info?: { tokenAmount?: { amount?: string } } };
+              }
+            )?.parsed?.info?.tokenAmount?.amount ?? '0';
           if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
           inputMint = args.xStockMint;
           outputMint = USDC_MINT;
           amount = raw;
+          debug.sellBalance = {
+            walletRaw: raw,
+            requestedRaw: null,
+            submittedRaw: raw,
+          };
+          updatePreparedFields();
         }
 
         if (!inputMint || !outputMint || !amount) {
           throw new Error('swap amount not prepared');
         }
 
-        phase = 'order';
+        setPhase('order');
         setLoading('order');
+        const orderStartedAtMs = performance.now();
         order = await requestUltraOrder({
           inputMint,
           outputMint,
           amount,
           taker,
         });
+        orderFetchedAtMs = performance.now();
+        debug.orderFetchedAt = new Date().toISOString();
+        debug.orderLatencyMs = Math.round(orderFetchedAtMs - orderStartedAtMs);
+        debug.orderRequestId = order.requestId;
+        debug.orderInAmount = order.inAmount;
+        debug.orderOutAmount = order.outAmount;
+        debug.otherAmountThreshold = order.otherAmountThreshold;
+        debug.priceImpactPct = order.priceImpactPct;
         setLastOrder(order);
 
-        phase = 'deserialize';
+        setPhase('deserialize');
         setLoading('sign');
         const txBytes = fromBase64(order.transaction);
+        debug.transactionBytes = txBytes.byteLength;
         const tx = VersionedTransaction.deserialize(txBytes);
+        debug.recentBlockhash = tx.message.recentBlockhash;
+        debug.transactionShape = describeTransaction(tx);
+        debug.deserializedAt = new Date().toISOString();
 
-        // Pivot away from Jupiter Ultra `/execute` (which would relay via
-        // Ultra's MEV-protected bundler) because Privy v3's signTransaction
-        // hook always pops a confirmation modal whose internal tx-introspection
-        // borsh decoder crashes on Ultra's multi-hop / ALT layout
-        // ("t.slice is not a function"), greying out Approve and trapping
-        // the user. signAndSendTransaction goes through `useSendTransaction`,
-        // which honours `uiOptions.showWalletUIs=false` and skips the modal,
-        // broadcasting through Privy's RPC. Fine for the v1 hackathon UX;
-        // we lose Ultra's bundling but preserve the route Ultra picked.
-        phase = 'broadcast';
+        if (args.diagnostics?.checkBlockhash) {
+          const [blockhashValidity, preBroadcastSimulation] = await Promise.all([
+            debug.recentBlockhash
+              ? checkBlockhashValidity(debug.recentBlockhash, rpcUrls, connection)
+              : Promise.resolve(null),
+            simulatePreBroadcastTransaction(tx, rpcUrls, connection),
+          ]);
+          debug.blockhashValidity = blockhashValidity;
+          debug.preBroadcastSimulation = preBroadcastSimulation;
+        }
+
+        // Ultra gas-sponsored orders have two required signers: Jupiter's
+        // gas payer and the taker. Privy can only sign the taker slot, so a
+        // direct sign+send fails RPC signature verification before execution.
+        // Sign only the user's slot, then let Jupiter /execute complete the
+        // sponsored transaction and relay it.
+        setPhase('sign');
+        setLoading('sign');
+        const signedTx = await signTransaction(tx);
+        const signedTxBytes = signedTx.serialize();
+        debug.signedTransactionBytes = signedTxBytes.byteLength;
+        debug.signedTransactionShape = describeTransaction(signedTx);
+
+        setPhase('execute');
         setLoading('execute');
-        const sent = await signAndSendTransaction(tx);
-        const exec: UltraExecuteResponse = {
-          status: 'Success',
-          signature: sent.signature,
-        };
+        broadcastStartedAtMs = performance.now();
+        debug.broadcastStartedAt = new Date().toISOString();
+        debug.orderAgeMsAtBroadcast =
+          orderFetchedAtMs == null ? null : Math.round(broadcastStartedAtMs - orderFetchedAtMs);
+        debug.orderAgeBucket = blockhashAgeBucket(debug.orderAgeMsAtBroadcast);
+        const exec = await executeUltraOrder({
+          requestId: order.requestId,
+          signedTransaction: toBase64(signedTxBytes),
+        });
+        debug.broadcastEndedAt = new Date().toISOString();
+        debug.broadcastLatencyMs = Math.round(performance.now() - broadcastStartedAtMs);
+        debug.executeStatus = exec.status;
+        debug.executeError = exec.error ?? null;
+        debug.signature = exec.signature ?? null;
+        if (exec.status !== 'Success') {
+          throw new Error(exec.error ?? 'Jupiter Ultra /execute failed');
+        }
 
         setLoading(null);
         return {
@@ -229,28 +592,29 @@ export function useJupiterSwap() {
           outputMint,
           inputAmount: order.inAmount,
           outputAmount: order.outAmount,
+          debug,
         };
       } catch (err) {
         setLoading(null);
         const originalMessage = errorMessage(err);
-        throw new JupiterSwapError(`${phase} failed: ${originalMessage}`, {
-          phase,
-          direction: args.direction,
-          xStockMint: args.xStockMint,
-          inputMint,
-          outputMint,
-          amount,
-          taker,
-          orderRequestId: order?.requestId ?? null,
-          orderInAmount: order?.inAmount ?? null,
-          orderOutAmount: order?.outAmount ?? null,
-          otherAmountThreshold: order?.otherAmountThreshold ?? null,
-          priceImpactPct: order?.priceImpactPct ?? null,
-          originalMessage,
-        }, err);
+        if (broadcastStartedAtMs != null && debug.broadcastEndedAt == null) {
+          debug.broadcastEndedAt = new Date().toISOString();
+          debug.broadcastLatencyMs = Math.round(performance.now() - broadcastStartedAtMs);
+        }
+        debug.phase = phase;
+        debug.originalMessage = originalMessage;
+        updatePreparedFields();
+        if (order) {
+          debug.orderRequestId = order.requestId;
+          debug.orderInAmount = order.inAmount;
+          debug.orderOutAmount = order.outAmount;
+          debug.otherAmountThreshold = order.otherAmountThreshold;
+          debug.priceImpactPct = order.priceImpactPct;
+        }
+        throw new JupiterSwapError(`${phase} failed: ${originalMessage}`, debug, err);
       }
     },
-    [connection, publicKey, signAndSendTransaction],
+    [connection, publicKey, signTransaction],
   );
 
   return { swap, loading, lastOrder };

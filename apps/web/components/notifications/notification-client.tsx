@@ -19,8 +19,18 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import {
+  JupiterSwapError,
+  useJupiterSwap,
+  type JupiterSwapDebug,
+} from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import {
+  compactDiagnosticError,
+  decodeSolanaError,
+  emitDevDiagnostic,
+  type LogDiagnostic,
+} from '@/lib/dev-tools/client-diagnostics';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
 import {
@@ -47,12 +57,19 @@ function dismissTriggerToasts(orderId: string): void {
   toast.dismiss(`${orderId}:executing`);
 }
 
+function shortId(value: string): string {
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 function errorDetail(err: unknown): Record<string, unknown> {
   if (err instanceof JupiterSwapError) {
     return {
       name: err.name,
       message: err.message,
+      decodedSolanaError: decodeSolanaError(`${err.message}\n${err.debug.originalMessage}`),
       swap: err.debug,
+      originalError: compactDiagnosticError(err.originalError),
     };
   }
   if (err instanceof OrderExecutionClaimError) {
@@ -67,10 +84,136 @@ function errorDetail(err: unknown): Record<string, unknown> {
     return {
       name: err.name,
       message: err.message,
-      stack: err.stack,
+      decodedSolanaError: decodeSolanaError(err.message),
     };
   }
   return { message: String(err) };
+}
+
+function triggerDiagnosticPayload(
+  payload: TriggerHitPayload,
+  mint: string,
+  decimals: number,
+): Record<string, unknown> {
+  return {
+    orderId: payload.orderId,
+    positionId: payload.positionId,
+    kind: payload.kind,
+    side: payload.side,
+    ticker: payload.ticker,
+    mint,
+    decimals,
+    triggerPriceUsd: payload.triggerPriceUsd,
+    currentPriceUsd: payload.currentPriceUsd,
+    sizeUsd: payload.sizeUsd,
+    tokenAmount: payload.tokenAmount ?? null,
+  };
+}
+
+function diagnosticsFromSwapDebug(debug: JupiterSwapDebug): LogDiagnostic[] {
+  const validity = debug.blockhashValidity ?? [];
+  const primary = validity.find((item) => item.isPrivyPrimary);
+  const anyValid = validity.some((item) => item.valid === true);
+  const anyInvalid = validity.some((item) => item.valid === false);
+  const simulations = debug.preBroadcastSimulation ?? [];
+  const simulationHasErr = simulations.some((item) => item.err);
+  const simulationHasTransportError = simulations.some((item) => item.error);
+  const shape = debug.transactionShape;
+  const signedShape = debug.signedTransactionShape;
+  const takerIsSigner = !!debug.taker && !!shape?.signerKeys.includes(debug.taker);
+  const signedNonZeroCount = signedShape
+    ? signedShape.signatureCount - signedShape.zeroSignatureCount
+    : null;
+  const diagnostics: LogDiagnostic[] = [
+    {
+      hypothesis: 'Blockhash age',
+      status:
+        debug.orderAgeBucket === 'healthy'
+          ? 'healthy'
+          : debug.orderAgeBucket === 'warn'
+            ? 'watch'
+            : debug.orderAgeBucket === 'risk' || debug.orderAgeBucket === 'refresh-recommended'
+              ? 'risk'
+              : 'unknown',
+      detail:
+        debug.orderAgeMsAtBroadcast == null
+          ? 'No broadcast start timestamp captured.'
+          : `${debug.orderAgeMsAtBroadcast}ms from Jupiter order to Ultra execute (${debug.orderAgeBucket}).`,
+    },
+    {
+      hypothesis: 'RPC freshness',
+      status:
+        validity.length === 0
+          ? 'unknown'
+          : primary?.valid === false || (anyInvalid && anyValid)
+            ? 'risk'
+            : validity.some((item) => item.error)
+              ? 'watch'
+              : 'healthy',
+      detail:
+        validity.length === 0
+          ? `No blockhash validity probe ran. Privy primary: ${debug.selectedPrivyRpc ?? 'unknown'}.`
+          : validity
+              .map((item) => {
+                const result =
+                  item.valid == null
+                    ? `error: ${item.error ?? 'unknown'}`
+                    : item.valid
+                      ? 'valid'
+                      : 'invalid';
+                return `${item.isPrivyPrimary ? 'primary ' : ''}RPC${item.index + 1} ${result} (${item.latencyMs}ms)`;
+              })
+              .join('; '),
+    },
+    {
+      hypothesis: 'Local pre-submit simulation',
+      status:
+        simulations.length === 0
+          ? 'unknown'
+          : simulationHasErr
+            ? 'risk'
+            : simulationHasTransportError
+              ? 'watch'
+              : 'healthy',
+      detail:
+        simulations.length === 0
+          ? 'No unsigned simulation was captured before submit.'
+          : simulations
+              .map((item) => {
+                if (item.error) return `RPC${item.index + 1} transport error: ${item.error}`;
+                if (item.err) return `RPC${item.index + 1} simulation err: ${item.err}`;
+                return `RPC${item.index + 1} ok (${item.unitsConsumed ?? 'n/a'} units, ${item.logsCount ?? 0} logs)`;
+              })
+              .join('; '),
+    },
+    {
+      hypothesis: 'Transaction shape',
+      status: !shape || !takerIsSigner ? 'risk' : signedNonZeroCount === 0 ? 'risk' : 'healthy',
+      detail: shape
+        ? `v${shape.version}, unsigned zeros ${shape.zeroSignatureCount}/${shape.signatureCount}, signed zeros ${signedShape ? `${signedShape.zeroSignatureCount}/${signedShape.signatureCount}` : 'n/a'}, required ${shape.requiredSignatures}, staticKeys ${shape.staticAccountKeys}, ALTs ${shape.addressTableLookups}, ix ${shape.compiledInstructions}, feePayer=${shortId(shape.feePayer ?? 'unknown')}, takerSigner=${takerIsSigner}.`
+        : 'No transaction shape captured.',
+    },
+    {
+      hypothesis: 'Privy sign / Ultra execute path',
+      status:
+        debug.signature || debug.executeStatus === 'Success'
+          ? 'healthy'
+          : debug.phase === 'sign' || debug.phase === 'execute'
+            ? 'risk'
+            : 'watch',
+      detail: debug.signature
+        ? `Jupiter Ultra returned signature ${shortId(debug.signature)}.`
+        : `No signature returned; failed during ${debug.phase}${debug.executeError ? ` (${debug.executeError})` : ''}.`,
+    },
+    {
+      hypothesis: 'Jupiter order/route',
+      status: debug.orderRequestId ? 'healthy' : debug.phase === 'order' ? 'risk' : 'unknown',
+      detail: debug.orderRequestId
+        ? `Ultra order ${debug.orderRequestId}; impact ${debug.priceImpactPct ?? 'n/a'}.`
+        : 'No Ultra order id captured.',
+    },
+  ];
+  return diagnostics;
 }
 
 /**
@@ -96,6 +239,22 @@ export function NotificationClient() {
   // the order and before the monitor observes the new DB state.
   const inflightTriggers = useRef<Set<string>>(new Set());
   const settledTriggers = useRef<Set<string>>(new Set());
+
+  const emitTriggerDiagnostic = useCallback(
+    (input: Parameters<typeof emitDevDiagnostic>[0]) => {
+      const event = emitDevDiagnostic(input);
+      void authedFetch('/api/dev-tools/client-diagnostics', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(event),
+      }).catch(() => {
+        // Best-effort terminal mirror for local debugging; the in-browser
+        // diagnostic bus remains the source of truth if this post is blocked.
+      });
+      return event;
+    },
+    [authedFetch],
+  );
 
   // The registry's navigateTo() needs a router; patch it on mount.
   useEffect(() => {
@@ -156,6 +315,8 @@ export function NotificationClient() {
       if (inflightTriggers.current.has(payload.orderId)) return;
       inflightTriggers.current.add(payload.orderId);
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
+      const startedAt = performance.now();
+      const diagnosticPayload = triggerDiagnosticPayload(payload, mint, decimals);
       toast.dismiss(`${payload.orderId}:success`);
       toast.dismiss(`${payload.orderId}:error`);
       toast.dismiss(`${payload.orderId}:settle-error`);
@@ -164,12 +325,45 @@ export function NotificationClient() {
         id: payload.orderId,
         duration: Infinity,
       });
+      emitTriggerDiagnostic({
+        id: `${payload.orderId}:trigger-execute-start:${Date.now()}`,
+        section: 'swap',
+        step: 'trigger.execute.start',
+        summary: `Toast execution started for ${payload.kind} ${payload.ticker}.`,
+        severity: 'info',
+        diagnostics: [
+          {
+            hypothesis: 'Forced-trigger execution path',
+            status: 'healthy',
+            detail:
+              'This event came from NotificationClient toast Execute/Retry, not manual /dev-tools Execute swap.',
+          },
+        ],
+        latencyMs: 0,
+        payload: diagnosticPayload,
+      });
 
       let claimed = false;
       let swapBroadcast = false;
       try {
         await claimOrderExecution(authedFetch, payload.orderId);
         claimed = true;
+        emitTriggerDiagnostic({
+          id: `${payload.orderId}:trigger-claim:${Date.now()}`,
+          section: 'orders',
+          step: 'trigger.claimExecution',
+          summary: `Execution claim acquired for ${shortId(payload.orderId)}.`,
+          severity: 'success',
+          diagnostics: [
+            {
+              hypothesis: 'Execution claim lock',
+              status: 'healthy',
+              detail: 'Claim acquired before requesting Jupiter order.',
+            },
+          ],
+          latencyMs: Math.round(performance.now() - startedAt),
+          payload: diagnosticPayload,
+        });
         console.info('[trigger-execute] claimed', {
           orderId: payload.orderId,
           positionId: payload.positionId,
@@ -186,6 +380,7 @@ export function NotificationClient() {
         // sellAll would sweep unrelated dust or another position
         // sharing the same mint — see the manual-close side-effect we
         // hit on 2026-05-02 where the close sold double the DB amount.
+        const swapDiagnostics = { source: 'trigger-toast', checkBlockhash: true } as const;
         const result =
           payload.kind === 'BUY_TRIGGER'
             ? await swap({
@@ -193,6 +388,7 @@ export function NotificationClient() {
                 xStockMint: mint,
                 xStockDecimals: decimals,
                 usdAmount: payload.sizeUsd,
+                diagnostics: swapDiagnostics,
               })
             : payload.tokenAmount && payload.tokenAmount > 0
               ? await swap({
@@ -200,12 +396,14 @@ export function NotificationClient() {
                   xStockMint: mint,
                   xStockDecimals: decimals,
                   tokenAmount: payload.tokenAmount,
+                  diagnostics: swapDiagnostics,
                 })
               : await swap({
                   direction: 'SELL',
                   xStockMint: mint,
                   xStockDecimals: decimals,
                   sellAll: true,
+                  diagnostics: swapDiagnostics,
                 });
 
         if (result.exec.status !== 'Success') {
@@ -238,6 +436,22 @@ export function NotificationClient() {
         }
 
         settledTriggers.current.add(payload.orderId);
+        emitTriggerDiagnostic({
+          id: `${payload.orderId}:trigger-settled:${Date.now()}`,
+          section: 'swap',
+          step: 'trigger.executeSwap',
+          summary: `Toast swap broadcast ${shortId(result.exec.signature ?? 'unknown')} and settled at $${executionPrice.toFixed(2)}.`,
+          severity: 'success',
+          diagnostics: diagnosticsFromSwapDebug(result.debug),
+          latencyMs: Math.round(performance.now() - startedAt),
+          payload: diagnosticPayload,
+          response: {
+            swap: result.exec,
+            diagnostics: result.debug,
+            executionPrice,
+            tokenAmount,
+          },
+        });
         dismissTriggerToasts(payload.orderId);
         toast.success(`${verb} ${payload.ticker} confirmed`, {
           id: `${payload.orderId}:success`,
@@ -261,6 +475,55 @@ export function NotificationClient() {
         void qc.invalidateQueries({ queryKey: QK.portfolio() });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        const detail = errorDetail(err);
+        const swapDebug = err instanceof JupiterSwapError ? err.debug : null;
+        const decoded =
+          err instanceof JupiterSwapError
+            ? decodeSolanaError(`${err.message}\n${err.debug.originalMessage}`)
+            : decodeSolanaError(msg);
+        emitTriggerDiagnostic({
+          id: `${payload.orderId}:trigger-failed:${Date.now()}`,
+          section: 'swap',
+          step: 'trigger.executeSwap',
+          summary: swapDebug
+            ? `Toast swap failed during ${swapDebug.phase}: ${swapDebug.originalMessage || msg}`
+            : `Toast execution failed: ${msg}`,
+          severity: 'error',
+          diagnostics: [
+            ...(swapDebug ? diagnosticsFromSwapDebug(swapDebug) : []),
+            ...(decoded
+              ? [
+                  {
+                    hypothesis: 'Program execution reached?',
+                    status:
+                      decoded.code === -32002 &&
+                      decoded.context.logs === '[]' &&
+                      (decoded.context.unitsConsumed === '0n' ||
+                        decoded.context.unitsConsumed === '0')
+                        ? 'risk'
+                        : 'watch',
+                    detail: `${decoded.classifier}; logs=${decoded.context.logs ?? 'n/a'}, units=${decoded.context.unitsConsumed ?? 'n/a'}.`,
+                  } as const,
+                ]
+              : []),
+            {
+              hypothesis: 'Claim cleanup',
+              status: claimed && !swapBroadcast ? 'watch' : 'unknown',
+              detail:
+                claimed && !swapBroadcast
+                  ? 'Swap did not broadcast, so the order claim will be released for retry.'
+                  : `claimed=${claimed}, swapBroadcast=${swapBroadcast}.`,
+            },
+          ],
+          latencyMs: Math.round(performance.now() - startedAt),
+          payload: diagnosticPayload,
+          error: msg,
+          errorDetail: {
+            claimed,
+            swapBroadcast,
+            ...detail,
+          },
+        });
         console.error('[trigger-execute] failed', {
           orderId: payload.orderId,
           positionId: payload.positionId,
@@ -271,7 +534,7 @@ export function NotificationClient() {
           claimed,
           swapBroadcast,
           payload,
-          error: errorDetail(err),
+          error: detail,
         });
         if (err instanceof OrderExecutionClaimError) {
           if (isOrderAlreadyHandled(err.reason)) {
@@ -329,7 +592,7 @@ export function NotificationClient() {
         inflightTriggers.current.delete(payload.orderId);
       }
     },
-    [swap, authedFetch, qc],
+    [authedFetch, emitTriggerDiagnostic, qc, swap],
   );
 
   const handleTriggerHit = useCallback(
@@ -352,6 +615,23 @@ export function NotificationClient() {
         payload.kind === 'BUY_TRIGGER'
           ? `Trigger $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`
           : `${payload.kind === 'TAKE_PROFIT' ? 'TP' : 'SL'} $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`;
+      emitTriggerDiagnostic({
+        id: `${payload.orderId}:trigger-hit:${Date.now()}`,
+        section: 'orders',
+        step: 'trigger.hit',
+        summary: `${payload.kind} ${payload.ticker} trigger toast shown at $${payload.currentPriceUsd.toFixed(2)}.`,
+        severity: 'info',
+        diagnostics: [
+          {
+            hypothesis: 'Forced-trigger event delivery',
+            status: 'healthy',
+            detail:
+              'Shared worker delivered trigger:hit and NotificationClient showed the Execute toast.',
+          },
+        ],
+        latencyMs: 0,
+        payload: triggerDiagnosticPayload(payload, meta.mint, meta.decimals),
+      });
 
       toast.dismiss(`${payload.orderId}:error`);
       toast.dismiss(`${payload.orderId}:settle-error`);
@@ -368,7 +648,7 @@ export function NotificationClient() {
         },
       });
     },
-    [runTriggerExecute],
+    [emitTriggerDiagnostic, runTriggerExecute],
   );
 
   useSharedWorker({
