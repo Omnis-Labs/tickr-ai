@@ -37,7 +37,7 @@ export function SpecsGrid() {
   const inView = useInView(ref, { once: true, amount: 0.2 });
 
   return (
-    <section className="mx-auto max-w-[1200px] px-6 pb-32 pt-24 sm:px-10 sm:pt-32">
+    <section id="why-us" className="mx-auto max-w-[1200px] px-6 pb-32 pt-24 sm:px-10 sm:pt-32">
       <div className="mb-20 flex items-baseline gap-3">
         <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
           03
@@ -70,9 +70,8 @@ export function SpecsGrid() {
         transition={{ duration: 0.7, ease: easeOutQuart, delay: 0.12 }}
         className="mb-24 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[19px] sm:leading-[1.5]"
       >
-        Permissionless by design, open to anyone, anywhere on Earth. No
-        accreditation gate, no approved-jurisdictions list, no broker between
-        you and the trade.
+        Permissionless by design, open to anyone, anywhere on Earth. No accreditation gate, no
+        approved-jurisdictions list, no broker between you and the trade.
       </motion.p>
 
       <div className="grid grid-cols-1 gap-x-16 gap-y-12 sm:grid-cols-2">
@@ -92,9 +91,7 @@ export function SpecsGrid() {
               <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
                 {String(i + 1).padStart(2, '0')}
               </span>
-              <h3 className="text-title-lg font-semibold text-on-background">
-                {s.label}
-              </h3>
+              <h3 className="text-title-lg font-semibold text-on-background">{s.label}</h3>
             </div>
             <p className="max-w-[44ch] text-body-md leading-[1.55] text-on-surface-variant">
               {s.body}

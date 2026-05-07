@@ -50,15 +50,9 @@ export function LandingMarketing() {
 
   return (
     <div className="min-h-screen bg-background text-on-background">
-      <header className="relative z-10 mx-auto flex max-w-[1200px] items-center justify-between px-6 pt-7 sm:px-10">
+      <header className="relative z-10 mx-auto flex max-w-[1200px] items-center px-6 pt-7 sm:px-10">
         <Link href="/" className="text-title-md font-semibold tracking-tight">
           Hunch It<span className="text-on-surface-variant">.</span>
-        </Link>
-        <Link
-          href="/login"
-          className="text-label-lg text-on-surface-variant transition-colors hover:text-on-background"
-        >
-          Sign in
         </Link>
       </header>
 
@@ -83,9 +77,7 @@ export function LandingMarketing() {
               marginBottom: '0.02em',
             }}
             animate={
-              reduce
-                ? { scale: 1, opacity: 1 }
-                : { scale: [1, 1.12, 1], opacity: [0.85, 1, 0.85] }
+              reduce ? { scale: 1, opacity: 1 } : { scale: [1, 1.12, 1], opacity: [0.85, 1, 0.85] }
             }
             transition={
               reduce
@@ -100,9 +92,8 @@ export function LandingMarketing() {
         </h1>
 
         <p className="mt-10 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[18px] sm:leading-[1.55]">
-          An AI quant analyst proposes trades sized to your mandate, with
-          take-profit and stop-loss pre-armed. Tap once to execute. Trade on
-          your terms.
+          An AI quant analyst proposes trades sized to your mandate, with take-profit and stop-loss
+          pre-armed. Tap once to execute. Trade on your terms.
         </p>
 
         <div className="mt-10 flex items-center gap-5">
