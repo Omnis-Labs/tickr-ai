@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  USDC_DECIMALS,
   XSTOCKS,
   xStockToBare,
   type Proposal,
@@ -19,23 +18,14 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
+import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import {
-  compactDiagnosticError,
-  decodeSolanaError,
   emitDevDiagnostic,
 } from '@/lib/dev-tools/client-diagnostics';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
-import {
-  claimOrderExecution,
-  isOrderAlreadyExecuting,
-  isOrderAlreadyHandled,
-  OrderExecutionClaimError,
-  releaseOrderExecutionClaim,
-} from '@/lib/orders/execution-claim';
+import { executeTriggerOrder, triggerDiagnosticPayload } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
 import {
   positionUpdatedHandler,
@@ -51,59 +41,6 @@ function dismissTriggerToasts(orderId: string): void {
   toast.dismiss(`${orderId}:error`);
   toast.dismiss(`${orderId}:settle-error`);
   toast.dismiss(`${orderId}:executing`);
-}
-
-function shortId(value: string): string {
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 4)}...${value.slice(-4)}`;
-}
-
-function errorDetail(err: unknown): Record<string, unknown> {
-  if (err instanceof JupiterSwapError) {
-    return {
-      name: err.name,
-      message: err.message,
-      decodedSolanaError: decodeSolanaError(`${err.message}\n${err.debug.originalMessage}`),
-      swap: err.debug,
-      originalError: compactDiagnosticError(err.originalError),
-    };
-  }
-  if (err instanceof OrderExecutionClaimError) {
-    return {
-      name: err.name,
-      message: err.message,
-      reason: err.reason,
-      statusCode: err.statusCode,
-    };
-  }
-  if (err instanceof Error) {
-    return {
-      name: err.name,
-      message: err.message,
-      decodedSolanaError: decodeSolanaError(err.message),
-    };
-  }
-  return { message: String(err) };
-}
-
-function triggerDiagnosticPayload(
-  payload: TriggerHitPayload,
-  mint: string,
-  decimals: number,
-): Record<string, unknown> {
-  return {
-    orderId: payload.orderId,
-    positionId: payload.positionId,
-    kind: payload.kind,
-    side: payload.side,
-    ticker: payload.ticker,
-    mint,
-    decimals,
-    triggerPriceUsd: payload.triggerPriceUsd,
-    currentPriceUsd: payload.currentPriceUsd,
-    sizeUsd: payload.sizeUsd,
-    tokenAmount: payload.tokenAmount ?? null,
-  };
 }
 
 /**
@@ -224,228 +161,64 @@ export function NotificationClient() {
         payload: diagnosticPayload,
       });
 
-      let claimed = false;
-      let swapBroadcast = false;
       try {
-        await claimOrderExecution(authedFetch, payload.orderId);
-        claimed = true;
-        emitTriggerDiagnostic({
-          id: `${payload.orderId}:trigger-claim:${Date.now()}`,
-          section: 'orders',
-          step: 'trigger.claimExecution',
-          summary: `Execution claim acquired for ${shortId(payload.orderId)}.`,
-          severity: 'success',
-          diagnostics: [
-            {
-              hypothesis: 'Execution claim lock',
-              status: 'healthy',
-              detail: 'Claim acquired before requesting Jupiter order.',
-            },
-          ],
-          latencyMs: Math.round(performance.now() - startedAt),
-          payload: diagnosticPayload,
-        });
-        console.info('[trigger-execute] claimed', {
-          orderId: payload.orderId,
-          positionId: payload.positionId,
-          kind: payload.kind,
-          ticker: payload.ticker,
-          mint,
-          sizeUsd: payload.sizeUsd,
-          tokenAmount: payload.tokenAmount ?? null,
-        });
-
-        // For TP/SL we sell exactly the position's token count
-        // (populated on the synthetic exit Order at BUY-fill time and
-        // forwarded via TriggerHitPayload.tokenAmount). Falling back to
-        // sellAll would sweep unrelated dust or another position
-        // sharing the same mint — see the manual-close side-effect we
-        // hit on 2026-05-02 where the close sold double the DB amount.
-        const swapDiagnostics = { source: 'trigger-toast', mode: 'probes' } as const;
-        const result =
-          payload.kind === 'BUY_TRIGGER'
-            ? await swap({
-                direction: 'BUY',
-                xStockMint: mint,
-                xStockDecimals: decimals,
-                usdAmount: payload.sizeUsd,
-                diagnostics: swapDiagnostics,
-              })
-            : payload.tokenAmount && payload.tokenAmount > 0
-              ? await swap({
-                  direction: 'SELL',
-                  xStockMint: mint,
-                  xStockDecimals: decimals,
-                  tokenAmount: payload.tokenAmount,
-                  diagnostics: swapDiagnostics,
-                })
-              : await swap({
-                  direction: 'SELL',
-                  xStockMint: mint,
-                  xStockDecimals: decimals,
-                  sellAll: true,
-                  diagnostics: swapDiagnostics,
-                });
-
-        if (result.exec.status !== 'Success') {
-          throw new Error(result.exec.error ?? 'swap failed');
-        }
-        swapBroadcast = true;
-
-        const tokenAmount =
-          payload.kind === 'BUY_TRIGGER'
-            ? Number(result.outputAmount) / 10 ** decimals
-            : Number(result.inputAmount) / 10 ** decimals;
-        const usdValue =
-          payload.kind === 'BUY_TRIGGER'
-            ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
-            : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
-        const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : payload.currentPriceUsd;
-
-        const settle = await authedFetch(`/api/orders/${payload.orderId}/execute`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            txSignature: result.exec.signature ?? `unknown-${Date.now()}`,
-            executionPrice,
-            tokenAmount,
-          }),
-        });
-        if (!settle.ok) {
-          const body = (await settle.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `settle ${settle.status}`);
-        }
-
-        settledTriggers.current.add(payload.orderId);
-        emitTriggerDiagnostic({
-          id: `${payload.orderId}:trigger-settled:${Date.now()}`,
-          section: 'swap',
-          step: 'trigger.executeSwap',
-          summary: `Toast swap broadcast ${shortId(result.exec.signature ?? 'unknown')} and settled at $${executionPrice.toFixed(2)}.`,
-          severity: 'success',
-          diagnostics: diagnosticsFromSwapDebug(result.debug),
-          latencyMs: Math.round(performance.now() - startedAt),
-          payload: diagnosticPayload,
-          response: {
-            swap: result.exec,
-            diagnostics: result.debug,
-            executionPrice,
-            tokenAmount,
+        const outcome = await executeTriggerOrder(
+          { payload, mint, decimals, startedAt },
+          {
+            authedFetch,
+            swap,
+            emitDiagnostic: emitTriggerDiagnostic,
           },
-        });
-        dismissTriggerToasts(payload.orderId);
-        toast.success(`${verb} ${payload.ticker} confirmed`, {
-          id: `${payload.orderId}:success`,
-          description: `${tokenAmount.toFixed(4)} @ $${executionPrice.toFixed(2)}`,
-          duration: 8_000,
-        });
-        console.info('[trigger-execute] settled', {
-          orderId: payload.orderId,
-          positionId: payload.positionId,
-          kind: payload.kind,
-          ticker: payload.ticker,
-          signature: result.exec.signature ?? null,
-          jupiterRequestId: result.order.requestId,
-          tokenAmount,
-          usdValue,
-          executionPrice,
-        });
-        void qc.invalidateQueries({ queryKey: QK.orders() });
-        void qc.invalidateQueries({ queryKey: QK.positions() });
-        void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
-        void qc.invalidateQueries({ queryKey: QK.portfolio() });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const detail = errorDetail(err);
-        const swapDebug = err instanceof JupiterSwapError ? err.debug : null;
-        const decoded =
-          err instanceof JupiterSwapError
-            ? decodeSolanaError(`${err.message}\n${err.debug.originalMessage}`)
-            : decodeSolanaError(msg);
-        emitTriggerDiagnostic({
-          id: `${payload.orderId}:trigger-failed:${Date.now()}`,
-          section: 'swap',
-          step: 'trigger.executeSwap',
-          summary: swapDebug
-            ? `Toast swap failed during ${swapDebug.phase}: ${swapDebug.originalMessage || msg}`
-            : `Toast execution failed: ${msg}`,
-          severity: 'error',
-          diagnostics: [
-            ...(swapDebug ? diagnosticsFromSwapDebug(swapDebug) : []),
-            ...(decoded
-              ? [
-                  {
-                    hypothesis: 'Program execution reached?',
-                    status:
-                      decoded.code === -32002 &&
-                      decoded.context.logs === '[]' &&
-                      (decoded.context.unitsConsumed === '0n' ||
-                        decoded.context.unitsConsumed === '0')
-                        ? 'risk'
-                        : 'watch',
-                    detail: `${decoded.classifier}; logs=${decoded.context.logs ?? 'n/a'}, units=${decoded.context.unitsConsumed ?? 'n/a'}.`,
-                  } as const,
-                ]
-              : []),
-            {
-              hypothesis: 'Claim cleanup',
-              status: claimed && !swapBroadcast ? 'watch' : 'unknown',
-              detail:
-                claimed && !swapBroadcast
-                  ? 'Swap did not broadcast, so the order claim will be released for retry.'
-                  : `claimed=${claimed}, swapBroadcast=${swapBroadcast}.`,
-            },
-          ],
-          latencyMs: Math.round(performance.now() - startedAt),
-          payload: diagnosticPayload,
-          error: msg,
-          errorDetail: {
-            claimed,
-            swapBroadcast,
-            ...detail,
-          },
-        });
-        console.error('[trigger-execute] failed', {
-          orderId: payload.orderId,
-          positionId: payload.positionId,
-          kind: payload.kind,
-          ticker: payload.ticker,
-          mint,
-          decimals,
-          claimed,
-          swapBroadcast,
-          payload,
-          error: detail,
-        });
-        if (err instanceof OrderExecutionClaimError) {
-          if (isOrderAlreadyHandled(err.reason)) {
-            settledTriggers.current.add(payload.orderId);
-            dismissTriggerToasts(payload.orderId);
-            void qc.invalidateQueries({ queryKey: QK.orders() });
-            void qc.invalidateQueries({ queryKey: QK.positions() });
-            void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
-            void qc.invalidateQueries({ queryKey: QK.portfolio() });
-            return;
-          }
-          if (isOrderAlreadyExecuting(err.reason)) {
-            dismissTriggerToasts(payload.orderId);
-            toast(`${verb} ${payload.ticker} already executing…`, {
-              id: `${payload.orderId}:executing`,
-              duration: 4_000,
-            });
-            return;
-          }
-        }
+        );
 
-        if (claimed && !swapBroadcast) {
-          await releaseOrderExecutionClaim(authedFetch, payload.orderId).catch((releaseErr) => {
-            console.warn('[notifications] release execution claim failed', releaseErr);
-          });
-        }
-
-        if (swapBroadcast) {
+        if (outcome.kind === 'settled') {
+          settledTriggers.current.add(payload.orderId);
           dismissTriggerToasts(payload.orderId);
-          toast.error(`Swap broadcast, but settle failed: ${msg}`, {
+          toast.success(`${verb} ${payload.ticker} confirmed`, {
+            id: `${payload.orderId}:success`,
+            description: `${outcome.tokenAmount.toFixed(4)} @ $${outcome.executionPrice.toFixed(2)}`,
+            duration: 8_000,
+          });
+          console.info('[trigger-execute] settled', {
+            orderId: payload.orderId,
+            positionId: payload.positionId,
+            kind: payload.kind,
+            ticker: payload.ticker,
+            signature: outcome.signature,
+            jupiterRequestId: outcome.jupiterRequestId,
+            tokenAmount: outcome.tokenAmount,
+            usdValue: outcome.usdValue,
+            executionPrice: outcome.executionPrice,
+          });
+          void qc.invalidateQueries({ queryKey: QK.orders() });
+          void qc.invalidateQueries({ queryKey: QK.positions() });
+          void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
+          void qc.invalidateQueries({ queryKey: QK.portfolio() });
+          return;
+        }
+
+        if (outcome.kind === 'alreadyHandled') {
+          settledTriggers.current.add(payload.orderId);
+          dismissTriggerToasts(payload.orderId);
+          void qc.invalidateQueries({ queryKey: QK.orders() });
+          void qc.invalidateQueries({ queryKey: QK.positions() });
+          void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
+          void qc.invalidateQueries({ queryKey: QK.portfolio() });
+          return;
+        }
+
+        if (outcome.kind === 'alreadyExecuting') {
+          dismissTriggerToasts(payload.orderId);
+          toast(`${verb} ${payload.ticker} already executing…`, {
+            id: `${payload.orderId}:executing`,
+            duration: 4_000,
+          });
+          return;
+        }
+
+        if (outcome.kind === 'broadcastButSettleFailed') {
+          dismissTriggerToasts(payload.orderId);
+          toast.error(`Swap broadcast, but settle failed: ${outcome.message}`, {
             id: `${payload.orderId}:settle-error`,
             description: 'Refresh the order state before retrying.',
             duration: 12_000,
@@ -457,10 +230,19 @@ export function NotificationClient() {
           return;
         }
 
+        const message =
+          outcome.kind === 'preBroadcastFailed' || outcome.kind === 'failed'
+            ? outcome.message
+            : 'Execution failed';
+        const retryDescription =
+          outcome.kind === 'preBroadcastFailed' && !outcome.released
+            ? 'Claim release failed; refresh the order state before retrying.'
+            : 'The swap did not broadcast; you can retry this trigger.';
+
         dismissTriggerToasts(payload.orderId);
-        toast.error(`Execute failed: ${msg}`, {
+        toast.error(`Execute failed: ${message}`, {
           id: `${payload.orderId}:error`,
-          description: 'The swap did not broadcast; you can retry this trigger.',
+          description: retryDescription,
           duration: 12_000,
           action: {
             label: 'Retry',
