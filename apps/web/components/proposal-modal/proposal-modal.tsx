@@ -55,7 +55,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [skipOpen, setSkipOpen] = useState(false);
-  const [skipReason, setSkipReason] = useState<SkipReason>('TOO_RISKY');
+  const [skipReason, setSkipReason] = useState<SkipReason | null>(null);
   const [skipDetail, setSkipDetail] = useState('');
 
   const [size, setSize] = useState<number>(() => proposal?.suggestedSizeUsd ?? 0);
@@ -70,6 +70,8 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     setTp(proposal.suggestedTakeProfitPrice);
     setSl(proposal.suggestedStopLossPrice);
     setSkipOpen(false);
+    setSkipReason(null);
+    setSkipDetail('');
     let cancelled = false;
     const bare = xStockToBare(proposal.ticker as XStockTicker);
     fetch(`/api/bars/${bare}?resolution=5&hours=24`)
@@ -234,13 +236,16 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
       toast.error('Connect a wallet to skip proposals.');
       return;
     }
+    const skipArgs: { proposalId: string; reason?: SkipReason; detail?: string } = {
+      proposalId: proposal!.id,
+    };
+    if (skipReason) {
+      skipArgs.reason = skipReason;
+      if (skipReason === 'OTHER') skipArgs.detail = skipDetail.trim();
+    }
     try {
-      await skipProposal.mutateAsync({
-        proposalId: proposal!.id,
-        reason: skipReason,
-        detail: skipReason === 'OTHER' ? skipDetail.trim() : undefined,
-      });
-      toast.success('Proposal skipped. Feedback saved.');
+      await skipProposal.mutateAsync(skipArgs);
+      toast.success(skipReason ? 'Proposal skipped. Feedback saved.' : 'Proposal skipped.');
       onDecision('skipped');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -397,28 +402,22 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
             Back
           </Button>
           <Button
-            variant={skipOpen ? 'default' : 'outline'}
+            variant={skipOpen ? 'secondary' : 'outline'}
             className="h-12 gap-1 px-2 text-label-md"
             onClick={() => setSkipOpen((open) => !open)}
             disabled={executing || isReadOnly}
           >
             <span className="material-symbols-outlined text-[20px]">feedback</span>
-            {skipOpen ? 'Feedback open' : 'Skip feedback'}
+            Skip proposal
           </Button>
           <Button
-            variant={skipOpen ? 'default' : 'accent'}
+            variant="accent"
             className="h-12 px-2 text-label-md"
             onClick={handleSubmit}
             disabled={submitDisabled}
-            aria-label={skipOpen ? 'Submit skip feedback' : 'Submit order'}
+            aria-label={skipOpen ? 'Submit skip proposal' : 'Submit order'}
           >
-            {skipOpen
-              ? skipProposal.isPending
-                ? 'Saving'
-                : 'Submit skip'
-              : executing
-                ? 'Submitting'
-                : 'Submit'}
+            {skipProposal.isPending || executing ? 'Submitting' : 'Submit'}
           </Button>
         </div>
       </footer>

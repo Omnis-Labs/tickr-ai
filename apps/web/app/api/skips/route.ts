@@ -6,15 +6,15 @@ import { requireAuth } from '@/lib/auth/context';
 
 /**
  * POST /api/skips
- * body: { proposalId, reason, detail? }
+ * body: { proposalId, reason?, detail? }
  *
- * Records a skip + marks the proposal as SKIPPED. The user identity comes
- * from the verified Privy access token; the body no longer carries
- * walletAddress.
+ * Marks the proposal as SKIPPED and records feedback when a reason is provided.
+ * The user identity comes from the verified Privy access token; the body no
+ * longer carries walletAddress.
  */
 const SkipBodySchema = z.object({
   proposalId: z.string().min(1),
-  reason: SkipReasonSchema,
+  reason: SkipReasonSchema.optional(),
   detail: z.string().optional(),
 });
 
@@ -40,11 +40,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
 
-  await prisma.skip.upsert({
-    where: { userId_proposalId: { userId: auth.userId, proposalId } },
-    update: { reason, detail: detail ?? null },
-    create: { userId: auth.userId, proposalId, reason, detail: detail ?? null },
-  });
+  if (reason) {
+    await prisma.skip.upsert({
+      where: { userId_proposalId: { userId: auth.userId, proposalId } },
+      update: { reason, detail: detail ?? null },
+      create: { userId: auth.userId, proposalId, reason, detail: detail ?? null },
+    });
+  }
 
   await prisma.proposal.update({
     where: { id: proposalId },
