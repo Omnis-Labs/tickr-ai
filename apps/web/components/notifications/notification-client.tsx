@@ -19,17 +19,13 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import {
-  JupiterSwapError,
-  useJupiterSwap,
-  type JupiterSwapDebug,
-} from '@/lib/jupiter/use-jupiter-swap';
+import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import {
   compactDiagnosticError,
   decodeSolanaError,
   emitDevDiagnostic,
-  type LogDiagnostic,
 } from '@/lib/dev-tools/client-diagnostics';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
@@ -108,112 +104,6 @@ function triggerDiagnosticPayload(
     sizeUsd: payload.sizeUsd,
     tokenAmount: payload.tokenAmount ?? null,
   };
-}
-
-function diagnosticsFromSwapDebug(debug: JupiterSwapDebug): LogDiagnostic[] {
-  const validity = debug.blockhashValidity ?? [];
-  const primary = validity.find((item) => item.isPrivyPrimary);
-  const anyValid = validity.some((item) => item.valid === true);
-  const anyInvalid = validity.some((item) => item.valid === false);
-  const simulations = debug.preBroadcastSimulation ?? [];
-  const simulationHasErr = simulations.some((item) => item.err);
-  const simulationHasTransportError = simulations.some((item) => item.error);
-  const shape = debug.transactionShape;
-  const signedShape = debug.signedTransactionShape;
-  const takerIsSigner = !!debug.taker && !!shape?.signerKeys.includes(debug.taker);
-  const signedNonZeroCount = signedShape
-    ? signedShape.signatureCount - signedShape.zeroSignatureCount
-    : null;
-  const diagnostics: LogDiagnostic[] = [
-    {
-      hypothesis: 'Blockhash age',
-      status:
-        debug.orderAgeBucket === 'healthy'
-          ? 'healthy'
-          : debug.orderAgeBucket === 'warn'
-            ? 'watch'
-            : debug.orderAgeBucket === 'risk' || debug.orderAgeBucket === 'refresh-recommended'
-              ? 'risk'
-              : 'unknown',
-      detail:
-        debug.orderAgeMsAtBroadcast == null
-          ? 'No broadcast start timestamp captured.'
-          : `${debug.orderAgeMsAtBroadcast}ms from Jupiter order to Ultra execute (${debug.orderAgeBucket}).`,
-    },
-    {
-      hypothesis: 'RPC freshness',
-      status:
-        validity.length === 0
-          ? 'unknown'
-          : primary?.valid === false || (anyInvalid && anyValid)
-            ? 'risk'
-            : validity.some((item) => item.error)
-              ? 'watch'
-              : 'healthy',
-      detail:
-        validity.length === 0
-          ? `No blockhash validity probe ran. Privy primary: ${debug.selectedPrivyRpc ?? 'unknown'}.`
-          : validity
-              .map((item) => {
-                const result =
-                  item.valid == null
-                    ? `error: ${item.error ?? 'unknown'}`
-                    : item.valid
-                      ? 'valid'
-                      : 'invalid';
-                return `${item.isPrivyPrimary ? 'primary ' : ''}RPC${item.index + 1} ${result} (${item.latencyMs}ms)`;
-              })
-              .join('; '),
-    },
-    {
-      hypothesis: 'Local pre-submit simulation',
-      status:
-        simulations.length === 0
-          ? 'unknown'
-          : simulationHasErr
-            ? 'risk'
-            : simulationHasTransportError
-              ? 'watch'
-              : 'healthy',
-      detail:
-        simulations.length === 0
-          ? 'No unsigned simulation was captured before submit.'
-          : simulations
-              .map((item) => {
-                if (item.error) return `RPC${item.index + 1} transport error: ${item.error}`;
-                if (item.err) return `RPC${item.index + 1} simulation err: ${item.err}`;
-                return `RPC${item.index + 1} ok (${item.unitsConsumed ?? 'n/a'} units, ${item.logsCount ?? 0} logs)`;
-              })
-              .join('; '),
-    },
-    {
-      hypothesis: 'Transaction shape',
-      status: !shape || !takerIsSigner ? 'risk' : signedNonZeroCount === 0 ? 'risk' : 'healthy',
-      detail: shape
-        ? `v${shape.version}, unsigned zeros ${shape.zeroSignatureCount}/${shape.signatureCount}, signed zeros ${signedShape ? `${signedShape.zeroSignatureCount}/${signedShape.signatureCount}` : 'n/a'}, required ${shape.requiredSignatures}, staticKeys ${shape.staticAccountKeys}, ALTs ${shape.addressTableLookups}, ix ${shape.compiledInstructions}, feePayer=${shortId(shape.feePayer ?? 'unknown')}, takerSigner=${takerIsSigner}.`
-        : 'No transaction shape captured.',
-    },
-    {
-      hypothesis: 'Privy sign / Ultra execute path',
-      status:
-        debug.signature || debug.executeStatus === 'Success'
-          ? 'healthy'
-          : debug.phase === 'sign' || debug.phase === 'execute'
-            ? 'risk'
-            : 'watch',
-      detail: debug.signature
-        ? `Jupiter Ultra returned signature ${shortId(debug.signature)}.`
-        : `No signature returned; failed during ${debug.phase}${debug.executeError ? ` (${debug.executeError})` : ''}.`,
-    },
-    {
-      hypothesis: 'Jupiter order/route',
-      status: debug.orderRequestId ? 'healthy' : debug.phase === 'order' ? 'risk' : 'unknown',
-      detail: debug.orderRequestId
-        ? `Ultra order ${debug.orderRequestId}; impact ${debug.priceImpactPct ?? 'n/a'}.`
-        : 'No Ultra order id captured.',
-    },
-  ];
-  return diagnostics;
 }
 
 /**
@@ -371,7 +261,7 @@ export function NotificationClient() {
         // sellAll would sweep unrelated dust or another position
         // sharing the same mint — see the manual-close side-effect we
         // hit on 2026-05-02 where the close sold double the DB amount.
-        const swapDiagnostics = { source: 'trigger-toast', checkBlockhash: true } as const;
+        const swapDiagnostics = { source: 'trigger-toast', mode: 'probes' } as const;
         const result =
           payload.kind === 'BUY_TRIGGER'
             ? await swap({
