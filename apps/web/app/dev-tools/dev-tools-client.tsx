@@ -30,7 +30,7 @@ import {
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import {
   claimOrderExecution,
   isOrderAlreadyExecuting,
@@ -54,6 +54,7 @@ interface LogEntry {
   response?: unknown;
   latencyMs: number;
   error?: string;
+  errorDetail?: unknown;
 }
 
 interface DevOrder {
@@ -123,6 +124,32 @@ function fmtUsd(v: number | null | undefined): string {
 
 function stringify(value: unknown): string {
   return JSON.stringify(value, null, 2);
+}
+
+function logErrorDetail(err: unknown): unknown {
+  if (err instanceof JupiterSwapError) {
+    return {
+      name: err.name,
+      message: err.message,
+      swap: err.debug,
+    };
+  }
+  if (err instanceof OrderExecutionClaimError) {
+    return {
+      name: err.name,
+      message: err.message,
+      reason: err.reason,
+      statusCode: err.statusCode,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+    };
+  }
+  return { message: String(err) };
 }
 
 function logToText(entries: LogEntry[]): string {
@@ -224,10 +251,12 @@ export function DevToolsClient() {
           payload,
           latencyMs: Math.round(performance.now() - start),
           error: err instanceof Error ? err.message : String(err),
+          errorDetail: logErrorDetail(err),
         };
         appendLog(section, entry);
         console.groupCollapsed(`[dev-tools] ${step} ${id} error`);
         console.log('payload', payload);
+        console.log('errorDetail', entry.errorDetail);
         console.error(err);
         console.log('latencyMs', entry.latencyMs);
         console.groupEnd();

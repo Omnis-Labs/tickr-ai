@@ -42,6 +42,35 @@ export interface SwapResult {
   outputAmount: string;
 }
 
+export type JupiterSwapPhase = 'prepare' | 'balance' | 'order' | 'deserialize' | 'broadcast';
+
+export interface JupiterSwapDebug {
+  phase: JupiterSwapPhase;
+  direction: SwapDirection;
+  xStockMint: string;
+  inputMint: string | null;
+  outputMint: string | null;
+  amount: string | null;
+  taker: string | null;
+  orderRequestId: string | null;
+  orderInAmount: string | null;
+  orderOutAmount: string | null;
+  otherAmountThreshold: string | null;
+  priceImpactPct: string | null;
+  originalMessage: string;
+}
+
+export class JupiterSwapError extends Error {
+  constructor(
+    message: string,
+    public readonly debug: JupiterSwapDebug,
+    public readonly originalError: unknown,
+  ) {
+    super(message);
+    this.name = 'JupiterSwapError';
+  }
+}
+
 export type SwapDirection = 'BUY' | 'SELL';
 
 interface BuyArgs {
@@ -72,6 +101,10 @@ interface SellAmountArgs {
 }
 export type SwapArgs = BuyArgs | SellAllArgs | SellAmountArgs;
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Hook that wraps the full Jupiter Ultra round-trip:
  * 1) GET /ultra/v1/order
@@ -92,98 +125,130 @@ export function useJupiterSwap() {
       if (!publicKey || !signAndSendTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 
-      let inputMint: string;
-      let outputMint: string;
-      let amount: string;
+      let phase: JupiterSwapPhase = 'prepare';
+      let inputMint: string | null = null;
+      let outputMint: string | null = null;
+      let amount: string | null = null;
+      let order: UltraOrderResponse | null = null;
+      const taker = publicKey.toBase58();
 
-      if (args.direction === 'BUY') {
-        inputMint = USDC_MINT;
-        outputMint = args.xStockMint;
-        amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
-      } else if ('tokenAmount' in args) {
-        // Targeted SELL: caller specified exactly how many xStock units to
-        // sell (typically position.tokenAmount). We still cap at the wallet
-        // balance to avoid an Ultra failure if the chain has less than the
-        // DB thinks (e.g. a separate manual transfer happened).
-        const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-          programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+      try {
+        if (args.direction === 'BUY') {
+          inputMint = USDC_MINT;
+          outputMint = args.xStockMint;
+          amount = Math.round(args.usdAmount * 10 ** USDC_DECIMALS).toString();
+        } else if ('tokenAmount' in args) {
+          phase = 'balance';
+          // Targeted SELL: caller specified exactly how many xStock units to
+          // sell (typically position.tokenAmount). We still cap at the wallet
+          // balance to avoid an Ultra failure if the chain has less than the
+          // DB thinks (e.g. a separate manual transfer happened).
+          const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+            programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+          });
+          const found = accounts.value.find((a) => {
+            const info = a.account.data;
+            return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
+          });
+          const walletRaw = BigInt(
+            (found?.account.data as unknown as {
+              parsed?: { info?: { tokenAmount?: { amount?: string } } };
+            })?.parsed?.info?.tokenAmount?.amount ?? '0',
+          );
+          const wantRaw = BigInt(Math.round(args.tokenAmount * 10 ** args.xStockDecimals));
+          const sellRaw = wantRaw < walletRaw ? wantRaw : walletRaw;
+          if (sellRaw === 0n) throw new Error(`No xStock balance for ${args.xStockMint}`);
+          inputMint = args.xStockMint;
+          outputMint = USDC_MINT;
+          amount = sellRaw.toString();
+        } else {
+          phase = 'balance';
+          // sellAll: drain whatever's in the wallet for this mint. Reserved
+          // for panic-close-balance flows where the user explicitly wants the
+          // wallet emptied — closePosition() does NOT use this path because
+          // it would sweep unrelated dust / other positions that share the
+          // same mint.
+          const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+            programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
+          });
+          const found = accounts.value.find((a) => {
+            const info = a.account.data;
+            return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
+          });
+          const raw =
+            (found?.account.data as unknown as {
+              parsed?: { info?: { tokenAmount?: { amount?: string } } };
+            })?.parsed?.info?.tokenAmount?.amount ?? '0';
+          if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
+          inputMint = args.xStockMint;
+          outputMint = USDC_MINT;
+          amount = raw;
+        }
+
+        if (!inputMint || !outputMint || !amount) {
+          throw new Error('swap amount not prepared');
+        }
+
+        phase = 'order';
+        setLoading('order');
+        order = await requestUltraOrder({
+          inputMint,
+          outputMint,
+          amount,
+          taker,
         });
-        const found = accounts.value.find((a) => {
-          const info = a.account.data;
-          return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
-        });
-        const walletRaw = BigInt(
-          (found?.account.data as unknown as {
-            parsed?: { info?: { tokenAmount?: { amount?: string } } };
-          })?.parsed?.info?.tokenAmount?.amount ?? '0',
-        );
-        const wantRaw = BigInt(Math.round(args.tokenAmount * 10 ** args.xStockDecimals));
-        const sellRaw = wantRaw < walletRaw ? wantRaw : walletRaw;
-        if (sellRaw === 0n) throw new Error(`No xStock balance for ${args.xStockMint}`);
-        inputMint = args.xStockMint;
-        outputMint = USDC_MINT;
-        amount = sellRaw.toString();
-      } else {
-        // sellAll: drain whatever's in the wallet for this mint. Reserved
-        // for panic-close-balance flows where the user explicitly wants the
-        // wallet emptied — closePosition() does NOT use this path because
-        // it would sweep unrelated dust / other positions that share the
-        // same mint.
-        const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-          programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
-        });
-        const found = accounts.value.find((a) => {
-          const info = a.account.data;
-          return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
-        });
-        const raw =
-          (found?.account.data as unknown as {
-            parsed?: { info?: { tokenAmount?: { amount?: string } } };
-          })?.parsed?.info?.tokenAmount?.amount ?? '0';
-        if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
-        inputMint = args.xStockMint;
-        outputMint = USDC_MINT;
-        amount = raw;
+        setLastOrder(order);
+
+        phase = 'deserialize';
+        setLoading('sign');
+        const txBytes = fromBase64(order.transaction);
+        const tx = VersionedTransaction.deserialize(txBytes);
+
+        // Pivot away from Jupiter Ultra `/execute` (which would relay via
+        // Ultra's MEV-protected bundler) because Privy v3's signTransaction
+        // hook always pops a confirmation modal whose internal tx-introspection
+        // borsh decoder crashes on Ultra's multi-hop / ALT layout
+        // ("t.slice is not a function"), greying out Approve and trapping
+        // the user. signAndSendTransaction goes through `useSendTransaction`,
+        // which honours `uiOptions.showWalletUIs=false` and skips the modal,
+        // broadcasting through Privy's RPC. Fine for the v1 hackathon UX;
+        // we lose Ultra's bundling but preserve the route Ultra picked.
+        phase = 'broadcast';
+        setLoading('execute');
+        const sent = await signAndSendTransaction(tx);
+        const exec: UltraExecuteResponse = {
+          status: 'Success',
+          signature: sent.signature,
+        };
+
+        setLoading(null);
+        return {
+          order,
+          exec,
+          inputMint,
+          outputMint,
+          inputAmount: order.inAmount,
+          outputAmount: order.outAmount,
+        };
+      } catch (err) {
+        setLoading(null);
+        const originalMessage = errorMessage(err);
+        throw new JupiterSwapError(`${phase} failed: ${originalMessage}`, {
+          phase,
+          direction: args.direction,
+          xStockMint: args.xStockMint,
+          inputMint,
+          outputMint,
+          amount,
+          taker,
+          orderRequestId: order?.requestId ?? null,
+          orderInAmount: order?.inAmount ?? null,
+          orderOutAmount: order?.outAmount ?? null,
+          otherAmountThreshold: order?.otherAmountThreshold ?? null,
+          priceImpactPct: order?.priceImpactPct ?? null,
+          originalMessage,
+        }, err);
       }
-
-      setLoading('order');
-      const order = await requestUltraOrder({
-        inputMint,
-        outputMint,
-        amount,
-        taker: publicKey.toBase58(),
-      });
-      setLastOrder(order);
-
-      setLoading('sign');
-      const txBytes = fromBase64(order.transaction);
-      const tx = VersionedTransaction.deserialize(txBytes);
-
-      // Pivot away from Jupiter Ultra `/execute` (which would relay via
-      // Ultra's MEV-protected bundler) because Privy v3's signTransaction
-      // hook always pops a confirmation modal whose internal tx-introspection
-      // borsh decoder crashes on Ultra's multi-hop / ALT layout
-      // ("t.slice is not a function"), greying out Approve and trapping
-      // the user. signAndSendTransaction goes through `useSendTransaction`,
-      // which honours `uiOptions.showWalletUIs=false` and skips the modal,
-      // broadcasting through Privy's RPC. Fine for the v1 hackathon UX;
-      // we lose Ultra's bundling but preserve the route Ultra picked.
-      setLoading('execute');
-      const sent = await signAndSendTransaction(tx);
-      const exec: UltraExecuteResponse = {
-        status: 'Success',
-        signature: sent.signature,
-      };
-
-      setLoading(null);
-      return {
-        order,
-        exec,
-        inputMint,
-        outputMint,
-        inputAmount: order.inAmount,
-        outputAmount: order.outAmount,
-      };
     },
     [connection, publicKey, signAndSendTransaction],
   );

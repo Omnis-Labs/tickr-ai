@@ -19,7 +19,7 @@ import {
 } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
-import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
@@ -38,6 +38,40 @@ import {
 } from '@/lib/notifications/registry';
 import { clearAlertFavicon } from './favicon-dot';
 import { stopTitleFlash } from './tab-title-flasher';
+
+function dismissTriggerToasts(orderId: string): void {
+  toast.dismiss(orderId);
+  toast.dismiss(`${orderId}:success`);
+  toast.dismiss(`${orderId}:error`);
+  toast.dismiss(`${orderId}:settle-error`);
+  toast.dismiss(`${orderId}:executing`);
+}
+
+function errorDetail(err: unknown): Record<string, unknown> {
+  if (err instanceof JupiterSwapError) {
+    return {
+      name: err.name,
+      message: err.message,
+      swap: err.debug,
+    };
+  }
+  if (err instanceof OrderExecutionClaimError) {
+    return {
+      name: err.name,
+      message: err.message,
+      reason: err.reason,
+      statusCode: err.statusCode,
+    };
+  }
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+    };
+  }
+  return { message: String(err) };
+}
 
 /**
  * Driver-only: subscribes to socket events, hands payloads to typed
@@ -122,6 +156,10 @@ export function NotificationClient() {
       if (inflightTriggers.current.has(payload.orderId)) return;
       inflightTriggers.current.add(payload.orderId);
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
+      toast.dismiss(`${payload.orderId}:success`);
+      toast.dismiss(`${payload.orderId}:error`);
+      toast.dismiss(`${payload.orderId}:settle-error`);
+      toast.dismiss(`${payload.orderId}:executing`);
       toast.loading(`Executing ${verb} ${payload.ticker}…`, {
         id: payload.orderId,
         duration: Infinity,
@@ -132,6 +170,15 @@ export function NotificationClient() {
       try {
         await claimOrderExecution(authedFetch, payload.orderId);
         claimed = true;
+        console.info('[trigger-execute] claimed', {
+          orderId: payload.orderId,
+          positionId: payload.positionId,
+          kind: payload.kind,
+          ticker: payload.ticker,
+          mint,
+          sizeUsd: payload.sizeUsd,
+          tokenAmount: payload.tokenAmount ?? null,
+        });
 
         // For TP/SL we sell exactly the position's token count
         // (populated on the synthetic exit Order at BUY-fill time and
@@ -191,10 +238,22 @@ export function NotificationClient() {
         }
 
         settledTriggers.current.add(payload.orderId);
+        dismissTriggerToasts(payload.orderId);
         toast.success(`${verb} ${payload.ticker} confirmed`, {
-          id: payload.orderId,
+          id: `${payload.orderId}:success`,
           description: `${tokenAmount.toFixed(4)} @ $${executionPrice.toFixed(2)}`,
           duration: 8_000,
+        });
+        console.info('[trigger-execute] settled', {
+          orderId: payload.orderId,
+          positionId: payload.positionId,
+          kind: payload.kind,
+          ticker: payload.ticker,
+          signature: result.exec.signature ?? null,
+          jupiterRequestId: result.order.requestId,
+          tokenAmount,
+          usdValue,
+          executionPrice,
         });
         void qc.invalidateQueries({ queryKey: QK.orders() });
         void qc.invalidateQueries({ queryKey: QK.positions() });
@@ -202,10 +261,22 @@ export function NotificationClient() {
         void qc.invalidateQueries({ queryKey: QK.portfolio() });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        console.error('[trigger-execute] failed', {
+          orderId: payload.orderId,
+          positionId: payload.positionId,
+          kind: payload.kind,
+          ticker: payload.ticker,
+          mint,
+          decimals,
+          claimed,
+          swapBroadcast,
+          payload,
+          error: errorDetail(err),
+        });
         if (err instanceof OrderExecutionClaimError) {
           if (isOrderAlreadyHandled(err.reason)) {
             settledTriggers.current.add(payload.orderId);
-            toast.dismiss(payload.orderId);
+            dismissTriggerToasts(payload.orderId);
             void qc.invalidateQueries({ queryKey: QK.orders() });
             void qc.invalidateQueries({ queryKey: QK.positions() });
             void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
@@ -213,8 +284,9 @@ export function NotificationClient() {
             return;
           }
           if (isOrderAlreadyExecuting(err.reason)) {
+            dismissTriggerToasts(payload.orderId);
             toast(`${verb} ${payload.ticker} already executing…`, {
-              id: payload.orderId,
+              id: `${payload.orderId}:executing`,
               duration: 4_000,
             });
             return;
@@ -228,8 +300,9 @@ export function NotificationClient() {
         }
 
         if (swapBroadcast) {
+          dismissTriggerToasts(payload.orderId);
           toast.error(`Swap broadcast, but settle failed: ${msg}`, {
-            id: payload.orderId,
+            id: `${payload.orderId}:settle-error`,
             description: 'Refresh the order state before retrying.',
             duration: 12_000,
           });
@@ -240,8 +313,9 @@ export function NotificationClient() {
           return;
         }
 
+        dismissTriggerToasts(payload.orderId);
         toast.error(`Execute failed: ${msg}`, {
-          id: payload.orderId,
+          id: `${payload.orderId}:error`,
           description: 'The swap did not broadcast; you can retry this trigger.',
           duration: 12_000,
           action: {
@@ -279,6 +353,9 @@ export function NotificationClient() {
           ? `Trigger $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`
           : `${payload.kind === 'TAKE_PROFIT' ? 'TP' : 'SL'} $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`;
 
+      toast.dismiss(`${payload.orderId}:error`);
+      toast.dismiss(`${payload.orderId}:settle-error`);
+      toast.dismiss(`${payload.orderId}:executing`);
       toast(`${verb} ${payload.ticker} @ $${payload.currentPriceUsd.toFixed(2)}`, {
         id: payload.orderId,
         description: triggerLabel,
