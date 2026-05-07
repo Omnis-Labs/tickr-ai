@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ProposalModal } from '@/components/proposal-modal/proposal-modal';
 import { useProposalsStore, type ProposalUI } from '@/lib/store/proposals';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { useWallet } from '@/lib/wallet/use-wallet';
 
 export default function ProposalDetailPage() {
   const params = useParams<{ id: string }>();
@@ -16,13 +17,35 @@ export default function ProposalDetailPage() {
   const [coldRead, setColdRead] = useState<ProposalUI | null>(null);
   const [loaded, setLoaded] = useState(false);
   const authedFetch = useAuthedFetch();
+  const { ready, connected } = useWallet();
 
   useEffect(() => {
-    if (!params?.id || inMemory) {
+    if (!params?.id) {
+      setColdRead(null);
       setLoaded(true);
       return;
     }
+
+    if (inMemory) {
+      setColdRead(null);
+      setLoaded(true);
+      return;
+    }
+
+    if (!ready) {
+      setLoaded(false);
+      return;
+    }
+
+    if (!connected) {
+      setColdRead(null);
+      setLoaded(true);
+      return;
+    }
+
     let cancelled = false;
+    setColdRead(null);
+    setLoaded(false);
     authedFetch(`/api/proposals/${params.id}`)
       .then(async (r) => (r.ok ? ((await r.json()) as { proposal: ProposalUI }) : null))
       .then((j) => {
@@ -35,7 +58,7 @@ export default function ProposalDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [params?.id, inMemory]);
+  }, [params?.id, inMemory, ready, connected, authedFetch]);
 
   const proposal = inMemory ?? coldRead ?? null;
 

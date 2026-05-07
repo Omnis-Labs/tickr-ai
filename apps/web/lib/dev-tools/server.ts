@@ -15,6 +15,7 @@ import {
 import { prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { getCurrentPrices } from '@/lib/pyth';
+import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { devToolsPassword } from './auth';
 
 export const GEMINI_DEV_TOOLS_MODEL = 'gemini-3.1-flash-lite-preview';
@@ -48,6 +49,8 @@ export interface DevToolsOrderRow {
 }
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
+const MIN_SUGGESTED_SIZE_USD = 5;
+const ROUND_INCREMENT_USD = 5;
 
 const GeminiProposalSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),
@@ -73,6 +76,27 @@ function roundPrice(v: number): number {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+function finitePositive(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function defaultProposalSizeUsd(input: {
+  availableUsdc: number;
+  maxTradeSizeUsd: number;
+}): number {
+  const availableUsdc = finitePositive(input.availableUsdc);
+  const maxTradeSizeUsd = finitePositive(input.maxTradeSizeUsd);
+  if (availableUsdc === 0 || maxTradeSizeUsd === 0) return 0;
+
+  const rawTarget = availableUsdc * 0.2;
+  const balanceSized =
+    rawTarget < MIN_SUGGESTED_SIZE_USD
+      ? Math.min(availableUsdc, MIN_SUGGESTED_SIZE_USD)
+      : Math.ceil(rawTarget / ROUND_INCREMENT_USD) * ROUND_INCREMENT_USD;
+
+  return Number(Math.min(balanceSized, availableUsdc, maxTradeSizeUsd).toFixed(2));
 }
 
 function ema(values: number[], period: number): number[] {
@@ -192,6 +216,8 @@ function buildGeminiPrompt(input: {
   holdingPeriod: string;
   maxDrawdown: number | null;
   maxTradeSize: number;
+  availableUsdc: number;
+  defaultSizeUsd: number;
 }): string {
   const maxDrawdown =
     input.maxDrawdown == null ? 'none' : `${(input.maxDrawdown * 100).toFixed(1)}%`;
@@ -203,6 +229,8 @@ Latest price: $${input.latestPrice.toFixed(2)}
 Mandate holding period: ${input.holdingPeriod}
 Mandate max drawdown: ${maxDrawdown}
 Mandate max trade size: $${input.maxTradeSize.toFixed(2)}
+Wallet USDC balance: $${input.availableUsdc.toFixed(2)}
+Default proposal size: $${input.defaultSizeUsd.toFixed(2)} (20% of USDC balance, rounded up to the next $5 increment; if below $5, use up to $5)
 
 Indicators:
 RSI(14): ${input.indicators.rsi.toFixed(2)}
@@ -302,6 +330,17 @@ export async function createDevToolsProposal(input: {
   const indicators = computeIndicators(bars, latestPrice);
   const maxTradeSize = user.mandate.maxTradeSize.toNumber();
   const maxDrawdown = user.mandate.maxDrawdown?.toNumber() ?? null;
+  const availableUsdc = await readUsdcBalance(user.walletAddress, {
+    forceFresh: true,
+    throwOnFailure: true,
+  });
+  const defaultSizeUsd = defaultProposalSizeUsd({
+    availableUsdc,
+    maxTradeSizeUsd: maxTradeSize,
+  });
+  if (defaultSizeUsd <= 0) {
+    throw new Error('No USDC balance available to size a proposal.');
+  }
 
   const prompt = buildGeminiPrompt({
     ticker: input.ticker,
@@ -311,12 +350,12 @@ export async function createDevToolsProposal(input: {
     holdingPeriod: user.mandate.holdingPeriod,
     maxDrawdown,
     maxTradeSize,
+    availableUsdc,
+    defaultSizeUsd,
   });
   const llm = await askGemini(prompt);
   const degraded = !llm.parsed;
 
-  const sizeFloor = Math.min(5, maxTradeSize);
-  const fallbackSize = clamp(maxTradeSize * 0.35, sizeFloor, maxTradeSize);
   const drawdownPct = maxDrawdown == null ? 0.04 : clamp(maxDrawdown, 0.015, 0.08);
   const fallbackTrigger = roundPrice(latestPrice * 0.998);
   const trigger = roundPrice(llm.parsed?.trigger_price ?? fallbackTrigger);
@@ -326,13 +365,11 @@ export async function createDevToolsProposal(input: {
   const sl = roundPrice(
     Math.min(trigger * 0.995, llm.parsed?.stop_loss_price ?? trigger * (1 - drawdownPct)),
   );
-  const sizeUsd = Number(
-    clamp(llm.parsed?.suggested_size_usd ?? fallbackSize, sizeFloor, maxTradeSize).toFixed(2),
-  );
+  const sizeUsd = defaultSizeUsd;
   const confidence = Number(clamp(llm.parsed?.confidence ?? 0.72, 0.55, 0.92).toFixed(2));
 
   const whyFitsMandate =
-    `Fits your ${user.mandate.holdingPeriod} mandate. Size $${sizeUsd.toFixed(2)} is within your $${maxTradeSize.toFixed(2)} max trade size. ` +
+    `Fits your ${user.mandate.holdingPeriod} mandate. Size $${sizeUsd.toFixed(2)} is based on your $${availableUsdc.toFixed(2)} USDC balance and is within your $${maxTradeSize.toFixed(2)} max trade size. ` +
     `Stop at $${sl.toFixed(2)} caps the test drawdown near ${((trigger - sl) / trigger * 100).toFixed(1)}%.`;
 
   const created = await prisma.proposal.create({
@@ -355,7 +392,7 @@ export async function createDevToolsProposal(input: {
       positionImpact: {
         weight_before: 0,
         weight_after: 0,
-        cash_after: -sizeUsd,
+        cash_after: Number((availableUsdc - sizeUsd).toFixed(2)),
         sector_before: 0,
         sector_after: 0,
         dev_tools_note: 'Position impact is not simulated; order/position lifecycle is real.',
