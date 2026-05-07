@@ -64,6 +64,17 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Commit Regularly
+
+Use small, reviewable commits to preserve context and reduce recovery risk.
+
+- Commit after each coherent, verified checkpoint in non-trivial work.
+- Keep each commit focused on one logical change.
+- Run the relevant checks before committing whenever practical.
+- Check `git status` before every commit and include only files you intentionally changed.
+- Do not bundle unrelated cleanup, generated noise, or user-owned changes into your commits.
+- Use clear English commit messages that explain the change.
+
 ## Documentation Maintenance
 
 Any time we push, update `/docs` accordingly to ensure other developers, users, and open-source contributors can follow along and understand the changes.
