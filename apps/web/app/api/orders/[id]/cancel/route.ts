@@ -40,9 +40,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ ok: true, order: decimalsToNumbers(order) });
   }
 
-  const order = await prisma.order.update({
-    where: { id },
+  const cancelled = await prisma.order.updateMany({
+    where: { id, userId: auth.userId, status: 'OPEN' },
     data: { status: 'CANCELLED' },
   });
+  if (cancelled.count === 0) {
+    const cur = await prisma.order.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    return NextResponse.json(
+      { error: cur ? `order_${cur.status.toLowerCase()}` : 'order_not_found' },
+      { status: 409 },
+    );
+  }
+  const order = await prisma.order.findUnique({ where: { id } });
   return NextResponse.json({ ok: true, order: decimalsToNumbers(order) });
 }

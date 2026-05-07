@@ -31,6 +31,13 @@ import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import {
+  claimOrderExecution,
+  isOrderAlreadyExecuting,
+  isOrderAlreadyHandled,
+  OrderExecutionClaimError,
+  releaseOrderExecutionClaim,
+} from '@/lib/orders/execution-claim';
 import { isLiveProposal } from '@/lib/proposals/expiration';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useProposalsStore } from '@/lib/store/proposals';
@@ -490,14 +497,22 @@ export function DevToolsClient() {
 
   async function executeOrder() {
     if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
     const meta = XSTOCKS[xStockToBare(selectedOrder.ticker as XStockTicker)];
     if (!meta?.mint) {
       toast.error(`${selectedOrder.ticker} mint not configured.`);
       return;
     }
     setBusy('execute');
+    let claimed = false;
+    let swapBroadcast = false;
     try {
-      await runLogged('swap', 'order.executeSwap', { orderId: selectedOrder.id }, async () => {
+      await runLogged('orders', 'order.claimExecution', { orderId }, async () => {
+        return claimOrderExecution(authedFetch, orderId);
+      });
+      claimed = true;
+
+      await runLogged('swap', 'order.executeSwap', { orderId }, async () => {
         const result =
           selectedOrder.kind === 'BUY_TRIGGER'
             ? await swap({
@@ -521,6 +536,7 @@ export function DevToolsClient() {
                 });
 
         if (result.exec.status !== 'Success') throw new Error(result.exec.error ?? 'swap failed');
+        swapBroadcast = true;
         const tokenAmount =
           selectedOrder.kind === 'BUY_TRIGGER'
             ? Number(result.outputAmount) / 10 ** meta.decimals
@@ -553,7 +569,30 @@ export function DevToolsClient() {
       void qc.invalidateQueries({ queryKey: QK.positions() });
       void qc.invalidateQueries({ queryKey: QK.portfolio() });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (err instanceof OrderExecutionClaimError) {
+        if (isOrderAlreadyHandled(err.reason)) {
+          toast.success('Order already settled.');
+          await refreshDevState();
+          return;
+        }
+        if (isOrderAlreadyExecuting(err.reason)) {
+          toast('Order is already executing.');
+          await refreshDevState();
+          return;
+        }
+      }
+
+      if (claimed && !swapBroadcast) {
+        await runLogged('orders', 'order.releaseExecution', { orderId }, async () => {
+          return releaseOrderExecutionClaim(authedFetch, orderId);
+        }).catch((releaseErr) => {
+          console.warn('[dev-tools] release execution claim failed', releaseErr);
+        });
+      }
+
+      toast.error(swapBroadcast ? `Swap broadcast, but settle failed: ${msg}` : msg);
+      await refreshDevState().catch(() => {});
     } finally {
       setBusy(null);
     }

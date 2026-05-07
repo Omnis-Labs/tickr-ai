@@ -24,6 +24,20 @@ class PositionRaceRollback extends Error {
 }
 
 type Tx = Prisma.TransactionClient;
+type ExecutableOrderKind = 'BUY_TRIGGER' | 'TAKE_PROFIT' | 'STOP_LOSS';
+
+function isExecutableOrderKind(kind: string): kind is ExecutableOrderKind {
+  return kind === 'BUY_TRIGGER' || kind === 'TAKE_PROFIT' || kind === 'STOP_LOSS';
+}
+
+function executionStateFor(kind: ExecutableOrderKind): {
+  before: 'BUY_PENDING' | 'ACTIVE';
+  pending: 'ENTERING' | 'CLOSING';
+} {
+  return kind === 'BUY_TRIGGER'
+    ? { before: 'BUY_PENDING', pending: 'ENTERING' }
+    : { before: 'ACTIVE', pending: 'CLOSING' };
+}
 
 async function findOrderByTxSignature(client: Tx | typeof prisma, txSignature: string) {
   return client.order.findUnique({ where: { txSignature } });
@@ -233,6 +247,211 @@ export async function cancelPendingBuy(input: { userId: string; orderId: string 
   });
 }
 
+export async function claimOrderExecution(input: {
+  userId: string;
+  orderId: string;
+}): Promise<
+  LifecycleResult<{
+    orderId: string;
+    positionId: string;
+    orderStatus: 'PENDING';
+    positionStatus: 'ENTERING' | 'CLOSING';
+  }>
+> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: input.orderId },
+        select: {
+          id: true,
+          userId: true,
+          positionId: true,
+          kind: true,
+          status: true,
+          triggerPriceUsd: true,
+          jupiterOrderId: true,
+          position: { select: { state: true } },
+        },
+      });
+      if (!order || order.userId !== input.userId) {
+        return { status: 'conflict', reason: 'order_not_found' };
+      }
+      if (!isExecutableOrderKind(order.kind)) {
+        return {
+          status: 'conflict',
+          reason: `order_kind_${order.kind.toLowerCase()}`,
+        };
+      }
+      if (order.jupiterOrderId != null || order.triggerPriceUsd == null) {
+        return { status: 'conflict', reason: 'order_not_synthetic_trigger' };
+      }
+      if (order.status !== 'OPEN') {
+        return {
+          status: 'conflict',
+          reason: `order_${order.status.toLowerCase()}`,
+        };
+      }
+
+      const states = executionStateFor(order.kind);
+      if (order.position.state !== states.before) {
+        return {
+          status: 'conflict',
+          reason: `position_state_${order.position.state.toLowerCase()}`,
+        };
+      }
+
+      const claimedOrder = await tx.order.updateMany({
+        where: {
+          id: input.orderId,
+          userId: input.userId,
+          status: 'OPEN',
+        },
+        data: { status: 'PENDING' },
+      });
+      if (claimedOrder.count === 0) {
+        const cur = await tx.order.findUnique({
+          where: { id: input.orderId },
+          select: { status: true },
+        });
+        return {
+          status: 'conflict',
+          reason: cur ? `order_${cur.status.toLowerCase()}` : 'order_not_found',
+        };
+      }
+
+      const claimedPosition = await tx.position.updateMany({
+        where: {
+          id: order.positionId,
+          userId: input.userId,
+          state: states.before,
+        },
+        data: { state: states.pending },
+      });
+      if (claimedPosition.count === 0) {
+        const cur = await tx.position.findUnique({
+          where: { id: order.positionId },
+          select: { state: true },
+        });
+        throw new PositionRaceRollback(
+          cur ? `position_state_${cur.state.toLowerCase()}` : 'position_not_found',
+        );
+      }
+
+      return {
+        status: 'success',
+        data: {
+          orderId: input.orderId,
+          positionId: order.positionId,
+          orderStatus: 'PENDING',
+          positionStatus: states.pending,
+        },
+      };
+    });
+  } catch (err) {
+    if (err instanceof PositionRaceRollback) {
+      return { status: 'conflict', reason: err.reason };
+    }
+    throw err;
+  }
+}
+
+export async function releaseOrderExecutionClaim(input: {
+  userId: string;
+  orderId: string;
+}): Promise<
+  LifecycleResult<{
+    orderId: string;
+    positionId: string;
+    orderStatus: 'OPEN';
+    positionStatus: 'BUY_PENDING' | 'ACTIVE';
+  }>
+> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: input.orderId },
+        select: {
+          id: true,
+          userId: true,
+          positionId: true,
+          kind: true,
+          status: true,
+          txSignature: true,
+          filledAt: true,
+          position: { select: { state: true } },
+        },
+      });
+      if (!order || order.userId !== input.userId) {
+        return { status: 'conflict', reason: 'order_not_found' };
+      }
+      if (!isExecutableOrderKind(order.kind)) {
+        return {
+          status: 'conflict',
+          reason: `order_kind_${order.kind.toLowerCase()}`,
+        };
+      }
+      if (order.status !== 'PENDING') {
+        return {
+          status: 'conflict',
+          reason: `order_${order.status.toLowerCase()}`,
+        };
+      }
+      if (order.txSignature != null || order.filledAt != null) {
+        return { status: 'conflict', reason: 'order_fill_in_progress' };
+      }
+
+      const states = executionStateFor(order.kind);
+      if (order.position.state !== states.pending) {
+        return {
+          status: 'conflict',
+          reason: `position_state_${order.position.state.toLowerCase()}`,
+        };
+      }
+
+      const releasedOrder = await tx.order.updateMany({
+        where: {
+          id: input.orderId,
+          userId: input.userId,
+          status: 'PENDING',
+          txSignature: null,
+          filledAt: null,
+        },
+        data: { status: 'OPEN' },
+      });
+      if (releasedOrder.count === 0) {
+        throw new PositionRaceRollback('order_not_pending');
+      }
+
+      const releasedPosition = await tx.position.updateMany({
+        where: {
+          id: order.positionId,
+          userId: input.userId,
+          state: states.pending,
+        },
+        data: { state: states.before },
+      });
+      if (releasedPosition.count === 0) {
+        throw new PositionRaceRollback(`position_not_${states.pending.toLowerCase()}`);
+      }
+
+      return {
+        status: 'success',
+        data: {
+          orderId: input.orderId,
+          positionId: order.positionId,
+          orderStatus: 'OPEN',
+          positionStatus: states.before,
+        },
+      };
+    });
+  } catch (err) {
+    if (err instanceof PositionRaceRollback) {
+      return { status: 'conflict', reason: err.reason };
+    }
+    throw err;
+  }
+}
+
 export async function confirmBuyFill(input: {
   userId: string;
   orderId: string;
@@ -256,7 +475,7 @@ export async function confirmBuyFill(input: {
           id: input.orderId,
           userId: input.userId,
           kind: 'BUY_TRIGGER',
-          status: 'OPEN',
+          status: { in: ['OPEN', 'PENDING'] },
         },
         data: {
           status: 'FILLED',
@@ -298,7 +517,7 @@ export async function confirmBuyFill(input: {
         where: {
           id: order.position.id,
           userId: input.userId,
-          state: 'BUY_PENDING',
+          state: { in: ['BUY_PENDING', 'ENTERING'] },
         },
         data: {
           state: 'ACTIVE',
@@ -399,7 +618,7 @@ export async function confirmExitFill(input: {
           id: input.orderId,
           userId: input.userId,
           kind: { in: ['TAKE_PROFIT', 'STOP_LOSS'] },
-          status: 'OPEN',
+          status: { in: ['OPEN', 'PENDING'] },
         },
         data: {
           status: 'FILLED',
@@ -431,7 +650,7 @@ export async function confirmExitFill(input: {
         where: {
           id: order.position.id,
           userId: input.userId,
-          state: 'ACTIVE',
+          state: { in: ['ACTIVE', 'CLOSING'] },
         },
         data: {
           state: 'CLOSED',
