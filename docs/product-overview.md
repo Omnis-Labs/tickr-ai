@@ -65,7 +65,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 | Historical performance charts          | v1 shows current state only                                                                                                                                         |
 | Multi-language                         | English only                                                                                                                                                        |
 | Leaderboard                            | v2                                                                                                                                                                  |
-| Redis cache layer                      | PostgreSQL only                                                                                                                                                     |
+| External cache layer                   | PostgreSQL plus in-process runtime state only                                                                                                                       |
 
 ---
 

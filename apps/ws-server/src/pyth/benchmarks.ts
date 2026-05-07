@@ -6,14 +6,10 @@
  *
  * Response shape:
  *   { s: "ok" | "no_data", t: number[], o: number[], h: number[], l: number[], c: number[], v?: number[] }
- *
- * We cache by `(ticker, resolution)` in Redis with a 60-second TTL so the
- * cron loop doesn't hammer Pyth.
  */
 
 import type { Bar, BareTicker } from '@hunch-it/shared';
 import { env } from '../env.js';
-import { getRedis } from '../cache/index.js';
 
 export type BarResolution = '1' | '5' | '15' | '60';
 
@@ -68,25 +64,7 @@ export async function getHistoricalBars(
   resolution: BarResolution = '5',
   hoursBack = 24,
 ): Promise<Bar[]> {
-  const redis = getRedis();
-  const cacheKey = `pyth:bars:${ticker}:${resolution}:${hoursBack}`;
-  if (redis) {
-    const cached = await redis.get<string>(cacheKey);
-    if (cached) {
-      try {
-        return JSON.parse(cached) as Bar[];
-      } catch {
-        /* fall through to refetch */
-      }
-    }
-  }
-
   const to = Math.floor(Date.now() / 1000);
   const from = to - hoursBack * 3600;
-  const bars = await getBarsRange(ticker, resolution, from, to);
-
-  if (redis) {
-    await redis.set(cacheKey, JSON.stringify(bars), { ex: 60 });
-  }
-  return bars;
+  return getBarsRange(ticker, resolution, from, to);
 }

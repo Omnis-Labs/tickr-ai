@@ -16,8 +16,8 @@ export default function SignalDetailPage() {
   const [coldRead, setColdRead] = useState<Signal | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  // If we don't have it in the in-memory store, fall back to GET /api/signals/:id
-  // which checks Postgres → Redis → 404. Keeps shared links and refreshes working.
+  // If we don't have it in the in-memory store, fall back to the legacy
+  // cold-read endpoint. v1.3 proposal links should use /proposals/:id instead.
   useEffect(() => {
     if (!params?.id || inMemory) {
       setLoaded(true);

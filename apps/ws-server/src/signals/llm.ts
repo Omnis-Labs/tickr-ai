@@ -6,7 +6,6 @@ import {
   type BareTicker,
 } from '@hunch-it/shared';
 import { env } from '../env.js';
-import { getLlmSpendUsd, recordLlmSpendUsd } from '../cache/index.js';
 import type { IndicatorResult } from './indicators.js';
 
 export const GEMINI_SIGNAL_MODEL = 'gemini-3.1-flash-lite-preview';
@@ -139,6 +138,24 @@ function estimateCostUsd(inputTokens: number, outputTokens: number): number {
     (inputTokens * GEMINI_INPUT_PER_MTOK + outputTokens * GEMINI_OUTPUT_PER_MTOK) /
     1_000_000
   );
+}
+
+let spendDate = new Date().toISOString().slice(0, 10);
+let spendUsd = 0;
+
+function getLlmSpendUsd(): number {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== spendDate) {
+    spendDate = today;
+    spendUsd = 0;
+  }
+  return spendUsd;
+}
+
+function recordLlmSpendUsd(deltaUsd: number): number {
+  getLlmSpendUsd();
+  spendUsd += deltaUsd;
+  return spendUsd;
 }
 
 export async function generateLlmSignal(input: LlmInput): Promise<LlmResult> {
