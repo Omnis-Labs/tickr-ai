@@ -7,8 +7,9 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
 /**
  * POST /api/orders/[id]/execute
  *
- * Settle a synthetic xStock order after the user (or future server signer)
- * executed the Ultra swap. The route auths, validates input, then delegates
+ * Settle a synthetic xStock order after the browser submitted a user-signed
+ * Jupiter Ultra transaction to `/execute` and received a signature. This
+ * route does not sign or broadcast. It auths, validates input, then delegates
  * the entire DB transition to the PositionLifecycle module — which owns
  * atomicity (BUY fill + Position ACTIVE + Trade + arm TP/SL all in one txn,
  * exit fill + cancel sibling + Position CLOSED + Trade in one txn) and

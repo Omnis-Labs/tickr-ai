@@ -133,13 +133,13 @@ model Position {
 
 // Required-by-state rules:
 //   BUY_PENDING: tokenAmount, entryPrice, totalCost, firstEntryAt = null
-//   ENTERING:    fill fields required (set by Order Tracker on BUY fill)
+//   ENTERING:    short-lived execution claim while BUY trigger swap signs/submits
 //   ACTIVE:      fill fields + currentTpPrice + currentSlPrice required
 //   CLOSING:     same as ACTIVE
 //   CLOSED:      fill fields + closedAt + closedReason required; realizedPnl required for SELL exits
 
 // ─── Orders ───────────────────────────────────────────────
-// One record per Jupiter trigger order or swap execution.
+// One record per synthetic trigger Order or swap execution.
 
 model Order {
   id              String      @id @default(cuid())
@@ -283,15 +283,16 @@ enum OrderKind {
 }
 
 enum OrderStatus {
-  PENDING           // Being prepared / awaiting signature
-  OPEN              // Submitted to Jupiter
+  PENDING           // Short-lived execution claim / awaiting signature
+  OPEN              // Synthetic trigger is watchable by ws-server
   FILLED            // Fully executed
   CANCELLED
   EXPIRED
   FAILED
 }
 
-// Note: PARTIALLY_FILLED is removed for v1. Jupiter Trigger Orders fill fully or not at all.
+// Note: PARTIALLY_FILLED is unused in the synthetic-trigger path; Jupiter Ultra
+// execute results settle as all-or-error for our DB lifecycle.
 // If partial fills become relevant in v2, reintroduce with defined handling rules.
 
 enum TradeSide {
@@ -459,7 +460,7 @@ The Proposal Generator depends on accurate Position data in PostgreSQL. To keep 
 
 1. **Frontend sync**: Every time the portfolio loads, the frontend compares Solana RPC balances against DB Positions. On detecting a mismatch, it calls `POST /api/portfolio/sync` to update the DB.
 
-2. **Order fill sync**: The ws-server Order Tracker polls Jupiter every 30 seconds for all OPEN orders, detecting fills, expirations, and cancellations.
+2. **Trigger sync**: The ws-server trigger monitor polls Pyth every 30 seconds for OPEN synthetic Orders and emits `trigger:hit`; the browser settles fills after Jupiter Ultra `/execute` returns a signature.
 
 3. **External transfer detection**: If the frontend discovers a token in the wallet that has no corresponding DB Position, it creates a new Position using the current market price as the cost basis.
 

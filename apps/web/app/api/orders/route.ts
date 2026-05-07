@@ -10,12 +10,11 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * Order persistence layer.
  *
  *   GET  /api/orders          List the authed user's open orders.
- *   POST /api/orders          Persist a Jupiter trigger order after the
- *                              client has signed + submitted it to Jupiter.
+ *   POST /api/orders          Accept a BUY proposal into synthetic DB Orders.
  *
- * The client is expected to have already called Jupiter and obtained
- * `jupiterOrderId` + `txSignature`. This route only mirrors that into our DB
- * so the Order Tracker (ws-server) can poll status.
+ * Synthetic orders have no Jupiter Trigger v2 vault or jupiterOrderId. The
+ * ws-server trigger monitor later emits `trigger:hit`; the client executes a
+ * Jupiter Ultra swap only after the user taps Execute.
  *
  * Auth: Privy access token. User identity is taken from the token, NOT from
  * any wallet-address field on the request — the body retains walletAddress
@@ -34,8 +33,8 @@ const PersistOrderSchema = z.object({
   // xStocks are off Jupiter Trigger v2's allowlist, so our BUY/TP/SL
   // orders are now synthetic: ws-server's price monitor watches Pyth
   // and pushes a `trigger:hit` event to the user when the condition
-  // fires; the user signs an Ultra swap at that moment. jupiterOrderId
-  // is filled in once the Ultra swap returns a tx signature.
+  // fires; the user signs/submits a sponsored Ultra swap at that moment.
+  // jupiterOrderId remains null in this architecture.
   jupiterOrderId: z.string().nullable().optional(),
   txSignature: z.string().nullable().optional(),
   slippageBps: z.number().int().nullable().optional(),

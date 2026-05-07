@@ -24,11 +24,10 @@ export interface UnifiedWallet {
   connected: boolean;
   ready: boolean;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
-  /** Sign + broadcast in one round-trip, bypassing Privy v3's
-   *  transaction-preview modal (which chokes on Jupiter Ultra multi-hop
-   *  txs with `t.slice is not a function`). Returns the on-chain signature.
-   *  Use when you don't need the signed-but-unbroadcast tx (i.e. you're
-   *  not handing off to Jupiter Ultra `/execute` for bundled relay). */
+  /** Sign + broadcast in one round-trip. This is for generic wallet sends
+   *  only. Sponsored Jupiter Ultra swaps must use signTransaction and hand
+   *  the signed bytes back to Jupiter `/execute`; direct wallet broadcast
+   *  bypasses the sponsored Ultra relay path. */
   signAndSendTransaction: (
     tx: VersionedTransaction | Transaction,
   ) => Promise<{ signature: string }>;

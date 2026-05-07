@@ -83,21 +83,12 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
             ) as T;
           }
         : STUB_WALLET.signTransaction,
-      // useSignAndSendTransaction signs + broadcasts in one call and
-      // accepts options.uiOptions.showWalletUIs=false, which
-      // useSignTransaction does NOT honour. The Jupiter Ultra route tx
-      // tickles a borsh decoder bug in Privy's preview modal
-      // ("t.slice is not a function") that disables Approve and traps
-      // the user. Going through signAndSendTransaction skips that modal
-      // entirely. Tradeoff: we lose Jupiter Ultra's MEV-aware bundled
-      // relay (we don't feed signed bytes back to /execute — Privy
-      // broadcasts via its own RPC), but for the BUY trigger →
-      // tap-to-execute flow that's an acceptable hackathon-stage call.
-      //
-      // Note Privy's hook expects `transaction: Uint8Array` (raw
-      // serialized bytes), not a VersionedTransaction object — so we
-      // serialize here. That alone is what dodges the introspection
-      // bug, since Privy can't decode an opaque byte buffer.
+      // Generic wallet send escape hatch. Keep sponsored Jupiter Ultra
+      // swaps off this Interface: Ultra orders need Privy signTransaction
+      // for the taker signature slot, then Jupiter `/execute` with the
+      // signed bytes and requestId. Direct Privy broadcast bypasses the
+      // sponsored Ultra relay and can fail multi-signer sponsored txs before
+      // program execution.
       signAndSendTransaction: wallet
         ? async (tx: VersionedTransaction | Transaction) => {
             const txBytes =
@@ -107,16 +98,9 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
                     requireAllSignatures: false,
                     verifySignatures: false,
                   });
-            // skipPreflight: true is intentional. The Ultra-quoted tx
-            // carries a recentBlockhash that's only valid ~150 slots
-            // (~60s); the node-side preflight `simulateTransaction` is
-            // strict about that window and was returning -32002
-            // (RPC_TRANSACTION_PRECHECK_FAILED, all fields null,
-            // unitsConsumed=0) when Privy's broadcast RPC saw the
-            // blockhash as stale even though the tx itself is fine on a
-            // current leader. Skipping preflight lets the actual leader
-            // accept it; `maxRetries` keeps the leader retrying briefly
-            // if the first send raced a slot boundary.
+            // skipPreflight only applies to generic wallet sends through
+            // Privy's RPC path. It is not the Jupiter Ultra sponsored swap
+            // path, which must return signed bytes to `/execute`.
             const result = await privySignAndSend({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               wallet: wallet as any,

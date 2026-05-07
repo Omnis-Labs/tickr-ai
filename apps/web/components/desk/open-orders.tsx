@@ -5,10 +5,8 @@ import { useOpenOrders } from '@/lib/hooks/queries';
 
 /**
  * Live open-orders widget for /desk. Reads useOpenOrders() (TanStack
- * Query, 20s refetch); the Order Tracker on the ws-server emits
- * trade:filled / trade:expired into the same query cache via mutation
- * invalidation, so the list stays current without per-component
- * sockets.
+ * Query, 20s refetch). Trigger execution and order edits invalidate the
+ * same query cache, so the list stays current without per-component sockets.
  */
 export function OpenOrders() {
   const { data, isLoading, error } = useOpenOrders();

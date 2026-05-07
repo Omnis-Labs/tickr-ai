@@ -43,9 +43,9 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 └──────┬──────────┬──────────┬──────────┬─────────────────────┘
        │          │          │          │
   Socket.IO   Jupiter     Privy     Solana     Pyth
-  (realtime)  Trigger    (auth +    RPC     Benchmarks
-       │    Order v2   wallet)  (balances)  (charts)
-       │    + Swap
+  (realtime)  Ultra      (auth +    RPC     Benchmarks
+       │      /order    wallet)  (balances)  (charts)
+       │      + /execute
        │
 ┌──────┴──────────────────────────────────────────────────┐
 │                ws-server (apps/ws-server)                 │
@@ -86,7 +86,7 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
 | State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
 | Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
-| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra swaps signed by the user at fire time                                    |
+| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra sponsored swaps: user signs the taker slot, Jupiter `/execute` relays     |
 | Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
 | Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |
 | On-chain Data          | Solana RPC (@solana/web3.js)                                                                                         |
@@ -131,7 +131,7 @@ The frontend uses a **Shared Worker** to manage the Socket.IO connection:
 
 For ws-server implementation, read alongside:
 
-1. **signal-engine.md** — Signal pipeline, Order Tracker, Back-Evaluator
+1. **signal-engine.md** — Signal pipeline, Trigger Monitor, Back-Evaluator
 2. **data-model.md** — Prisma schema, enums, JSON field interfaces
 3. **api-contract.md** — WebSocket events, order state transitions
 
@@ -157,4 +157,4 @@ pnpm db:push
 pnpm dev   # Runs web + ws-server concurrently
 ```
 
-**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. Deployed production runtimes block this surface.
+**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. The in-browser log is intentionally content-rich and is the source of truth for swap diagnostics; client diagnostic events stay in the browser. Deployed production runtimes block this surface.

@@ -355,9 +355,10 @@ flowchart TD
     J --> K[User deposits USDC + SOL from external source]
     K --> L[Portfolio updates with USDC balance]
     L --> M[ws-server detects cash + mandate → generates BUY proposals]
-    M --> N[User reviews proposal → adjusts → Place Order]
-    N --> O[BUY trigger order placed → Position BUY_PENDING]
-    O --> P[BUY fills → auto TP/SL → Position ACTIVE]
+    M --> N[User reviews proposal → adjusts → Accept]
+    N --> O[Synthetic BUY trigger Order → Position BUY_PENDING]
+    O --> P[trigger:hit toast → tap Execute]
+    P --> Q[Jupiter Ultra /execute settles → TP/SL Orders → Position ACTIVE]
 ```
 
 ### Flow: Returning User
@@ -365,7 +366,7 @@ flowchart TD
 ```
 1. Open hunch.it.com (Privy session valid)
 2. Home: holdings + P&L + proposals feed
-3. Review proposal → Place Order or Skip
+3. Review proposal → Accept synthetic Order or Skip
 4. Or: tap into Position Detail → adjust TP/SL or Close Position
 ```
 
@@ -376,38 +377,38 @@ flowchart TD
     A[Market Scanner detects opportunity] --> B[Proposal Generator creates per-user BUY proposal]
     B --> C[Proposal pushed to feed, sorted by urgency]
     C --> D{User action}
-    D -- Review → Place Order --> E[Execute, remove from feed]
+    D -- Review → Accept --> E[Create BUY_PENDING Position + OPEN synthetic Order]
     D -- Review → Skip --> F[Skip feedback recorded, remove from feed]
     D -- Ignore --> G[Remains until natural expiry, then fades out]
 ```
 
-### Flow: BUY Fill → Auto TP/SL
+### Flow: BUY Trigger Execution → TP/SL
 
 ```mermaid
 flowchart TD
-    A[Order Tracker detects BUY fill] --> B[Update Position: entryPrice, tokenAmount → ENTERING]
-    B --> C[Place TP trigger order]
-    C --> D{TP placed?}
-    D -- No --> D1[Retry]
-    D1 --> C
-    D -- Yes --> E[Place SL trigger order]
-    E --> F{SL placed?}
-    F -- No --> F1[Retry]
-    F1 --> E
-    F -- Yes --> G[Position → ACTIVE]
+    A[ws-server emits trigger:hit] --> B[User taps Execute]
+    B --> C[Claim Order OPEN → PENDING; Position BUY_PENDING → ENTERING]
+    C --> D[Jupiter Ultra /order]
+    D --> E[Privy signs user/taker slot]
+    E --> F[Jupiter Ultra /execute returns signature]
+    F --> G[/api/orders/id/execute settles BUY]
+    G --> H[Position → ACTIVE; TP + SL synthetic Orders OPEN]
 ```
 
 ### Flow: TP/SL Fill (OCO)
 
 ```mermaid
 flowchart TD
-    A[Order Tracker detects TP or SL fill] --> B{Which filled?}
-    B -- TP --> C[Cancel SL order]
-    B -- SL --> D[Cancel TP order]
-    C --> E[Calculate realizedPnl]
-    D --> E
-    E --> F[Position → CLOSED]
-    F --> G[Record Trade, push notification]
+    A[ws-server emits TP/SL trigger:hit] --> B[User taps Execute]
+    B --> C[Claim exit Order; Position ACTIVE → CLOSING]
+    C --> D[Jupiter Ultra /execute returns signature]
+    D --> E{Which exit settled?}
+    E -- TP --> F[Cancel SL Order]
+    E -- SL --> G[Cancel TP Order]
+    F --> H[Calculate realizedPnl]
+    G --> H
+    H --> I[Position → CLOSED]
+    I --> J[Record Trade]
 ```
 
 ### Flow: User Close Position
@@ -417,7 +418,7 @@ flowchart TD
     A[User taps Close Position → confirms] --> B[Position → CLOSING]
     B --> C[Cancel TP trigger order]
     C --> D[Cancel SL trigger order]
-    D --> E[Jupiter Swap: market price full sell]
+    D --> E[Jupiter Ultra /order + sign + /execute: market sell]
     E --> F{Swap success?}
     F -- No --> F1[Show error, retry swap]
     F -- Yes --> G[Position → CLOSED, record Trade]
@@ -427,13 +428,10 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[User taps Cancel on Open Orders] --> B[Initiate Jupiter cancel]
-    B --> C[Build withdrawal tx]
-    C --> D[Privy wallet signs]
-    D --> E{Cancel success?}
-    E -- No --> E1[Show error, retry]
-    E -- Yes --> F[Funds return to wallet]
-    F --> G[Order → CANCELLED, Position → CLOSED]
+    A[User taps Cancel on Open Orders] --> B[Server cancels synthetic BUY Order]
+    B --> C{Cancel success?}
+    C -- No --> C1[Show error, retry]
+    C -- Yes --> D[Order → CANCELLED, Position → CLOSED]
 ```
 
 ### Flow: Mandate Change
@@ -452,10 +450,9 @@ flowchart TD
 
 ```
 1. User modifies TP or SL price on Position Detail
-2. Call Jupiter in-place edit API to update the trigger order
-3. Update Position's currentTpPrice / currentSlPrice
-4. Update Order record
-5. Chart annotations move to reflect new values
+2. Call `/api/positions/[id]/protection`
+3. Server cancels the matching synthetic exit Order and creates a replacement
+4. Chart annotations move to reflect the OPEN exit Orders
 ```
 
 ---
@@ -471,10 +468,10 @@ BUY_PENDING  →  ENTERING  →  ACTIVE  →  CLOSING  →  CLOSED
 
 | State       | Meaning                                      | Available Actions            |
 | ----------- | -------------------------------------------- | ---------------------------- |
-| BUY_PENDING | BUY trigger order placed, waiting for fill   | Cancel order                 |
-| ENTERING    | BUY filled, TP/SL being placed automatically | None (wait)                  |
+| BUY_PENDING | Synthetic BUY trigger Order placed, waiting for trigger execution | Cancel order                 |
+| ENTERING    | BUY trigger execution claimed while wallet/Jupiter Ultra finishes | None (wait)                  |
 | ACTIVE      | TP + SL both live, strategy running          | Adjust TP/SL, Close Position |
-| CLOSING     | User-initiated close in progress             | None (wait)                  |
+| CLOSING     | Exit/close execution claimed while wallet/Jupiter Ultra finishes  | None (wait)                  |
 | CLOSED      | Position fully exited                        | View history                 |
 
 ---
@@ -483,18 +480,16 @@ BUY_PENDING  →  ENTERING  →  ACTIVE  →  CLOSING  →  CLOSED
 
 | Scenario                                    | User Sees                                                                                                                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wallet has no SOL                           | "You need SOL for transaction fees."                                                                                                                       |
 | Insufficient USDC                           | "Not enough USDC. You have $X available."                                                                                                                  |
-| User rejects wallet signature               | "Transaction was not signed. No order was placed." No funds moved, no DB records created.                                                                  |
-| Deposit confirmed but order creation failed | "Deposit confirmed but order creation failed. Your funds are in the Jupiter vault." Offer: retry order creation, or withdraw funds.                        |
-| Trigger order creation failed               | "Order failed. Please try again." + retry                                                                                                                  |
-| Trigger order expired unfilled              | Open Orders shows "Expired", prompt to reclaim vault funds via withdraw flow                                                                               |
+| User rejects wallet signature               | "Transaction was not signed. No swap was submitted." The execution claim is released for retry.                                                            |
+| Jupiter Ultra `/execute` fails before signature | "Execute failed..." with Retry. The execution claim is released for retry.                                                                              |
+| Swap returns signature but DB settle fails  | "Swap broadcast, but settle failed..." Refresh/reconcile before retry.                                                                                     |
 | ws-server unreachable                       | "Unable to load proposals. Pull to refresh." Portfolio still works.                                                                                        |
 | PostgreSQL unreachable                      | Fallback to client-side TanStack Query cached data from the current/recent session. Banner: "Some data may be outdated." No server-side cache layer in v1. |
 | Privy session expired                       | Redirect to login (Privy handles this)                                                                                                                     |
 | Zero portfolio + zero USDC                  | Deposit prominently shown. Suggested copy: "Desk is clear."                                                                                                |
 | Pyth API unreachable                        | "Price chart unavailable." Trade execution still works.                                                                                                    |
-| TP/SL auto-placement failed                 | Position stays in ENTERING, retries. User sees: Suggested copy: "Setting up exit orders..."                                                                |
+| Execution claim stuck                       | Position stays in ENTERING/CLOSING; operator inspects `/dev-tools` diagnostics before retry/reconcile.                                                     |
 | Close Position: cancel fails                | Do NOT proceed to swap. Retry cancellation. Position stays CLOSING.                                                                                        |
 | Close Position: cancel succeeds, swap fails | Position stays CLOSING with no exit orders. Prompt user to retry swap.                                                                                     |
 
