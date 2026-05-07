@@ -242,18 +242,9 @@ export function NotificationClient() {
 
   const emitTriggerDiagnostic = useCallback(
     (input: Parameters<typeof emitDevDiagnostic>[0]) => {
-      const event = emitDevDiagnostic(input);
-      void authedFetch('/api/dev-tools/client-diagnostics', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(event),
-      }).catch(() => {
-        // Best-effort terminal mirror for local debugging; the in-browser
-        // diagnostic bus remains the source of truth if this post is blocked.
-      });
-      return event;
+      return emitDevDiagnostic(input);
     },
-    [authedFetch],
+    [],
   );
 
   // The registry's navigateTo() needs a router; patch it on mount.
