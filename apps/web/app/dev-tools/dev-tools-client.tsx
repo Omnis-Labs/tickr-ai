@@ -30,7 +30,17 @@ import {
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
-import { JupiterSwapError, useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import {
+  JupiterSwapError,
+  useJupiterSwap,
+  type JupiterSwapDebug,
+} from '@/lib/jupiter/use-jupiter-swap';
+import {
+  decodeSolanaError as decodeClientSolanaError,
+  getDevDiagnostics,
+  subscribeDevDiagnostics,
+  type ClientDiagnosticEvent,
+} from '@/lib/dev-tools/client-diagnostics';
 import {
   claimOrderExecution,
   isOrderAlreadyExecuting,
@@ -45,11 +55,23 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 
 type LogSection = 'auth' | 'proposal' | 'orders' | 'protection' | 'swap';
 type LogView = LogSection | 'all';
+type LogSeverity = 'info' | 'success' | 'warning' | 'error';
+type DiagnosticStatus = 'healthy' | 'watch' | 'risk' | 'unknown';
+
+interface LogDiagnostic {
+  hypothesis: string;
+  status: DiagnosticStatus;
+  detail: string;
+}
 
 interface LogEntry {
+  section: LogSection;
   timestamp: string;
   requestId: string;
   step: string;
+  summary: string;
+  severity: LogSeverity;
+  diagnostics: LogDiagnostic[];
   payload?: unknown;
   response?: unknown;
   latencyMs: number;
@@ -113,6 +135,13 @@ const LOG_LABELS: Record<LogSection, string> = {
   swap: 'Swap',
 };
 
+const MAX_LOG_ENTRIES_PER_SECTION = 20;
+const MAX_LOG_STRING_CHARS = 420;
+const MAX_LOG_ARRAY_ITEMS = 5;
+const MAX_LOG_OBJECT_KEYS = 28;
+const MAX_LOG_DEPTH = 4;
+const MAX_COPY_CHARS = 32_000;
+
 function requestId(): string {
   return Math.random().toString(36).slice(2, 9);
 }
@@ -123,15 +152,108 @@ function fmtUsd(v: number | null | undefined): string {
 }
 
 function stringify(value: unknown): string {
-  return JSON.stringify(value, null, 2);
+  return JSON.stringify(value, (_key, v) => (typeof v === 'bigint' ? `${v.toString()}n` : v), 2);
+}
+
+function truncateText(value: string, max = MAX_LOG_STRING_CHARS): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}... [truncated ${value.length - max} chars]`;
+}
+
+function redactLongField(key: string, value: string): string {
+  if (!/(^|\.)(transaction|signedTransaction|serializedTransaction|rawTransaction)$/i.test(key)) {
+    return truncateText(value);
+  }
+  if (value.length <= 24) return value;
+  return `[redacted ${value.length} chars, ${value.slice(0, 8)}...${value.slice(-8)}]`;
+}
+
+function sanitizeForLog(value: unknown, key = 'value', depth = 0): unknown {
+  if (value == null) return value;
+  if (typeof value === 'string') return redactLongField(key, value);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'bigint') return `${value.toString()}n`;
+  if (value instanceof Error) return compactErrorObject(value);
+  if (Array.isArray(value)) {
+    const sample = value
+      .slice(0, MAX_LOG_ARRAY_ITEMS)
+      .map((item, index) => sanitizeForLog(item, `${key}[${index}]`, depth + 1));
+    if (value.length <= MAX_LOG_ARRAY_ITEMS) return sample;
+    return { count: value.length, sample, truncated: value.length - MAX_LOG_ARRAY_ITEMS };
+  }
+  if (typeof value === 'object') {
+    if (depth >= MAX_LOG_DEPTH) return '[object depth truncated]';
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record);
+    const out: Record<string, unknown> = {};
+    for (const childKey of keys.slice(0, MAX_LOG_OBJECT_KEYS)) {
+      out[childKey] = sanitizeForLog(record[childKey], childKey, depth + 1);
+    }
+    if (keys.length > MAX_LOG_OBJECT_KEYS) {
+      out.__truncatedKeys = keys.length - MAX_LOG_OBJECT_KEYS;
+    }
+    return out;
+  }
+  return String(value);
+}
+
+interface DecodedSolanaError {
+  code: number | null;
+  classifier: string;
+  context: Record<string, string>;
+}
+
+function decodeSolanaError(message: string): DecodedSolanaError | null {
+  const decoded = decodeClientSolanaError(message);
+  if (decoded) return decoded;
+  const codeMatch = message.match(/Solana error #(-?\d+)/);
+  const commandMatch = message.match(/decode --\s+-?\d+\s+'([^']+)'/);
+  const code = codeMatch ? Number(codeMatch[1]) : null;
+  if (code == null && !commandMatch) return null;
+
+  const context: Record<string, string> = {};
+  if (commandMatch?.[1] && typeof globalThis.atob === 'function') {
+    try {
+      const params = new URLSearchParams(globalThis.atob(commandMatch[1]));
+      for (const [key, value] of params.entries()) context[key] = value;
+    } catch {
+      context.__decode = 'failed';
+    }
+  }
+
+  const noProgramLogs = context.logs === '[]';
+  const noCompute = context.unitsConsumed === '0n' || context.unitsConsumed === '0';
+  const classifier =
+    code === -32002 && noProgramLogs && noCompute
+      ? 'pre-execution simulation/precheck failure'
+      : code === -32002
+        ? 'transaction simulation failed'
+        : 'solana rpc error';
+
+  return { code, classifier, context };
+}
+
+function compactErrorObject(err: unknown): unknown {
+  if (err instanceof Error) {
+    const decodedSolanaError = decodeSolanaError(err.message);
+    return {
+      name: err.name,
+      message: truncateText(err.message, 900),
+      decodedSolanaError,
+    };
+  }
+  return sanitizeForLog(err);
 }
 
 function logErrorDetail(err: unknown): unknown {
   if (err instanceof JupiterSwapError) {
+    const decodedSolanaError = decodeSolanaError(`${err.message}\n${err.debug.originalMessage}`);
     return {
       name: err.name,
-      message: err.message,
+      message: truncateText(err.message, 900),
+      decodedSolanaError,
       swap: err.debug,
+      originalError: compactErrorObject(err.originalError),
     };
   }
   if (err instanceof OrderExecutionClaimError) {
@@ -145,15 +267,363 @@ function logErrorDetail(err: unknown): unknown {
   if (err instanceof Error) {
     return {
       name: err.name,
-      message: err.message,
-      stack: err.stack,
+      message: truncateText(err.message, 900),
+      decodedSolanaError: decodeSolanaError(err.message),
     };
   }
   return { message: String(err) };
 }
 
+function summarizeDevState(value: unknown): unknown {
+  const state = value as Partial<DevState> | null;
+  if (!state || typeof state !== 'object') return sanitizeForLog(value);
+  const proposals = state.proposals ?? [];
+  const orders = state.orders ?? [];
+  const positions = state.positions ?? [];
+  return {
+    proposals: {
+      count: proposals.length,
+      live: proposals.filter((p) => isLiveProposal(p)).length,
+      tickers: proposals.slice(0, 5).map((p) => p.ticker),
+    },
+    orders: {
+      count: orders.length,
+      open: orders.filter((o) => o.status === 'OPEN').length,
+      sample: orders.slice(0, 5).map((o) => ({
+        id: o.id,
+        kind: o.kind,
+        ticker: o.ticker,
+        status: o.status,
+      })),
+    },
+    positions: {
+      count: positions.length,
+      active: positions.filter((p) => p.state === 'ACTIVE').length,
+      sample: positions.slice(0, 5).map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        state: p.state,
+        tokenAmount: p.tokenAmount,
+      })),
+    },
+  };
+}
+
+function compactResponseForStep(step: string, response: unknown): unknown {
+  if (step === 'state.refresh') return summarizeDevState(response);
+  return sanitizeForLog(response);
+}
+
+function isSwapDebugLike(value: unknown): value is JupiterSwapDebug {
+  return !!value && typeof value === 'object' && 'phase' in value && 'orderAgeBucket' in value;
+}
+
+function readPath(value: unknown, path: string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function swapDebugFrom(value: unknown): JupiterSwapDebug | null {
+  if (isSwapDebugLike(value)) return value;
+  const direct = readPath(value, ['diagnostics']);
+  if (isSwapDebugLike(direct)) return direct;
+  const errorSwap = readPath(value, ['swap']);
+  if (isSwapDebugLike(errorSwap)) return errorSwap;
+  return null;
+}
+
+function decodedSolanaErrorFrom(value: unknown): DecodedSolanaError | null {
+  const direct = readPath(value, ['decodedSolanaError']);
+  if (direct && typeof direct === 'object' && 'classifier' in direct) {
+    return direct as DecodedSolanaError;
+  }
+  const original = readPath(value, ['originalError', 'decodedSolanaError']);
+  if (original && typeof original === 'object' && 'classifier' in original) {
+    return original as DecodedSolanaError;
+  }
+  return null;
+}
+
+function statusForAge(bucket: JupiterSwapDebug['orderAgeBucket']): DiagnosticStatus {
+  if (bucket === 'healthy') return 'healthy';
+  if (bucket === 'warn') return 'watch';
+  if (bucket === 'risk' || bucket === 'refresh-recommended') return 'risk';
+  return 'unknown';
+}
+
+function diagnosticsFromSwapDebug(
+  debug: JupiterSwapDebug,
+  decoded?: DecodedSolanaError | null,
+): LogDiagnostic[] {
+  const diagnostics: LogDiagnostic[] = [];
+  const ageMs = debug.orderAgeMsAtBroadcast;
+  diagnostics.push({
+    hypothesis: 'Blockhash age',
+    status: statusForAge(debug.orderAgeBucket),
+    detail:
+      ageMs == null
+        ? 'No broadcast start timestamp captured.'
+        : `${ageMs}ms from Jupiter order to Ultra execute (${debug.orderAgeBucket}).`,
+  });
+
+  const validity = debug.blockhashValidity ?? [];
+  const primary = validity.find((item) => item.isPrivyPrimary);
+  const anyValid = validity.some((item) => item.valid === true);
+  const anyInvalid = validity.some((item) => item.valid === false);
+  diagnostics.push({
+    hypothesis: 'RPC freshness',
+    status:
+      validity.length === 0
+        ? 'unknown'
+        : primary?.valid === false || (anyInvalid && anyValid)
+          ? 'risk'
+          : validity.some((item) => item.error)
+            ? 'watch'
+            : 'healthy',
+    detail:
+      validity.length === 0
+        ? `No blockhash validity probe ran. Privy primary: ${debug.selectedPrivyRpc ?? 'unknown'}.`
+        : validity
+            .map((item) => {
+              const result =
+                item.valid == null
+                  ? `error: ${item.error ?? 'unknown'}`
+                  : item.valid
+                    ? 'valid'
+                    : 'invalid';
+              return `${item.isPrivyPrimary ? 'primary ' : ''}RPC${item.index + 1} ${result} (${item.latencyMs}ms)`;
+            })
+            .join('; '),
+  });
+
+  const simulations = debug.preBroadcastSimulation ?? [];
+  const simulationHasErr = simulations.some((item) => item.err);
+  const simulationHasTransportError = simulations.some((item) => item.error);
+  diagnostics.push({
+    hypothesis: 'Local pre-submit simulation',
+    status:
+      simulations.length === 0
+        ? 'unknown'
+        : simulationHasErr
+          ? 'risk'
+          : simulationHasTransportError
+            ? 'watch'
+            : 'healthy',
+    detail:
+      simulations.length === 0
+        ? 'No unsigned simulation was captured before submit.'
+        : simulations
+            .map((item) => {
+              if (item.error) return `RPC${item.index + 1} transport error: ${item.error}`;
+              if (item.err) return `RPC${item.index + 1} simulation err: ${item.err}`;
+              return `RPC${item.index + 1} ok (${item.unitsConsumed ?? 'n/a'} units, ${item.logsCount ?? 0} logs)`;
+            })
+            .join('; '),
+  });
+
+  const shape = debug.transactionShape;
+  const signedShape = debug.signedTransactionShape;
+  const takerIsSigner = !!debug.taker && !!shape?.signerKeys.includes(debug.taker);
+  const signedNonZeroCount = signedShape
+    ? signedShape.signatureCount - signedShape.zeroSignatureCount
+    : null;
+  diagnostics.push({
+    hypothesis: 'Transaction shape',
+    status: !shape || !takerIsSigner ? 'risk' : signedNonZeroCount === 0 ? 'risk' : 'healthy',
+    detail: shape
+      ? `v${shape.version}, unsigned zeros ${shape.zeroSignatureCount}/${shape.signatureCount}, signed zeros ${signedShape ? `${signedShape.zeroSignatureCount}/${signedShape.signatureCount}` : 'n/a'}, required ${shape.requiredSignatures}, staticKeys ${shape.staticAccountKeys}, ALTs ${shape.addressTableLookups}, ix ${shape.compiledInstructions}, feePayer=${shortAddress(shape.feePayer ?? 'unknown')}, takerSigner=${takerIsSigner}.`
+      : 'No transaction shape captured.',
+  });
+
+  diagnostics.push({
+    hypothesis: 'Privy sign / Ultra execute path',
+    status:
+      debug.signature || debug.executeStatus === 'Success'
+        ? 'healthy'
+        : debug.phase === 'sign' || debug.phase === 'execute' || decoded?.code === -32002
+          ? 'risk'
+          : 'watch',
+    detail: debug.signature
+      ? `Jupiter Ultra returned signature ${shortAddress(debug.signature)}.`
+      : `No signature returned; failed during ${debug.phase}${debug.executeError ? ` (${debug.executeError})` : ''}.`,
+  });
+
+  diagnostics.push({
+    hypothesis: 'Jupiter order/route',
+    status: debug.orderRequestId ? 'healthy' : debug.phase === 'order' ? 'risk' : 'unknown',
+    detail: debug.orderRequestId
+      ? `Ultra order ${debug.orderRequestId}; impact ${debug.priceImpactPct ?? 'n/a'}.`
+      : 'No Ultra order id captured.',
+  });
+
+  if (debug.sellBalance) {
+    const capped =
+      debug.sellBalance.requestedRaw != null &&
+      debug.sellBalance.requestedRaw !== debug.sellBalance.submittedRaw;
+    diagnostics.push({
+      hypothesis: 'Wallet balance / sell amount',
+      status: capped ? 'watch' : 'healthy',
+      detail: capped
+        ? `Requested ${debug.sellBalance.requestedRaw}, wallet had ${debug.sellBalance.walletRaw}, submitted ${debug.sellBalance.submittedRaw}.`
+        : `Submitted sell amount ${debug.sellBalance.submittedRaw}; wallet raw ${debug.sellBalance.walletRaw}.`,
+    });
+  } else {
+    diagnostics.push({
+      hypothesis: 'Amount and mint mapping',
+      status: debug.inputMint && debug.outputMint && debug.amount ? 'healthy' : 'risk',
+      detail: `${debug.direction} ${debug.amount ?? 'unknown'} raw from ${shortAddress(debug.inputMint ?? 'unknown')} to ${shortAddress(debug.outputMint ?? 'unknown')}.`,
+    });
+  }
+
+  if (decoded) {
+    diagnostics.push({
+      hypothesis: 'Program execution reached?',
+      status:
+        decoded.code === -32002 &&
+        decoded.context.logs === '[]' &&
+        (decoded.context.unitsConsumed === '0n' || decoded.context.unitsConsumed === '0')
+          ? 'risk'
+          : 'watch',
+      detail: `${decoded.classifier}; logs=${decoded.context.logs ?? 'n/a'}, units=${decoded.context.unitsConsumed ?? 'n/a'}.`,
+    });
+  }
+
+  return diagnostics;
+}
+
+function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown): LogDiagnostic[] {
+  const source = errorDetail ?? response;
+  const debug = swapDebugFrom(source);
+  const decoded = decodedSolanaErrorFrom(source);
+  if (debug) return diagnosticsFromSwapDebug(debug, decoded);
+  if (decoded) {
+    return [
+      {
+        hypothesis: 'Solana RPC error',
+        status: decoded.code === -32002 ? 'risk' : 'watch',
+        detail: `${decoded.classifier}; logs=${decoded.context.logs ?? 'n/a'}, units=${decoded.context.unitsConsumed ?? 'n/a'}.`,
+      },
+    ];
+  }
+  if (step === 'order.claimExecution') {
+    return [
+      {
+        hypothesis: 'Execution claim lock',
+        status: errorDetail ? 'risk' : 'healthy',
+        detail: errorDetail
+          ? 'Claim did not succeed; order may already be handled or executing.'
+          : 'Claim acquired before swap.',
+      },
+    ];
+  }
+  if (step === 'order.releaseExecution') {
+    return [
+      {
+        hypothesis: 'Claim cleanup',
+        status: errorDetail ? 'risk' : 'healthy',
+        detail: errorDetail
+          ? 'Release failed after an unbroadcast swap.'
+          : 'Claim released because swap did not broadcast.',
+      },
+    ];
+  }
+  if (step === 'state.refresh') {
+    return [
+      {
+        hypothesis: 'State visibility',
+        status: errorDetail ? 'watch' : 'healthy',
+        detail: errorDetail
+          ? 'Could not refresh state after action.'
+          : 'State snapshot refreshed with compact counts.',
+      },
+    ];
+  }
+  return [];
+}
+
+function severityFor(error: unknown, diagnostics: LogDiagnostic[], step: string): LogSeverity {
+  if (error) return 'error';
+  if (diagnostics.some((item) => item.status === 'risk')) return 'warning';
+  if (/generate|accept|forceTrigger|executeSwap|manualClose|protection|login|logout/.test(step)) {
+    return 'success';
+  }
+  return 'info';
+}
+
+function buildSummary(step: string, payload: unknown, response?: unknown, error?: unknown): string {
+  if (error) {
+    const err = error instanceof Error ? error.message : String(error);
+    const detail = logErrorDetail(error);
+    const debug = swapDebugFrom(detail);
+    const decoded = decodedSolanaErrorFrom(detail);
+    if (debug && decoded?.code === -32002) {
+      return `${debug.phase} failed before on-chain execution (${decoded.classifier}).`;
+    }
+    if (debug) return `${debug.phase} failed: ${truncateText(debug.originalMessage || err, 180)}`;
+    return truncateText(err, 220);
+  }
+
+  const payloadRecord = payload as Record<string, unknown>;
+  const responseRecord = response as Record<string, unknown>;
+  switch (step) {
+    case 'state.refresh': {
+      const state = response as DevState;
+      return `State: ${(state.orders ?? []).filter((o) => o.status === 'OPEN').length} open orders, ${(state.positions ?? []).filter((p) => p.state === 'ACTIVE').length} active positions, ${(state.proposals ?? []).length} proposals.`;
+    }
+    case 'session.status':
+      return responseRecord?.authenticated
+        ? 'Dev-tools session is unlocked.'
+        : 'Dev-tools session needs login.';
+    case 'session.login':
+      return 'Dev-tools session unlocked.';
+    case 'session.logout':
+      return 'Dev-tools session locked.';
+    case 'proposal.generate':
+      return `Generated ${String(payloadRecord?.ticker ?? 'ticker')} proposal.`;
+    case 'proposal.accept':
+      return `Accepted proposal ${shortAddress(String(payloadRecord?.proposalId ?? 'unknown'))}.`;
+    case 'order.forceTrigger':
+      return `Forced trigger for order ${shortAddress(String(payloadRecord?.orderId ?? 'unknown'))}.`;
+    case 'order.claimExecution':
+      return `Execution claim acquired for ${shortAddress(String(payloadRecord?.orderId ?? 'unknown'))}.`;
+    case 'order.releaseExecution':
+      return `Execution claim released for ${shortAddress(String(payloadRecord?.orderId ?? 'unknown'))}.`;
+    case 'order.executeSwap': {
+      const signature = readPath(response, ['swap', 'signature']);
+      const price = responseRecord?.executionPrice;
+      return `Swap broadcast ${typeof signature === 'string' ? shortAddress(signature) : 'without signature'}; settled at ${typeof price === 'number' ? fmtUsd(price) : 'unknown price'}.`;
+    }
+    case 'position.protection':
+      return `Updated TP/SL for ${shortAddress(String(payloadRecord?.positionId ?? 'unknown'))}.`;
+    case 'position.manualClose':
+      return `Manual close completed for ${shortAddress(String(payloadRecord?.positionId ?? 'unknown'))}.`;
+    default:
+      return step;
+  }
+}
+
 function logToText(entries: LogEntry[]): string {
-  return entries.map((entry) => stringify(entry)).join('\n\n');
+  const text = entries
+    .map((entry) => {
+      const diagnostics = entry.diagnostics.length
+        ? `\n  hypotheses:\n${entry.diagnostics
+            .map((item) => `    - [${item.status}] ${item.hypothesis}: ${item.detail}`)
+            .join('\n')}`
+        : '';
+      const details = stringify({
+        payload: entry.payload,
+        response: entry.response,
+        errorDetail: entry.errorDetail,
+      });
+      return `[${entry.timestamp}] ${LOG_LABELS[entry.section]} ${entry.step} ${entry.severity} ${entry.latencyMs}ms ${entry.requestId}\n  ${entry.summary}${diagnostics}\n  details: ${details}`;
+    })
+    .join('\n\n');
+  if (text.length <= MAX_COPY_CHARS) return text;
+  return `${text.slice(0, MAX_COPY_CHARS)}\n\n[log copy truncated at ${MAX_COPY_CHARS} chars]`;
 }
 
 function shortAddress(value: string): string {
@@ -163,6 +633,23 @@ function shortAddress(value: string): string {
 
 function stagedDevProposal(proposals: Proposal[], nowMs = Date.now()): Proposal | null {
   return proposals.find((p) => isLiveProposal(p, nowMs)) ?? null;
+}
+
+function logEntryFromClientDiagnostic(event: ClientDiagnosticEvent): LogEntry {
+  return {
+    section: event.section,
+    timestamp: event.timestamp,
+    requestId: event.id,
+    step: event.step,
+    summary: event.summary,
+    severity: event.severity,
+    diagnostics: event.diagnostics,
+    payload: event.payload,
+    response: event.response,
+    latencyMs: event.latencyMs,
+    error: event.error,
+    errorDetail: event.errorDetail,
+  };
 }
 
 export function DevToolsClient() {
@@ -213,9 +700,21 @@ export function DevToolsClient() {
   const appendLog = useCallback((section: LogSection, entry: LogEntry) => {
     setLogs((prev) => ({
       ...prev,
-      [section]: [entry, ...prev[section]].slice(0, 20),
+      [section]: [
+        entry,
+        ...prev[section].filter((item) => item.requestId !== entry.requestId),
+      ].slice(0, MAX_LOG_ENTRIES_PER_SECTION),
     }));
   }, []);
+
+  useEffect(() => {
+    for (const event of getDevDiagnostics()) {
+      appendLog(event.section, logEntryFromClientDiagnostic(event));
+    }
+    return subscribeDevDiagnostics((event) => {
+      appendLog(event.section, logEntryFromClientDiagnostic(event));
+    });
+  }, [appendLog]);
 
   const runLogged = useCallback(
     async <T,>(
@@ -228,36 +727,54 @@ export function DevToolsClient() {
       const start = performance.now();
       try {
         const response = await fn();
+        const diagnostics = buildDiagnostics(step, response);
+        const entryPayload = sanitizeForLog(payload);
+        const entryResponse = compactResponseForStep(step, response);
         const entry: LogEntry = {
+          section,
           timestamp: new Date().toISOString(),
           requestId: id,
           step,
-          payload,
-          response,
+          summary: buildSummary(step, payload, response),
+          severity: severityFor(null, diagnostics, step),
+          diagnostics,
+          payload: entryPayload,
+          response: entryResponse,
           latencyMs: Math.round(performance.now() - start),
         };
         appendLog(section, entry);
         console.groupCollapsed(`[dev-tools] ${step} ${id}`);
-        console.log('payload', payload);
-        console.log('response', response);
+        console.log('summary', entry.summary);
+        console.log('payload', entryPayload);
+        console.log('response', entryResponse);
+        if (diagnostics.length > 0) console.table(diagnostics);
         console.log('latencyMs', entry.latencyMs);
         console.groupEnd();
         return response;
       } catch (err) {
+        const errorDetail = logErrorDetail(err);
+        const diagnostics = buildDiagnostics(step, undefined, errorDetail);
+        const entryPayload = sanitizeForLog(payload);
         const entry: LogEntry = {
+          section,
           timestamp: new Date().toISOString(),
           requestId: id,
           step,
-          payload,
+          summary: buildSummary(step, payload, undefined, err),
+          severity: severityFor(err, diagnostics, step),
+          diagnostics,
+          payload: entryPayload,
           latencyMs: Math.round(performance.now() - start),
-          error: err instanceof Error ? err.message : String(err),
-          errorDetail: logErrorDetail(err),
+          error: truncateText(err instanceof Error ? err.message : String(err), 900),
+          errorDetail,
         };
         appendLog(section, entry);
         console.groupCollapsed(`[dev-tools] ${step} ${id} error`);
-        console.log('payload', payload);
+        console.log('summary', entry.summary);
+        console.log('payload', entryPayload);
         console.log('errorDetail', entry.errorDetail);
-        console.error(err);
+        if (diagnostics.length > 0) console.table(diagnostics);
+        console.error(err instanceof Error ? err : String(err));
         console.log('latencyMs', entry.latencyMs);
         console.groupEnd();
         throw err;
@@ -281,47 +798,55 @@ export function DevToolsClient() {
     [fetchSessionStatus, runLogged],
   );
 
-  const refreshDevState = useCallback(async () => {
-    const next = await runLogged('orders', 'state.refresh', {}, async () => {
-      const res = await authedFetch('/api/dev-tools/orders');
-      const json = (await res.json().catch(() => ({}))) as DevState & { error?: string };
-      if (!res.ok) throw new Error(json.error ?? `${res.status}`);
-      return json;
-    });
-    setDevState({
-      proposals: next.proposals ?? [],
-      orders: next.orders ?? [],
-      positions: next.positions ?? [],
-    });
-    const nowMs = Date.now();
-    const proposals = next.proposals ?? [];
-    const activeProposal = stagedDevProposal(proposals, nowMs);
-    const inactiveProposalIds = new Set(
-      proposals.filter((p) => !isLiveProposal(p, nowMs)).map((p) => p.id),
-    );
-    for (const p of proposals) {
-      if (!isLiveProposal(p, nowMs)) removeProposal(p.id);
-    }
-    if (activeProposal) {
-      upsertProposal(activeProposal);
-    }
-    qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
-      const existing = current?.proposals ?? [];
-      const cachedProposals = existing.filter(
-        (p) =>
-          p.id !== activeProposal?.id && !inactiveProposalIds.has(p.id) && isLiveProposal(p, nowMs),
-      );
-      return {
-        proposals: activeProposal ? [activeProposal, ...cachedProposals] : cachedProposals,
+  const refreshDevState = useCallback(
+    async ({ log = true }: { log?: boolean } = {}) => {
+      const fetchState = async () => {
+        const res = await authedFetch('/api/dev-tools/orders');
+        const json = (await res.json().catch(() => ({}))) as DevState & { error?: string };
+        if (!res.ok) throw new Error(json.error ?? `${res.status}`);
+        return json;
       };
-    });
-    setProposal((current) => {
-      if (!current) return activeProposal;
-      const refreshedCurrent = proposals.find((p) => p.id === current.id);
-      if (refreshedCurrent && isLiveProposal(refreshedCurrent, nowMs)) return refreshedCurrent;
-      return activeProposal;
-    });
-  }, [authedFetch, qc, removeProposal, runLogged, upsertProposal]);
+      const next = log
+        ? await runLogged('orders', 'state.refresh', {}, fetchState)
+        : await fetchState();
+      setDevState({
+        proposals: next.proposals ?? [],
+        orders: next.orders ?? [],
+        positions: next.positions ?? [],
+      });
+      const nowMs = Date.now();
+      const proposals = next.proposals ?? [];
+      const activeProposal = stagedDevProposal(proposals, nowMs);
+      const inactiveProposalIds = new Set(
+        proposals.filter((p) => !isLiveProposal(p, nowMs)).map((p) => p.id),
+      );
+      for (const p of proposals) {
+        if (!isLiveProposal(p, nowMs)) removeProposal(p.id);
+      }
+      if (activeProposal) {
+        upsertProposal(activeProposal);
+      }
+      qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
+        const existing = current?.proposals ?? [];
+        const cachedProposals = existing.filter(
+          (p) =>
+            p.id !== activeProposal?.id &&
+            !inactiveProposalIds.has(p.id) &&
+            isLiveProposal(p, nowMs),
+        );
+        return {
+          proposals: activeProposal ? [activeProposal, ...cachedProposals] : cachedProposals,
+        };
+      });
+      setProposal((current) => {
+        if (!current) return activeProposal;
+        const refreshedCurrent = proposals.find((p) => p.id === current.id);
+        if (refreshedCurrent && isLiveProposal(refreshedCurrent, nowMs)) return refreshedCurrent;
+        return activeProposal;
+      });
+    },
+    [authedFetch, qc, removeProposal, runLogged, upsertProposal],
+  );
 
   useEffect(() => {
     void refreshSession();
@@ -334,7 +859,7 @@ export function DevToolsClient() {
 
   useEffect(() => {
     if (!session?.authenticated || !connected) return;
-    void refreshDevState().catch(() => {});
+    void refreshDevState({ log: false }).catch(() => {});
   }, [session?.authenticated, connected, refreshDevState]);
 
   useEffect(() => {
@@ -342,7 +867,7 @@ export function DevToolsClient() {
     removeProposal(proposal.id);
     setProposal(null);
     void qc.invalidateQueries({ queryKey: QK.proposals() });
-    if (session?.authenticated && connected) void refreshDevState().catch(() => {});
+    if (session?.authenticated && connected) void refreshDevState({ log: false }).catch(() => {});
   }, [connected, nowMs, proposal, qc, refreshDevState, removeProposal, session?.authenticated]);
 
   useEffect(() => {
@@ -542,6 +1067,7 @@ export function DevToolsClient() {
       claimed = true;
 
       await runLogged('swap', 'order.executeSwap', { orderId }, async () => {
+        const diagnostics = { source: 'dev-tools', checkBlockhash: true } as const;
         const result =
           selectedOrder.kind === 'BUY_TRIGGER'
             ? await swap({
@@ -549,6 +1075,7 @@ export function DevToolsClient() {
                 xStockMint: meta.mint,
                 xStockDecimals: meta.decimals,
                 usdAmount: selectedOrder.sizeUsd,
+                diagnostics,
               })
             : selectedOrder.tokenAmount && selectedOrder.tokenAmount > 0
               ? await swap({
@@ -556,12 +1083,14 @@ export function DevToolsClient() {
                   xStockMint: meta.mint,
                   xStockDecimals: meta.decimals,
                   tokenAmount: selectedOrder.tokenAmount,
+                  diagnostics,
                 })
               : await swap({
                   direction: 'SELL',
                   xStockMint: meta.mint,
                   xStockDecimals: meta.decimals,
                   sellAll: true,
+                  diagnostics,
                 });
 
         if (result.exec.status !== 'Success') throw new Error(result.exec.error ?? 'swap failed');
@@ -590,7 +1119,13 @@ export function DevToolsClient() {
         });
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) throw new Error(json.error ?? `${res.status}`);
-        return { swap: result.exec, settle: json, executionPrice, tokenAmount };
+        return {
+          swap: result.exec,
+          diagnostics: result.debug,
+          settle: json,
+          executionPrice,
+          tokenAmount,
+        };
       });
       toast.success('Swap settled.');
       await refreshDevState();
@@ -698,6 +1233,10 @@ export function DevToolsClient() {
         .flat()
         .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
     [logs],
+  );
+  const triggerSwapLogs = useMemo(
+    () => logs.swap.filter((entry) => entry.step.startsWith('trigger.')),
+    [logs.swap],
   );
 
   if (session && !session.enabled) {
@@ -940,6 +1479,7 @@ export function DevToolsClient() {
               </div>
             </div>
             <LogBlock title="Order log" entries={logs.orders} compact />
+            <LogBlock title="Trigger swap log" entries={triggerSwapLogs} compact />
           </Panel>
 
           <Panel title="Protection" icon={<SlidersHorizontal className="h-5 w-5" />}>
@@ -1162,7 +1702,7 @@ function LogReview({
           <div>
             <h3 className="text-label-md text-primary">{title}</h3>
             <p className="text-body-sm text-on-surface-variant">
-              Review {entries.length} {entries.length === 1 ? 'entry' : 'entries'} before copying.
+              {entries.length} {entries.length === 1 ? 'entry' : 'entries'} captured.
             </p>
           </div>
           <CopyButton
@@ -1170,9 +1710,7 @@ function LogReview({
             text={text}
           />
         </div>
-        <pre className="max-h-72 overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary">
-          {text || '[]'}
-        </pre>
+        <LogEntryList entries={entries} maxHeightClass="max-h-96" />
       </div>
     </div>
   );
@@ -1194,12 +1732,131 @@ function LogBlock({
         <h3 className="text-label-md text-on-surface-variant">{title}</h3>
         <CopyButton label="copy" text={text} />
       </div>
-      <pre
-        className={`${compact ? 'max-h-40' : 'max-h-72'} overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary`}
-      >
-        {text || '[]'}
-      </pre>
+      <LogEntryList entries={entries} maxHeightClass={compact ? 'max-h-48' : 'max-h-72'} />
     </div>
+  );
+}
+
+function LogEntryList({
+  entries,
+  maxHeightClass,
+}: {
+  entries: LogEntry[];
+  maxHeightClass: string;
+}) {
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-md bg-surface px-3 py-4 text-body-sm text-on-surface-variant">
+        No log entries yet.
+      </div>
+    );
+  }
+
+  return (
+    <ul className={`${maxHeightClass} overflow-auto rounded-md bg-surface`}>
+      {entries.map((entry) => (
+        <LogEntryRow key={`${entry.requestId}-${entry.step}`} entry={entry} />
+      ))}
+    </ul>
+  );
+}
+
+function severityStyles(severity: LogSeverity): { dot: string; badge: string; label: string } {
+  if (severity === 'error') {
+    return {
+      dot: 'bg-error',
+      badge: 'bg-error-container text-on-error-container',
+      label: 'error',
+    };
+  }
+  if (severity === 'warning') {
+    return {
+      dot: 'bg-tertiary',
+      badge: 'bg-tertiary-container text-on-tertiary-container',
+      label: 'watch',
+    };
+  }
+  if (severity === 'success') {
+    return {
+      dot: 'bg-positive',
+      badge: 'bg-positive-container text-primary',
+      label: 'ok',
+    };
+  }
+  return {
+    dot: 'bg-icon-muted',
+    badge: 'bg-surface-container-low text-on-surface-variant',
+    label: 'info',
+  };
+}
+
+function diagnosticStyles(status: DiagnosticStatus): string {
+  if (status === 'healthy') return 'bg-positive-container text-primary';
+  if (status === 'risk') return 'bg-error-container text-on-error-container';
+  if (status === 'watch') return 'bg-tertiary-container text-on-tertiary-container';
+  return 'bg-surface-container-low text-on-surface-variant';
+}
+
+function entryDetailsText(entry: LogEntry): string {
+  return stringify({
+    payload: entry.payload,
+    response: entry.response,
+    error: entry.error,
+    errorDetail: entry.errorDetail,
+  });
+}
+
+function LogEntryRow({ entry }: { entry: LogEntry }) {
+  const styles = severityStyles(entry.severity);
+  const details = entryDetailsText(entry);
+  const time = new Date(entry.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+
+  return (
+    <li className="border-b border-outline-variant px-3 py-3 last:border-b-0">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-label-md text-primary">{entry.step}</span>
+            <span className={`rounded-full px-2 py-0.5 text-label-sm ${styles.badge}`}>
+              {styles.label}
+            </span>
+            <span className="font-mono text-label-sm text-on-surface-variant">
+              {entry.latencyMs}ms
+            </span>
+            <span className="font-mono text-label-sm text-on-surface-variant">{time}</span>
+          </div>
+          <p className="mt-1 text-body-sm text-primary">{entry.summary}</p>
+          {entry.diagnostics.length > 0 && (
+            <div className="mt-2 flex flex-col gap-1">
+              {entry.diagnostics.map((item) => (
+                <div key={`${entry.requestId}-${item.hypothesis}`} className="min-w-0">
+                  <span
+                    className={`inline-flex max-w-full rounded-full px-2 py-1 text-left text-label-sm ${diagnosticStyles(item.status)}`}
+                  >
+                    <span className="truncate">
+                      {item.hypothesis}: {item.detail}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-label-sm text-on-surface-variant">
+              Details
+            </summary>
+            <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary">
+              {details}
+            </pre>
+          </details>
+        </div>
+      </div>
+    </li>
   );
 }
 

@@ -48,8 +48,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     // we read the right `id` (server wallet ID, populated post-delegation).
     const privyEmbedded = user?.linkedAccounts?.find(
       (acct) =>
-        acct.type === 'wallet' &&
-        (acct as { address?: string }).address === wallet?.address,
+        acct.type === 'wallet' && (acct as { address?: string }).address === wallet?.address,
     ) as { id?: string | null; delegated?: boolean } | undefined;
 
     return {
@@ -61,14 +60,27 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       ready,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
+            const isVersioned = tx instanceof VersionedTransaction;
+            const txBytes = isVersioned
+              ? tx.serialize()
+              : tx.serialize({
+                  requireAllSignatures: false,
+                  verifySignatures: false,
+                });
             const result = (await privySign({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               wallet: wallet as any,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              transaction: tx as any,
+              transaction: txBytes,
               chain: 'solana:mainnet',
-            })) as unknown as { signedTransaction: T };
-            return result.signedTransaction;
+              options: {
+                uiOptions: { showWalletUIs: false },
+              },
+            })) as unknown as { signedTransaction: Uint8Array };
+            return (
+              isVersioned
+                ? VersionedTransaction.deserialize(result.signedTransaction)
+                : Transaction.from(result.signedTransaction)
+            ) as T;
           }
         : STUB_WALLET.signTransaction,
       // useSignAndSendTransaction signs + broadcasts in one call and
