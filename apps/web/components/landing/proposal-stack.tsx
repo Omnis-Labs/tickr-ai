@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const PROPOSALS = [
@@ -31,8 +32,7 @@ const PROPOSALS = [
     trigger: '$418.80',
     tp: '+7%',
     sl: '−5%',
-    reasoning:
-      'Azure beat and AI capex narrative reset. Volume profile clean above 415.',
+    reasoning: 'Azure beat and AI capex narrative reset. Volume profile clean above 415.',
   },
   {
     ticker: 'TSLA',
@@ -58,6 +58,7 @@ const PROPOSALS = [
 
 const easeOutQuart = [0.25, 1, 0.5, 1] as const;
 const N = PROPOSALS.length;
+const AUTO_ROTATE_MS = 2000;
 
 export function ProposalStack() {
   const reduce = useReducedMotion();
@@ -67,15 +68,12 @@ export function ProposalStack() {
     if (reduce) return;
     const id = window.setInterval(() => {
       setTop((t) => (t + 1) % N);
-    }, 5200);
+    }, AUTO_ROTATE_MS);
     return () => window.clearInterval(id);
   }, [reduce]);
 
   return (
-    <section
-      id="proposal"
-      className="mx-auto max-w-[1200px] px-6 pb-32 pt-12 sm:px-10 sm:pt-16"
-    >
+    <section id="proposal" className="mx-auto max-w-[1200px] px-6 pb-32 pt-12 sm:px-10 sm:pt-16">
       <div className="mb-16 flex items-baseline justify-between gap-4">
         <div className="flex items-baseline gap-3">
           <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
@@ -107,18 +105,38 @@ export function ProposalStack() {
             Reasoned in plain English.
           </h3>
           <p className="max-w-[44ch] text-body-lg text-on-surface-variant sm:text-[17px] sm:leading-[1.55]">
-            Each proposal arrives as a complete strategy: a single ticker, sized
-            against your mandate, a trigger price, take-profit, stop-loss, and a
-            short reason you can sanity-check before you tap.
+            Each proposal arrives as a complete strategy: a single ticker, sized against your
+            mandate, a trigger price, take-profit, stop-loss, and a short reason you can
+            sanity-check before you tap.
           </p>
-          <div className="mt-8 flex items-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center gap-3">
             <span className="font-mono text-label-md text-on-surface-variant">
               {String(top + 1).padStart(2, '0')} / {String(N).padStart(2, '0')}
             </span>
-            <div className="h-px flex-1 bg-outline-variant" />
-            <span className="font-mono text-label-md text-on-surface-variant">
-              auto · 5s
-            </span>
+            <div
+              className="flex items-center gap-2"
+              role="group"
+              aria-label="Sample proposal controls"
+            >
+              <button
+                type="button"
+                className="grid h-11 w-11 place-items-center rounded-full bg-surface text-on-background shadow-micro transition-colors hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                aria-label="Previous sample proposal"
+                onClick={() => setTop((t) => (t - 1 + N) % N)}
+              >
+                <ChevronLeft aria-hidden className="h-5 w-5" strokeWidth={2.2} />
+              </button>
+              <button
+                type="button"
+                className="grid h-11 w-11 place-items-center rounded-full bg-accent text-on-accent shadow-micro transition-colors hover:bg-accent-bright focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                aria-label="Next sample proposal"
+                onClick={() => setTop((t) => (t + 1) % N)}
+              >
+                <ChevronRight aria-hidden className="h-5 w-5" strokeWidth={2.2} />
+              </button>
+            </div>
+            <div className="h-px min-w-12 flex-1 bg-outline-variant" />
+            <span className="font-mono text-label-md text-on-surface-variant">auto · 2s</span>
           </div>
         </div>
 
@@ -158,9 +176,7 @@ function ProposalCard({ data }: { data: (typeof PROPOSALS)[number] }) {
   return (
     <article className="rounded-[28px] bg-accent p-7 text-on-accent shadow-soft">
       <div className="mb-5 flex items-center justify-between">
-        <span className="font-mono text-label-sm uppercase tracking-[0.18em]">
-          Buy proposal
-        </span>
+        <span className="font-mono text-label-sm uppercase tracking-[0.18em]">Buy proposal</span>
         <span className="rounded-full bg-on-accent/10 px-3 py-1 font-mono text-label-md">
           {data.ticker}
         </span>
@@ -174,9 +190,7 @@ function ProposalCard({ data }: { data: (typeof PROPOSALS)[number] }) {
         of book to {data.label} at {data.trigger}
       </div>
 
-      <p className="mb-7 max-w-[36ch] text-body-md leading-[1.5] opacity-90">
-        {data.reasoning}
-      </p>
+      <p className="mb-7 max-w-[36ch] text-body-md leading-[1.5] opacity-90">{data.reasoning}</p>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-on-accent/10 p-3.5">

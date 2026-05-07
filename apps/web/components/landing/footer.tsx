@@ -11,7 +11,7 @@ const LINKS: Array<{
     items: [
       { label: 'Sign in', href: '/login' },
       { label: 'How it works', href: '#mechanic' },
-      { label: 'Sample proposal', href: '#proposal' },
+      { label: 'Built on, not behind', href: '#why-us' },
     ],
   },
   {
@@ -22,15 +22,11 @@ const LINKS: Array<{
         href: 'https://github.com/Omnis-Labs/hunch-it',
         external: true,
       },
-      { label: 'Docs', href: '/docs', external: true },
-      { label: 'License', href: '/LICENSE', external: true },
-    ],
-  },
-  {
-    group: 'Legal',
-    items: [
-      { label: 'Privacy', href: '/privacy' },
-      { label: 'Terms', href: '/terms' },
+      {
+        label: 'Docs',
+        href: 'https://github.com/Omnis-Labs/hunch-it/tree/main/docs',
+        external: true,
+      },
     ],
   },
 ];
@@ -50,7 +46,7 @@ export function Footer() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-8">
           {LINKS.map((g) => (
             <div key={g.group}>
               <div className="mb-4 font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
@@ -62,9 +58,7 @@ export function Footer() {
                     <Link
                       href={it.href}
                       className="text-body-md text-on-background transition-colors hover:text-on-surface-variant"
-                      {...(it.external
-                        ? { target: '_blank', rel: 'noreferrer' }
-                        : {})}
+                      {...(it.external ? { target: '_blank', rel: 'noreferrer' } : {})}
                     >
                       {it.label}
                     </Link>
@@ -77,9 +71,10 @@ export function Footer() {
       </div>
 
       <div className="mt-16 flex flex-col gap-3 border-t border-outline-variant pt-7 text-body-sm text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
-        <span className="font-mono">AGPL-3.0 · © {year} Hunch It</span>
+        <span className="font-mono">© {year} Hunch It</span>
         <span className="max-w-[60ch]">
-          Experimental software, not financial advice. Only use real funds if you understand the risks.
+          Experimental software, not financial advice. Only use real funds if you understand the
+          risks.
         </span>
       </div>
     </footer>
