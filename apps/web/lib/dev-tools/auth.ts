@@ -13,7 +13,7 @@ export function devToolsPassword(): string {
 }
 
 export function devToolsEnabled(): boolean {
-  return process.env.NODE_ENV !== 'production' && process.env.ENABLE_DEV_TOOLS === 'true';
+  return process.env.ENABLE_DEV_TOOLS === 'true';
 }
 
 function cookieValue(): string {
@@ -56,7 +56,7 @@ export function createDevToolsLoginResponse(): NextResponse {
     value: cookieValue(),
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     path: '/',
     maxAge: COOKIE_MAX_AGE_SECONDS,
   });
@@ -70,7 +70,7 @@ export function createDevToolsLogoutResponse(): NextResponse {
     value: '',
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     path: '/',
     maxAge: 0,
   });
