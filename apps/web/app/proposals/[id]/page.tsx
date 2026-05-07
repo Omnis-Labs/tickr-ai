@@ -39,10 +39,17 @@ export default function ProposalDetailPage() {
 
   const proposal = inMemory ?? coldRead ?? null;
 
-  function handleClose(decision: 'placed' | 'skipped' | null) {
-    if (params?.id && inMemory) removeProposal(params.id);
-    router.replace('/');
-    void decision;
+  function handleBack() {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/desk');
+  }
+
+  function handleDecision(decision: 'placed' | 'skipped' | null) {
+    if (params?.id && decision && inMemory) removeProposal(params.id);
+    router.replace('/desk');
   }
 
   if (!loaded) {
@@ -50,13 +57,18 @@ export default function ProposalDetailPage() {
       <div className="min-h-screen grid place-items-center text-on-surface-variant text-body-md">
         <div className="flex items-center gap-3">
           <span className="inline-block w-5 h-5 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
-          Loading proposal…
+          Loading proposal...
         </div>
       </div>
     );
   }
 
   return (
-    <ProposalModal proposal={proposal} fallbackId={params?.id} onClose={handleClose} />
+    <ProposalModal
+      proposal={proposal}
+      fallbackId={params?.id}
+      onBack={handleBack}
+      onDecision={handleDecision}
+    />
   );
 }

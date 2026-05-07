@@ -44,7 +44,7 @@ export function MiniChart({
   height = 140,
   marker,
   extraMarkers,
-  color = '#a089ff',
+  color = '#1A1C1E',
 }: MiniChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -65,20 +65,20 @@ export function MiniChart({
         height,
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
-          textColor: '#9099ad',
+          textColor: '#6B6C64',
           fontSize: 11,
         },
         grid: {
-          horzLines: { color: 'rgba(38, 43, 58, 0.6)' },
+          horzLines: { color: 'rgba(26, 28, 30, 0.08)' },
           vertLines: { visible: false },
         },
         timeScale: {
-          borderColor: 'rgba(38, 43, 58, 0.6)',
+          borderColor: 'rgba(26, 28, 30, 0.08)',
           timeVisible: true,
           secondsVisible: false,
         },
         rightPriceScale: {
-          borderColor: 'rgba(38, 43, 58, 0.6)',
+          borderColor: 'rgba(26, 28, 30, 0.08)',
           scaleMargins: { top: 0.15, bottom: 0.1 },
         },
         handleScroll: false,
@@ -88,8 +88,8 @@ export function MiniChart({
 
       series = chart.addAreaSeries({
         lineColor: color,
-        topColor: 'rgba(160, 137, 255, 0.45)',
-        bottomColor: 'rgba(160, 137, 255, 0.02)',
+        topColor: 'rgba(208, 233, 6, 0.38)',
+        bottomColor: 'rgba(208, 233, 6, 0.02)',
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: true,
