@@ -49,7 +49,7 @@ Assets are staggered by `TICKER_STAGGER_SECONDS` (default: 2 seconds) to avoid A
 
 ### LLM Cost Control
 
-A daily USD cap (`LLM_DAILY_USD_CAP`, default: $10) limits total LLM spend. When the cap is reached, the scanner falls back to rule-based analysis using technical indicators only (no LLM calls). The spend counter is tracked in the `LlmUsageDaily` PostgreSQL table with an atomic upsert (see data-model.md).
+A daily USD cap (`LLM_DAILY_USD_CAP`, default: $10) limits LLM spend inside each running ws-server process. When the cap is reached, the scanner falls back to rule-based analysis using technical indicators only (no LLM calls). The counter resets on the UTC day boundary or process restart.
 
 ---
 

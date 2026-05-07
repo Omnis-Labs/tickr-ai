@@ -14,8 +14,6 @@ const EnvSchema = z.object({
   PYTH_HERMES_URL: z.string().url().default('https://hermes.pyth.network'),
   PYTH_BENCHMARKS_URL: z.string().url().default('https://benchmarks.pyth.network'),
   DATABASE_URL: z.string().optional(),
-  UPSTASH_REDIS_REST_URL: z.string().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
   NEXT_PUBLIC_SOLANA_RPC_URLS: z.string().optional(),
   // Jupiter Trigger v2 — server-side polling of order history needs the

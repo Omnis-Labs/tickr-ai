@@ -10,7 +10,6 @@ import {
   type Signal,
 } from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
-import { cacheSignal } from '../cache/index.js';
 import { getPrisma, persistSignal } from '../db/index.js';
 import { env } from '../env.js';
 import { getHistoricalBars } from '../pyth/benchmarks.js';
@@ -98,7 +97,7 @@ export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal
     degraded: llm.degraded,
   };
 
-  await Promise.all([cacheSignal(signal), persistSignal(signal)]);
+  await persistSignal(signal);
   return signal;
 }
 
