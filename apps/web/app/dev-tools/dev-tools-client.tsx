@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -31,6 +32,7 @@ import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useRuntime } from '@/lib/runtime/use-runtime';
+import { useProposalsStore } from '@/lib/store/proposals';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 type LogSection = 'auth' | 'proposal' | 'orders' | 'protection' | 'swap';
@@ -124,12 +126,18 @@ function shortAddress(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
+function stagedDevProposal(proposals: Proposal[]): Proposal | null {
+  return proposals.find((p) => p.status === 'ACTIVE') ?? null;
+}
+
 export function DevToolsClient() {
   const authedFetch = useAuthedFetch();
   const { connected, login, publicKey } = useWallet();
   const { swap } = useJupiterSwap();
   const runtime = useRuntime();
   const qc = useQueryClient();
+  const upsertProposal = useProposalsStore((s) => s.upsertProposal);
+  const removeProposal = useProposalsStore((s) => s.removeProposal);
 
   const [session, setSession] = useState<SessionState | null>(null);
   const [password, setPassword] = useState('');
@@ -243,7 +251,33 @@ export function DevToolsClient() {
       orders: next.orders ?? [],
       positions: next.positions ?? [],
     });
-  }, [authedFetch, runLogged]);
+    const proposals = next.proposals ?? [];
+    const activeProposal = stagedDevProposal(proposals);
+    const inactiveProposalIds = new Set(
+      proposals.filter((p) => p.status !== 'ACTIVE').map((p) => p.id),
+    );
+    for (const p of proposals) {
+      if (p.status !== 'ACTIVE') removeProposal(p.id);
+    }
+    if (activeProposal) {
+      upsertProposal(activeProposal);
+    }
+    qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
+      const existing = current?.proposals ?? [];
+      const cachedProposals = existing.filter(
+        (p) => p.id !== activeProposal?.id && !inactiveProposalIds.has(p.id),
+      );
+      return {
+        proposals: activeProposal ? [activeProposal, ...cachedProposals] : cachedProposals,
+      };
+    });
+    setProposal((current) => {
+      if (!current) return activeProposal;
+      const refreshedCurrent = proposals.find((p) => p.id === current.id);
+      if (refreshedCurrent?.status === 'ACTIVE') return refreshedCurrent;
+      return activeProposal;
+    });
+  }, [authedFetch, qc, removeProposal, runLogged, upsertProposal]);
 
   useEffect(() => {
     void refreshSession();
@@ -314,7 +348,20 @@ export function DevToolsClient() {
         if (!res.ok) throw new Error(json.error ?? `${res.status}`);
         return json;
       });
-      if (result.proposal) setProposal(result.proposal);
+      const createdProposal = result.proposal;
+      if (createdProposal) {
+        setProposal(createdProposal);
+        upsertProposal(createdProposal);
+        qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
+          const existing = current?.proposals ?? [];
+          return {
+            proposals: [
+              createdProposal,
+              ...existing.filter((p) => p.id !== createdProposal.id),
+            ],
+          };
+        });
+      }
       toast.success('Proposal created.');
       await refreshDevState();
     } catch (err) {
@@ -375,6 +422,8 @@ export function DevToolsClient() {
         },
       );
       if (result.order?.id) setSelectedOrderId(result.order.id);
+      removeProposal(proposal.id);
+      setProposal(null);
       toast.success('Order and position created.');
       await refreshDevState();
       void qc.invalidateQueries({ queryKey: QK.proposals() });
@@ -703,13 +752,13 @@ export function DevToolsClient() {
                     <p className="text-title-md text-primary">{proposal.ticker}</p>
                     <p className="text-body-sm text-on-surface-variant">{proposal.id}</p>
                   </div>
-                  <a
+                  <Link
                     href={`/proposals/${proposal.id}`}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-surface px-4 text-label-md text-primary"
                   >
                     <ExternalLink aria-hidden className="h-4 w-4" />
                     Open
-                  </a>
+                  </Link>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
                   <Metric label="Size" value={fmtUsd(proposal.suggestedSizeUsd)} />
