@@ -7,7 +7,7 @@
 // doesn't pound the RPCs.
 
 import 'server-only';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { USDC_DECIMALS, USDC_MINT, parseRpcUrls } from '@hunch-it/shared';
 
 const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -22,6 +22,7 @@ function getConnections(): Connection[] {
 }
 
 const cache = new Map<string, { at: number; usd: number }>();
+const solCache = new Map<string, { at: number; sol: number }>();
 
 export async function readUsdcBalance(walletAddress: string): Promise<number> {
   const cached = cache.get(walletAddress);
@@ -59,5 +60,34 @@ export async function readUsdcBalance(walletAddress: string): Promise<number> {
   }
 
   console.warn(`[portfolio] usdc balance fetch failed for ${walletAddress.slice(0, 6)}…`, lastErr);
+  return 0;
+}
+
+export async function readSolBalance(walletAddress: string): Promise<number> {
+  const cached = solCache.get(walletAddress);
+  if (cached && Date.now() - cached.at < TTL_MS) return cached.sol;
+
+  let owner: PublicKey;
+  try {
+    owner = new PublicKey(walletAddress);
+  } catch {
+    return 0;
+  }
+
+  const conns = getConnections();
+  let lastErr: unknown = null;
+
+  for (const conn of conns) {
+    try {
+      const lamports = await conn.getBalance(owner, 'confirmed');
+      const sol = lamports / LAMPORTS_PER_SOL;
+      solCache.set(walletAddress, { at: Date.now(), sol });
+      return sol;
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  console.warn(`[portfolio] sol balance fetch failed for ${walletAddress.slice(0, 6)}…`, lastErr);
   return 0;
 }

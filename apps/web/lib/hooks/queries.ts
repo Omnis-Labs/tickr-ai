@@ -182,6 +182,7 @@ export interface PortfolioResponse {
   }>;
   pnl: { realized: number; unrealized: number };
   cashUsd?: number;
+  solBalance?: number;
 }
 
 export function usePortfolio() {
