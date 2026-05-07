@@ -147,9 +147,13 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const isExpired = remainMs != null && remainMs <= 0;
   const isReadOnly = proposal.status !== 'ACTIVE' || isExpired;
   const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;
-  const submitDisabled = skipOpen
-    ? isReadOnly || skipProposal.isPending || skipNeedsDetail
-    : executing || isReadOnly || sizeNum <= 0 || insufficient;
+  const orderDisabled = executing || isReadOnly || sizeNum <= 0 || insufficient;
+  const skipConfirmDisabled = executing || isReadOnly || skipProposal.isPending || skipNeedsDetail;
+  const skipConfirmLabel = skipProposal.isPending
+    ? 'Skipping'
+    : skipReason
+      ? 'Save & skip'
+      : 'Skip';
 
   const thesisItems: ThesisItem[] = [
     {
@@ -245,19 +249,16 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     }
     try {
       await skipProposal.mutateAsync(skipArgs);
-      toast.success(skipReason ? 'Proposal skipped. Feedback saved.' : 'Proposal skipped.');
       onDecision('skipped');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
   }
 
-  function handleSubmit() {
-    if (skipOpen) {
-      void handleSkip();
-      return;
-    }
-    void handlePlace();
+  function handleCancelSkip() {
+    setSkipOpen(false);
+    setSkipReason(null);
+    setSkipDetail('');
   }
 
   return (
@@ -331,7 +332,9 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
         <section className="rounded-lg bg-surface p-5 shadow-soft">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-title-md text-on-surface">Portfolio impact</h2>
-            <span className="material-symbols-outlined text-[20px] text-icon-muted">account_balance</span>
+            <span className="material-symbols-outlined text-[20px] text-icon-muted">
+              account_balance
+            </span>
           </div>
           <ImpactRow
             label={`${proposal.ticker} weight`}
@@ -375,7 +378,10 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
           {insufficient && (
             <div className="mt-4 rounded-lg bg-negative-container px-4 py-3 text-body-sm text-negative">
               Not enough USDC. You have {fmtUsd(cashNum)}, this order needs {fmtUsd(sizeNum)}.{' '}
-              <a href="/desk#deposit-section" className="font-semibold underline underline-offset-2">
+              <a
+                href="/desk#deposit-section"
+                className="font-semibold underline underline-offset-2"
+              >
                 Deposit USDC
               </a>
               .
@@ -396,30 +402,57 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-50 border-t border-divider bg-background/95 px-5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <div className="mx-auto grid w-full max-w-md grid-cols-[0.75fr_1.55fr_1fr] gap-2">
-          <Button variant="surface" className="h-12 gap-1 px-2 text-label-md" onClick={onBack} disabled={executing || skipProposal.isPending}>
-            <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-            Back
-          </Button>
-          <Button
-            variant={skipOpen ? 'secondary' : 'outline'}
-            className="h-12 gap-1 px-2 text-label-md"
-            onClick={() => setSkipOpen((open) => !open)}
-            disabled={executing || isReadOnly}
-          >
-            <span className="material-symbols-outlined text-[20px]">feedback</span>
-            Skip proposal
-          </Button>
-          <Button
-            variant="accent"
-            className="h-12 px-2 text-label-md"
-            onClick={handleSubmit}
-            disabled={submitDisabled}
-            aria-label={skipOpen ? 'Submit skip proposal' : 'Submit order'}
-          >
-            {skipProposal.isPending || executing ? 'Submitting' : 'Submit'}
-          </Button>
-        </div>
+        {skipOpen ? (
+          <div className="mx-auto grid w-full max-w-md grid-cols-[0.95fr_1.25fr] gap-2">
+            <Button
+              variant="surface"
+              className="h-12 px-3 text-label-md"
+              onClick={handleCancelSkip}
+              disabled={skipProposal.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              className="h-12 px-3 text-label-md"
+              onClick={() => void handleSkip()}
+              disabled={skipConfirmDisabled}
+              aria-label={skipReason ? 'Save feedback and skip proposal' : 'Skip proposal'}
+            >
+              {skipConfirmLabel}
+            </Button>
+          </div>
+        ) : (
+          <div className="mx-auto grid w-full max-w-md grid-cols-[0.75fr_0.9fr_1.35fr] gap-2">
+            <Button
+              variant="surface"
+              className="h-12 gap-1 px-2 text-label-md"
+              onClick={onBack}
+              disabled={executing || skipProposal.isPending}
+            >
+              <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+              Back
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 gap-1 px-2 text-label-md"
+              onClick={() => setSkipOpen(true)}
+              disabled={executing || skipProposal.isPending || isReadOnly}
+            >
+              <span className="material-symbols-outlined text-[20px]">feedback</span>
+              Skip
+            </Button>
+            <Button
+              variant="accent"
+              className="h-12 px-2 text-label-md"
+              onClick={() => void handlePlace()}
+              disabled={orderDisabled}
+              aria-label="Place order"
+            >
+              {executing ? 'Placing' : 'Place order'}
+            </Button>
+          </div>
+        )}
       </footer>
     </>
   );
@@ -448,7 +481,9 @@ function ThesisRow({ item }: { item: ThesisItem }) {
 
   return (
     <article className="flex gap-3">
-      <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${toneClass}`}>
+      <div
+        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${toneClass}`}
+      >
         <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
       </div>
       <div className="min-w-0">
@@ -474,7 +509,9 @@ function ImpactRow({
   last?: boolean;
 }) {
   return (
-    <div className={`flex items-center justify-between gap-4 py-3 ${last ? '' : 'border-b border-divider'}`}>
+    <div
+      className={`flex items-center justify-between gap-4 py-3 ${last ? '' : 'border-b border-divider'}`}
+    >
       <div className="text-body-md text-on-surface-variant">{label}</div>
       <div className="flex shrink-0 items-center gap-2 font-mono text-body-md text-on-surface">
         <span>{before}</span>
