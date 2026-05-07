@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, type ReactNode } from 'react';
-import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
+import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
 import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
 import {
   useWallets,
@@ -89,12 +89,12 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       signAndSendTransaction: wallet
         ? async (tx: VersionedTransaction | Transaction) => {
             const txBytes =
-              'serialize' in tx
-                ? // VersionedTransaction.serialize() returns Uint8Array
-                  // already; legacy Transaction.serialize() returns
-                  // Buffer (a Node Uint8Array subclass) — both fine here.
-                  (tx as VersionedTransaction).serialize()
-                : new Uint8Array((tx as Transaction).serialize());
+              tx instanceof VersionedTransaction
+                ? tx.serialize()
+                : tx.serialize({
+                    requireAllSignatures: false,
+                    verifySignatures: false,
+                  });
             // skipPreflight: true is intentional. The Ultra-quoted tx
             // carries a recentBlockhash that's only valid ~150 slots
             // (~60s); the node-side preflight `simulateTransaction` is
