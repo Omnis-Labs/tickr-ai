@@ -7,6 +7,7 @@ interface PortfolioReadinessProps {
   hasCash: boolean;
   hasHoldings: boolean;
   cashUsd: number;
+  onDeposit: () => void;
 }
 
 type ReadinessState = 'empty' | 'ready' | 'add-usdc' | 'full';
@@ -55,6 +56,7 @@ export function PortfolioReadiness({
   hasCash,
   hasHoldings,
   cashUsd,
+  onDeposit,
 }: PortfolioReadinessProps) {
   if (isLoading) return null;
 
@@ -82,7 +84,11 @@ export function PortfolioReadiness({
           </p>
         )}
         {config.showDeposit && (
-          <button className="mt-4 flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full px-6 py-3 text-label-lg transition-transform active:scale-[0.97]">
+          <button
+            type="button"
+            onClick={onDeposit}
+            className="mt-4 flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full px-6 py-3 text-label-lg transition-transform active:scale-[0.97]"
+          >
             <span className="material-symbols-outlined text-[20px]">add</span>
             Deposit USDC
           </button>

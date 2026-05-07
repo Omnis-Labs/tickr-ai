@@ -9,6 +9,20 @@ import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
 import { usePortfolio } from '@/lib/hooks/queries';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
+function formatUsdc(value: number): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatSol(value: number): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: value < 0.01 && value > 0 ? 6 : 4,
+    maximumFractionDigits: 6,
+  });
+}
+
 /**
  * Portfolio surface: total value + PnL header, holdings card list, and
  * recent-trades log. Reads usePortfolio() — same query as /desk so caches
@@ -49,6 +63,7 @@ export default function PortfolioPage() {
   const totalPnl = realized + unrealized;
   const dayPnl = unrealized;
   const cashUsd = data?.cashUsd ?? 0;
+  const solBalance = data?.solBalance ?? 0;
   const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
   const totalValue = positionsValue + cashUsd;
   const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
@@ -126,6 +141,37 @@ export default function PortfolioPage() {
 
             <section className="mb-8">
               <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-title-lg text-primary">Wallet assets</h2>
+                <Link
+                  href="/withdraw"
+                  className="h-9 px-3 rounded-full bg-surface text-on-surface text-label-md flex items-center gap-1 shadow-micro active:scale-[0.97] transition-transform"
+                >
+                  Withdraw
+                  <span className="material-symbols-outlined text-[16px]">north_east</span>
+                </Link>
+              </div>
+              {isLoading ? (
+                <div className="bg-surface rounded-lg p-4 h-[132px] animate-pulse shadow-soft" />
+              ) : (
+                <div className="bg-surface rounded-lg p-4 shadow-soft divide-y divide-divider">
+                  <WalletAssetRow
+                    icon="payments"
+                    label="USDC"
+                    detail="Available for proposals"
+                    value={`${formatUsdc(cashUsd)} USDC`}
+                  />
+                  <WalletAssetRow
+                    icon="bolt"
+                    label="SOL"
+                    detail="Network fees and transfers"
+                    value={`${formatSol(solBalance)} SOL`}
+                  />
+                </div>
+              )}
+            </section>
+
+            <section className="mb-8">
+              <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-title-lg text-primary">Holdings</h2>
               </div>
               <HoldingsList holdings={holdings} isLoading={isLoading} />
@@ -193,5 +239,32 @@ export default function PortfolioPage() {
         )}
       </main>
     </>
+  );
+}
+
+function WalletAssetRow({
+  icon,
+  label,
+  detail,
+  value,
+}: {
+  icon: string;
+  label: string;
+  detail: string;
+  value: string;
+}) {
+  return (
+    <div className="py-3 first:pt-0 last:pb-0 flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+        <span className="material-symbols-outlined text-primary text-[20px]">{icon}</span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-label-lg text-on-surface">{label}</p>
+        <p className="text-body-sm text-on-surface-variant">{detail}</p>
+      </div>
+      <p className="text-label-lg text-on-surface tabular-nums text-right min-w-0 max-w-[48%] break-words">
+        {value}
+      </p>
+    </div>
   );
 }

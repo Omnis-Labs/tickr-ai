@@ -2,6 +2,7 @@
 
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
@@ -53,6 +54,9 @@ export default function DeskPage() {
   const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
   const hasHoldings = positions.filter((p) => p.state !== 'CLOSED').length > 0;
   const hasCash = cashUsd > 0;
+  const scrollToDeposit = () => {
+    document.getElementById('deposit-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <>
@@ -121,22 +125,29 @@ export default function DeskPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-divider">
+                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-divider flex-wrap">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-label-md text-on-surface-variant">Cash (USDC)</span>
                     <span className="text-title-lg text-on-surface">
                       ${cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={() => document.getElementById('deposit-section')?.scrollIntoView({ behavior: 'smooth' })}
-                      className="flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full h-11 px-5 text-label-lg transition-transform active:scale-[0.97]"
+                      onClick={scrollToDeposit}
+                      className="flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full h-11 px-4 text-label-lg transition-transform active:scale-[0.97]"
                     >
                       <span className="material-symbols-outlined text-[20px]">add</span>
                       Deposit
                     </button>
+                    <Link
+                      href="/withdraw"
+                      className="flex items-center justify-center gap-2 bg-surface-container text-on-surface rounded-full h-11 px-4 text-label-lg transition-transform active:scale-[0.97]"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">north_east</span>
+                      Withdraw
+                    </Link>
                   </div>
                 </div>
               </>
@@ -149,6 +160,7 @@ export default function DeskPage() {
           hasCash={hasCash}
           hasHoldings={hasHoldings}
           cashUsd={cashUsd}
+          onDeposit={scrollToDeposit}
         />
 
         <section className="mb-8">
