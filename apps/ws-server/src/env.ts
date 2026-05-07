@@ -59,3 +59,7 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+export function devToolsEnabled(): boolean {
+  return env.ENABLE_DEV_TOOLS;
+}

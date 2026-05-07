@@ -157,4 +157,4 @@ pnpm db:push
 pnpm dev   # Runs web + ws-server concurrently
 ```
 
-**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. Production builds block this surface.
+**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. Deployed production runtimes block this surface.

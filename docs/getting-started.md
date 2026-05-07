@@ -85,7 +85,7 @@ Local URLs (both modes):
 
 ## Dev Tools
 
-`/dev-tools` is the local testing surface. It is disabled in production and requires both `ENABLE_DEV_TOOLS=true` and the HTTP-only password cookie.
+`/dev-tools` is the local testing surface. It is disabled in deployed production and requires `ENABLE_DEV_TOOLS=true` plus the HTTP-only password cookie. The full-Docker images are production-built, but local `docker-compose.yml` still enables this flag by default.
 
 In the root `.env`, set:
 

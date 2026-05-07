@@ -10,7 +10,7 @@ import {
   WsClientEvents,
   WsServerEvents,
 } from '@hunch-it/shared';
-import { env } from './env.js';
+import { devToolsEnabled, env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
 import { runOrderTracker } from './orders/tracker/index.js';
 import { runTriggerMonitor } from './orders/trigger-monitor.js';
@@ -39,7 +39,7 @@ const DevTriggerSchema = z.object({
 });
 
 app.post('/dev-tools/trigger-hit', (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === 'production' || !env.ENABLE_DEV_TOOLS) {
+  if (!devToolsEnabled()) {
     res.status(404).json({ error: 'dev tools disabled' });
     return;
   }

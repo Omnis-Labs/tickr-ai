@@ -31,7 +31,7 @@ If `/dev-tools` does not unlock or emit triggers:
 
 1. Confirm `ENABLE_DEV_TOOLS=true` in both web and ws-server env files.
 2. Confirm `DEV_TOOLS_PASSWORD` matches on web and ws-server.
-3. Restart `pnpm dev` after changing env vars.
+3. Restart `pnpm dev` or `docker compose up --build -d` after changing env vars.
 4. Check browser console and ws-server logs for `[dev-tools]`.
 
 ## Browser Notifications
