@@ -4,7 +4,8 @@
 // some free RPCs (e.g. publicnode.com) block getTokenAccountsByOwner,
 // so a single-endpoint connection is fragile. We cache the resolved
 // balance per wallet for 60s so the desk page's 15s portfolio refetch
-// doesn't pound the RPCs.
+// doesn't pound the RPCs. Mutations can request a forced fresh read to
+// bypass this cache and refresh the stored value.
 
 import 'server-only';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
@@ -24,14 +25,23 @@ function getConnections(): Connection[] {
 const cache = new Map<string, { at: number; usd: number }>();
 const solCache = new Map<string, { at: number; sol: number }>();
 
-export async function readUsdcBalance(walletAddress: string): Promise<number> {
+interface BalanceReadOptions {
+  forceFresh?: boolean;
+  throwOnFailure?: boolean;
+}
+
+export async function readUsdcBalance(
+  walletAddress: string,
+  options: BalanceReadOptions = {},
+): Promise<number> {
   const cached = cache.get(walletAddress);
-  if (cached && Date.now() - cached.at < TTL_MS) return cached.usd;
+  if (!options.forceFresh && cached && Date.now() - cached.at < TTL_MS) return cached.usd;
 
   let owner: PublicKey;
   try {
     owner = new PublicKey(walletAddress);
   } catch {
+    if (options.throwOnFailure) throw new Error('Invalid wallet address.');
     return 0;
   }
 
@@ -59,18 +69,24 @@ export async function readUsdcBalance(walletAddress: string): Promise<number> {
     }
   }
 
-  console.warn(`[portfolio] usdc balance fetch failed for ${walletAddress.slice(0, 6)}…`, lastErr);
+  const message = `[portfolio] usdc balance fetch failed for ${walletAddress.slice(0, 6)}…`;
+  console.warn(message, lastErr);
+  if (options.throwOnFailure) throw new Error(message);
   return 0;
 }
 
-export async function readSolBalance(walletAddress: string): Promise<number> {
+export async function readSolBalance(
+  walletAddress: string,
+  options: BalanceReadOptions = {},
+): Promise<number> {
   const cached = solCache.get(walletAddress);
-  if (cached && Date.now() - cached.at < TTL_MS) return cached.sol;
+  if (!options.forceFresh && cached && Date.now() - cached.at < TTL_MS) return cached.sol;
 
   let owner: PublicKey;
   try {
     owner = new PublicKey(walletAddress);
   } catch {
+    if (options.throwOnFailure) throw new Error('Invalid wallet address.');
     return 0;
   }
 
@@ -88,6 +104,8 @@ export async function readSolBalance(walletAddress: string): Promise<number> {
     }
   }
 
-  console.warn(`[portfolio] sol balance fetch failed for ${walletAddress.slice(0, 6)}…`, lastErr);
+  const message = `[portfolio] sol balance fetch failed for ${walletAddress.slice(0, 6)}…`;
+  console.warn(message, lastErr);
+  if (options.throwOnFailure) throw new Error(message);
   return 0;
 }

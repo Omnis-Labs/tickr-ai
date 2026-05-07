@@ -17,6 +17,11 @@ import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const freshBalances = req.nextUrl.searchParams.get('freshBalances') === '1';
+  const balanceReadOptions = {
+    forceFresh: freshBalances,
+    throwOnFailure: freshBalances,
+  };
 
   const [openPositions, recentTrades, cashUsd, solBalance] = await Promise.all([
     prisma.position.findMany({
@@ -31,8 +36,8 @@ export async function GET(req: NextRequest) {
     // RPC read of the user's embedded-wallet USDC balance. Cached 60s
     // per wallet inside the helper so the desk page's 15s portfolio
     // refetch doesn't pound the RPC. Returns 0 on failure.
-    readUsdcBalance(auth.walletAddress),
-    readSolBalance(auth.walletAddress),
+    readUsdcBalance(auth.walletAddress, balanceReadOptions),
+    readSolBalance(auth.walletAddress, balanceReadOptions),
   ]);
 
   // Realized PnL = sum of all SELL-side Trade.realizedPnl (BUY trades have
