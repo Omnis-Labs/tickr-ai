@@ -6,7 +6,8 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { TopAppBar } from '@/components/shell/top-app-bar';
-import { QK, usePortfolio } from '@/lib/hooks/queries';
+import { useAuthedFetch } from '@/lib/auth/fetch';
+import { QK, type PortfolioResponse, usePortfolio } from '@/lib/hooks/queries';
 import {
   type PreparedWalletTransfer,
   type TransferAsset,
@@ -16,6 +17,10 @@ import {
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 const SOL_LAMPORTS = 1_000_000_000;
+const BALANCE_SYNC_ATTEMPTS = 8;
+const BALANCE_SYNC_DELAY_MS = 1_500;
+const USDC_SYNC_TOLERANCE = 0.000001;
+const SOL_SYNC_TOLERANCE = 0.00000002;
 
 const ASSETS: Record<
   TransferAsset,
@@ -70,9 +75,32 @@ function isLowSolForFees(solBalance: number): boolean {
   return solBalance <= 0;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function hasSyncedBalance(
+  prepared: PreparedWalletTransfer,
+  before: PortfolioResponse | undefined,
+  next: PortfolioResponse,
+): boolean {
+  if (!before) return true;
+  const amount = Number(prepared.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return true;
+
+  if (prepared.asset === 'USDC') {
+    if (before.cashUsd == null || next.cashUsd == null) return true;
+    return next.cashUsd <= before.cashUsd - amount + USDC_SYNC_TOLERANCE;
+  }
+
+  if (before.solBalance == null || next.solBalance == null) return true;
+  return next.solBalance <= before.solBalance - amount + SOL_SYNC_TOLERANCE;
+}
+
 export default function WithdrawPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const authedFetch = useAuthedFetch();
   const wallet = useWallet();
   const portfolioQuery = usePortfolio();
   const transfer = useWalletTransfer();
@@ -84,8 +112,10 @@ export default function WithdrawPage() {
   const [result, setResult] = useState<WalletTransferResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [balanceSyncWarning, setBalanceSyncWarning] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isSyncingBalance, setIsSyncingBalance] = useState(false);
   const [isLoadingMax, setIsLoadingMax] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -105,6 +135,7 @@ export default function WithdrawPage() {
     setResult(null);
     setError(null);
     setSendError(null);
+    setBalanceSyncWarning(null);
   }
 
   function changeAsset(next: TransferAsset) {
@@ -143,6 +174,7 @@ export default function WithdrawPage() {
       setPrepared(null);
       setResult(null);
       setSendError(null);
+      setBalanceSyncWarning(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -154,6 +186,7 @@ export default function WithdrawPage() {
     setError(null);
     setResult(null);
     setSendError(null);
+    setBalanceSyncWarning(null);
     setIsPreparing(true);
     try {
       const next = await transfer.prepare({
@@ -170,18 +203,76 @@ export default function WithdrawPage() {
     }
   }
 
+  async function fetchFreshPortfolio(): Promise<PortfolioResponse> {
+    const response = await authedFetch('/api/portfolio?freshBalances=1', {
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      throw new Error('Could not refresh wallet balance.');
+    }
+    const nextPortfolio = (await response.json()) as PortfolioResponse;
+    queryClient.setQueryData(QK.portfolio(), nextPortfolio);
+    return nextPortfolio;
+  }
+
+  async function syncConfirmedBalance(
+    confirmedTransfer: PreparedWalletTransfer,
+    before: PortfolioResponse | undefined,
+  ): Promise<{ synced: boolean }> {
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < BALANCE_SYNC_ATTEMPTS; attempt += 1) {
+      try {
+        const nextPortfolio = await fetchFreshPortfolio();
+        if (hasSyncedBalance(confirmedTransfer, before, nextPortfolio)) {
+          return { synced: true };
+        }
+      } catch (err) {
+        lastError = err;
+      }
+
+      if (attempt < BALANCE_SYNC_ATTEMPTS - 1) {
+        await delay(BALANCE_SYNC_DELAY_MS);
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+    return { synced: false };
+  }
+
   async function sendTransfer() {
     if (!prepared) return;
     setSendError(null);
+    setBalanceSyncWarning(null);
     setIsSending(true);
     try {
+      const previousPortfolio =
+        queryClient.getQueryData<PortfolioResponse>(QK.portfolio()) ?? portfolioQuery.data;
       const nextResult = await transfer.send(prepared);
+      if (nextResult.status === 'confirmed') {
+        setIsSyncingBalance(true);
+        try {
+          const syncResult = await syncConfirmedBalance(prepared, previousPortfolio);
+          if (!syncResult.synced) {
+            setBalanceSyncWarning('Transfer confirmed. Wallet balance may take another moment.');
+          }
+        } catch {
+          setBalanceSyncWarning('Transfer confirmed. Wallet balance could not refresh yet.');
+        } finally {
+          setIsSyncingBalance(false);
+        }
+      } else if (nextResult.status === 'failed') {
+        await fetchFreshPortfolio().catch(() => undefined);
+      }
       setResult(nextResult);
       void queryClient.invalidateQueries({ queryKey: QK.portfolio() });
     } catch (err) {
       setResult(null);
       setSendError(err instanceof Error ? err.message : String(err));
     } finally {
+      setIsSyncingBalance(false);
       setIsSending(false);
     }
   }
@@ -191,7 +282,8 @@ export default function WithdrawPage() {
     destinationAddress.trim().length > 0 &&
     amount.trim().length > 0 &&
     !isPreparing &&
-    !isSending;
+    !isSending &&
+    !isSyncingBalance;
 
   return (
     <>
@@ -383,7 +475,11 @@ export default function WithdrawPage() {
               </div>
             </motion.section>
 
-            {prepared && !result && (
+            {prepared && !result && isSyncingBalance && (
+              <BalanceSyncCard prepared={prepared} />
+            )}
+
+            {prepared && !result && !isSyncingBalance && (
               <ReviewCard
                 prepared={prepared}
                 isSending={isSending}
@@ -400,10 +496,12 @@ export default function WithdrawPage() {
               <ResultCard
                 prepared={prepared}
                 result={result}
+                balanceSyncWarning={balanceSyncWarning}
                 onNewTransfer={() => {
                   setPrepared(null);
                   setResult(null);
                   setSendError(null);
+                  setBalanceSyncWarning(null);
                   setAmount('');
                   setDestinationAddress('');
                 }}
@@ -487,6 +585,31 @@ function ReviewCard({
   );
 }
 
+function BalanceSyncCard({ prepared }: { prepared: PreparedWalletTransfer }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-surface rounded-lg p-5 shadow-soft flex flex-col items-center text-center"
+    >
+      <div className="w-14 h-14 rounded-full bg-accent-container flex items-center justify-center mb-3">
+        <span className="material-symbols-outlined text-primary text-[28px] animate-pulse">
+          sync
+        </span>
+      </div>
+      <h2 className="text-title-lg text-primary">Updating wallet balance</h2>
+      <p className="text-body-sm text-on-surface-variant mt-1">
+        Transaction confirmed. Reading your latest {prepared.asset} balance.
+      </p>
+
+      <div className="w-full mt-5 rounded-lg border border-outline-variant overflow-hidden">
+        <ReviewRow label="Sent" value={`${prepared.amount} ${prepared.asset}`} />
+        <ReviewRow label="To" value={truncateAddress(prepared.destinationAddress)} mono />
+      </div>
+    </motion.section>
+  );
+}
+
 function ReviewRow({
   label,
   value,
@@ -513,10 +636,12 @@ function ReviewRow({
 function ResultCard({
   prepared,
   result,
+  balanceSyncWarning,
   onNewTransfer,
 }: {
   prepared: PreparedWalletTransfer;
   result: WalletTransferResult;
+  balanceSyncWarning: string | null;
   onNewTransfer: () => void;
 }) {
   const confirmed = result.status === 'confirmed';
@@ -529,7 +654,9 @@ function ResultCard({
   const icon = confirmed ? 'check_circle' : failed ? 'error' : 'schedule';
   const iconClass = confirmed ? 'text-positive' : failed ? 'text-negative' : 'text-primary';
   const copy = confirmed
-    ? `${prepared.amount} ${prepared.asset} was sent.`
+    ? balanceSyncWarning
+      ? `${prepared.amount} ${prepared.asset} was sent.`
+      : `${prepared.amount} ${prepared.asset} was sent and your wallet balance was refreshed.`
     : failed
       ? 'The network reported a failed transaction. Network fees may still be charged.'
       : 'The transaction was submitted, but confirmation did not finish in time.';
@@ -545,6 +672,9 @@ function ResultCard({
       </div>
       <h2 className="text-title-lg text-primary">{title}</h2>
       <p className="text-body-sm text-on-surface-variant mt-1">{copy}</p>
+      {confirmed && balanceSyncWarning && (
+        <p className="text-body-sm text-on-surface-variant mt-3">{balanceSyncWarning}</p>
+      )}
       {result.error && (
         <p className="text-body-sm text-negative mt-3 break-words">{result.error}</p>
       )}
