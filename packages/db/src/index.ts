@@ -2,8 +2,10 @@ export { prisma, shutdownPrisma } from './client.js';
 export {
   acceptBuyProposal,
   cancelPendingBuy,
+  claimOrderExecution,
   confirmBuyFill,
   confirmExitFill,
+  releaseOrderExecutionClaim,
   userCloseActive,
   replaceProtectionOrders,
   LifecycleInvariantError,

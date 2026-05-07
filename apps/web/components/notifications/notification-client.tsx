@@ -23,6 +23,13 @@ import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
+import {
+  claimOrderExecution,
+  isOrderAlreadyExecuting,
+  isOrderAlreadyHandled,
+  OrderExecutionClaimError,
+  releaseOrderExecutionClaim,
+} from '@/lib/orders/execution-claim';
 import { isLiveProposal } from '@/lib/proposals/expiration';
 import {
   positionUpdatedHandler,
@@ -50,8 +57,11 @@ export function NotificationClient() {
   const qc = useQueryClient();
   // Track in-flight executions per orderId so a re-fired trigger:hit
   // event (the monitor re-emits while the order stays OPEN) or a
-  // double-tap can't kick off a duplicate Ultra swap.
+  // double-tap can't kick off a duplicate Ultra swap. settledTriggers
+  // suppresses stale trigger events that arrive after /execute filled
+  // the order and before the monitor observes the new DB state.
   const inflightTriggers = useRef<Set<string>>(new Set());
+  const settledTriggers = useRef<Set<string>>(new Set());
 
   // The registry's navigateTo() needs a router; patch it on mount.
   useEffect(() => {
@@ -108,6 +118,7 @@ export function NotificationClient() {
   // and inflightTriggers blocks a concurrent second swap.
   const runTriggerExecute = useCallback(
     async (payload: TriggerHitPayload, mint: string, decimals: number): Promise<void> => {
+      if (settledTriggers.current.has(payload.orderId)) return;
       if (inflightTriggers.current.has(payload.orderId)) return;
       inflightTriggers.current.add(payload.orderId);
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
@@ -116,7 +127,12 @@ export function NotificationClient() {
         duration: Infinity,
       });
 
+      let claimed = false;
+      let swapBroadcast = false;
       try {
+        await claimOrderExecution(authedFetch, payload.orderId);
+        claimed = true;
+
         // For TP/SL we sell exactly the position's token count
         // (populated on the synthetic exit Order at BUY-fill time and
         // forwarded via TriggerHitPayload.tokenAmount). Falling back to
@@ -148,6 +164,7 @@ export function NotificationClient() {
         if (result.exec.status !== 'Success') {
           throw new Error(result.exec.error ?? 'swap failed');
         }
+        swapBroadcast = true;
 
         const tokenAmount =
           payload.kind === 'BUY_TRIGGER'
@@ -173,6 +190,7 @@ export function NotificationClient() {
           throw new Error(body.error ?? `settle ${settle.status}`);
         }
 
+        settledTriggers.current.add(payload.orderId);
         toast.success(`${verb} ${payload.ticker} confirmed`, {
           id: payload.orderId,
           description: `${tokenAmount.toFixed(4)} @ $${executionPrice.toFixed(2)}`,
@@ -184,8 +202,47 @@ export function NotificationClient() {
         void qc.invalidateQueries({ queryKey: QK.portfolio() });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        if (err instanceof OrderExecutionClaimError) {
+          if (isOrderAlreadyHandled(err.reason)) {
+            settledTriggers.current.add(payload.orderId);
+            toast.dismiss(payload.orderId);
+            void qc.invalidateQueries({ queryKey: QK.orders() });
+            void qc.invalidateQueries({ queryKey: QK.positions() });
+            void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
+            void qc.invalidateQueries({ queryKey: QK.portfolio() });
+            return;
+          }
+          if (isOrderAlreadyExecuting(err.reason)) {
+            toast(`${verb} ${payload.ticker} already executing…`, {
+              id: payload.orderId,
+              duration: 4_000,
+            });
+            return;
+          }
+        }
+
+        if (claimed && !swapBroadcast) {
+          await releaseOrderExecutionClaim(authedFetch, payload.orderId).catch((releaseErr) => {
+            console.warn('[notifications] release execution claim failed', releaseErr);
+          });
+        }
+
+        if (swapBroadcast) {
+          toast.error(`Swap broadcast, but settle failed: ${msg}`, {
+            id: payload.orderId,
+            description: 'Refresh the order state before retrying.',
+            duration: 12_000,
+          });
+          void qc.invalidateQueries({ queryKey: QK.orders() });
+          void qc.invalidateQueries({ queryKey: QK.positions() });
+          void qc.invalidateQueries({ queryKey: QK.position(payload.positionId) });
+          void qc.invalidateQueries({ queryKey: QK.portfolio() });
+          return;
+        }
+
         toast.error(`Execute failed: ${msg}`, {
           id: payload.orderId,
+          description: 'The swap did not broadcast; you can retry this trigger.',
           duration: 12_000,
           action: {
             label: 'Retry',
@@ -203,6 +260,7 @@ export function NotificationClient() {
 
   const handleTriggerHit = useCallback(
     (payload: TriggerHitPayload) => {
+      if (settledTriggers.current.has(payload.orderId)) return;
       const meta = XSTOCKS[xStockToBare(payload.ticker as XStockTicker)];
       if (!meta?.mint) {
         toast.error(

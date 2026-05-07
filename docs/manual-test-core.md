@@ -62,14 +62,14 @@ Open `/desk` and wait for the trigger condition, or use `/dev-tools` to force tr
 ### 7. Executing the BUY trigger fills the order, activates the position, arms TP+SL
 Tap **Execute** in the toast. The Privy modal-bypass path (Jupiter Ultra, raw `Uint8Array`, `skipPreflight=true`) signs and broadcasts the swap. After confirmation the toast disappears and the desk shows your new ACTIVE position.
 
-**What's being verified**: client posts `{txSignature, executionPrice, tokenAmount}` to `/api/orders/[id]/execute`, which delegates to `confirmBuyFill`. In one Prisma transaction:
-- `Order.status` CAS from OPEN to FILLED (writes `txSignature` — `Order.txSignature @unique` makes a duplicate-tab replay a no-op),
-- `Position.state` CAS from BUY_PENDING to ACTIVE (writes the actual `entryPrice` / `tokenAmount` / `totalCost`),
+**What's being verified**: before the wallet signs, the client claims the order via `POST /api/orders/[id]/execution-claim`, which CASes `Order.status` from OPEN to PENDING and `Position.state` from BUY_PENDING to ENTERING. Duplicate tabs/stale toasts now fail at claim time and do not start a second on-chain swap. If the wallet swap fails before broadcast, `DELETE /execution-claim` releases the claim back to OPEN/BUY_PENDING. After broadcast, the client posts `{txSignature, executionPrice, tokenAmount}` to `/api/orders/[id]/execute`, which delegates to `confirmBuyFill`. In one Prisma transaction:
+- `Order.status` CAS from PENDING (or legacy OPEN) to FILLED (writes `txSignature` — `Order.txSignature @unique` still makes a duplicate settle replay a no-op),
+- `Position.state` CAS from ENTERING (or legacy BUY_PENDING) to ACTIVE (writes the actual `entryPrice` / `tokenAmount` / `totalCost`),
 - `Trade(side=BUY, source=BUY_APPROVAL)` row,
 - `Order(kind=TAKE_PROFIT, status=OPEN, tokenAmount=filled, triggerPriceUsd=tp)`,
 - `Order(kind=STOP_LOSS, status=OPEN, tokenAmount=filled, triggerPriceUsd=sl)`.
 
-If TP or SL is missing on the Position, the lifecycle throws `LifecycleInvariantError` and rolls back the entire transaction — no partial state. If two tabs both tap Execute, the second gets `{ok: true, duplicate: true}` and no rows are doubly-written.
+If TP or SL is missing on the Position, the lifecycle throws `LifecycleInvariantError` and rolls back the entire transaction — no partial state. If two tabs both tap Execute, only the first claim reaches the wallet; later clicks see `order_pending` or `order_filled`.
 
 ### 8. `/positions/[id]` reads TP/SL from OPEN exit Orders, and Adjust updates them atomically
 Tap your new ACTIVE row. The Position Detail page should show:
@@ -86,13 +86,13 @@ In Postgres after Update you should see exactly one OPEN TAKE_PROFIT and one OPE
 ### 9. A TP or SL trigger closes the position, cancels the sibling, books realized P&L
 Wait for the price to cross your TP or SL. The toast fires; tap **Execute**. The Position Detail page transitions to CLOSED with realized P&L visible.
 
-**What's being verified**: `confirmExitFill` in one transaction:
-- `Order.status` CAS from OPEN to FILLED for the leg that triggered,
-- `Position.state` CAS from ACTIVE to CLOSED with `closedReason` and `realizedPnl`,
+**What's being verified**: the same execution claim runs before the wallet signs: the triggered exit Order moves OPEN → PENDING and the Position moves ACTIVE → CLOSING. Then `confirmExitFill` in one transaction:
+- `Order.status` CAS from PENDING (or legacy OPEN) to FILLED for the leg that triggered,
+- `Position.state` CAS from CLOSING (or legacy ACTIVE) to CLOSED with `closedReason` and `realizedPnl`,
 - sibling exit Order CAS from OPEN to CANCELLED (the OCO cancel),
 - `Trade(side=SELL, source=TP_FILL or SL_FILL)`.
 
-If TP and SL trigger at the same poll cycle and both clients tap Execute, the loser of the Position state CAS rolls back via `PositionRaceRollback` and gets a 409 conflict. Only one Trade is ever written, only one realizedPnl is booked.
+If TP and SL trigger at the same poll cycle and both clients tap Execute, the loser fails the execution claim or the Position state CAS and gets a 409 conflict. Only one Trade is ever written, only one realizedPnl is booked, and the loser does not start a second swap after the winner has claimed the position.
 
 ### 10. Manual close + panic-close-all both close cleanly
 Open another ACTIVE position (or take a fresh one through steps 5-7). Tap **Close Position** on the detail page → confirm. The toast says "<TICKER> closed."; you bounce back to `/desk`.
