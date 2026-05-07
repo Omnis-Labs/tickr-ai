@@ -34,6 +34,7 @@ import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 type LogSection = 'auth' | 'proposal' | 'orders' | 'protection' | 'swap';
+type LogView = LogSection | 'all';
 
 interface LogEntry {
   timestamp: string;
@@ -91,6 +92,16 @@ const emptyLogs: Record<LogSection, LogEntry[]> = {
   swap: [],
 };
 
+const LOG_SECTIONS: LogSection[] = ['auth', 'proposal', 'orders', 'protection', 'swap'];
+
+const LOG_LABELS: Record<LogSection, string> = {
+  auth: 'Auth',
+  proposal: 'Proposal',
+  orders: 'Orders',
+  protection: 'Protection',
+  swap: 'Swap',
+};
+
 function requestId(): string {
   return Math.random().toString(36).slice(2, 9);
 }
@@ -106,6 +117,11 @@ function stringify(value: unknown): string {
 
 function logToText(entries: LogEntry[]): string {
   return entries.map((entry) => stringify(entry)).join('\n\n');
+}
+
+function shortAddress(value: string): string {
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
 export function DevToolsClient() {
@@ -126,7 +142,9 @@ export function DevToolsClient() {
   const [slPrice, setSlPrice] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<LogSection, LogEntry[]>>(emptyLogs);
+  const [selectedLogView, setSelectedLogView] = useState<LogView>('all');
 
+  const walletAddress = publicKey?.toBase58() ?? null;
   const selectedOrder = useMemo(
     () => devState.orders.find((order) => order.id === selectedOrderId) ?? null,
     [devState.orders, selectedOrderId],
@@ -198,13 +216,20 @@ export function DevToolsClient() {
     [appendLog],
   );
 
-  const refreshSession = useCallback(async () => {
-    const next = await runLogged('auth', 'session.status', {}, async () => {
-      const res = await fetch('/api/dev-tools/session', { cache: 'no-store' });
-      return (await res.json()) as SessionState;
-    });
-    setSession(next);
-  }, [runLogged]);
+  const fetchSessionStatus = useCallback(async () => {
+    const res = await fetch('/api/dev-tools/session', { cache: 'no-store' });
+    return (await res.json()) as SessionState;
+  }, []);
+
+  const refreshSession = useCallback(
+    async ({ log = false }: { log?: boolean } = {}) => {
+      const next = log
+        ? await runLogged('auth', 'session.status', {}, fetchSessionStatus)
+        : await fetchSessionStatus();
+      setSession(next);
+    },
+    [fetchSessionStatus, runLogged],
+  );
 
   const refreshDevState = useCallback(async () => {
     const next = await runLogged('orders', 'state.refresh', {}, async () => {
@@ -257,7 +282,7 @@ export function DevToolsClient() {
         return json;
       });
       setPassword('');
-      await refreshSession();
+      await refreshSession({ log: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -313,37 +338,42 @@ export function DevToolsClient() {
     }
     setBusy('accept');
     try {
-      const result = await runLogged('proposal', 'proposal.accept', { proposalId: proposal.id }, async () => {
-        const res = await authedFetch('/api/orders', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress,
-            proposalId: proposal.id,
-            ticker: proposal.ticker,
-            kind: 'BUY_TRIGGER',
-            side: 'BUY',
-            triggerPriceUsd: proposal.suggestedTriggerPrice,
-            sizeUsd: proposal.suggestedSizeUsd,
-            jupiterOrderId: null,
-            txSignature: null,
-            slippageBps: 50,
-            createPosition: {
-              mint: meta.mint,
-              entryPriceEstimate: proposal.suggestedTriggerPrice,
-              tpPrice: proposal.suggestedTakeProfitPrice,
-              slPrice: proposal.suggestedStopLossPrice,
-            },
-          }),
-        });
-        const json = (await res.json().catch(() => ({}))) as {
-          order?: { id?: string };
-          positionId?: string;
-          error?: string;
-        };
-        if (!res.ok) throw new Error(json.error ?? `${res.status}`);
-        return json;
-      });
+      const result = await runLogged(
+        'proposal',
+        'proposal.accept',
+        { proposalId: proposal.id },
+        async () => {
+          const res = await authedFetch('/api/orders', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress,
+              proposalId: proposal.id,
+              ticker: proposal.ticker,
+              kind: 'BUY_TRIGGER',
+              side: 'BUY',
+              triggerPriceUsd: proposal.suggestedTriggerPrice,
+              sizeUsd: proposal.suggestedSizeUsd,
+              jupiterOrderId: null,
+              txSignature: null,
+              slippageBps: 50,
+              createPosition: {
+                mint: meta.mint,
+                entryPriceEstimate: proposal.suggestedTriggerPrice,
+                tpPrice: proposal.suggestedTakeProfitPrice,
+                slPrice: proposal.suggestedStopLossPrice,
+              },
+            }),
+          });
+          const json = (await res.json().catch(() => ({}))) as {
+            order?: { id?: string };
+            positionId?: string;
+            error?: string;
+          };
+          if (!res.ok) throw new Error(json.error ?? `${res.status}`);
+          return json;
+        },
+      );
       if (result.order?.id) setSelectedOrderId(result.order.id);
       toast.success('Order and position created.');
       await refreshDevState();
@@ -421,7 +451,7 @@ export function DevToolsClient() {
         const executionPrice =
           tokenAmount > 0
             ? usdValue / tokenAmount
-            : selectedOrder.triggerPriceUsd ?? selectedOrder.sizeUsd;
+            : (selectedOrder.triggerPriceUsd ?? selectedOrder.sizeUsd);
 
         const res = await authedFetch(`/api/orders/${selectedOrder.id}/execute`, {
           method: 'POST',
@@ -456,16 +486,21 @@ export function DevToolsClient() {
     };
     setBusy('protection');
     try {
-      await runLogged('protection', 'position.protection', { positionId: selectedPosition.id, ...body }, async () => {
-        const res = await authedFetch(`/api/positions/${selectedPosition.id}/protection`, {
-          method: 'PUT',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(json.error ?? `${res.status}`);
-        return json;
-      });
+      await runLogged(
+        'protection',
+        'position.protection',
+        { positionId: selectedPosition.id, ...body },
+        async () => {
+          const res = await authedFetch(`/api/positions/${selectedPosition.id}/protection`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const json = (await res.json().catch(() => ({}))) as { error?: string };
+          if (!res.ok) throw new Error(json.error ?? `${res.status}`);
+          return json;
+        },
+      );
       toast.success('Protection updated.');
       await refreshDevState();
     } catch (err) {
@@ -484,14 +519,19 @@ export function DevToolsClient() {
     }
     setBusy('close');
     try {
-      await runLogged('swap', 'position.manualClose', { positionId: selectedPosition.id }, async () => {
-        return runtime.closePosition({
-          positionId: selectedPosition.id,
-          meta: { mint: meta.mint, decimals: meta.decimals },
-          fallbackMarkPrice: selectedPosition.entryPrice,
-          tokenAmount: selectedPosition.tokenAmount,
-        });
-      });
+      await runLogged(
+        'swap',
+        'position.manualClose',
+        { positionId: selectedPosition.id },
+        async () => {
+          return runtime.closePosition({
+            positionId: selectedPosition.id,
+            meta: { mint: meta.mint, decimals: meta.decimals },
+            fallbackMarkPrice: selectedPosition.entryPrice,
+            tokenAmount: selectedPosition.tokenAmount,
+          });
+        },
+      );
       toast.success('Position closed.');
       await refreshDevState();
       void qc.invalidateQueries({ queryKey: QK.positions() });
@@ -504,7 +544,10 @@ export function DevToolsClient() {
   }
 
   const allLogs = useMemo(
-    () => Object.values(logs).flat().sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
+    () =>
+      Object.values(logs)
+        .flat()
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp)),
     [logs],
   );
 
@@ -556,7 +599,6 @@ export function DevToolsClient() {
                 {busy === 'auth' ? 'Checking...' : 'Unlock'}
               </button>
             </div>
-            <LogBlock title="Auth log" entries={logs.auth} compact />
           </section>
         </main>
       </>
@@ -579,10 +621,33 @@ export function DevToolsClient() {
         }
       />
       <main className="mx-auto flex max-w-5xl flex-col gap-5 px-5 py-6 pb-24">
-        <section className="grid gap-3 sm:grid-cols-3">
-          <StatusPill icon={<ShieldCheck className="h-4 w-4" />} label="Session" value="Unlocked" />
-          <StatusPill icon={<Zap className="h-4 w-4" />} label="Wallet" value={connected ? 'Connected' : 'Signed out'} />
-          <StatusPill icon={<Wand2 className="h-4 w-4" />} label="Open orders" value={openOrders.length.toString()} />
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatusPill
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="Session"
+            value="Unlocked"
+            detail="Password cookie active"
+          />
+          <StatusPill
+            icon={<Zap className="h-4 w-4" />}
+            label="Wallet"
+            value={connected ? 'Connected' : 'Signed out'}
+            detail={
+              walletAddress ? shortAddress(walletAddress) : 'Connect to create and execute orders'
+            }
+          />
+          <StatusPill
+            icon={<Wand2 className="h-4 w-4" />}
+            label="Proposals"
+            value={devState.proposals.length.toString()}
+            detail={proposal ? `${proposal.ticker} staged for accept` : 'No staged proposal'}
+          />
+          <StatusPill
+            icon={<SlidersHorizontal className="h-4 w-4" />}
+            label="Positions"
+            value={activePositions.length.toString()}
+            detail={`${openOrders.length} open orders`}
+          />
         </section>
 
         {!connected && (
@@ -598,7 +663,7 @@ export function DevToolsClient() {
           </section>
         )}
 
-        <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="grid gap-5 lg:grid-cols-2">
           <Panel title="Proposal lab" icon={<Wand2 className="h-5 w-5" />}>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
               <select
@@ -672,7 +737,11 @@ export function DevToolsClient() {
                     </option>
                   ))}
                 </select>
-                <IconButton title="Refresh" onClick={() => void refreshDevState()} icon={<RefreshCw className="h-4 w-4" />} />
+                <IconButton
+                  title="Refresh"
+                  onClick={() => void refreshDevState()}
+                  icon={<RefreshCw className="h-4 w-4" />}
+                />
               </div>
               {selectedOrder && (
                 <div className="rounded-md bg-surface-container-low p-4">
@@ -716,9 +785,7 @@ export function DevToolsClient() {
             </div>
             <LogBlock title="Order log" entries={logs.orders} compact />
           </Panel>
-        </section>
 
-        <section className="grid gap-5 lg:grid-cols-[1fr_1fr]">
           <Panel title="Protection" icon={<SlidersHorizontal className="h-5 w-5" />}>
             <div className="flex flex-col gap-3">
               <select
@@ -759,7 +826,10 @@ export function DevToolsClient() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {openOrders
-                  .filter((order) => order.positionId === selectedPositionId && order.kind !== 'BUY_TRIGGER')
+                  .filter(
+                    (order) =>
+                      order.positionId === selectedPositionId && order.kind !== 'BUY_TRIGGER',
+                  )
                   .map((order) => (
                     <button
                       key={order.id}
@@ -778,13 +848,12 @@ export function DevToolsClient() {
           </Panel>
 
           <Panel title="Logs" icon={<Clipboard className="h-5 w-5" />}>
-            <div className="flex flex-wrap gap-2">
-              {(['auth', 'proposal', 'orders', 'protection', 'swap'] as LogSection[]).map((section) => (
-                <CopyButton key={section} label={section} text={logToText(logs[section])} />
-              ))}
-              <CopyButton label="all" text={logToText(allLogs)} />
-            </div>
-            <LogBlock title="Swap log" entries={logs.swap} />
+            <LogReview
+              selected={selectedLogView}
+              onSelect={setSelectedLogView}
+              logs={logs}
+              allLogs={allLogs}
+            />
           </Panel>
         </section>
       </main>
@@ -792,15 +861,7 @@ export function DevToolsClient() {
   );
 }
 
-function Panel({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: ReactNode;
-  children: ReactNode;
-}) {
+function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
     <section className="rounded-lg bg-surface p-5 shadow-soft">
       <header className="mb-4 flex items-center gap-2">
@@ -873,17 +934,89 @@ function StatusPill({
   icon,
   label,
   value,
+  detail,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  detail: string;
 }) {
   return (
-    <div className="rounded-full bg-surface px-4 py-3 shadow-micro">
-      <div className="flex items-center gap-2 text-primary">
+    <div className="rounded-lg bg-surface px-4 py-3 shadow-micro">
+      <div className="flex min-w-0 items-start gap-3 text-primary">
         {icon}
-        <span className="text-label-sm text-on-surface-variant">{label}</span>
-        <span className="ml-auto text-label-md text-primary">{value}</span>
+        <div className="min-w-0">
+          <p className="text-label-sm text-on-surface-variant">{label}</p>
+          <p className="mt-0.5 truncate text-label-lg text-primary">{value}</p>
+          <p className="mt-1 truncate text-body-sm text-on-surface-variant">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogReview({
+  selected,
+  onSelect,
+  logs,
+  allLogs,
+}: {
+  selected: LogView;
+  onSelect: (view: LogView) => void;
+  logs: Record<LogSection, LogEntry[]>;
+  allLogs: LogEntry[];
+}) {
+  const views: LogView[] = [...LOG_SECTIONS, 'all'];
+  const entries = selected === 'all' ? allLogs : logs[selected];
+  const text = logToText(entries);
+  const title = selected === 'all' ? 'All logs' : `${LOG_LABELS[selected]} log`;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        {views.map((view) => {
+          const count = view === 'all' ? allLogs.length : logs[view].length;
+          const active = selected === view;
+          return (
+            <button
+              key={view}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onSelect(view)}
+              className={`inline-flex h-9 items-center justify-center gap-2 rounded-full px-3 text-label-md ring-1 transition-colors ${
+                active
+                  ? 'bg-primary text-on-primary ring-primary'
+                  : 'bg-surface-container-low text-primary ring-outline-variant'
+              }`}
+            >
+              {view === 'all' ? 'All' : LOG_LABELS[view]}
+              <span
+                className={`rounded-full px-2 py-0.5 text-label-sm ${
+                  active ? 'bg-on-primary text-primary' : 'bg-surface text-on-surface-variant'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="rounded-md bg-surface-container-low p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-label-md text-primary">{title}</h3>
+            <p className="text-body-sm text-on-surface-variant">
+              Review {entries.length} {entries.length === 1 ? 'entry' : 'entries'} before copying.
+            </p>
+          </div>
+          <CopyButton
+            label={`copy ${selected === 'all' ? 'all' : LOG_LABELS[selected].toLowerCase()}`}
+            text={text}
+          />
+        </div>
+        <pre className="max-h-72 overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary">
+          {text || '[]'}
+        </pre>
       </div>
     </div>
   );
@@ -905,7 +1038,9 @@ function LogBlock({
         <h3 className="text-label-md text-on-surface-variant">{title}</h3>
         <CopyButton label="copy" text={text} />
       </div>
-      <pre className={`${compact ? 'max-h-40' : 'max-h-72'} overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary`}>
+      <pre
+        className={`${compact ? 'max-h-40' : 'max-h-72'} overflow-auto rounded-md bg-primary p-3 text-[11px] leading-4 text-on-primary`}
+      >
         {text || '[]'}
       </pre>
     </div>
@@ -926,7 +1061,11 @@ function CopyButton({ label, text }: { label: string; text: string }) {
       }}
       className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-surface-container-low px-3 text-label-md text-primary ring-1 ring-outline-variant"
     >
-      {copied ? <Check aria-hidden className="h-3.5 w-3.5" /> : <Clipboard aria-hidden className="h-3.5 w-3.5" />}
+      {copied ? (
+        <Check aria-hidden className="h-3.5 w-3.5" />
+      ) : (
+        <Clipboard aria-hidden className="h-3.5 w-3.5" />
+      )}
       {label}
     </button>
   );
