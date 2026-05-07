@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { prisma } from '@/lib/db';
+import { expireActiveProposals, prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -11,11 +11,14 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const now = new Date();
+  await expireActiveProposals(prisma, { userId: auth.userId, now });
+
   const proposals = await prisma.proposal.findMany({
     where: {
       userId: auth.userId,
       status: 'ACTIVE',
-      expiresAt: { gt: new Date() },
+      expiresAt: { gt: now },
     },
     orderBy: { expiresAt: 'asc' },
     take: 50,

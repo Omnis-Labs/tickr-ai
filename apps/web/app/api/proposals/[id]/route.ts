@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { expireActiveProposals, prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -14,9 +14,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const now = new Date();
+  await expireActiveProposals(prisma, { userId: auth.userId, now });
+
   const proposal = await prisma.proposal.findUnique({ where: { id } });
   if (!proposal || proposal.userId !== auth.userId) {
     return NextResponse.json({ error: 'proposal not found' }, { status: 404 });
+  }
+  if (proposal.status === 'EXPIRED' || proposal.expiresAt.getTime() <= now.getTime()) {
+    return NextResponse.json({ error: 'proposal expired' }, { status: 404 });
   }
   return NextResponse.json({ proposal: decimalsToNumbers(proposal), source: 'postgres' });
 }

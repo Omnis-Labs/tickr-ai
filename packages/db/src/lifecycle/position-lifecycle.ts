@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../client.js';
+import { expireActiveProposals } from './proposal-expiration.js';
 
 export type LifecycleStatus = 'success' | 'duplicate' | 'conflict';
 
@@ -90,12 +91,16 @@ export async function acceptBuyProposal(input: {
   }
 
   return prisma.$transaction(async (tx) => {
+    const now = new Date();
+    await expireActiveProposals(tx, { userId: input.userId, now });
+
     const claimed = await tx.proposal.updateMany({
       where: {
         id: input.proposalId,
         userId: input.userId,
         status: 'ACTIVE',
         action: 'BUY',
+        expiresAt: { gt: now },
       },
       data: { status: 'EXECUTED' },
     });
@@ -159,10 +164,7 @@ export async function acceptBuyProposal(input: {
   });
 }
 
-export async function cancelPendingBuy(input: {
-  userId: string;
-  orderId: string;
-}): Promise<
+export async function cancelPendingBuy(input: { userId: string; orderId: string }): Promise<
   LifecycleResult<{
     orderId: string;
     orderStatus: 'CANCELLED';
@@ -418,14 +420,12 @@ export async function confirmExitFill(input: {
         },
       });
 
-      const source: 'TP_FILL' | 'SL_FILL' =
-        order.kind === 'TAKE_PROFIT' ? 'TP_FILL' : 'SL_FILL';
+      const source: 'TP_FILL' | 'SL_FILL' = order.kind === 'TAKE_PROFIT' ? 'TP_FILL' : 'SL_FILL';
       const closedReason = order.kind === 'TAKE_PROFIT' ? 'TP_FILLED' : 'SL_FILLED';
       const siblingKind = order.kind === 'TAKE_PROFIT' ? 'STOP_LOSS' : 'TAKE_PROFIT';
 
       const realizedPnl =
-        (input.executionPrice - order.position.entryPrice.toNumber()) *
-        input.tokenAmount;
+        (input.executionPrice - order.position.entryPrice.toNumber()) * input.tokenAmount;
 
       const positionClaimed = await tx.position.updateMany({
         where: {

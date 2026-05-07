@@ -23,6 +23,7 @@ import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
+import { isLiveProposal } from '@/lib/proposals/expiration';
 import {
   positionUpdatedHandler,
   proposalNewHandler,
@@ -41,6 +42,8 @@ export function NotificationClient() {
   const router = useRouter();
   const addSignal = useSignalsStore((s) => s.addSignal);
   const upsertProposal = useProposalsStore((s) => s.upsertProposal);
+  const removeProposal = useProposalsStore((s) => s.removeProposal);
+  const clearExpiredProposals = useProposalsStore((s) => s.clearExpired);
   const activeNotifs = useRef<Map<string, Notification>>(new Map());
   const { swap } = useJupiterSwap();
   const authedFetch = useAuthedFetch();
@@ -55,8 +58,18 @@ export function NotificationClient() {
     setNavigator((href) => router.push(href));
   }, [router]);
 
+  useEffect(() => {
+    clearExpiredProposals();
+    const interval = window.setInterval(clearExpiredProposals, 15_000);
+    return () => window.clearInterval(interval);
+  }, [clearExpiredProposals]);
+
   const handleProposal = useCallback(
     (proposal: Proposal) => {
+      if (!isLiveProposal(proposal)) {
+        removeProposal(proposal.id);
+        return;
+      }
       upsertProposal(proposal);
       const isHidden = typeof document !== 'undefined' && document.hidden;
       const effects = proposalNewHandler(proposal, { isHidden });
@@ -65,7 +78,7 @@ export function NotificationClient() {
         activeNotifs: activeNotifs.current,
       });
     },
-    [router, upsertProposal],
+    [removeProposal, router, upsertProposal],
   );
 
   const handleSignal = useCallback(
@@ -94,11 +107,7 @@ export function NotificationClient() {
   // while the user deliberates, but `id: orderId` on the toast de-dupes
   // and inflightTriggers blocks a concurrent second swap.
   const runTriggerExecute = useCallback(
-    async (
-      payload: TriggerHitPayload,
-      mint: string,
-      decimals: number,
-    ): Promise<void> => {
+    async (payload: TriggerHitPayload, mint: string, decimals: number): Promise<void> => {
       if (inflightTriggers.current.has(payload.orderId)) return;
       inflightTriggers.current.add(payload.orderId);
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
@@ -148,8 +157,7 @@ export function NotificationClient() {
           payload.kind === 'BUY_TRIGGER'
             ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
             : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
-        const executionPrice =
-          tokenAmount > 0 ? usdValue / tokenAmount : payload.currentPriceUsd;
+        const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : payload.currentPriceUsd;
 
         const settle = await authedFetch(`/api/orders/${payload.orderId}/execute`, {
           method: 'POST',

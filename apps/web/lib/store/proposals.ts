@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { Proposal } from '@hunch-it/shared';
+import { isLiveProposal } from '@/lib/proposals/expiration';
 
 export type ProposalUI = Proposal;
 
@@ -19,6 +20,12 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
   order: [],
   upsertProposal: (p) =>
     set((state) => {
+      if (!isLiveProposal(p)) {
+        if (!state.proposalsById[p.id]) return state;
+        const next = { ...state.proposalsById };
+        delete next[p.id];
+        return { proposalsById: next, order: state.order.filter((x) => x !== p.id) };
+      }
       if (state.proposalsById[p.id]) {
         return { ...state, proposalsById: { ...state.proposalsById, [p.id]: p } };
       }
@@ -42,7 +49,7 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
       for (const id of state.order) {
         const p = state.proposalsById[id];
         if (!p) continue;
-        if (new Date(p.expiresAt).getTime() > now) {
+        if (isLiveProposal(p, now)) {
           next[id] = p;
           order.push(id);
         }
@@ -54,6 +61,7 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
       const proposalsById: Record<string, ProposalUI> = {};
       const order: string[] = [];
       for (const p of list) {
+        if (!isLiveProposal(p)) continue;
         proposalsById[p.id] = p;
         order.push(p.id);
       }

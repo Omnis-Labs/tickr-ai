@@ -31,6 +31,7 @@ import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { QK } from '@/lib/hooks/queries';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { isLiveProposal } from '@/lib/proposals/expiration';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useWallet } from '@/lib/wallet/use-wallet';
@@ -126,8 +127,8 @@ function shortAddress(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
-function stagedDevProposal(proposals: Proposal[]): Proposal | null {
-  return proposals.find((p) => p.status === 'ACTIVE') ?? null;
+function stagedDevProposal(proposals: Proposal[], nowMs = Date.now()): Proposal | null {
+  return proposals.find((p) => isLiveProposal(p, nowMs)) ?? null;
 }
 
 export function DevToolsClient() {
@@ -151,6 +152,7 @@ export function DevToolsClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<LogSection, LogEntry[]>>(emptyLogs);
   const [selectedLogView, setSelectedLogView] = useState<LogView>('all');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const walletAddress = publicKey?.toBase58() ?? null;
   const selectedOrder = useMemo(
@@ -169,6 +171,10 @@ export function DevToolsClient() {
     () => devState.orders.filter((order) => order.status === 'OPEN'),
     [devState.orders],
   );
+  const activeProposal = useMemo(() => {
+    if (proposal && isLiveProposal(proposal, nowMs)) return proposal;
+    return stagedDevProposal(devState.proposals, nowMs);
+  }, [devState.proposals, nowMs, proposal]);
 
   const appendLog = useCallback((section: LogSection, entry: LogEntry) => {
     setLogs((prev) => ({
@@ -251,13 +257,14 @@ export function DevToolsClient() {
       orders: next.orders ?? [],
       positions: next.positions ?? [],
     });
+    const nowMs = Date.now();
     const proposals = next.proposals ?? [];
-    const activeProposal = stagedDevProposal(proposals);
+    const activeProposal = stagedDevProposal(proposals, nowMs);
     const inactiveProposalIds = new Set(
-      proposals.filter((p) => p.status !== 'ACTIVE').map((p) => p.id),
+      proposals.filter((p) => !isLiveProposal(p, nowMs)).map((p) => p.id),
     );
     for (const p of proposals) {
-      if (p.status !== 'ACTIVE') removeProposal(p.id);
+      if (!isLiveProposal(p, nowMs)) removeProposal(p.id);
     }
     if (activeProposal) {
       upsertProposal(activeProposal);
@@ -265,7 +272,8 @@ export function DevToolsClient() {
     qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
       const existing = current?.proposals ?? [];
       const cachedProposals = existing.filter(
-        (p) => p.id !== activeProposal?.id && !inactiveProposalIds.has(p.id),
+        (p) =>
+          p.id !== activeProposal?.id && !inactiveProposalIds.has(p.id) && isLiveProposal(p, nowMs),
       );
       return {
         proposals: activeProposal ? [activeProposal, ...cachedProposals] : cachedProposals,
@@ -274,7 +282,7 @@ export function DevToolsClient() {
     setProposal((current) => {
       if (!current) return activeProposal;
       const refreshedCurrent = proposals.find((p) => p.id === current.id);
-      if (refreshedCurrent?.status === 'ACTIVE') return refreshedCurrent;
+      if (refreshedCurrent && isLiveProposal(refreshedCurrent, nowMs)) return refreshedCurrent;
       return activeProposal;
     });
   }, [authedFetch, qc, removeProposal, runLogged, upsertProposal]);
@@ -284,9 +292,22 @@ export function DevToolsClient() {
   }, [refreshSession]);
 
   useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 15_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     if (!session?.authenticated || !connected) return;
     void refreshDevState().catch(() => {});
   }, [session?.authenticated, connected, refreshDevState]);
+
+  useEffect(() => {
+    if (!proposal || isLiveProposal(proposal, nowMs)) return;
+    removeProposal(proposal.id);
+    setProposal(null);
+    void qc.invalidateQueries({ queryKey: QK.proposals() });
+    if (session?.authenticated && connected) void refreshDevState().catch(() => {});
+  }, [connected, nowMs, proposal, qc, refreshDevState, removeProposal, session?.authenticated]);
 
   useEffect(() => {
     if (!selectedOrderId && openOrders[0]) setSelectedOrderId(openOrders[0].id);
@@ -333,6 +354,10 @@ export function DevToolsClient() {
   }
 
   async function generateProposal() {
+    if (activeProposal) {
+      toast.error('Skip the active proposal or wait for it to expire before generating another.');
+      return;
+    }
     setBusy('generate');
     try {
       const result = await runLogged('proposal', 'proposal.generate', { ticker }, async () => {
@@ -345,7 +370,12 @@ export function DevToolsClient() {
           proposal?: Proposal;
           error?: string;
         };
-        if (!res.ok) throw new Error(json.error ?? `${res.status}`);
+        if (!res.ok) {
+          if (res.status === 409 && json.error === 'active_dev_tools_proposal_exists') {
+            throw new Error('Active dev-tools proposal already exists.');
+          }
+          throw new Error(json.error ?? `${res.status}`);
+        }
         return json;
       });
       const createdProposal = result.proposal;
@@ -354,10 +384,11 @@ export function DevToolsClient() {
         upsertProposal(createdProposal);
         qc.setQueryData<{ proposals: Proposal[] }>(QK.proposals(), (current) => {
           const existing = current?.proposals ?? [];
+          const nowMs = Date.now();
           return {
             proposals: [
               createdProposal,
-              ...existing.filter((p) => p.id !== createdProposal.id),
+              ...existing.filter((p) => p.id !== createdProposal.id && isLiveProposal(p, nowMs)),
             ],
           };
         });
@@ -372,15 +403,16 @@ export function DevToolsClient() {
   }
 
   async function acceptProposal() {
-    if (!proposal) return;
+    const proposalToAccept = activeProposal;
+    if (!proposalToAccept) return;
     const walletAddress = publicKey?.toBase58();
     if (!walletAddress) {
       toast.error('Connect a wallet first.');
       return;
     }
-    const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
+    const meta = XSTOCKS[xStockToBare(proposalToAccept.ticker as XStockTicker)];
     if (!meta?.mint) {
-      toast.error(`${proposal.ticker} mint not configured.`);
+      toast.error(`${proposalToAccept.ticker} mint not configured.`);
       return;
     }
     setBusy('accept');
@@ -388,27 +420,27 @@ export function DevToolsClient() {
       const result = await runLogged(
         'proposal',
         'proposal.accept',
-        { proposalId: proposal.id },
+        { proposalId: proposalToAccept.id },
         async () => {
           const res = await authedFetch('/api/orders', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
               walletAddress,
-              proposalId: proposal.id,
-              ticker: proposal.ticker,
+              proposalId: proposalToAccept.id,
+              ticker: proposalToAccept.ticker,
               kind: 'BUY_TRIGGER',
               side: 'BUY',
-              triggerPriceUsd: proposal.suggestedTriggerPrice,
-              sizeUsd: proposal.suggestedSizeUsd,
+              triggerPriceUsd: proposalToAccept.suggestedTriggerPrice,
+              sizeUsd: proposalToAccept.suggestedSizeUsd,
               jupiterOrderId: null,
               txSignature: null,
               slippageBps: 50,
               createPosition: {
                 mint: meta.mint,
-                entryPriceEstimate: proposal.suggestedTriggerPrice,
-                tpPrice: proposal.suggestedTakeProfitPrice,
-                slPrice: proposal.suggestedStopLossPrice,
+                entryPriceEstimate: proposalToAccept.suggestedTriggerPrice,
+                tpPrice: proposalToAccept.suggestedTakeProfitPrice,
+                slPrice: proposalToAccept.suggestedStopLossPrice,
               },
             }),
           });
@@ -422,7 +454,7 @@ export function DevToolsClient() {
         },
       );
       if (result.order?.id) setSelectedOrderId(result.order.id);
-      removeProposal(proposal.id);
+      removeProposal(proposalToAccept.id);
       setProposal(null);
       toast.success('Order and position created.');
       await refreshDevState();
@@ -688,8 +720,10 @@ export function DevToolsClient() {
           <StatusPill
             icon={<Wand2 className="h-4 w-4" />}
             label="Proposals"
-            value={devState.proposals.length.toString()}
-            detail={proposal ? `${proposal.ticker} staged for accept` : 'No staged proposal'}
+            value={activeProposal ? '1' : '0'}
+            detail={
+              activeProposal ? `${activeProposal.ticker} staged for accept` : 'No staged proposal'
+            }
           />
           <StatusPill
             icon={<SlidersHorizontal className="h-4 w-4" />}
@@ -729,7 +763,12 @@ export function DevToolsClient() {
               <button
                 type="button"
                 onClick={() => void generateProposal()}
-                disabled={!connected || busy === 'generate'}
+                disabled={!connected || busy === 'generate' || Boolean(activeProposal)}
+                title={
+                  activeProposal
+                    ? 'Skip the active proposal or wait for it to expire before generating another.'
+                    : undefined
+                }
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-accent px-5 text-label-lg text-on-accent transition-transform active:scale-[0.97] disabled:opacity-50"
               >
                 <Wand2 aria-hidden className="h-4 w-4" />
@@ -738,22 +777,22 @@ export function DevToolsClient() {
               <button
                 type="button"
                 onClick={() => void acceptProposal()}
-                disabled={!proposal || !connected || busy === 'accept'}
+                disabled={!activeProposal || !connected || busy === 'accept'}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary px-5 text-label-lg text-on-primary transition-transform active:scale-[0.97] disabled:opacity-50"
               >
                 <Check aria-hidden className="h-4 w-4" />
                 {busy === 'accept' ? 'Accepting...' : 'Accept'}
               </button>
             </div>
-            {proposal && (
+            {activeProposal && (
               <div className="mt-4 rounded-md bg-surface-container-low p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-title-md text-primary">{proposal.ticker}</p>
-                    <p className="text-body-sm text-on-surface-variant">{proposal.id}</p>
+                    <p className="text-title-md text-primary">{activeProposal.ticker}</p>
+                    <p className="text-body-sm text-on-surface-variant">{activeProposal.id}</p>
                   </div>
                   <Link
-                    href={`/proposals/${proposal.id}`}
+                    href={`/proposals/${activeProposal.id}`}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-surface px-4 text-label-md text-primary"
                   >
                     <ExternalLink aria-hidden className="h-4 w-4" />
@@ -761,10 +800,10 @@ export function DevToolsClient() {
                   </Link>
                 </div>
                 <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
-                  <Metric label="Size" value={fmtUsd(proposal.suggestedSizeUsd)} />
-                  <Metric label="Trigger" value={fmtUsd(proposal.suggestedTriggerPrice)} />
-                  <Metric label="TP" value={fmtUsd(proposal.suggestedTakeProfitPrice)} />
-                  <Metric label="SL" value={fmtUsd(proposal.suggestedStopLossPrice)} />
+                  <Metric label="Size" value={fmtUsd(activeProposal.suggestedSizeUsd)} />
+                  <Metric label="Trigger" value={fmtUsd(activeProposal.suggestedTriggerPrice)} />
+                  <Metric label="TP" value={fmtUsd(activeProposal.suggestedTakeProfitPrice)} />
+                  <Metric label="SL" value={fmtUsd(activeProposal.suggestedStopLossPrice)} />
                 </dl>
               </div>
             )}

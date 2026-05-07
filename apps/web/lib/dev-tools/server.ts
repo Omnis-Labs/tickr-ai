@@ -12,13 +12,20 @@ import {
   type TriggerHitPayload,
   type XStockTicker,
 } from '@hunch-it/shared';
-import { prisma } from '@/lib/db';
+import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { getCurrentPrices } from '@/lib/pyth';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { devToolsPassword } from './auth';
 
 export const GEMINI_DEV_TOOLS_MODEL = 'gemini-3.1-flash-lite-preview';
+
+export class ActiveDevToolsProposalError extends Error {
+  constructor(public proposalId: string) {
+    super('active_dev_tools_proposal_exists');
+    this.name = 'ActiveDevToolsProposalError';
+  }
+}
 
 export interface DevToolsProposalResult {
   proposal: unknown;
@@ -82,10 +89,7 @@ function finitePositive(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-function defaultProposalSizeUsd(input: {
-  availableUsdc: number;
-  maxTradeSizeUsd: number;
-}): number {
+function defaultProposalSizeUsd(input: { availableUsdc: number; maxTradeSizeUsd: number }): number {
   const availableUsdc = finitePositive(input.availableUsdc);
   const maxTradeSizeUsd = finitePositive(input.maxTradeSizeUsd);
   if (availableUsdc === 0 || maxTradeSizeUsd === 0) return 0;
@@ -322,6 +326,20 @@ export async function createDevToolsProposal(input: {
   if (!user) throw new Error('user not found');
   if (!user.mandate) throw new Error('complete mandate before using dev tools');
 
+  const now = new Date();
+  await expireActiveProposals(prisma, { userId: input.userId, origin: 'DEV_TOOLS', now });
+  const activeProposal = await prisma.proposal.findFirst({
+    where: {
+      userId: input.userId,
+      origin: 'DEV_TOOLS',
+      status: 'ACTIVE',
+      expiresAt: { gt: now },
+    },
+    select: { id: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (activeProposal) throw new ActiveDevToolsProposalError(activeProposal.id);
+
   const priceMap = await getCurrentPrices([input.ticker]);
   const latestPrice = priceMap.get(bareToXStock(input.ticker)) ?? null;
   if (!latestPrice) throw new Error(`No Pyth price for ${input.ticker}`);
@@ -359,9 +377,7 @@ export async function createDevToolsProposal(input: {
   const drawdownPct = maxDrawdown == null ? 0.04 : clamp(maxDrawdown, 0.015, 0.08);
   const fallbackTrigger = roundPrice(latestPrice * 0.998);
   const trigger = roundPrice(llm.parsed?.trigger_price ?? fallbackTrigger);
-  const tp = roundPrice(
-    Math.max(trigger * 1.01, llm.parsed?.take_profit_price ?? trigger * 1.04),
-  );
+  const tp = roundPrice(Math.max(trigger * 1.01, llm.parsed?.take_profit_price ?? trigger * 1.04));
   const sl = roundPrice(
     Math.min(trigger * 0.995, llm.parsed?.stop_loss_price ?? trigger * (1 - drawdownPct)),
   );
@@ -370,52 +386,69 @@ export async function createDevToolsProposal(input: {
 
   const whyFitsMandate =
     `Fits your ${user.mandate.holdingPeriod} mandate. Size $${sizeUsd.toFixed(2)} is based on your $${availableUsdc.toFixed(2)} USDC balance and is within your $${maxTradeSize.toFixed(2)} max trade size. ` +
-    `Stop at $${sl.toFixed(2)} caps the test drawdown near ${((trigger - sl) / trigger * 100).toFixed(1)}%.`;
+    `Stop at $${sl.toFixed(2)} caps the test drawdown near ${(((trigger - sl) / trigger) * 100).toFixed(1)}%.`;
 
-  const created = await prisma.proposal.create({
-    data: {
-      userId: user.id,
-      ticker: bareToXStock(input.ticker),
-      action: 'BUY',
-      suggestedSizeUsd: sizeUsd,
-      suggestedTriggerPrice: trigger,
-      suggestedTakeProfitPrice: tp,
-      suggestedStopLossPrice: sl,
-      rationale: `[DEV_TOOLS] ${llm.parsed?.rationale ?? `Live Pyth test proposal for ${meta.symbol} at $${latestPrice.toFixed(2)}.`}`,
-      reasoning: {
-        what_changed: llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
-        why_this_trade:
-          llm.parsed?.why_this_trade ??
-          `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
-        why_fits_mandate: whyFitsMandate,
+  const created = await prisma.$transaction(async (tx) => {
+    const createNow = new Date();
+    await expireActiveProposals(tx, { userId: input.userId, origin: 'DEV_TOOLS', now: createNow });
+    const latestActive = await tx.proposal.findFirst({
+      where: {
+        userId: input.userId,
+        origin: 'DEV_TOOLS',
+        status: 'ACTIVE',
+        expiresAt: { gt: createNow },
       },
-      positionImpact: {
-        weight_before: 0,
-        weight_after: 0,
-        cash_after: Number((availableUsdc - sizeUsd).toFixed(2)),
-        sector_before: 0,
-        sector_after: 0,
-        dev_tools_note: 'Position impact is not simulated; order/position lifecycle is real.',
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (latestActive) throw new ActiveDevToolsProposalError(latestActive.id);
+
+    return tx.proposal.create({
+      data: {
+        userId: user.id,
+        ticker: bareToXStock(input.ticker),
+        action: 'BUY',
+        suggestedSizeUsd: sizeUsd,
+        suggestedTriggerPrice: trigger,
+        suggestedTakeProfitPrice: tp,
+        suggestedStopLossPrice: sl,
+        rationale: `[DEV_TOOLS] ${llm.parsed?.rationale ?? `Live Pyth test proposal for ${meta.symbol} at $${latestPrice.toFixed(2)}.`}`,
+        reasoning: {
+          what_changed:
+            llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
+          why_this_trade:
+            llm.parsed?.why_this_trade ??
+            `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
+          why_fits_mandate: whyFitsMandate,
+        },
+        positionImpact: {
+          weight_before: 0,
+          weight_after: 0,
+          cash_after: Number((availableUsdc - sizeUsd).toFixed(2)),
+          sector_before: 0,
+          sector_after: 0,
+          dev_tools_note: 'Position impact is not simulated; order/position lifecycle is real.',
+        },
+        confidence,
+        priceAtProposal: latestPrice,
+        indicators: {
+          rsi: indicators.rsi,
+          macd: indicators.macd,
+          ma20: indicators.ma20,
+          ma50: indicators.ma50,
+        },
+        thesisTags: extractThesisTags({
+          rsi: indicators.rsi,
+          ma20: indicators.ma20,
+          ma50: indicators.ma50,
+          price: latestPrice,
+          macd: indicators.macd,
+        }),
+        origin: 'DEV_TOOLS',
+        status: 'ACTIVE',
+        expiresAt: new Date(createNow.getTime() + 60 * 60_000),
       },
-      confidence,
-      priceAtProposal: latestPrice,
-      indicators: {
-        rsi: indicators.rsi,
-        macd: indicators.macd,
-        ma20: indicators.ma20,
-        ma50: indicators.ma50,
-      },
-      thesisTags: extractThesisTags({
-        rsi: indicators.rsi,
-        ma20: indicators.ma20,
-        ma50: indicators.ma50,
-        price: latestPrice,
-        macd: indicators.macd,
-      }),
-      origin: 'DEV_TOOLS',
-      status: 'ACTIVE',
-      expiresAt: new Date(Date.now() + 60 * 60_000),
-    },
+    });
   });
 
   console.log(
@@ -444,6 +477,8 @@ export async function listDevToolsState(userId: string): Promise<{
   orders: DevToolsOrderRow[];
   positions: unknown[];
 }> {
+  await expireActiveProposals(prisma, { userId, origin: 'DEV_TOOLS' });
+
   const [proposals, positions, orders] = await Promise.all([
     prisma.proposal.findMany({
       where: { userId, origin: 'DEV_TOOLS' },

@@ -5,14 +5,13 @@ import { useEffect, useState } from 'react';
 import { ProposalModal } from '@/components/proposal-modal/proposal-modal';
 import { useProposalsStore, type ProposalUI } from '@/lib/store/proposals';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { isProposalExpired } from '@/lib/proposals/expiration';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 export default function ProposalDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const inMemory = useProposalsStore((s) =>
-    params?.id ? s.proposalsById[params.id] : undefined,
-  );
+  const inMemory = useProposalsStore((s) => (params?.id ? s.proposalsById[params.id] : undefined));
   const removeProposal = useProposalsStore((s) => s.removeProposal);
   const [coldRead, setColdRead] = useState<ProposalUI | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -21,6 +20,13 @@ export default function ProposalDetailPage() {
 
   useEffect(() => {
     if (!params?.id) {
+      setColdRead(null);
+      setLoaded(true);
+      return;
+    }
+
+    if (inMemory?.status === 'EXPIRED' || (inMemory && isProposalExpired(inMemory))) {
+      removeProposal(inMemory.id);
       setColdRead(null);
       setLoaded(true);
       return;
@@ -58,9 +64,11 @@ export default function ProposalDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [params?.id, inMemory, ready, connected, authedFetch]);
+  }, [params?.id, inMemory, ready, connected, authedFetch, removeProposal]);
 
-  const proposal = inMemory ?? coldRead ?? null;
+  const displayInMemory =
+    inMemory && inMemory.status !== 'EXPIRED' && !isProposalExpired(inMemory) ? inMemory : null;
+  const proposal = displayInMemory ?? coldRead ?? null;
 
   function handleBack() {
     if (typeof window !== 'undefined' && window.history.length > 1) {
