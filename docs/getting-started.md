@@ -27,12 +27,10 @@ cd hunch-it
 corepack enable          # so pnpm resolves to the version pinned in package.json
 pnpm install
 cp .env.example .env
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
 pnpm db:push             # push the Prisma schema to the (still-empty) postgres volume
 ```
 
-`pnpm db:push` brings up the docker postgres on demand, so this is also the moment your container runtime needs to be installed and reachable. After this, your repo is wired and you can pick how you want to run the apps.
+Edit only the root `.env`; `pnpm dev` and `pnpm start` sync it into `apps/web/.env` and `apps/ws-server/.env` before booting. `pnpm db:push` brings up the docker postgres on demand, so this is also the moment your container runtime needs to be installed and reachable. After this, your repo is wired and you can pick how you want to run the apps.
 
 ---
 
@@ -65,7 +63,7 @@ pnpm dev
 pnpm db:down
 ```
 
-`pnpm dev` runs `scripts/dev-up.sh` first, which:
+`pnpm dev` syncs the root `.env` into both app env files, then runs `scripts/dev-up.sh`, which:
 
 1. Verifies the docker daemon is reachable. If it isn't, on macOS it tries `orb start` (OrbStack) first and falls back to launching Docker Desktop.
 2. Starts the `hunch-postgres` container if it isn't already running.
@@ -89,7 +87,7 @@ Local URLs (both modes):
 
 `/dev-tools` is the local testing surface. It is disabled in production and requires both `ENABLE_DEV_TOOLS=true` and the HTTP-only password cookie.
 
-In `.env` (and your copies in `apps/web/.env.local`, `apps/ws-server/.env`), set:
+In the root `.env`, set:
 
 ```bash
 ENABLE_DEV_TOOLS=true
@@ -107,7 +105,7 @@ Live mode connects the app to real services. **Use small amounts first.**
 
 ### Configure live env vars
 
-Fill in the root `.env` file, then re-copy it to both apps (`cp .env apps/web/.env.local && cp .env apps/ws-server/.env`). The variables that matter for live mode:
+Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app env files automatically. The variables that matter for live mode:
 
 | Variable                       | Purpose                                              |
 | ------------------------------ | ---------------------------------------------------- |
@@ -147,7 +145,7 @@ pnpm dev          # or `docker compose up --build -d` if you prefer Method A
 
 | Command                                   | What it does                                                            |
 | ----------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                                | Auto-start docker postgres + run web and ws-server in parallel          |
+| `pnpm dev`                                | Sync root `.env`, auto-start docker postgres, run web and ws-server in parallel |
 | `pnpm dev:no-db`                          | Run web + ws-server without the postgres preflight                      |
 | `pnpm dev:web`                            | Run the frontend only                                                   |
 | `pnpm dev:ws`                             | Run the ws-server only                                                  |

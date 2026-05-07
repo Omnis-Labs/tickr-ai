@@ -59,10 +59,10 @@ cd hunch-it
 corepack enable
 pnpm install
 cp .env.example .env
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
 pnpm db:push      # push the Prisma schema to the (still empty) docker postgres volume
 ```
+
+Edit only the root `.env`; `pnpm dev` and `pnpm start` sync it into `apps/web/.env` and `apps/ws-server/.env` before booting.
 
 > **Need deterministic local testing?** Set `ENABLE_DEV_TOOLS=true`, run web + ws-server, then open `/dev-tools`. The page is password-gated, creates real `[DEV_TOOLS]` proposals, persists real DB orders, and can force synthetic `trigger:hit` events for owned dev orders.
 
@@ -78,7 +78,7 @@ docker compose down            # to stop
 **B. `pnpm dev` with hot reload** *(recommended for coding)* — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, and runs `prisma generate` for you.
 
 ```bash
-pnpm dev                       # auto-starts OrbStack/Docker → postgres → prisma generate → web + ws-server
+pnpm dev                       # syncs .env → auto-starts OrbStack/Docker → postgres → prisma generate → web + ws-server
 # Stop: Ctrl+C, then `pnpm db:down` if you also want to stop postgres
 ```
 
@@ -107,7 +107,7 @@ hunch-it/
 
 | Command                  | Description                                                              |
 | ------------------------ | ------------------------------------------------------------------------ |
-| `pnpm dev`               | Auto-start docker postgres, generate Prisma client, run web + ws-server  |
+| `pnpm dev`               | Sync root `.env`, auto-start docker postgres, generate Prisma client, run web + ws-server |
 | `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)  |
 | `pnpm dev:web`           | Run the Next.js app only                                                 |
 | `pnpm dev:ws`            | Run the ws-server only                                                   |

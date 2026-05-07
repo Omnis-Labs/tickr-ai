@@ -12,10 +12,8 @@ cp .env.example .env
 #   DEV_TOOLS_PASSWORD=<choose-a-local-password>
 # For background proposals:
 #   ENABLE_SIGNAL_LOOP=true      (live Pyth + Gemini proposals; needs GEMINI_API_KEY)
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
 pnpm db:up && pnpm db:push
-pnpm dev
+pnpm dev                          # syncs .env into both app env files before booting
 ```
 
 Open `http://localhost:3000` and `http://localhost:4000/healthz`. The `ws-server` health endpoint should return `{"ok":true}`. The web app on `:3000` is what you click through below.
