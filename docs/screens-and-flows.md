@@ -233,11 +233,16 @@ Slippage uses a safe default value, not exposed to the user.
 | Button          | Behavior                                                                                      |
 | --------------- | --------------------------------------------------------------------------------------------- |
 | **Place Order** | Place BUY trigger order → Create Position (BUY_PENDING) → After BUY fills, auto-place TP + SL |
-| **Skip**        | Expand skip feedback → remove proposal                                                        |
+| **Skip**        | Open skip confirmation with optional feedback                                                 |
 
 ### Skip Feedback
 
-Inline expansion. **"Why are you skipping?"**
+Dedicated confirmation state. **"Skip this proposal?"**
+
+Feedback is optional. Selecting a reason changes the final action from
+**Skip** to **Save & skip**. Selecting the same reason again clears feedback.
+After confirmation, return to Desk and remove the proposal without a success
+toast.
 
 | Option                      |
 | --------------------------- |
@@ -248,6 +253,14 @@ Inline expansion. **"Why are you skipping?"**
 | Price not attractive        |
 | Too many proposals          |
 | Other (free text)           |
+
+**Buttons:**
+
+| State                     | Buttons                       |
+| ------------------------- | ----------------------------- |
+| No feedback selected      | Cancel / Skip                 |
+| Feedback selected         | Cancel / Save & skip          |
+| Other selected, no detail | Cancel / disabled Save & skip |
 
 ---
 

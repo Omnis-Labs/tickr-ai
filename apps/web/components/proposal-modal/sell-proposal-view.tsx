@@ -48,7 +48,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
   const [skipOpen, setSkipOpen] = useState(false);
-  const [skipReason, setSkipReason] = useState<SkipReason>('DISAGREE_THESIS');
+  const [skipReason, setSkipReason] = useState<SkipReason | null>('DISAGREE_THESIS');
   const [skipDetail, setSkipDetail] = useState('');
 
   useEffect(() => {
@@ -75,6 +75,8 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
 
   const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
   const invalidatedTagIds = (proposal.thesisTags ?? []) as string[];
+  const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;
+  const skipLabel = skipReason ? 'Save & keep' : 'Keep';
 
   async function handleConfirmSell() {
     if (!proposal.positionId) {
@@ -113,15 +115,27 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   }
 
   async function handleSkip() {
-    void skipProposal
-      .mutateAsync({
-        proposalId: proposal.id,
-        reason: skipReason,
-        detail: skipReason === 'OTHER' ? skipDetail : undefined,
-      })
-      .catch(() => {});
-    toast(`Kept ${proposal.ticker} (${SKIP_REASON_LABELS[skipReason] ?? skipReason})`);
+    const skipArgs: { proposalId: string; reason?: SkipReason; detail?: string } = {
+      proposalId: proposal.id,
+    };
+    if (skipReason) {
+      skipArgs.reason = skipReason;
+      if (skipReason === 'OTHER') skipArgs.detail = skipDetail.trim();
+    }
+
+    void skipProposal.mutateAsync(skipArgs).catch(() => {});
+    toast(
+      skipReason
+        ? `Kept ${proposal.ticker} (${SKIP_REASON_LABELS[skipReason] ?? skipReason})`
+        : `Kept ${proposal.ticker}`,
+    );
     onClose('skipped');
+  }
+
+  function handleCancelSkip() {
+    setSkipOpen(false);
+    setSkipReason('DISAGREE_THESIS');
+    setSkipDetail('');
   }
 
   return (
@@ -140,7 +154,14 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
       transition={{ type: 'spring', stiffness: 280, damping: 24 }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 14,
+        }}
+      >
         <div>
           <div style={{ fontSize: 12, color: 'var(--color-sell)', letterSpacing: '0.06em' }}>
             THESIS INVALIDATED · CONSIDER SELL
@@ -148,9 +169,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
           <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em' }}>
             {proposal.ticker}
           </div>
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
-            {meta?.name ?? '—'}
-          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>{meta?.name ?? '—'}</div>
           <div style={{ marginTop: 6 }}>
             <span className="badge badge-sell">SELL</span>
           </div>
@@ -178,7 +197,14 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
 
       {/* Chart with current price marker */}
       {bars.length > 0 && (
-        <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '8px 6px 4px', marginBottom: 16 }}>
+        <div
+          style={{
+            border: '1px solid var(--color-border)',
+            borderRadius: 10,
+            padding: '8px 6px 4px',
+            marginBottom: 16,
+          }}
+        >
           <MiniChart
             bars={bars}
             height={150}
@@ -214,9 +240,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
                     fontWeight: isTriggering ? 600 : 400,
                   }}
                 >
-                  <span style={{ textDecoration: 'line-through' }}>
-                    {def?.label ?? id}
-                  </span>
+                  <span style={{ textDecoration: 'line-through' }}>{def?.label ?? id}</span>
                   {isTriggering && ' ← triggered alert'}
                 </li>
               );
@@ -246,14 +270,32 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
           </button>
         </div>
       ) : (
-        <SkipFlow
-          reason={skipReason}
-          detail={skipDetail}
-          onReason={setSkipReason}
-          onDetail={setSkipDetail}
-          onBack={() => setSkipOpen(false)}
-          onSubmit={() => void handleSkip()}
-        />
+        <div>
+          <SkipFlow
+            reason={skipReason}
+            detail={skipDetail}
+            onReason={setSkipReason}
+            onDetail={setSkipDetail}
+          />
+          <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <button
+              className="btn btn-ghost"
+              style={{ flex: 1, padding: '14px 24px', fontSize: 15 }}
+              disabled={skipProposal.isPending}
+              onClick={handleCancelSkip}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-sell"
+              style={{ flex: 1.4, padding: '14px 24px', fontSize: 15 }}
+              disabled={skipProposal.isPending || skipNeedsDetail}
+              onClick={() => void handleSkip()}
+            >
+              {skipProposal.isPending ? 'Keeping' : skipLabel}
+            </button>
+          </div>
+        </div>
       )}
     </motion.div>
   );
