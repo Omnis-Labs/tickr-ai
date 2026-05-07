@@ -18,7 +18,7 @@ import { QK } from './queries';
 
 interface SkipProposalArgs {
   proposalId: string;
-  reason: SkipReason;
+  reason?: SkipReason;
   detail?: string;
 }
 

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface SkipFlowProps {
-  reason: SkipReason;
+  reason: SkipReason | null;
   detail: string;
   onReason: (r: SkipReason) => void;
   onDetail: (s: string) => void;
@@ -26,7 +26,7 @@ export function SkipFlow({ reason, detail, onReason, onDetail, onBack, onSubmit 
         <div>
           <h2 className="text-title-md text-on-surface">Skip feedback</h2>
           <p className="mt-1 text-body-sm text-on-surface-variant">
-            This helps tune future proposals.
+            Optional feedback for future proposals.
           </p>
         </div>
         <span className="material-symbols-outlined text-[22px] text-icon-muted">feedback</span>

@@ -142,7 +142,7 @@ export type Proposal = z.infer<typeof ProposalSchema>;
 
 export const SkipInputSchema = z.object({
   proposalId: z.string(),
-  reason: SkipReasonSchema,
+  reason: SkipReasonSchema.optional(),
   detail: z.string().optional(),
 });
 export type SkipInput = z.infer<typeof SkipInputSchema>;
