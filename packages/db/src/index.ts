@@ -8,10 +8,8 @@ export {
   replaceProtectionOrders,
   LifecycleInvariantError,
 } from './lifecycle/position-lifecycle.js';
-export type {
-  LifecycleStatus,
-  LifecycleResult,
-} from './lifecycle/position-lifecycle.js';
+export { expireActiveProposals } from './lifecycle/proposal-expiration.js';
+export type { LifecycleStatus, LifecycleResult } from './lifecycle/position-lifecycle.js';
 export type {
   Prisma,
   PrismaClient,

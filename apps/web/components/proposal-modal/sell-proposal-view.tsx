@@ -50,6 +50,12 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const [skipOpen, setSkipOpen] = useState(false);
   const [skipReason, setSkipReason] = useState<SkipReason | null>('DISAGREE_THESIS');
   const [skipDetail, setSkipDetail] = useState('');
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 5_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,20 +71,28 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
     };
   }, [proposal.ticker]);
 
+  const remainMs = useMemo(
+    () => new Date(proposal.expiresAt).getTime() - nowMs,
+    [nowMs, proposal.expiresAt],
+  );
   const exitTtl = useMemo(() => {
-    const remainMs = new Date(proposal.expiresAt).getTime() - Date.now();
     if (remainMs <= 0) return 'Expired';
     const m = Math.floor(remainMs / 60_000);
     if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
     return `${m}m`;
-  }, [proposal.expiresAt]);
+  }, [remainMs]);
 
   const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
   const invalidatedTagIds = (proposal.thesisTags ?? []) as string[];
+  const isReadOnly = proposal.status !== 'ACTIVE' || remainMs <= 0;
   const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;
   const skipLabel = skipReason ? 'Save & keep' : 'Keep';
 
   async function handleConfirmSell() {
+    if (isReadOnly) {
+      toast.error('This proposal is no longer active.');
+      return;
+    }
     if (!proposal.positionId) {
       toast.error('SELL proposal missing positionId');
       return;
@@ -115,6 +129,10 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   }
 
   async function handleSkip() {
+    if (isReadOnly) {
+      toast.error('This proposal is no longer active.');
+      return;
+    }
     const skipArgs: { proposalId: string; reason?: SkipReason; detail?: string } = {
       proposalId: proposal.id,
     };
@@ -179,6 +197,12 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
           <div style={{ fontSize: 18, fontWeight: 700 }}>{exitTtl}</div>
         </div>
       </div>
+
+      {isReadOnly && (
+        <div className="mb-4 rounded-lg bg-tertiary-container px-4 py-3 text-body-sm text-on-tertiary-container">
+          This proposal is no longer active. You can review it, but actions are disabled.
+        </div>
+      )}
 
       {/* Rationale */}
       <div
@@ -255,7 +279,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
           <button
             className="btn btn-ghost"
             style={{ flex: 1, padding: '14px 24px', fontSize: 15 }}
-            disabled={executing}
+            disabled={executing || isReadOnly}
             onClick={() => setSkipOpen(true)}
           >
             Keep position
@@ -263,7 +287,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
           <button
             className="btn btn-sell"
             style={{ flex: 2, padding: '14px 24px', fontSize: 15 }}
-            disabled={executing}
+            disabled={executing || isReadOnly}
             onClick={() => void handleConfirmSell()}
           >
             {executing ? 'Selling…' : `Sell ${proposal.ticker}`}
@@ -289,7 +313,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
             <button
               className="btn btn-sell"
               style={{ flex: 1.4, padding: '14px 24px', fontSize: 15 }}
-              disabled={skipProposal.isPending || skipNeedsDetail}
+              disabled={skipProposal.isPending || skipNeedsDetail || isReadOnly}
               onClick={() => void handleSkip()}
             >
               {skipProposal.isPending ? 'Keeping' : skipLabel}

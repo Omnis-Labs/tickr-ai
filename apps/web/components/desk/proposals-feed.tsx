@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import type { Proposal } from '@hunch-it/shared';
 import { useProposals } from '@/lib/hooks/queries';
+import { isLiveProposal } from '@/lib/proposals/expiration';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { fmtUsd } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
@@ -31,20 +32,19 @@ export function ProposalsFeed() {
   const proposals = useMemo<Proposal[]>(() => {
     const seen = new Set<string>();
     const out: Proposal[] = [];
+    const nowMs = Date.now();
     for (const id of order) {
       const p = proposalsById[id];
-      if (!p || seen.has(p.id)) continue;
+      if (!p || seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
     for (const p of data?.proposals ?? []) {
-      if (seen.has(p.id)) continue;
+      if (seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
-    return out.sort(
-      (a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime(),
-    );
+    return out.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
   }, [order, proposalsById, data]);
 
   return (
@@ -81,46 +81,47 @@ export function ProposalsFeed() {
         </div>
       ) : (
         <>
-          {proposals[0] && (() => {
-            const hero = proposals[0];
-            return (
-              <Link href={`/proposals/${hero.id}`} className="block">
-                <div className="relative overflow-hidden bg-accent rounded-lg p-5 shadow-soft">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-surface/30 blur-3xl rounded-full pointer-events-none" />
-                  <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-11 h-11 bg-primary text-on-primary rounded-full">
-                          <span className="material-symbols-outlined text-[24px]">
-                            {hero.action === 'SELL' ? 'trending_down' : 'trending_up'}
-                          </span>
+          {proposals[0] &&
+            (() => {
+              const hero = proposals[0];
+              return (
+                <Link href={`/proposals/${hero.id}`} className="block">
+                  <div className="relative overflow-hidden bg-accent rounded-lg p-5 shadow-soft">
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-surface/30 blur-3xl rounded-full pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-11 h-11 bg-primary text-on-primary rounded-full">
+                            <span className="material-symbols-outlined text-[24px]">
+                              {hero.action === 'SELL' ? 'trending_down' : 'trending_up'}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-label-lg text-primary">
+                              {hero.ticker} {hero.action}
+                            </div>
+                            <div className="text-body-sm text-primary/80">
+                              {Math.round(hero.confidence * 100)}% Confidence
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-label-lg text-primary">
-                            {hero.ticker} {hero.action}
-                          </div>
-                          <div className="text-body-sm text-primary/80">
-                            {Math.round(hero.confidence * 100)}% Confidence
-                          </div>
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-surface/20 text-primary">
+                          <span className="material-symbols-outlined text-[18px]">bolt</span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-surface/20 text-primary">
-                        <span className="material-symbols-outlined text-[18px]">bolt</span>
+                      <p className="text-body-md text-primary mb-6 font-medium line-clamp-2">
+                        {hero.rationale}
+                      </p>
+                      <div className="flex gap-3">
+                        <span className="flex-1 bg-primary text-on-primary rounded-full py-3 text-label-lg font-semibold text-center">
+                          Review
+                        </span>
                       </div>
-                    </div>
-                    <p className="text-body-md text-primary mb-6 font-medium line-clamp-2">
-                      {hero.rationale}
-                    </p>
-                    <div className="flex gap-3">
-                      <span className="flex-1 bg-primary text-on-primary rounded-full py-3 text-label-lg font-semibold text-center">
-                        Review
-                      </span>
                     </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })()}
+                </Link>
+              );
+            })()}
 
           {proposals.slice(1).map((proposal) => (
             <div key={proposal.id} className="bg-surface rounded-lg p-4 shadow-micro">
@@ -149,7 +150,8 @@ export function ProposalsFeed() {
                 <div className="text-right">
                   <div className="text-body-sm text-on-surface-variant mb-1">Targets</div>
                   <div className="text-label-md text-on-surface">
-                    TP {fmtUsd(proposal.suggestedTakeProfitPrice)} / SL {fmtUsd(proposal.suggestedStopLossPrice)}
+                    TP {fmtUsd(proposal.suggestedTakeProfitPrice)} / SL{' '}
+                    {fmtUsd(proposal.suggestedStopLossPrice)}
                   </div>
                 </div>
               </div>

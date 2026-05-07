@@ -57,11 +57,17 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const [skipOpen, setSkipOpen] = useState(false);
   const [skipReason, setSkipReason] = useState<SkipReason | null>(null);
   const [skipDetail, setSkipDetail] = useState('');
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const [size, setSize] = useState<number>(() => proposal?.suggestedSizeUsd ?? 0);
   const [trigger, setTrigger] = useState<number>(() => proposal?.suggestedTriggerPrice ?? 0);
   const [tp, setTp] = useState<number>(() => proposal?.suggestedTakeProfitPrice ?? 0);
   const [sl, setSl] = useState<number>(() => proposal?.suggestedStopLossPrice ?? 0);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 5_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!proposal) return;
@@ -87,8 +93,8 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
 
   const remainMs = useMemo(() => {
     if (!proposal) return null;
-    return new Date(proposal.expiresAt).getTime() - Date.now();
-  }, [proposal?.expiresAt]);
+    return new Date(proposal.expiresAt).getTime() - nowMs;
+  }, [nowMs, proposal?.expiresAt]);
 
   const exitTtl = useMemo(() => {
     if (remainMs == null) return null;

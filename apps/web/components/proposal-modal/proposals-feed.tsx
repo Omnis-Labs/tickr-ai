@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { XSTOCKS, xStockToBare, type Proposal, type XStockTicker } from '@hunch-it/shared';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
+import { isLiveProposal } from '@/lib/proposals/expiration';
 import { num } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 
@@ -31,27 +32,24 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   // returns a new array each render and trips React 19's snapshot guard.
   const order = useProposalsStore((s) => s.order);
   const proposalsById = useProposalsStore((s) => s.proposalsById);
-  const live = useMemo(
-    () => order.map((id) => proposalsById[id]),
-    [order, proposalsById],
-  );
+  const live = useMemo(() => order.map((id) => proposalsById[id]), [order, proposalsById]);
 
   // Merge: in-memory first, then API seed (de-duped by id), sorted by expiry.
   const merged = useMemo(() => {
     const seen = new Set<string>();
     const out: Proposal[] = [];
+    const nowMs = Date.now();
     for (const p of live) {
-      if (!p || seen.has(p.id)) continue;
+      if (!p || seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
     for (const p of data?.proposals ?? []) {
-      if (seen.has(p.id)) continue;
+      if (seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
     return out
-      .filter((p) => new Date(p.expiresAt).getTime() > Date.now())
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime())
       .slice(0, limit);
   }, [live, data, limit]);
@@ -98,9 +96,7 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
                   {p.ticker}{' '}
-                  <span
-                    style={{ color: 'var(--color-fg-muted)', fontWeight: 400, fontSize: 13 }}
-                  >
+                  <span style={{ color: 'var(--color-fg-muted)', fontWeight: 400, fontSize: 13 }}>
                     · {meta?.name ?? '—'}
                   </span>
                 </div>

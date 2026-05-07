@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
 import { requireAuth } from '@/lib/auth/context';
 import { devToolsGuard } from '@/lib/dev-tools/auth';
-import { createDevToolsProposal } from '@/lib/dev-tools/server';
+import { ActiveDevToolsProposalError, createDevToolsProposal } from '@/lib/dev-tools/server';
 
 const Schema = z.object({
   ticker: z.enum(BARE_TICKERS),
@@ -32,6 +32,15 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
+    if (err instanceof ActiveDevToolsProposalError) {
+      return NextResponse.json(
+        {
+          error: 'active_dev_tools_proposal_exists',
+          proposalId: err.proposalId,
+        },
+        { status: 409 },
+      );
+    }
     const message = err instanceof Error ? err.message : String(err);
     console.warn('[dev-tools] proposal create failed', err);
     return NextResponse.json({ error: message }, { status: 400 });
