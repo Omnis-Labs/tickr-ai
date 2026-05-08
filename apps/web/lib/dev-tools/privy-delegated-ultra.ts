@@ -132,10 +132,6 @@ function getAuthorizationPrivateKeys(): string[] {
   );
 }
 
-function hasServerAuthorizationKey(): boolean {
-  return getAuthorizationPrivateKeys().length > 0;
-}
-
 function getPrivyClient(): PrivyClient {
   if (cachedPrivyClient) return cachedPrivyClient;
   const appId = getEnv('PRIVY_APP_ID') ?? getEnv('NEXT_PUBLIC_PRIVY_APP_ID');
