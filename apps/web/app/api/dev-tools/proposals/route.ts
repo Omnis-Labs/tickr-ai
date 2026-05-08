@@ -1,12 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
+import { getSignalAssets } from '@hunch-it/shared';
 import { requireAuth } from '@/lib/auth/context';
 import { devToolsGuard } from '@/lib/dev-tools/auth';
 import { ActiveDevToolsProposalError, createDevToolsProposal } from '@/lib/dev-tools/server';
 
+const SIGNAL_ASSET_IDS = new Set(getSignalAssets().map((asset) => asset.assetId));
+
 const Schema = z.object({
-  ticker: z.enum(BARE_TICKERS),
+  ticker: z.string().refine((value) => SIGNAL_ASSET_IDS.has(value), {
+    message: 'Unsupported signal asset',
+  }),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await createDevToolsProposal({
       userId: auth.userId,
-      ticker: parsed.data.ticker as BareTicker,
+      ticker: parsed.data.ticker,
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

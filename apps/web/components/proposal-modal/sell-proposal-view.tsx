@@ -6,12 +6,10 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import {
   SKIP_REASON_LABELS,
-  XSTOCKS,
+  getAssetById,
   getThesisTag,
-  xStockToBare,
   type Proposal,
   type SkipReason,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useRuntime } from '@/lib/runtime/use-runtime';
@@ -59,8 +57,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
 
   useEffect(() => {
     let cancelled = false;
-    const bare = xStockToBare(proposal.ticker as XStockTicker);
-    fetch(`/api/bars/${bare}?resolution=5&hours=24`)
+    fetch(`/api/bars/${encodeURIComponent(proposal.ticker)}?resolution=5&hours=24`)
       .then((r) => (r.ok ? (r.json() as Promise<{ bars: ChartBar[] }>) : null))
       .then((j) => {
         if (!cancelled && j?.bars) setBars(j.bars);
@@ -82,7 +79,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
     return `${m}m`;
   }, [remainMs]);
 
-  const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
+  const meta = getAssetById(proposal.ticker);
   const invalidatedTagIds = (proposal.thesisTags ?? []) as string[];
   const isReadOnly = proposal.status !== 'ACTIVE' || remainMs <= 0;
   const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;

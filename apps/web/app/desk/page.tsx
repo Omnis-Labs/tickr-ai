@@ -5,11 +5,10 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { ProposalsFeed } from '@/components/desk/proposals-feed';
 import { OpenOrders } from '@/components/desk/open-orders';
 import { DepositSection } from '@/components/desk/deposit-section';
-import { MarketHoursBanner } from '@/components/desk/market-hours-banner';
 import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
 import { PanicCloseAll } from '@/components/desk/panic-close-all';
 import { usePortfolio, usePositions } from '@/lib/hooks/queries';
@@ -26,7 +25,7 @@ export default function DeskPage() {
   const positions = useMemo(
     () =>
       (positionsQuery.data?.positions ?? []).map((p) => {
-        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        const meta = getAssetById(p.ticker);
         return {
           id: p.id,
           assetId: p.ticker,
@@ -34,7 +33,7 @@ export default function DeskPage() {
           tokenAmount: p.tokenAmount,
           entryPrice: p.entryPrice,
           totalCost: p.tokenAmount * p.entryPrice,
-          ticker: meta?.ticker ?? p.ticker,
+          ticker: meta?.displaySymbol ?? p.ticker,
           name: meta?.name ?? p.ticker,
         };
       }),
@@ -241,7 +240,6 @@ export default function DeskPage() {
             state: p.state,
           }))}
         />
-        <MarketHoursBanner />
         <ProposalsFeed />
         <OpenOrders />
         <DepositSection />

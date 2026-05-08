@@ -6,10 +6,8 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   USDC_DECIMALS,
-  XSTOCKS,
-  xStockToBare,
+  getAssetById,
   type Signal,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
@@ -40,8 +38,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
   useEffect(() => {
     if (!signal) return;
     let cancelled = false;
-    const bare = xStockToBare(signal.ticker as XStockTicker);
-    fetch(`/api/bars/${bare}?resolution=5&hours=24`)
+    fetch(`/api/bars/${encodeURIComponent(signal.ticker)}?resolution=5&hours=24`)
       .then((r) => (r.ok ? (r.json() as Promise<{ bars: ChartBar[] }>) : null))
       .then((j) => {
         if (!cancelled && j?.bars) setBars(j.bars);
@@ -115,8 +112,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
     const action: 'BUY' | 'SELL' = signal.action;
 
     // Yes path: pull mint, run Jupiter Ultra round-trip, persist trade.
-    const bare = xStockToBare(signal.ticker as XStockTicker);
-    const meta = XSTOCKS[bare];
+    const meta = getAssetById(signal.ticker);
     if (!meta) {
       toast.error(`Unknown ticker ${signal.ticker}`);
       onClose(decision);
@@ -125,7 +121,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
     const mintForSwap = meta.mint;
     if (!mintForSwap) {
       toast.error(
-        `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
+        `${meta.displaySymbol} mint is empty — check packages/shared/src/assets.ts.`,
       );
       onClose(decision);
       return;

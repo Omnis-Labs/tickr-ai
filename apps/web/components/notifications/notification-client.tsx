@@ -5,12 +5,10 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  XSTOCKS,
-  xStockToBare,
+  getAssetById,
   type Proposal,
   type Signal,
   type TriggerHitPayload,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import {
   useSharedWorker,
@@ -261,10 +259,10 @@ export function NotificationClient() {
   const handleTriggerHit = useCallback(
     (payload: TriggerHitPayload) => {
       if (settledTriggers.current.has(payload.orderId)) return;
-      const meta = XSTOCKS[xStockToBare(payload.ticker as XStockTicker)];
+      const meta = getAssetById(payload.ticker);
       if (!meta?.mint) {
         toast.error(
-          `${payload.ticker} mint missing — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
+          `${payload.ticker} mint missing — check packages/shared/src/assets.ts.`,
           { id: payload.orderId },
         );
         return;

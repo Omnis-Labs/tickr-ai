@@ -4,13 +4,10 @@ import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
 import {
   PYTH_BENCHMARKS_BASE,
-  XSTOCKS,
-  bareToXStock,
   extractThesisTags,
+  requireAsset,
   type Bar,
-  type BareTicker,
   type TriggerHitPayload,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
@@ -176,16 +173,18 @@ function formatBars(bars: Bar[]): string {
     .join('\n');
 }
 
-function pythSymbol(ticker: BareTicker): string {
-  return `Equity.US.${ticker}/USD`;
+function pythSymbol(assetId: string): string {
+  const asset = requireAsset(assetId);
+  if (!asset.pythSymbol) throw new Error(`${assetId} has no Pyth symbol configured`);
+  return asset.pythSymbol;
 }
 
-async function fetchBars(ticker: BareTicker): Promise<Bar[]> {
+async function fetchBars(assetId: string): Promise<Bar[]> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - 24 * 60 * 60;
   const url =
     `${BENCHMARKS}/v1/shims/tradingview/history` +
-    `?symbol=${encodeURIComponent(pythSymbol(ticker))}` +
+    `?symbol=${encodeURIComponent(pythSymbol(assetId))}` +
     `&resolution=5&from=${from}&to=${to}`;
 
   const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
@@ -213,7 +212,7 @@ async function fetchBars(ticker: BareTicker): Promise<Bar[]> {
 }
 
 function buildGeminiPrompt(input: {
-  ticker: BareTicker;
+  assetId: string;
   latestPrice: number;
   bars: Bar[];
   indicators: IndicatorSet;
@@ -228,7 +227,7 @@ function buildGeminiPrompt(input: {
   return `You create test BUY proposals for Hunch It's password-gated dev tools.
 Use the live Pyth price/bars below, but always return a BUY-shaped JSON object. Keep it realistic and conservative.
 
-Ticker: ${input.ticker}
+Asset: ${input.assetId}
 Latest price: $${input.latestPrice.toFixed(2)}
 Mandate holding period: ${input.holdingPeriod}
 Mandate max drawdown: ${maxDrawdown}
@@ -308,9 +307,9 @@ async function askGemini(prompt: string): Promise<{
 
 export async function createDevToolsProposal(input: {
   userId: string;
-  ticker: BareTicker;
+  ticker: string;
 }): Promise<DevToolsProposalResult> {
-  const meta = XSTOCKS[input.ticker];
+  const meta = requireAsset(input.ticker);
   if (!meta?.mint) throw new Error(`${input.ticker} mint not configured`);
 
   const user = await prisma.user.findUnique({
@@ -318,7 +317,7 @@ export async function createDevToolsProposal(input: {
     include: {
       mandate: true,
       positions: {
-        where: { ticker: bareToXStock(input.ticker), state: { not: 'CLOSED' } },
+        where: { ticker: input.ticker, state: { not: 'CLOSED' } },
         select: { id: true },
       },
     },
@@ -341,7 +340,7 @@ export async function createDevToolsProposal(input: {
   if (activeProposal) throw new ActiveDevToolsProposalError(activeProposal.id);
 
   const priceMap = await getCurrentPrices([input.ticker]);
-  const latestPrice = priceMap.get(bareToXStock(input.ticker)) ?? null;
+  const latestPrice = priceMap.get(input.ticker) ?? null;
   if (!latestPrice) throw new Error(`No Pyth price for ${input.ticker}`);
 
   const bars = await fetchBars(input.ticker);
@@ -361,7 +360,7 @@ export async function createDevToolsProposal(input: {
   }
 
   const prompt = buildGeminiPrompt({
-    ticker: input.ticker,
+    assetId: input.ticker,
     latestPrice,
     bars,
     indicators,
@@ -406,13 +405,13 @@ export async function createDevToolsProposal(input: {
     return tx.proposal.create({
       data: {
         userId: user.id,
-        ticker: bareToXStock(input.ticker),
+        ticker: input.ticker,
         action: 'BUY',
         suggestedSizeUsd: sizeUsd,
         suggestedTriggerPrice: trigger,
         suggestedTakeProfitPrice: tp,
         suggestedStopLossPrice: sl,
-        rationale: `[DEV_TOOLS] ${llm.parsed?.rationale ?? `Live Pyth test proposal for ${meta.symbol} at $${latestPrice.toFixed(2)}.`}`,
+        rationale: `[DEV_TOOLS] ${llm.parsed?.rationale ?? `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`}`,
         reasoning: {
           what_changed:
             llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
@@ -452,7 +451,7 @@ export async function createDevToolsProposal(input: {
   });
 
   console.log(
-    `[dev-tools] proposal created user=${user.walletAddress.slice(0, 6)} ticker=${meta.symbol} proposal=${created.id} degraded=${degraded}`,
+    `[dev-tools] proposal created user=${user.walletAddress.slice(0, 6)} asset=${meta.displaySymbol} proposal=${created.id} degraded=${degraded}`,
   );
 
   return {
@@ -581,8 +580,8 @@ export async function buildOwnedDevTriggerPayload(input: {
   const trigger = order.triggerPriceUsd?.toNumber();
   if (!trigger) throw new Error('order has no trigger price');
 
-  const currentPriceMap = await getCurrentPrices([order.position.ticker as XStockTicker]);
-  const currentPriceUsd = currentPriceMap.get(order.position.ticker as XStockTicker) ?? trigger;
+  const currentPriceMap = await getCurrentPrices([order.position.ticker]);
+  const currentPriceUsd = currentPriceMap.get(order.position.ticker) ?? trigger;
 
   return {
     walletAddress: order.user.walletAddress,

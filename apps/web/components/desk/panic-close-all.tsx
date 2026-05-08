@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { QK } from '@/lib/hooks/queries';
 
@@ -56,7 +56,7 @@ export function PanicCloseAll({ positions }: Props) {
 
     for (let i = 0; i < closable.length; i++) {
       const p = closable[i]!;
-      const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+      const meta = getAssetById(p.ticker);
       if (!meta?.mint) {
         failures.push(`${p.ticker} (mint missing)`);
         continue;

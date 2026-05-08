@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
@@ -93,8 +93,7 @@ export default function PositionDetailPage() {
     setTpDraft(position.currentTpPrice?.toString() ?? '');
     setSlDraft(position.currentSlPrice?.toString() ?? '');
     let cancelled = false;
-    const bare = xStockToBare(position.ticker as XStockTicker);
-    fetch(`/api/bars/${bare}?resolution=5&hours=24`)
+    fetch(`/api/bars/${encodeURIComponent(position.ticker)}?resolution=5&hours=24`)
       .then((r) => (r.ok ? (r.json() as Promise<{ bars: ChartBar[] }>) : null))
       .then((j) => {
         if (!cancelled && j?.bars) setBars(j.bars);
@@ -105,7 +104,7 @@ export default function PositionDetailPage() {
     };
   }, [position?.id, position?.ticker]);
 
-  const meta = position ? XSTOCKS[xStockToBare(position.ticker as XStockTicker)] : null;
+  const meta = position ? getAssetById(position.ticker) : null;
 
   const computed = useMemo(() => {
     if (!position) return null;
