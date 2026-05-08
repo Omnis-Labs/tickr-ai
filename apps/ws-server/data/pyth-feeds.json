@@ -2,66 +2,66 @@
   "AAPLx": {
     "id": "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
     "symbol": "Crypto.AAPLX/USD",
-    "description": "Apple xStock / US Dollar"
+    "description": "APPLE XSTOCK / US DOLLAR"
   },
   "NVDAx": {
     "id": "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
     "symbol": "Crypto.NVDAX/USD",
-    "description": "NVIDIA xStock / US Dollar"
+    "description": "NVIDIA XSTOCK / US DOLLAR"
   },
   "TSLAx": {
     "id": "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
     "symbol": "Crypto.TSLAX/USD",
-    "description": "Tesla xStock / US Dollar"
+    "description": "TESLA XSTOCK / US DOLLAR"
   },
   "SPYx": {
     "id": "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
     "symbol": "Crypto.SPYX/USD",
-    "description": "S&P 500 xStock / US Dollar"
+    "description": "SP500 XSTOCK / US DOLLAR"
   },
   "QQQx": {
     "id": "0x178a6f73a5aede9d0d682e86b0047c9f333ed0efe5c6537ca937565219c4054d",
     "symbol": "Crypto.QQQX/USD",
-    "description": "Nasdaq 100 xStock / US Dollar"
+    "description": "NASDAQ XSTOCK / US DOLLAR"
   },
   "GOOGLx": {
     "id": "0xb911b0329028cd0283e4259c33809d62942bd2716a58084e5f31d64c00b5424e",
     "symbol": "Crypto.GOOGLX/USD",
-    "description": "Alphabet xStock / US Dollar"
+    "description": "ALPHABET XSTOCK / US DOLLAR"
   },
   "METAx": {
     "id": "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
     "symbol": "Crypto.METAX/USD",
-    "description": "Meta xStock / US Dollar"
+    "description": "META XSTOCK / US DOLLAR"
   },
   "wBTC": {
     "id": "0xc9d8b075a5c69303365ae23633d4e085199bf5c520a3b90fed1322a0342ffc33",
     "symbol": "Crypto.WBTC/USD",
-    "description": "Wrapped Bitcoin / US Dollar"
+    "description": "WRAPPED BITCOIN / US DOLLAR"
   },
   "ETH": {
     "id": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
     "symbol": "Crypto.ETH/USD",
-    "description": "Ether / US Dollar"
+    "description": "ETHEREUM / US DOLLAR"
   },
   "BNB": {
     "id": "0x2f95862b045670cd22bee3114c39763a4a08beeb663b145d283c31d7d1101c4f",
     "symbol": "Crypto.BNB/USD",
-    "description": "BNB / US Dollar"
+    "description": "BNB / US DOLLAR"
   },
   "wXRP": {
     "id": "0xec5d399846a9209f3fe5881d70aae9268c94339ff9817e8d18ff19fa05eea1c8",
     "symbol": "Crypto.XRP/USD",
-    "description": "XRP / US Dollar"
+    "description": "RIPPLE / US DOLLAR"
   },
   "TRX": {
     "id": "0x67aed5a24fdad045475e7195c98a98aea119c763f272d4523f5bac93a4f33c2b",
     "symbol": "Crypto.TRX/USD",
-    "description": "TRON / US Dollar"
+    "description": "TRON / US DOLLAR"
   },
   "HYPE": {
     "id": "0x4279e31cc369bbcc2faf022b382b080e32a8e689ff20fbc530d2a603eb6cd98b",
     "symbol": "Crypto.HYPE/USD",
-    "description": "HYPE / US Dollar"
+    "description": "HYPERLIQUID / US DOLLAR"
   }
 }
