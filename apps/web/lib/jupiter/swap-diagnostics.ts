@@ -126,12 +126,16 @@ export function diagnosticsFromSwapDebug(
     const capped =
       debug.sellBalance.requestedRaw != null &&
       debug.sellBalance.requestedRaw !== debug.sellBalance.submittedRaw;
+    const tokenPrograms =
+      debug.sellBalance.tokenProgramIds.length > 0
+        ? ` via ${debug.sellBalance.tokenProgramIds.map(shortAddress).join(', ')}`
+        : '';
     diagnostics.push({
       hypothesis: 'Wallet balance / sell amount',
       status: capped ? 'watch' : 'healthy',
       detail: capped
-        ? `Requested ${debug.sellBalance.requestedRaw}, wallet had ${debug.sellBalance.walletRaw}, submitted ${debug.sellBalance.submittedRaw}.`
-        : `Submitted sell amount ${debug.sellBalance.submittedRaw}; wallet raw ${debug.sellBalance.walletRaw}.`,
+        ? `Requested ${debug.sellBalance.requestedRaw}, wallet had ${debug.sellBalance.walletRaw}, submitted ${debug.sellBalance.submittedRaw}${tokenPrograms}.`
+        : `Submitted sell amount ${debug.sellBalance.submittedRaw}; wallet raw ${debug.sellBalance.walletRaw}${tokenPrograms}.`,
     });
   } else {
     diagnostics.push({

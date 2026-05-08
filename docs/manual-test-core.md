@@ -71,6 +71,8 @@ Tap **Execute** in the toast. The client claims the Order, requests a Jupiter Ul
 
 If TP or SL is missing on the Position, the lifecycle throws `LifecycleInvariantError` and rolls back the entire transaction — no partial state. If two tabs both tap Execute, only the first claim reaches the wallet; later clicks see `order_pending` or `order_filled`.
 
+For TP/SL and manual-close SELLs, the client verifies wallet balance before requesting Jupiter. The lookup must scan both token programs: xStocks use Token-2022 accounts, while the whitelisted crypto assets (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`) use classic SPL Token accounts. The `/dev-tools` log's **Wallet balance / sell amount** diagnostic should name the program that supplied the submitted raw amount.
+
 ### 8. `/positions/[id]` reads TP/SL from OPEN exit Orders, and Adjust updates them atomically
 Tap your new ACTIVE row. The Position Detail page should show:
 - the exact TP/SL prices you confirmed at approve time,

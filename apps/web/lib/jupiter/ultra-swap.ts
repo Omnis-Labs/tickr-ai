@@ -30,6 +30,8 @@ const BLOCKHASH_CHECK_RPC_LIMIT = 3;
 const PRE_BROADCAST_SIMULATION_TIMEOUT_MS = 2_500;
 const PRE_BROADCAST_SIMULATION_RPC_LIMIT = 3;
 const PROGRAM_ID_SAMPLE_LIMIT = 10;
+const SPL_TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const SELL_BALANCE_TOKEN_PROGRAM_IDS = [SPL_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID] as const;
 
 export type BlockhashAgeBucket = 'healthy' | 'warn' | 'risk' | 'refresh-recommended' | 'unknown';
 
@@ -47,6 +49,28 @@ export interface SwapSellBalanceDebug {
   walletRaw: string;
   requestedRaw: string | null;
   submittedRaw: string;
+  tokenProgramIds: string[];
+  balancePrograms: TokenProgramBalanceDebug[];
+}
+
+export interface TokenProgramBalanceDebug {
+  programId: string;
+  walletRaw: string | null;
+  accountCount: number | null;
+  error: string | null;
+}
+
+export interface TokenMintBalanceRead {
+  raw: bigint;
+  programIds: string[];
+  programs: TokenProgramBalanceDebug[];
+}
+
+export interface TokenAccountBalanceConnection {
+  getParsedTokenAccountsByOwner(
+    owner: PublicKey,
+    filter: { programId: PublicKey },
+  ): Promise<{ value: Array<{ account: { data: unknown } }> }>;
 }
 
 export interface TransactionShapeDebug {
@@ -382,6 +406,88 @@ async function simulatePreBroadcastTransaction(
   return Promise.all(simulations);
 }
 
+function parsedTokenAccountRawAmount(
+  account: { account: { data: unknown } },
+  mint: string,
+): bigint | null {
+  const data = account.account.data;
+  if (!data || typeof data !== 'object' || !('parsed' in data)) return null;
+  const parsed = (
+    data as { parsed?: { info?: { mint?: unknown; tokenAmount?: { amount?: unknown } } } }
+  ).parsed;
+  if (parsed?.info?.mint !== mint) return null;
+
+  const raw = parsed.info.tokenAmount?.amount;
+  if (raw == null) return 0n;
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) {
+    throw new Error(`Invalid token balance amount for ${mint}: ${String(raw)}`);
+  }
+  return BigInt(raw);
+}
+
+export async function readOwnerMintBalanceRaw(
+  connection: TokenAccountBalanceConnection,
+  owner: PublicKey,
+  mint: string,
+): Promise<TokenMintBalanceRead> {
+  const programs: TokenProgramBalanceDebug[] = [];
+
+  for (const programId of SELL_BALANCE_TOKEN_PROGRAM_IDS) {
+    try {
+      const accounts = await connection.getParsedTokenAccountsByOwner(owner, {
+        programId: new PublicKey(programId),
+      });
+      let raw = 0n;
+      let accountCount = 0;
+      for (const account of accounts.value) {
+        const accountRaw = parsedTokenAccountRawAmount(account, mint);
+        if (accountRaw == null) continue;
+        accountCount += 1;
+        raw += accountRaw;
+      }
+      programs.push({
+        programId,
+        walletRaw: raw.toString(),
+        accountCount,
+        error: null,
+      });
+    } catch (err) {
+      programs.push({
+        programId,
+        walletRaw: null,
+        accountCount: null,
+        error: errorMessage(err),
+      });
+    }
+  }
+
+  const successfulPrograms = programs.filter((program) => program.error == null);
+  if (successfulPrograms.length === 0) {
+    const detail = programs
+      .map((program) => `${program.programId}: ${program.error ?? 'unknown error'}`)
+      .join('; ');
+    throw new Error(`Token balance lookup failed for ${mint}: ${detail}`);
+  }
+
+  const raw = successfulPrograms.reduce(
+    (acc, program) => acc + BigInt(program.walletRaw ?? '0'),
+    0n,
+  );
+  const failedPrograms = programs.filter((program) => program.error != null);
+  if (raw === 0n && failedPrograms.length > 0) {
+    const detail = failedPrograms
+      .map((program) => `${program.programId}: ${program.error ?? 'unknown error'}`)
+      .join('; ');
+    throw new Error(`Token balance lookup incomplete for ${mint}: ${detail}`);
+  }
+
+  const programIds = successfulPrograms
+    .filter((program) => BigInt(program.walletRaw ?? '0') > 0n)
+    .map((program) => program.programId);
+
+  return { raw, programIds, programs };
+}
+
 /**
  * Sponsored Jupiter Ultra swap implementation.
  *
@@ -467,23 +573,11 @@ export async function executeJupiterUltraSwap(
       // sell (typically position.tokenAmount). We still cap at the wallet
       // balance to avoid an Ultra failure if the chain has less than the
       // DB thinks (e.g. a separate manual transfer happened).
-      const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-        programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
-      });
-      const found = accounts.value.find((a) => {
-        const info = a.account.data;
-        return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
-      });
-      const walletRaw = BigInt(
-        (
-          found?.account.data as unknown as {
-            parsed?: { info?: { tokenAmount?: { amount?: string } } };
-          }
-        )?.parsed?.info?.tokenAmount?.amount ?? '0',
-      );
+      const balance = await readOwnerMintBalanceRaw(connection, publicKey, args.xStockMint);
+      const walletRaw = balance.raw;
       const wantRaw = BigInt(Math.round(args.tokenAmount * 10 ** args.xStockDecimals));
       const sellRaw = wantRaw < walletRaw ? wantRaw : walletRaw;
-      if (sellRaw === 0n) throw new Error(`No xStock balance for ${args.xStockMint}`);
+      if (sellRaw === 0n) throw new Error(`No token balance for ${args.xStockMint}`);
       inputMint = args.xStockMint;
       outputMint = USDC_MINT;
       amount = sellRaw.toString();
@@ -491,6 +585,8 @@ export async function executeJupiterUltraSwap(
         walletRaw: walletRaw.toString(),
         requestedRaw: wantRaw.toString(),
         submittedRaw: sellRaw.toString(),
+        tokenProgramIds: balance.programIds,
+        balancePrograms: balance.programs,
       };
       updatePreparedFields();
     } else {
@@ -500,20 +596,9 @@ export async function executeJupiterUltraSwap(
       // wallet emptied — closePosition() does NOT use this path because
       // it would sweep unrelated dust / other positions that share the
       // same mint.
-      const accounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-        programId: new PublicKey(TOKEN_2022_PROGRAM_ID),
-      });
-      const found = accounts.value.find((a) => {
-        const info = a.account.data;
-        return 'parsed' in info && info.parsed?.info?.mint === args.xStockMint;
-      });
-      const raw =
-        (
-          found?.account.data as unknown as {
-            parsed?: { info?: { tokenAmount?: { amount?: string } } };
-          }
-        )?.parsed?.info?.tokenAmount?.amount ?? '0';
-      if (raw === '0') throw new Error(`No xStock balance for ${args.xStockMint}`);
+      const balance = await readOwnerMintBalanceRaw(connection, publicKey, args.xStockMint);
+      const raw = balance.raw.toString();
+      if (balance.raw === 0n) throw new Error(`No token balance for ${args.xStockMint}`);
       inputMint = args.xStockMint;
       outputMint = USDC_MINT;
       amount = raw;
@@ -521,6 +606,8 @@ export async function executeJupiterUltraSwap(
         walletRaw: raw,
         requestedRaw: null,
         submittedRaw: raw,
+        tokenProgramIds: balance.programIds,
+        balancePrograms: balance.programs,
       };
       updatePreparedFields();
     }
