@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -23,7 +23,6 @@ function shorten(addr: string): string {
 
 export default function SettingsPage() {
   const { address, connected, logout } = useWallet();
-  const wallet = address;
 
   const mandateQuery = useMandate();
   const portfolioQuery = usePortfolio();
@@ -169,7 +168,6 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        <DelegationCard wallet={wallet ?? null} />
         <CloseAllPositionsCard />
       </main>
     </>
@@ -177,154 +175,8 @@ export default function SettingsPage() {
 }
 
 /**
- * Phase F — Delegated signing toggle. Hydrates `active` from /api/users/
- * delegation on mount, and PATCHes the Privy server wallet id (which only
- * appears post-grant) back to the server via a follow-up effect once it's
- * available — that way the ws-server's `tryDelegatedCancel` has the id it
- * needs even though the frontend grant call resolves before Privy
- * re-publishes the user state.
- */
-function DelegationCard({ wallet }: { wallet: string | null }) {
-  const [active, setActive] = useState<boolean>(false);
-  const [persistedWalletId, setPersistedWalletId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const authedFetch = useAuthedFetch();
-  const { delegateSolanaWallet, revokeDelegations, walletId } = useWallet();
-
-  useEffect(() => {
-    if (!wallet) return;
-    let cancelled = false;
-    authedFetch('/api/users/delegation')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (cancelled || !j) return;
-        const data = j as { delegationActive?: boolean; privyWalletId?: string | null };
-        setActive(!!data.delegationActive);
-        setPersistedWalletId(data.privyWalletId ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [wallet, authedFetch]);
-
-  // Privy populates `walletId` after the user has delegated. If the user
-  // toggled on but we PATCHed without an id (because Privy hadn't re-
-  // published the user state yet), backfill it as soon as it appears.
-  useEffect(() => {
-    if (!wallet || !active || !walletId) return;
-    if (walletId === persistedWalletId) return;
-    void authedFetch('/api/users/delegation', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress: wallet,
-        privyWalletId: walletId,
-        delegationActive: true,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j && (j as { privyWalletId?: string }).privyWalletId) {
-          setPersistedWalletId((j as { privyWalletId: string }).privyWalletId);
-        }
-      })
-      .catch(() => {});
-  }, [wallet, active, walletId, persistedWalletId, authedFetch]);
-
-  async function toggle(next: boolean) {
-    if (!wallet) {
-      toast.error('Connect a wallet first.');
-      return;
-    }
-    setBusy(true);
-    try {
-      try {
-        if (next) await delegateSolanaWallet();
-        else await revokeDelegations();
-      } catch (err) {
-        console.warn('[delegation] grant/revoke failed', err);
-        toast.error(
-          `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-
-      const res = await authedFetch('/api/users/delegation', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: wallet,
-          delegationActive: next,
-          ...(next && walletId ? { privyWalletId: walletId } : {}),
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error((j as { error?: string }).error ?? `${res.status}`);
-      }
-      const j = (await res.json().catch(() => ({}))) as { privyWalletId?: string | null };
-      setPersistedWalletId(j.privyWalletId ?? null);
-      setActive(next);
-      toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-
-  // Privy populates walletId only after the embedded wallet is delegated;
-  // if the toggle is on but walletId is still null after a few seconds,
-  // the most common cause is the Privy app being on the Free plan (server
-  // signers require Pro). Surface that explicitly so users don't think
-  // their assets are protected when they aren't.
-  const delegationStuck = active && !walletId && !busy;
-
-  return (
-    <Section icon="bolt" title="Auto-exit signing">
-      <p className="text-body-sm text-on-surface-variant mb-3">
-        Allow the Hunch server to cancel a paired exit order automatically when its sibling fills (OCO behaviour), and to place TP / SL after a BUY fills, without prompting you to sign each time.
-      </p>
-      <ul className="text-body-sm text-on-surface-variant list-disc pl-5 mb-4 space-y-1">
-        <li>Scope is constrained to Jupiter trigger orders for positions you opened.</li>
-        <li>You can revoke it any time below.</li>
-        <li>Every server-signed transaction is recorded against your account.</li>
-      </ul>
-      {delegationStuck && (
-        <div className="mb-4 rounded-lg border border-tertiary/40 bg-tertiary/10 px-3 py-2.5 flex items-start gap-2">
-          <span className="material-symbols-outlined text-tertiary text-[18px] mt-0.5">warning</span>
-          <div className="flex-1 min-w-0 text-body-sm text-on-surface">
-            <p className="font-semibold mb-0.5">Auto-exit may not fire</p>
-            <p className="text-on-surface-variant">
-              Privy server signers require the Pro plan. Toggle is recorded but TP / SL won't actually auto-place until the upstream app upgrades. You'll still get the manual prompt on Position Detail.
-            </p>
-          </div>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void toggle(!active)}
-          disabled={busy}
-          className={`flex items-center justify-center h-11 px-5 rounded-full text-label-lg transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 ${
-            active ? 'bg-accent text-on-accent shadow-soft' : 'bg-primary text-on-primary'
-          }`}
-        >
-          {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
-        </button>
-        <span className={`text-label-md ${active ? 'text-positive' : 'text-on-surface-variant'}`}>
-          {active ? '✓ Auto-exit active' : 'Manual confirmation required'}
-        </span>
-      </div>
-    </Section>
-  );
-}
-
-/**
  * Manual "panic close". Each live position needs at least one wallet sig
- * (cancel) plus one swap sig — sequential by design so Privy modals don't
- * stack.
+ * per swap, sequential by design so Privy modals don't stack.
  */
 function CloseAllPositionsCard() {
   const router = useRouter();
@@ -394,7 +246,7 @@ function CloseAllPositionsCard() {
   return (
     <Section icon="warning" title="Panic close">
       <p className="text-body-sm text-on-surface-variant mb-3">
-        Cancel every open TP / SL trigger order and market-sell every position you currently hold. Each position needs a wallet signature for the swap.
+        Cancel every open TP / SL synthetic order and market-sell every position you currently hold. Each position needs a wallet signature for the swap.
       </p>
       {!confirm ? (
         <button

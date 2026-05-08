@@ -22,7 +22,7 @@ export async function requireAuth(req: Request): Promise<AuthContext | null> {
 
   // Linked-account walletAddress is *not* in the verifyAuthToken claims; we
   // only have the canonical Privy userId. The frontend writes walletAddress
-  // on User upserts elsewhere (POST /api/mandates, /api/users/delegation),
+  // on User upserts elsewhere (POST /api/mandates),
   // and the socket auth flow does the same. Here we only need .id + linked
   // wallet (may be null for first-touch).
   const user = await prisma.user.findUnique({

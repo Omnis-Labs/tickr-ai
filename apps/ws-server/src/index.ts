@@ -12,7 +12,6 @@ import {
 } from '@hunch-it/shared';
 import { devToolsEnabled, env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
-import { runOrderTracker } from './orders/tracker/index.js';
 import { runTriggerMonitor } from './orders/trigger-monitor.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
 import { startSignalLoop } from './signals/generator.js';
@@ -133,12 +132,11 @@ const stopSignalLoop = env.ENABLE_SIGNAL_LOOP ? startSignalLoop(io) : () => {};
 
 // Default runtime services for the frozen synthetic-trigger model:
 //   trigger-monitor — REQUIRED. Polls Pyth, emits trigger:hit. Core flow.
-//   eval, tracker, thesis — OPTIONAL. Off by default; opt-in via env.
+//   eval, thesis — OPTIONAL. Off by default; opt-in via env.
 //
 // trigger-monitor is the only path the minimal cohesive core depends on.
-// The other three remain in-tree but disabled until they're proven against
-// the synthetic model (tracker is Jupiter-Trigger-v2-era; thesis competes
-// with the OCO close model; back-eval is analytics, not core).
+// The other optional tasks stay behind env gates because thesis competes
+// with the OCO close model and back-eval is analytics, not core.
 
 tasks.add(
   registerTask({
@@ -172,25 +170,6 @@ tasks.add(
       if (s.evaluated > 0 || s.errors > 0) {
         console.log(
           `[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`,
-        );
-      }
-    },
-  }),
-);
-
-tasks.add(
-  registerTask({
-    name: 'tracker',
-    intervalMs: 30_000,
-    kickoffMs: 15_000,
-    enabled: env.ENABLE_JUPITER_ORDER_TRACKER,
-    handler: async () => {
-      const p = getPrisma();
-      if (!p) return;
-      const s = await runOrderTracker(p, io);
-      if (s.fills > 0 || s.expirations > 0 || s.cancellations > 0 || s.errors > 0) {
-        console.log(
-          `[tracker] users=${s.polledUsers} orders=${s.ordersChecked} fills=${s.fills} expirations=${s.expirations} cancellations=${s.cancellations} skipped(no-jwt)=${s.skippedNoJwt} errors=${s.errors}`,
         );
       }
     },

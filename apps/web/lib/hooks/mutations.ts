@@ -110,27 +110,6 @@ export function useUpsertMandate() {
   });
 }
 
-interface ToggleDelegationArgs {
-  walletAddress: string;
-  privyWalletId?: string;
-  delegationActive: boolean;
-}
-
-export function useToggleDelegation() {
-  const authedFetch = useAuthedFetch();
-  return useMutation({
-    mutationFn: async (args: ToggleDelegationArgs) => {
-      const r = await authedFetch('/api/users/delegation', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(args),
-      });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `${r.status}`);
-      return r.json() as Promise<{ ok: true; delegationActive: boolean }>;
-    },
-  });
-}
-
 interface PersistOrderArgs {
   walletAddress: string;
   proposalId?: string | null;
@@ -141,7 +120,6 @@ interface PersistOrderArgs {
   triggerPriceUsd: number | null;
   sizeUsd: number;
   tokenAmount?: number | null;
-  jupiterOrderId?: string | null;
   txSignature?: string | null;
   slippageBps?: number | null;
   createPosition?: {

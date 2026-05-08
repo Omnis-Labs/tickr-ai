@@ -12,9 +12,9 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  *   GET  /api/orders          List the authed user's open orders.
  *   POST /api/orders          Accept a BUY proposal into synthetic DB Orders.
  *
- * Synthetic orders have no Jupiter Trigger v2 vault or jupiterOrderId. The
- * ws-server trigger monitor later emits `trigger:hit`; the client executes a
- * Jupiter Ultra swap only after the user taps Execute.
+ * Synthetic orders have no external conditional-order provider. The ws-server
+ * trigger monitor later emits `trigger:hit`; the client executes a Jupiter
+ * Ultra swap only after the user taps Execute.
  *
  * Auth: Privy access token. User identity is taken from the token, NOT from
  * any wallet-address field on the request — the body retains walletAddress
@@ -30,12 +30,6 @@ const PersistOrderSchema = z.object({
   triggerPriceUsd: z.number().nullable(),
   sizeUsd: z.number().positive(),
   tokenAmount: z.number().nullable().optional(),
-  // xStocks are off Jupiter Trigger v2's allowlist, so our BUY/TP/SL
-  // orders are now synthetic: ws-server's price monitor watches Pyth
-  // and pushes a `trigger:hit` event to the user when the condition
-  // fires; the user signs/submits a sponsored Ultra swap at that moment.
-  // jupiterOrderId remains null in this architecture.
-  jupiterOrderId: z.string().nullable().optional(),
   txSignature: z.string().nullable().optional(),
   slippageBps: z.number().int().nullable().optional(),
   // For BUY trigger orders we also create a Position(BUY_PENDING) so subsequent
@@ -127,7 +121,7 @@ export async function POST(req: NextRequest) {
       sizeUsd: p.sizeUsd,
       tokenAmount: p.tokenAmount ?? null,
       status: 'OPEN',
-      jupiterOrderId: p.jupiterOrderId ?? null,
+      jupiterOrderId: null,
       txSignature: p.txSignature ?? null,
       slippageBps: p.slippageBps ?? null,
     },

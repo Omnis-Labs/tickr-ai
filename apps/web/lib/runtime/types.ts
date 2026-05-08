@@ -1,10 +1,10 @@
-// Runtime façade for the real synthetic-trigger product path.
+// Runtime facade for the real synthetic-trigger product path.
 //
 // Synthetic-trigger architecture: TP/SL legs are DB-only synthetic
-// Orders (jupiterOrderId NULL); the ws-server price monitor watches
-// them against Pyth and emits trigger:hit when the user needs to sign
-// an Ultra swap. placeOcoExit / cancelExits / replaceExits operate on
-// those DB rows directly, no Jupiter Trigger v2 escrow involved.
+// Orders. The ws-server price monitor watches them against Pyth and
+// emits trigger:hit when the user needs to sign an Ultra swap.
+// placeOcoExit / cancelExits / replaceExits operate on those DB rows
+// directly.
 
 export interface RuntimeExitSnapshot {
   tpPriceUsd: number | null;

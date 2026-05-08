@@ -18,8 +18,6 @@ export async function GET(req: NextRequest) {
     where: { id: auth.userId },
     select: {
       walletAddress: true,
-      privyWalletId: true,
-      delegationActive: true,
       createdAt: true,
       mandate: { select: { id: true } },
     },
@@ -28,8 +26,6 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     walletAddress: user.walletAddress,
-    privyWalletId: user.privyWalletId,
-    delegationActive: user.delegationActive,
     hasMandate: !!user.mandate,
     createdAt: user.createdAt.toISOString(),
   });

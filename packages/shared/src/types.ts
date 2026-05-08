@@ -255,12 +255,9 @@ export const WsServerEvents = {
   ProposalNew: 'proposal:new',
   ProposalExpired: 'proposal:expired',
   TradeFilled: 'trade:filled',
-  TradeExpired: 'trade:expired',
-  PositionUpdated: 'position:updated',
   // ws-server price monitor → user. Fires when an OPEN synthetic order
-  // (xStock, no Jupiter Trigger v2 routing) matches its trigger
-  // condition against Pyth. The web app shows a sticky toast and lets
-  // the user 1-tap-execute via Jupiter Ultra.
+  // matches its condition against Pyth. The web app shows a sticky toast
+  // and lets the user tap-to-execute via Jupiter Ultra.
   TriggerHit: 'trigger:hit',
 } as const;
 
@@ -289,9 +286,9 @@ export const ApprovalDecisionPayloadSchema = z.object({
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
 
 // ws-server → tab. Fired by trigger-monitor when an OPEN synthetic order
-// (xStock, no Jupiter Trigger v2 routing) matches its condition against
-// Pyth. Payload is everything the tap-to-execute UI needs to build the
-// Ultra swap without another round-trip.
+// matches its condition against Pyth. Payload is everything the
+// tap-to-execute UI needs to build the Ultra swap without another
+// round-trip.
 export const TriggerHitPayloadSchema = z.object({
   orderId: z.string(),
   positionId: z.string(),

@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
-import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
+import { usePrivy } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
@@ -23,12 +23,11 @@ import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
  * shape and replace this in components/wallet/wallet-provider.tsx.
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout, getAccessToken, user } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { signAndSendTransaction: privySignAndSend } = useSignAndSendTransaction();
   const { signMessage: privySignMessage } = useSignMessage();
-  const { delegateWallet, revokeWallets } = useDelegatedActions();
   // Register Solana funding capabilities so useFundWallet has providers wired.
   useSolanaFundingPlugin();
   const { fundWallet: privyFund } = useFundWallet();
@@ -44,18 +43,9 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Match the embedded Privy wallet to the connected wallet's address so
-    // we read the right `id` (server wallet ID, populated post-delegation).
-    const privyEmbedded = user?.linkedAccounts?.find(
-      (acct) =>
-        acct.type === 'wallet' && (acct as { address?: string }).address === wallet?.address,
-    ) as { id?: string | null; delegated?: boolean } | undefined;
-
     return {
       publicKey,
       address: wallet?.address ?? null,
-      walletId: privyEmbedded?.id ?? user?.wallet?.id ?? null,
-      delegated: !!privyEmbedded?.delegated || !!user?.wallet?.delegated,
       connected: ready && authenticated && !!wallet,
       ready,
       signTransaction: wallet
@@ -132,13 +122,6 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         if (!ready || !authenticated) return null;
         return getAccessToken().catch(() => null);
       },
-      delegateSolanaWallet: async () => {
-        if (!wallet?.address) throw new Error('No Solana wallet to delegate.');
-        await delegateWallet({ address: wallet.address, chainType: 'solana' });
-      },
-      revokeDelegations: async () => {
-        await revokeWallets();
-      },
       fundWallet: async (amountUsdc?: number) => {
         if (!wallet?.address) throw new Error('No Solana wallet to fund.');
         await privyFund({
@@ -153,7 +136,6 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     };
   }, [
     wallet,
-    user,
     ready,
     authenticated,
     login,
@@ -162,8 +144,6 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     privySignAndSend,
     privySignMessage,
     getAccessToken,
-    delegateWallet,
-    revokeWallets,
     privyFund,
   ]);
 
