@@ -4,7 +4,7 @@
 >
 > **Read with**: product-overview.md (product context), api-contract.md (endpoint contracts + WebSocket events), data-model.md (schema + enums)
 >
-> Canonical supported asset metadata (sectors, tickers, liquidity tiers) lives in the Asset Registry (see data-model.md). Sector/ticker lists in this doc are display guidance only.
+> Canonical supported asset metadata lives in the Asset Registry (see data-model.md). Sector/asset lists in this doc are display guidance only.
 
 ---
 
@@ -42,7 +42,7 @@ USD amount input field. The UI simultaneously displays what percentage this repr
 
 Multi-select. Users choose verticals (not individual tickers).
 
-**Tokenized Stocks** verticals:
+**xStock** verticals:
 
 | Vertical              | Tickers                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------- |
@@ -68,7 +68,7 @@ Selecting "No preference" means all assets can generate proposals.
 
 The mandate can be edited later from the Settings page. Editing the mandate invalidates all active proposals and triggers regeneration.
 
-**Note on enum values**: The UI displays human-readable labels ("1-3 days"), but stores canonical enum values (`SHORT_TERM`). See data-model.md for the `HoldingPeriod` enum and `MarketFocusOption` type.
+**Note on values**: The UI stores the same holding-period strings it displays (`"1-3 days"`, `"1-2 weeks"`, `"1-3 months"`, `"6+ months"`). Market focus stores lowercase ids such as `semiconductors`, `tokenized_etfs`, `crypto`, and `no_preference`.
 
 ---
 
@@ -109,7 +109,7 @@ Multiple positions in the same asset are listed separately, each showing its own
 
 ### Proposals Feed
 
-Cards sorted by expiry (most urgent first). BUY proposals only.
+Cards sorted by expiry (most urgent first). The main feed is BUY-first; env-gated thesis monitoring can also emit SELL proposals for existing positions.
 
 Each card:
 

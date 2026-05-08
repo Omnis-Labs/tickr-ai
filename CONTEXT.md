@@ -24,7 +24,7 @@ Two entrypoints: `resolveSession(req)` for API routes (Bearer token), `resolveSe
 
 ### Proposal
 
-A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning; expiry follows the mandate-based lifetime and is not shortened by US equity market close.
+A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning; expiry follows the mandate-based lifetime and is not shortened by exchange close.
 
 ### Tradable Asset
 

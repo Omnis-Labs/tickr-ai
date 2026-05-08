@@ -24,7 +24,7 @@ Response `200`:
 ```json
 {
   "id": "cuid",
-  "holdingPeriod": "SHORT_TERM",
+  "holdingPeriod": "1-3 days",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
   "marketFocus": ["semiconductors", "crypto"],
@@ -43,7 +43,7 @@ Request:
 
 ```json
 {
-  "holdingPeriod": "SHORT_TERM | SWING | MEDIUM_TERM | LONG_TERM",
+  "holdingPeriod": "1-3 days | 1-2 weeks | 1-3 months | 6+ months",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
   "marketFocus": ["semiconductors", "crypto"]
@@ -82,20 +82,30 @@ Response `404`: Proposal not found or not owned by user.
 
 ---
 
-**`POST /api/proposals/[id]/execute`** — Accept a proposal into synthetic trigger state.
+**`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Approve" endpoint. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. The later `trigger:hit` tap-to-execute flow performs the Jupiter Ultra swap.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. The later `trigger:hit` tap-to-execute flow performs the Jupiter Ultra swap.
 
 Request:
 
 ```json
 {
-  "actualSizeUsd": 400.0,
-  "actualTriggerPrice": 174.5,
-  "actualTpPrice": 195.0,
-  "actualSlPrice": 168.0,
+  "walletAddress": "base58",
+  "proposalId": "cuid",
+  "ticker": "AAPLx",
+  "kind": "BUY_TRIGGER",
+  "side": "BUY",
+  "triggerPriceUsd": 174.5,
+  "sizeUsd": 400.0,
   "jupiterOrderId": null,
-  "txSignature": null
+  "txSignature": null,
+  "slippageBps": 50,
+  "createPosition": {
+    "mint": "xstock-or-crypto-mint",
+    "entryPriceEstimate": 174.5,
+    "tpPrice": 195.0,
+    "slPrice": 168.0
+  }
 }
 ```
 
@@ -103,18 +113,18 @@ Response `201`:
 
 ```json
 {
-  "proposal": { "id": "...", "status": "EXECUTED" },
-  "position": { "id": "...", "state": "BUY_PENDING" },
-  "trade": { "id": "...", "source": "BUY_APPROVAL" },
-  "order": { "id": "...", "kind": "BUY_TRIGGER", "status": "OPEN" }
+  "ok": true,
+  "duplicate": false,
+  "order": { "id": "...", "kind": "BUY_TRIGGER", "status": "OPEN" },
+  "positionId": "..."
 }
 ```
 
-Response `400`: Validation error (insufficient balance, invalid prices).
+Response `400`: Validation error (missing proposal data, invalid prices).
 Response `404`: Proposal not found.
 Response `409`: Proposal already executed, skipped, or expired.
 
-**Atomicity**: Proposal status update, Position creation, Trade creation, and Order creation happen in a single DB transaction. If any step fails, all are rolled back.
+**Atomicity**: Proposal status update, Position creation, and BUY trigger Order creation happen in a single DB transaction. The Trade row is written later when `/api/orders/[id]/execute` settles the on-chain fill.
 
 ---
 
@@ -151,45 +161,12 @@ Response `200`: Array of Order objects.
 
 **`POST /api/orders/[id]/cancel`** — Cancel a trigger order.
 
-Allowed only for:
+Allowed for `BUY_TRIGGER`, `TAKE_PROFIT`, and `STOP_LOSS` synthetic Orders in `OPEN` state. There is no vault withdrawal and no signature in the cancel path.
 
-- `kind = BUY_TRIGGER` with `status = OPEN`
-- Expired orders needing vault fund withdrawal (use `/withdraw` instead for clarity)
-
-The cancel flow is two steps: initiate cancellation, then client signs withdrawal tx, then confirm.
-
-Request (step 1, initiate):
-
-```json
-{ "action": "initiate" }
-```
-
-Response `200`:
-
-```json
-{ "withdrawalTx": "base64-encoded-unsigned-tx" }
-```
-
-Request (step 2, confirm):
-
-```json
-{
-  "action": "confirm",
-  "signedTx": "base64-encoded-signed-tx"
-}
-```
+Request: empty JSON body.
 
 Response `200`: Updated Order with `status = CANCELLED`.
-Response `403`: Cannot cancel TP/SL orders directly (use Close Position or Edit instead).
 Response `409`: Order not in cancellable state.
-
----
-
-**`POST /api/orders/[id]/withdraw`** — Withdraw funds from an expired order's vault.
-
-Same two-step flow as cancel. Used when a BUY order expires without filling.
-
-Response `200`: Funds returned, Order status remains `EXPIRED`.
 
 ---
 
@@ -336,10 +313,9 @@ socket.on('auth:error', { message: string });
 
 | Event                  | Payload                                                                      | Description                            |
 | ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------- |
-| `proposal:new`         | Full Proposal object                                                         | New proposal generated for this user   |
-| `proposal:invalidated` | `{ proposalIds: string[], reason: "MANDATE_CHANGED" }`                       | Proposals invalidated (mandate update) |
-| `order:filled`         | `{ orderId, positionId, kind, assetId, side, executionPrice, filledAmount }` | Order filled (BUY/TP/SL)               |
-| `order:expired`        | `{ orderId, positionId, kind, assetId }`                                     | Order expired                          |
+| `signal:new`           | Legacy Signal object                                                         | Legacy signal modal path               |
+| `proposal:new`         | Full Proposal object                                                         | New BUY or SELL proposal generated for this user |
+| `trigger:hit`          | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }` | Synthetic trigger matched; user can tap Execute |
 | `position:updated`     | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`      | Position state changed                 |
 | `pong`                 | `{ timestamp }`                                                              | Heartbeat response                     |
 
@@ -351,7 +327,7 @@ socket.on('auth:error', { message: string });
 
 | From   | Trigger                                     | To       |
 | ------ | ------------------------------------------- | -------- |
-| ACTIVE | `POST /api/proposals/[id]/execute` succeeds | EXECUTED |
+| ACTIVE | BUY acceptance through `POST /api/orders` succeeds | EXECUTED |
 | ACTIVE | `POST /api/skips` succeeds                  | SKIPPED  |
 | ACTIVE | `expiresAt` < now (checked by ws-server)    | EXPIRED  |
 | ACTIVE | Mandate updated                             | EXPIRED  |
@@ -379,7 +355,7 @@ Expired, skipped, and executed proposals are still queryable via `GET /api/propo
 When a user approves a proposal:
 
 ```
-POST /api/proposals/[id]/execute
+POST /api/orders
   -> Position(BUY_PENDING)
   -> Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)
 ```
