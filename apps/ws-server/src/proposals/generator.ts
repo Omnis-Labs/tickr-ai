@@ -1,6 +1,6 @@
-// Stage 2 Proposal Generator (live mode).
+// Proposal Generator (live mode).
 //
-// Given a base LLM analysis for an asset (from Stage 1 / Market Scanner),
+// Given a Base Market Analysis for an asset (from the Signal Engine),
 // queries every user whose mandate market_focus contains this asset, builds
 // a personalized Proposal (size scaled by mandate.maxTradeSize, TP/SL bands
 // scaled by mandate.maxDrawdown + holdingPeriod, mandate-aware reasoning),
