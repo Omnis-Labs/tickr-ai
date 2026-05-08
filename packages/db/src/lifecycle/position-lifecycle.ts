@@ -39,6 +39,13 @@ function executionStateFor(kind: ExecutableOrderKind): {
     : { before: 'ACTIVE', pending: 'CLOSING' };
 }
 
+export function executedNotionalUsd(input: {
+  executionPrice: number;
+  tokenAmount: number;
+}): number {
+  return input.executionPrice * input.tokenAmount;
+}
+
 async function findOrderByTxSignature(client: Tx | typeof prisma, txSignature: string) {
   return client.order.findUnique({ where: { txSignature } });
 }
@@ -685,7 +692,7 @@ export async function confirmExitFill(input: {
           ticker: order.position.ticker,
           side: 'SELL',
           source,
-          actualSizeUsd: order.sizeUsd,
+          actualSizeUsd: executedNotionalUsd(input),
           actualTriggerPrice: order.triggerPriceUsd,
           executionPrice: input.executionPrice,
           filledAmount: input.tokenAmount,
@@ -844,7 +851,7 @@ export async function userCloseActive(input: {
           ticker: position.ticker,
           side: 'SELL',
           source: 'USER_CLOSE',
-          actualSizeUsd: input.executionPrice * input.tokenAmount,
+          actualSizeUsd: executedNotionalUsd(input),
           executionPrice: input.executionPrice,
           filledAmount: input.tokenAmount,
           realizedPnl: new Prisma.Decimal(realizedPnl),
