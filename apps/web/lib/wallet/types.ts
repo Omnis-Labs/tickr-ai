@@ -14,13 +14,6 @@ import type { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.
 export interface UnifiedWallet {
   publicKey: PublicKey | null;
   address: string | null;
-  /** Privy server-wallet id (populated only after the user has delegated
-   *  signing for this embedded wallet). Required by the server SDK's
-   *  signSolanaTransaction({ walletId }) call, so we thread it through to
-   *  /api/users/delegation when the toggle flips on. */
-  walletId: string | null;
-  /** Whether the user has granted delegation for this embedded wallet. */
-  delegated: boolean;
   connected: boolean;
   ready: boolean;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
@@ -31,23 +24,13 @@ export interface UnifiedWallet {
   signAndSendTransaction: (
     tx: VersionedTransaction | Transaction,
   ) => Promise<{ signature: string }>;
-  /** Sign a UTF-8 message and return a base58 signature. Used by the
-   *  Jupiter Trigger v2 auth handshake — message-signing avoids
-   *  Privy's transaction-simulation pre-flight, which chokes on
-   *  Jupiter's challenge tx (memo-style transaction without sufficient
-   *  state for simulation). */
+  /** Sign a UTF-8 message and return a base58 signature. */
   signMessage: (message: string) => Promise<string>;
   login: () => void;
   logout: () => Promise<void>;
   /** Privy access token. null when disconnected. Used as the
    *  Authorization: Bearer credential for /api/* + the ws-server socket. */
   getAccessToken: () => Promise<string | null>;
-  /** Phase F — request the delegation grant for the user's embedded wallet.
-   *  Resolves once the user accepts (or rejects) the modal. No-op when no
-   *  provider is mounted. */
-  delegateSolanaWallet: () => Promise<void>;
-  /** Revoke all delegated wallets. */
-  revokeDelegations: () => Promise<void>;
   /** Open the Privy funding modal (fiat on-ramp / external wallet transfer)
    *  for the user's embedded wallet. amountUsdc, when supplied, prefills the
    *  USDC amount on Solana mainnet. Resolves once the modal closes. No-op
@@ -58,8 +41,6 @@ export interface UnifiedWallet {
 export const STUB_WALLET: UnifiedWallet = {
   publicKey: null,
   address: null,
-  walletId: null,
-  delegated: false,
   connected: false,
   ready: true, // "ready to NOT auth" so the WalletButton renders Connect
   signTransaction: async () => {
@@ -80,8 +61,6 @@ export const STUB_WALLET: UnifiedWallet = {
   },
   logout: async () => {},
   getAccessToken: async () => null,
-  delegateSolanaWallet: async () => {},
-  revokeDelegations: async () => {},
   fundWallet: async () => {},
 };
 

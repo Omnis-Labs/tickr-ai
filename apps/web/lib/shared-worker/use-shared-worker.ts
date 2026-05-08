@@ -25,24 +25,9 @@ type TabToWorker =
   | { type: 'hello' }
   | { type: 'approval'; payload: ApprovalDecisionPayload };
 
-export interface PositionUpdatedPayload {
-  positionId: string;
-  state: 'BUY_PENDING' | 'ENTERING' | 'ACTIVE' | 'CLOSING' | 'CLOSED';
-  /**
-   * - "cancel-sibling": TP/SL filled, OCO sibling still parked in vault and
-   *   needs the user to sign a withdrawal.
-   * - "sibling-cancelled": delegated server signer already cancelled the
-   *   sibling — frontend just shows confirmation + refresh.
-   */
-  action?: 'cancel-sibling' | 'sibling-cancelled';
-  siblingOrderId?: string;
-  siblingKind?: 'TAKE_PROFIT' | 'STOP_LOSS';
-}
-
 interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
   onProposal?: (proposal: Proposal) => void;
-  onPositionUpdated?: (payload: PositionUpdatedPayload) => void;
   onTriggerHit?: (payload: TriggerHitPayload) => void;
 }
 
@@ -59,15 +44,11 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const directSocketRef = useRef<Socket | null>(null);
   const onSignalRef = useRef<((s: Signal) => void) | undefined>(opts.onSignal);
   const onProposalRef = useRef<((p: Proposal) => void) | undefined>(opts.onProposal);
-  const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
-    opts.onPositionUpdated,
-  );
   const onTriggerHitRef = useRef<((p: TriggerHitPayload) => void) | undefined>(
     opts.onTriggerHit,
   );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
-  onPositionUpdatedRef.current = opts.onPositionUpdated;
   onTriggerHitRef.current = opts.onTriggerHit;
 
   // Send a Privy access token; the server verifies it and resolves the
@@ -116,9 +97,6 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.ProposalNew, (proposal: Proposal) => {
       onProposalRef.current?.(proposal);
-    });
-    socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
-      onPositionUpdatedRef.current?.(payload);
     });
     socket.on(WsServerEvents.TriggerHit, (payload: TriggerHitPayload) => {
       onTriggerHitRef.current?.(payload);

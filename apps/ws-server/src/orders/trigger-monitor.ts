@@ -1,14 +1,10 @@
-// Price-trigger monitor for synthetic xStock orders.
+// Price-trigger monitor for synthetic Orders.
 //
-// xStocks are off Jupiter Trigger v2's allowlist (Backed Finance
-// tokens, traded via Solana DEXs Jupiter Ultra aggregates), so we
-// can't deposit into a Jupiter vault and have them watch the price.
-// Instead, on Approve we persist the order intent in our DB with no
+// On Approve we persist the Order intent in our DB with no
 // jupiterOrderId, and this monitor watches Pyth every ~30s. When a
-// trigger condition fires, we emit a `trigger:hit` Socket.IO event to
+// trigger condition fires, it emits a `trigger:hit` Socket.IO event to
 // the user's room; the web app shows a sticky toast that lets them
-// 1-tap-execute the swap via Jupiter Ultra (ws-server can do it
-// server-side once Privy Pro server signers are configured).
+// tap-to-execute the swap via Jupiter Ultra.
 //
 // Conditions:
 //   TAKE_PROFIT  → fire when current ≥ triggerPriceUsd
@@ -45,8 +41,8 @@ export async function runTriggerMonitor(
     where: {
       status: { in: ['OPEN', 'PARTIALLY_FILLED'] },
       triggerPriceUsd: { not: null },
-      // Synthetic only — Jupiter-routed orders are reconciled via the
-      // history poller, not here.
+      // Synthetic only. jupiterOrderId is vestigial schema and should
+      // remain null for every live Order in the frozen architecture.
       jupiterOrderId: null,
     },
     include: { user: true, position: true },

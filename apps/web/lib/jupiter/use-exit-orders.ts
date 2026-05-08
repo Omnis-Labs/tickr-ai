@@ -8,15 +8,12 @@ import { useAuthedFetch } from '@/lib/auth/fetch';
  * Single source of truth for the open-exit-order lifecycle attached to
  * a Position: cancel + place + replace.
  *
- * Synthetic-trigger architecture (post-pivot away from Jupiter Trigger
- * v2 for xStocks): TP/SL legs are plain DB rows with
+ * Synthetic-trigger architecture: TP/SL legs are plain DB rows with
  * `jupiterOrderId IS NULL`; the ws-server price monitor watches them
  * against Pyth and emits `trigger:hit` when the user needs to sign an
  * Ultra swap to actually exit. So all "place" / "cancel" operations on
  * exit Orders here are pure DB persistence — no off-chain escrow to
- * lock or release. cancelExits still also handles legacy Jupiter-routed
- * Orders via `/api/orders/[id]/cancel`, which itself dispatches to the
- * Jupiter trigger cancel under the hood when jupiterOrderId is set.
+ * lock or release.
  *
  * Call sites:
  *   - Position Detail: handleConfirmExit (ENTERING → place OCO)
@@ -64,7 +61,6 @@ export function useExitOrders() {
           id: string;
           positionId: string;
           kind: string;
-          jupiterOrderId: string | null;
           triggerPriceUsd: number | null;
         }>;
       };
@@ -81,9 +77,7 @@ export function useExitOrders() {
         if (o.kind === 'STOP_LOSS' && o.triggerPriceUsd != null) slPriceUsd = o.triggerPriceUsd;
       }
 
-      // /api/orders/[id]/cancel handles both flavours: synthetic rows
-      // just flip status=CANCELLED; legacy Jupiter-routed rows
-      // additionally fire the v2 trigger cancel before persisting.
+      // /api/orders/[id]/cancel flips synthetic rows to CANCELLED.
       for (const o of exits) {
         await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
       }
@@ -94,8 +88,7 @@ export function useExitOrders() {
 
   /**
    * Place TP + SL synthetic exit Orders. Two POST /api/orders calls,
-   * one per leg, both with `jupiterOrderId: null` so the ws-server
-   * trigger-monitor picks them up. The `tokenAmount` carries through
+   * one per leg. The `tokenAmount` carries through
    * to TriggerHitPayload at fire time so the eventual Ultra sell
    * sells exactly the position size (not the wallet's full balance).
    */
@@ -123,7 +116,6 @@ export function useExitOrders() {
             triggerPriceUsd: leg.triggerPriceUsd,
             sizeUsd: leg.triggerPriceUsd * args.tokenAmount,
             tokenAmount: args.tokenAmount,
-            jupiterOrderId: null,
           }),
         });
         if (!r.ok) {

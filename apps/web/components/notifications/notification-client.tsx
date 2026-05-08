@@ -10,10 +10,7 @@ import {
   type Signal,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
-import {
-  useSharedWorker,
-  type PositionUpdatedPayload,
-} from '@/lib/shared-worker/use-shared-worker';
+import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
@@ -25,11 +22,7 @@ import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
 import { executeTriggerOrder, triggerDiagnosticPayload } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
-import {
-  positionUpdatedHandler,
-  proposalNewHandler,
-  setNavigator,
-} from '@/lib/notifications/registry';
+import { proposalNewHandler, setNavigator } from '@/lib/notifications/registry';
 import { clearAlertFavicon } from './favicon-dot';
 import { stopTitleFlash } from './tab-title-flasher';
 
@@ -106,17 +99,6 @@ export function NotificationClient() {
       addSignal(signal);
     },
     [addSignal],
-  );
-
-  const handlePositionUpdated = useCallback(
-    (payload: PositionUpdatedPayload) => {
-      const effects = positionUpdatedHandler(payload);
-      runEffects(effects, {
-        navigate: (href) => router.push(href),
-        activeNotifs: activeNotifs.current,
-      });
-    },
-    [router],
   );
 
   // Tap-to-execute for synthetic xStock triggers. The ws-server's price
@@ -315,7 +297,6 @@ export function NotificationClient() {
   useSharedWorker({
     onProposal: handleProposal,
     onSignal: handleSignal,
-    onPositionUpdated: handlePositionUpdated,
     onTriggerHit: handleTriggerHit,
   });
 

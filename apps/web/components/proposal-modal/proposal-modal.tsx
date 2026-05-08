@@ -208,7 +208,6 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
         side: 'BUY',
         triggerPriceUsd: trigger,
         sizeUsd: size,
-        jupiterOrderId: null,
         txSignature: null,
         slippageBps: 50,
         createPosition: {

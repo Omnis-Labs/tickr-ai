@@ -841,7 +841,6 @@ export function DevToolsClient() {
               side: 'BUY',
               triggerPriceUsd: proposalToAccept.suggestedTriggerPrice,
               sizeUsd: proposalToAccept.suggestedSizeUsd,
-              jupiterOrderId: null,
               txSignature: null,
               slippageBps: 50,
               createPosition: {
