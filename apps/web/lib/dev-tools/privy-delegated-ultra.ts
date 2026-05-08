@@ -1,13 +1,14 @@
 import 'server-only';
 
 import { VersionedTransaction } from '@solana/web3.js';
-import { PrivyClient, type AuthorizationContext, type LinkedAccount, type User, type Wallet } from '@privy-io/node';
 import {
-  USDC_DECIMALS,
-  USDC_MINT,
-  getAssetById,
-  type TriggerHitPayload,
-} from '@hunch-it/shared';
+  PrivyClient,
+  type AuthorizationContext,
+  type LinkedAccount,
+  type User,
+  type Wallet,
+} from '@privy-io/node';
+import { USDC_DECIMALS, USDC_MINT, getAssetById, type TriggerHitPayload } from '@hunch-it/shared';
 import {
   claimOrderExecution,
   confirmBuyFill,
@@ -191,10 +192,7 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
   );
 }
 
-async function resolvePrivyWallet(input: {
-  client: PrivyClient;
-  walletAddress: string;
-}): Promise<{
+async function resolvePrivyWallet(input: { client: PrivyClient; walletAddress: string }): Promise<{
   wallet: Wallet;
   delegated: boolean | null;
 }> {
@@ -270,10 +268,7 @@ function buildAuthorizationContext(input: {
   };
 }
 
-async function requestOrder(input: {
-  plan: SwapPlan;
-  taker: string;
-}): Promise<UltraOrderResponse> {
+async function requestOrder(input: { plan: SwapPlan; taker: string }): Promise<UltraOrderResponse> {
   return requestUltraOrder({
     inputMint: input.plan.inputMint,
     outputMint: input.plan.outputMint,
@@ -395,17 +390,23 @@ export async function runPrivyDelegatedUltraDevTool(
   let claimed = false;
   let broadcasted = false;
   try {
-    const claim = await claimOrderExecution({ userId: input.auth.userId, orderId: payload.orderId });
+    const claim = await claimOrderExecution({
+      userId: input.auth.userId,
+      orderId: payload.orderId,
+    });
     if (claim.status === 'conflict') {
       throw new DevPrivyDelegatedUltraError(`claim_${claim.reason}`, 409);
     }
     claimed = true;
 
-    const signed = await client.wallets().solana().signTransaction(wallet.id, {
-      transaction: order.transaction,
-      authorization_context: context,
-      idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
-    });
+    const signed = await client
+      .wallets()
+      .solana()
+      .signTransaction(wallet.id, {
+        transaction: order.transaction,
+        authorization_context: context,
+        idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
+      });
     const signedTransactionBytes = toBase64Bytes(signed.signed_transaction).byteLength;
     const signedTransactionShape = describeTransaction(signed.signed_transaction);
 
@@ -448,9 +449,10 @@ export async function runPrivyDelegatedUltraDevTool(
     };
   } catch (err) {
     if (claimed && !broadcasted) {
-      await releaseOrderExecutionClaim({ userId: input.auth.userId, orderId: payload.orderId }).catch(
-        () => null,
-      );
+      await releaseOrderExecutionClaim({
+        userId: input.auth.userId,
+        orderId: payload.orderId,
+      }).catch(() => null);
     }
     throw err;
   }
