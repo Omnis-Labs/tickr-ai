@@ -48,7 +48,7 @@ The asset-specific condition that the price data used to create a Proposal is cu
 
 ### Crypto
 
-The supported crypto Proposal universe, selected by the `crypto` market focus: `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `bluechip_crypto` is not a supported alias, and `SOL` is excluded because Hunch treats it as wallet fee balance, not a recommended Position.
+The supported crypto Proposal universe, selected by the `crypto` market focus: `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`. `SOL` is excluded because Hunch treats it as wallet fee balance, not a recommended Position.
 
 Approved crypto mints:
 

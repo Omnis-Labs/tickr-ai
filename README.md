@@ -4,7 +4,7 @@
 
 Mandate-driven AI trading proposals for tokenized stocks & crypto on Solana.
 
-Users define a simple investment mandate, receive AI-assisted BUY proposals for tokenized stocks, tokenized ETFs, and bluechip crypto, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
+Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
 
 > The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). xStocks (Backed Finance Token-2022 mints) are not on Jupiter Trigger Order v2's allowlist, so triggers are tracked as DB rows watched by `apps/ws-server` against Pyth, and the user signs a Jupiter Ultra swap via Privy at fire time. Trigger Order v2 is **not** used.
 
@@ -33,7 +33,7 @@ The app is built around proposals, not a manual trading terminal. All trade-stat
 ## Current Scope
 
 - **Base currency:** USDC on Solana
-- **Supported assets:** Jupiter-listed xStocks, tokenized ETFs, SOL, BTC, and ETH representations on Solana
+- **Supported assets:** Jupiter-listed xStocks/tokenized ETFs plus `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
 - **Wallet:** Privy auth with embedded Solana wallet support
 - **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap signed client-side via Privy when the user taps Execute. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma

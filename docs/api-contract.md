@@ -27,7 +27,7 @@ Response `200`:
   "holdingPeriod": "SHORT_TERM",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
-  "marketFocus": ["SEMICONDUCTORS", "BLUECHIP_CRYPTO"],
+  "marketFocus": ["semiconductors", "crypto"],
   "createdAt": "ISO8601",
   "updatedAt": "ISO8601"
 }
@@ -46,7 +46,7 @@ Request:
   "holdingPeriod": "SHORT_TERM | SWING | MEDIUM_TERM | LONG_TERM",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
-  "marketFocus": ["SEMICONDUCTORS", "BLUECHIP_CRYPTO"]
+  "marketFocus": ["semiconductors", "crypto"]
 }
 ```
 

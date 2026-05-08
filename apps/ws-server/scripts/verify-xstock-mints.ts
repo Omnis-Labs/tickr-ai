@@ -10,8 +10,8 @@
  *
  * Candidate file format (`data/xstock-candidates.json`):
  *   {
- *     "AAPL": "<mint base58>",
- *     "NVDA": "<mint base58>",
+ *     "AAPLx": "<mint base58>",
+ *     "NVDAx": "<mint base58>",
  *     ...
  *   }
  *
@@ -24,11 +24,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Connection, PublicKey } from '@solana/web3.js';
 import {
-  BARE_TICKERS,
   TOKEN_2022_PROGRAM_ID,
+  XSTOCK_TICKERS,
   XSTOCKS,
   parseRpcUrls,
-  type BareTicker,
+  type XStockTicker,
 } from '@hunch-it/shared';
 import { env } from '../src/env.js';
 
@@ -40,7 +40,7 @@ const OUTPUT_PATH = join(DATA_DIR, 'xstock-mints.json');
 const EXPECTED_DECIMALS = 8;
 
 interface VerifiedMint {
-  ticker: BareTicker;
+  ticker: XStockTicker;
   mint: string;
   owner: string;
   decimals: number;
@@ -55,7 +55,7 @@ async function main() {
       `[verify] missing ${CANDIDATES_PATH}\n\n` +
         `Create it with the canonical xStock mint addresses, e.g.:\n` +
         `{\n` +
-        BARE_TICKERS.map((t) => `  "${t}": "<mint base58>"`).join(',\n') +
+        XSTOCK_TICKERS.map((t) => `  "${t}": "<mint base58>"`).join(',\n') +
         `\n}\n\n` +
         `Source: https://xstocks.com/products (Backed Finance) or Solscan / Jupiter token list.`,
     );
@@ -72,7 +72,7 @@ async function main() {
   const conn = new Connection(rpcUrls[0]!, 'confirmed');
 
   const results: VerifiedMint[] = [];
-  for (const ticker of BARE_TICKERS) {
+  for (const ticker of XSTOCK_TICKERS) {
     const mint = candidates[ticker];
     const errors: string[] = [];
     if (!mint) {

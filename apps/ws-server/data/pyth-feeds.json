@@ -1,42 +1,67 @@
 {
-  "AAPL": {
-    "id": "0x49f6b65cb1de6b10eaf75e7c03ca029c306d0357e91b5311b175084a5ad55688",
-    "symbol": "Equity.US.AAPL/USD",
-    "description": "APPLE INC / US DOLLAR"
+  "AAPLx": {
+    "id": "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
+    "symbol": "Crypto.AAPLX/USD",
+    "description": "Apple xStock / US Dollar"
   },
-  "NVDA": {
-    "id": "0xb1073854ed24cbc755dc527418f52b7d271f6cc967bbf8d8129112b18860a593",
-    "symbol": "Equity.US.NVDA/USD",
-    "description": "NVIDIA CORP / US DOLLAR"
+  "NVDAx": {
+    "id": "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    "symbol": "Crypto.NVDAX/USD",
+    "description": "NVIDIA xStock / US Dollar"
   },
-  "TSLA": {
-    "id": "0x16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
-    "symbol": "Equity.US.TSLA/USD",
-    "description": "TESLA INC / US DOLLAR"
+  "TSLAx": {
+    "id": "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+    "symbol": "Crypto.TSLAX/USD",
+    "description": "Tesla xStock / US Dollar"
   },
-  "SPY": {
-    "id": "0x19e09bb805456ada3979a7d1cbb4b6d63babc3a0f8e8a9509f68afa5c4c11cd5",
-    "symbol": "Equity.US.SPY/USD",
-    "description": "SPY / US DOLLAR"
+  "SPYx": {
+    "id": "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
+    "symbol": "Crypto.SPYX/USD",
+    "description": "S&P 500 xStock / US Dollar"
   },
-  "QQQ": {
-    "id": "0x9695e2b96ea7b3859da9ed25b7a46a920a776e2fdae19a7bcfdf2b219230452d",
-    "symbol": "Equity.US.QQQ/USD",
-    "description": "INVESCO QQQ TRUST SERIES 1 / US DOLLAR"
+  "QQQx": {
+    "id": "0x178a6f73a5aede9d0d682e86b0047c9f333ed0efe5c6537ca937565219c4054d",
+    "symbol": "Crypto.QQQX/USD",
+    "description": "Nasdaq 100 xStock / US Dollar"
   },
-  "MSFT": {
-    "id": "0xd0ca23c1cc005e004ccf1db5bf76aeb6a49218f43dac3d4b275e92de12ded4d1",
-    "symbol": "Equity.US.MSFT/USD",
-    "description": "MICROSOFT CORP / US DOLLAR"
+  "GOOGLx": {
+    "id": "0xb911b0329028cd0283e4259c33809d62942bd2716a58084e5f31d64c00b5424e",
+    "symbol": "Crypto.GOOGLX/USD",
+    "description": "Alphabet xStock / US Dollar"
   },
-  "GOOGL": {
-    "id": "0x5a48c03e9b9cb337801073ed9d166817473697efff0d138874e0f6a33d6d5aa6",
-    "symbol": "Equity.US.GOOGL/USD",
-    "description": "ALPHABET INC CLASS A / US DOLLAR"
+  "METAx": {
+    "id": "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
+    "symbol": "Crypto.METAX/USD",
+    "description": "Meta xStock / US Dollar"
   },
-  "META": {
-    "id": "0x78a3e3b8e676a8f73c439f5d749737034b139bbbe899ba5775216fba596607fe",
-    "symbol": "Equity.US.META/USD",
-    "description": "META PLATFORMS INC / US DOLLAR"
+  "wBTC": {
+    "id": "0xc9d8b075a5c69303365ae23633d4e085199bf5c520a3b90fed1322a0342ffc33",
+    "symbol": "Crypto.WBTC/USD",
+    "description": "Wrapped Bitcoin / US Dollar"
+  },
+  "ETH": {
+    "id": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    "symbol": "Crypto.ETH/USD",
+    "description": "Ether / US Dollar"
+  },
+  "BNB": {
+    "id": "0x2f95862b045670cd22bee3114c39763a4a08beeb663b145d283c31d7d1101c4f",
+    "symbol": "Crypto.BNB/USD",
+    "description": "BNB / US Dollar"
+  },
+  "wXRP": {
+    "id": "0xec5d399846a9209f3fe5881d70aae9268c94339ff9817e8d18ff19fa05eea1c8",
+    "symbol": "Crypto.XRP/USD",
+    "description": "XRP / US Dollar"
+  },
+  "TRX": {
+    "id": "0x67aed5a24fdad045475e7195c98a98aea119c763f272d4523f5bac93a4f33c2b",
+    "symbol": "Crypto.TRX/USD",
+    "description": "TRON / US Dollar"
+  },
+  "HYPE": {
+    "id": "0x4279e31cc369bbcc2faf022b382b080e32a8e689ff20fbc530d2a603eb6cd98b",
+    "symbol": "Crypto.HYPE/USD",
+    "description": "HYPE / US Dollar"
   }
 }
