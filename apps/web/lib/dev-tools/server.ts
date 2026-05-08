@@ -4,6 +4,7 @@ import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
 import { createBuyProposalForUser } from '@hunch-it/db';
 import {
+  MIN_ACTIONABLE_CONFIDENCE,
   PYTH_BENCHMARKS_BASE,
   evaluateSignalDataFreshness,
   requireAsset,
@@ -244,7 +245,7 @@ ${formatBars(input.bars)}
 
 Output only JSON matching:
 {
-  "confidence": number between 0.55 and 0.92,
+  "confidence": number between ${MIN_ACTIONABLE_CONFIDENCE.toFixed(2)} and 0.92,
   "rationale": string,
   "what_changed": string,
   "why_this_trade": string,
@@ -377,7 +378,9 @@ export async function createDevToolsProposal(input: {
   const llm = await askGemini(prompt);
   const degraded = !llm.parsed;
 
-  const confidence = Number(clamp(llm.parsed?.confidence ?? 0.72, 0.55, 0.92).toFixed(2));
+  const confidence = Number(
+    clamp(llm.parsed?.confidence ?? 0.72, MIN_ACTIONABLE_CONFIDENCE, 0.92).toFixed(2),
+  );
 
   const created = await prisma.$transaction(async (tx) => {
     const createNow = new Date();
