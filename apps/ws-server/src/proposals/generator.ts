@@ -48,16 +48,10 @@ export async function generateProposalsForBaseAnalysis(
   const verticals = getMarketFocusVerticalsForAsset(base.assetId);
   if (verticals.length === 0) return summary;
 
-  // Pre-fetch one Pyth snapshot for every signal asset so positionImpact can mark
-  // the user's other holdings to current price. Single round-trip up front
-  // beats N+1 per user.
-  const allMarks = await getLatestPrices().catch(() => new Map());
-  const marksByAssetId = new Map<string, number>();
-  for (const [assetId, snap] of allMarks) marksByAssetId.set(assetId, snap.price);
-
   // The set of asset ids that share at least one vertical with this asset —
   // used for sector aggregation in positionImpact. Built once.
   const sectorPeerArr = Array.from(getSignalAssetIdsForVerticals(verticals));
+  const now = new Date();
 
   // Find users whose mandate's market_focus overlaps this asset's verticals,
   // OR who chose "no_preference".
@@ -77,13 +71,36 @@ export async function generateProposalsForBaseAnalysis(
         where: { ticker: base.assetId, state: { not: 'CLOSED' } },
         select: { id: true },
       },
+      // Skip users who already have a live BUY proposal for this asset. The
+      // signal loop can refresh the same bullish setup repeatedly; the user
+      // should see one active decision, not a stack of near-identical cards.
+      proposals: {
+        where: {
+          ticker: base.assetId,
+          action: 'BUY',
+          status: 'ACTIVE',
+          expiresAt: { gt: now },
+        },
+        select: { id: true },
+      },
     },
   });
   summary.matchingUsers = users.length;
 
-  for (const user of users) {
+  const eligibleUsers = users.filter(
+    (user) => user.mandate && user.positions.length === 0 && user.proposals.length === 0,
+  );
+  if (eligibleUsers.length === 0) return summary;
+
+  // Pre-fetch one Pyth snapshot for every signal asset so positionImpact can mark
+  // the user's other holdings to current price. Single round-trip up front
+  // beats N+1 per user.
+  const allMarks = await getLatestPrices().catch(() => new Map());
+  const marksByAssetId = new Map<string, number>();
+  for (const [assetId, snap] of allMarks) marksByAssetId.set(assetId, snap.price);
+
+  for (const user of eligibleUsers) {
     if (!user.mandate) continue;
-    if (user.positions.length > 0) continue; // already exposed
 
     try {
       const mandate = user.mandate;

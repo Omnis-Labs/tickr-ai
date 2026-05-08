@@ -25,16 +25,17 @@ The Signal Engine seam is intentionally narrow: `AssetId + Signal Data -> Base M
 
 ## Stage 1: Market Scanner (Per Asset)
 
-The ws-server scans `getSignalAssets()` on a default 60-second interval. That list is the asset registry filtered to assets with a configured Pyth feed id. As of this branch it contains 13 assets: `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`.
+The ws-server price-scans `getSignalAssets()` on a default 60-second interval. That list is the asset registry filtered to assets with a configured Pyth feed id. As of this branch it contains 13 assets: `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`.
 
 ### Scan Cycle
 
 1. Fetch live price from Pyth Hermes using the asset's configured feed id.
 2. Evaluate freshness. The current rule accepts snapshots whose publish time is no more than 15 minutes old.
-3. Fetch historical candles from Pyth Benchmarks using the asset's configured `pythSymbol` (5-minute bars, last 24 hours).
-4. Calculate technical indicators: RSI-14, MACD (12,26,9), MA20, MA50.
-5. Send the asset id, latest price, bars, and indicators to Gemini via `@google/genai`.
-6. Gemini returns a base signal:
+3. Apply the Base Analysis Refresh Policy. By default, Gemini is called only when the asset has crossed into a new 5-minute bar bucket, moved at least 0.3% from the last analyzed price, or gone 15 minutes without analysis.
+4. If refresh is due, fetch historical candles from Pyth Benchmarks using the asset's configured `pythSymbol` (5-minute bars, last 24 hours).
+5. Calculate technical indicators: RSI-14, MACD (12,26,9), MA20, MA50.
+6. Send the asset id, latest price, bars, and indicators to Gemini via `@google/genai`.
+7. Gemini returns a base signal:
    - `action`: BUY, SELL, or HOLD
    - `confidence`: 0.00-1.00
    - `rationale`: one-sentence technical summary
@@ -43,6 +44,16 @@ The ws-server scans `getSignalAssets()` on a default 60-second interval. That li
 Only BUY signals with confidence >= `MIN_ACTIONABLE_CONFIDENCE` fan out into personalized proposals. SELL signals are used by the legacy signal path; thesis-based SELL proposals are handled separately by the env-gated thesis monitor.
 
 Assets are staggered by `TICKER_STAGGER_SECONDS` (default: 2 seconds) to avoid API burst. The env var name is legacy; the values are asset ids, not bare tickers.
+
+### Base Analysis Refresh Policy
+
+`SIGNAL_INTERVAL_SECONDS` controls cheap price scans. LLM analysis is gated separately so the engine does not re-send nearly identical 24-hour / 5-minute-bar prompts every minute.
+
+| Env var                               | Default | Meaning                                                                                                                                                         |
+| ------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BASE_ANALYSIS_BAR_CLOSE_SECONDS`     | `300`   | Refresh when the latest Pyth publish time enters a new candle bucket. Keep this aligned with the 5-minute Benchmark bars unless the bar resolution changes too. |
+| `BASE_ANALYSIS_MATERIAL_MOVE_PCT`     | `0.3`   | Refresh early when current price moves this percent from the last analyzed price.                                                                               |
+| `BASE_ANALYSIS_FORCE_REFRESH_SECONDS` | `900`   | Refresh after this many seconds even if the bar bucket and price movement are quiet.                                                                            |
 
 ### LLM Cost Control
 
@@ -53,6 +64,8 @@ A daily USD cap (`LLM_DAILY_USD_CAP`, default: $10) limits LLM spend inside each
 ## Stage 2: Proposal Generator (Per User)
 
 When a Market Scanner cycle produces a viable Base Market Analysis (confidence >= `MIN_ACTIONABLE_CONFIDENCE` and action = BUY), the Proposal Generator personalizes it for each relevant user. **This stage makes zero LLM calls.**
+
+The live generator will not create a second active BUY Proposal for the same user and asset while a previous one is still live. A refreshed Base Market Analysis can produce a new Proposal only after the user skips/executes the previous one or it expires.
 
 ### User Matching
 

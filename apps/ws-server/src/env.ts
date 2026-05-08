@@ -18,6 +18,17 @@ const EnvSchema = z.object({
   NEXT_PUBLIC_SOLANA_RPC_URLS: z.string().optional(),
   SIGNAL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   TICKER_STAGGER_SECONDS: z.coerce.number().int().nonnegative().default(2),
+  BASE_ANALYSIS_BAR_CLOSE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5 * 60),
+  BASE_ANALYSIS_MATERIAL_MOVE_PCT: z.coerce.number().positive().default(0.3),
+  BASE_ANALYSIS_FORCE_REFRESH_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60),
   LLM_DAILY_USD_CAP: z.coerce.number().positive().default(10),
   LLM_ENABLED: z
     .union([z.literal('true'), z.literal('false')])

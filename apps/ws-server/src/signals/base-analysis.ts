@@ -5,6 +5,8 @@ import {
 } from '@hunch-it/shared';
 import { getHistoricalBars } from '../pyth/benchmarks.js';
 import { evaluateFreshness, getLatestPrice } from '../pyth/index.js';
+import { env } from '../env.js';
+import { BaseAnalysisRefreshGate } from './base-analysis-refresh.js';
 import { computeIndicators } from './indicators.js';
 import { generateLlmSignal } from './llm.js';
 
@@ -13,6 +15,12 @@ export interface GeneratedBaseMarketAnalysis {
   ttlSeconds: number;
   degraded: boolean;
 }
+
+const refreshGate = new BaseAnalysisRefreshGate({
+  barCloseSeconds: env.BASE_ANALYSIS_BAR_CLOSE_SECONDS,
+  materialMovePct: env.BASE_ANALYSIS_MATERIAL_MOVE_PCT,
+  forceRefreshSeconds: env.BASE_ANALYSIS_FORCE_REFRESH_SECONDS,
+});
 
 /**
  * Signal Engine core: asset market data in, Base Market Analysis out.
@@ -32,6 +40,19 @@ export async function generateBaseMarketAnalysis(
   const verdict = evaluateFreshness(snap);
   if (!verdict.fresh) {
     console.log(`[signal-engine] ${assetId} skipped: ${verdict.reason}`);
+    return null;
+  }
+
+  const refresh = refreshGate.shouldRefresh({
+    assetId,
+    price: snap.price,
+    publishTimeUnix: snap.publishTime,
+  });
+  if (!refresh.refresh) {
+    console.log(
+      `[signal-engine] ${assetId} analysis unchanged: ` +
+        `move=${refresh.priceMovePct.toFixed(3)}% age=${refresh.ageSeconds ?? 0}s`,
+    );
     return null;
   }
 
@@ -56,6 +77,16 @@ export async function generateBaseMarketAnalysis(
           suggestedSlPct: 0.025,
         }
       : {};
+
+  refreshGate.markAnalyzed({
+    assetId,
+    price: snap.price,
+    publishTimeUnix: snap.publishTime,
+  });
+  console.log(
+    `[signal-engine] ${assetId} analyzed reason=${refresh.reason} ` +
+      `move=${refresh.priceMovePct.toFixed(3)}%`,
+  );
 
   return {
     analysis: buildBaseMarketAnalysis({

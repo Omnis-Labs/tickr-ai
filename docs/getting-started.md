@@ -109,19 +109,23 @@ Live mode connects the app to real services. **Use small amounts first.**
 
 Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app env files automatically. The variables that matter for live mode:
 
-| Variable                       | Purpose                                              |
-| ------------------------------ | ---------------------------------------------------- |
-| `NEXT_PUBLIC_SOLANA_RPC_URLS`  | Solana RPC endpoints (comma-separated for failover)  |
-| `NEXT_PUBLIC_PRIVY_APP_ID`     | Privy app ID for auth and embedded wallet            |
-| `PRIVY_APP_ID`                 | Same Privy app ID, server-side                       |
-| `PRIVY_APP_SECRET`             | Privy server SDK secret (verifies tokens)            |
-| `NEXT_PUBLIC_JUPITER_API_BASE` | Jupiter API base URL                                 |
-| `PYTH_HERMES_URL`              | Live Pyth price endpoint                             |
-| `PYTH_BENCHMARKS_URL`          | Historical candle endpoint                           |
-| `GEMINI_API_KEY`               | LLM analysis for the Signal Engine and `/dev-tools`  |
-| `LLM_DAILY_USD_CAP`            | Daily LLM spend guardrail                            |
-| `DATABASE_URL`                 | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
-| `NEXT_PUBLIC_WS_URL`           | Public ws-server URL for the browser, usually `http://localhost:4000` |
+| Variable                              | Purpose                                                                                                                     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SOLANA_RPC_URLS`         | Solana RPC endpoints (comma-separated for failover)                                                                         |
+| `NEXT_PUBLIC_PRIVY_APP_ID`            | Privy app ID for auth and embedded wallet                                                                                   |
+| `PRIVY_APP_ID`                        | Same Privy app ID, server-side                                                                                              |
+| `PRIVY_APP_SECRET`                    | Privy server SDK secret (verifies tokens)                                                                                   |
+| `NEXT_PUBLIC_JUPITER_API_BASE`        | Jupiter API base URL                                                                                                        |
+| `PYTH_HERMES_URL`                     | Live Pyth price endpoint                                                                                                    |
+| `PYTH_BENCHMARKS_URL`                 | Historical candle endpoint                                                                                                  |
+| `GEMINI_API_KEY`                      | LLM analysis for the Signal Engine and `/dev-tools`                                                                         |
+| `LLM_DAILY_USD_CAP`                   | Daily LLM spend guardrail                                                                                                   |
+| `SIGNAL_INTERVAL_SECONDS`             | Cheap asset price scan interval                                                                                             |
+| `BASE_ANALYSIS_BAR_CLOSE_SECONDS`     | Candle bucket that can trigger a fresh Base Market Analysis                                                                 |
+| `BASE_ANALYSIS_MATERIAL_MOVE_PCT`     | Price move threshold that can trigger early LLM analysis                                                                    |
+| `BASE_ANALYSIS_FORCE_REFRESH_SECONDS` | Maximum age before refreshing an otherwise quiet asset analysis                                                             |
+| `DATABASE_URL`                        | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
+| `NEXT_PUBLIC_WS_URL`                  | Public ws-server URL for the browser, usually `http://localhost:4000`                                                       |
 
 Leave `ENABLE_DEV_TOOLS=false` outside local development.
 
