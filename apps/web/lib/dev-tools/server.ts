@@ -2,9 +2,9 @@ import 'server-only';
 
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
+import { createBuyProposalForUser } from '@hunch-it/db';
 import {
   PYTH_BENCHMARKS_BASE,
-  extractThesisTags,
   requireAsset,
   type Bar,
   type TriggerHitPayload,
@@ -73,10 +73,6 @@ type IndicatorSet = {
   ma20: number;
   ma50: number;
 };
-
-function roundPrice(v: number): number {
-  return Number(v.toFixed(2));
-}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -323,7 +319,8 @@ export async function createDevToolsProposal(input: {
     },
   });
   if (!user) throw new Error('user not found');
-  if (!user.mandate) throw new Error('complete mandate before using dev tools');
+  const mandate = user.mandate;
+  if (!mandate) throw new Error('complete mandate before using dev tools');
 
   const now = new Date();
   await expireActiveProposals(prisma, { userId: input.userId, origin: 'DEV_TOOLS', now });
@@ -345,8 +342,8 @@ export async function createDevToolsProposal(input: {
 
   const bars = await fetchBars(input.ticker);
   const indicators = computeIndicators(bars, latestPrice);
-  const maxTradeSize = user.mandate.maxTradeSize.toNumber();
-  const maxDrawdown = user.mandate.maxDrawdown?.toNumber() ?? null;
+  const maxTradeSize = mandate.maxTradeSize.toNumber();
+  const maxDrawdown = mandate.maxDrawdown?.toNumber() ?? null;
   const availableUsdc = await readUsdcBalance(user.walletAddress, {
     forceFresh: true,
     throwOnFailure: true,
@@ -364,7 +361,7 @@ export async function createDevToolsProposal(input: {
     latestPrice,
     bars,
     indicators,
-    holdingPeriod: user.mandate.holdingPeriod,
+    holdingPeriod: mandate.holdingPeriod,
     maxDrawdown,
     maxTradeSize,
     availableUsdc,
@@ -373,19 +370,7 @@ export async function createDevToolsProposal(input: {
   const llm = await askGemini(prompt);
   const degraded = !llm.parsed;
 
-  const drawdownPct = maxDrawdown == null ? 0.04 : clamp(maxDrawdown, 0.015, 0.08);
-  const fallbackTrigger = roundPrice(latestPrice * 0.998);
-  const trigger = roundPrice(llm.parsed?.trigger_price ?? fallbackTrigger);
-  const tp = roundPrice(Math.max(trigger * 1.01, llm.parsed?.take_profit_price ?? trigger * 1.04));
-  const sl = roundPrice(
-    Math.min(trigger * 0.995, llm.parsed?.stop_loss_price ?? trigger * (1 - drawdownPct)),
-  );
-  const sizeUsd = defaultSizeUsd;
   const confidence = Number(clamp(llm.parsed?.confidence ?? 0.72, 0.55, 0.92).toFixed(2));
-
-  const whyFitsMandate =
-    `Fits your ${user.mandate.holdingPeriod} mandate. Size $${sizeUsd.toFixed(2)} is based on your $${availableUsdc.toFixed(2)} USDC balance and is within your $${maxTradeSize.toFixed(2)} max trade size. ` +
-    `Stop at $${sl.toFixed(2)} caps the test drawdown near ${(((trigger - sl) / trigger) * 100).toFixed(1)}%.`;
 
   const created = await prisma.$transaction(async (tx) => {
     const createNow = new Date();
@@ -402,52 +387,52 @@ export async function createDevToolsProposal(input: {
     });
     if (latestActive) throw new ActiveDevToolsProposalError(latestActive.id);
 
-    return tx.proposal.create({
-      data: {
-        userId: user.id,
-        ticker: input.ticker,
+    const proposal = await createBuyProposalForUser(tx, {
+      userId: user.id,
+      analysis: {
+        assetId: input.ticker,
         action: 'BUY',
-        suggestedSizeUsd: sizeUsd,
-        suggestedTriggerPrice: trigger,
-        suggestedTakeProfitPrice: tp,
-        suggestedStopLossPrice: sl,
-        rationale: `[DEV_TOOLS] ${llm.parsed?.rationale ?? `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`}`,
-        reasoning: {
-          what_changed:
-            llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
-          why_this_trade:
-            llm.parsed?.why_this_trade ??
-            `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
-          why_fits_mandate: whyFitsMandate,
-        },
-        positionImpact: {
-          weight_before: 0,
-          weight_after: 0,
-          cash_after: Number((availableUsdc - sizeUsd).toFixed(2)),
-          sector_before: 0,
-          sector_after: 0,
-          dev_tools_note: 'Position impact is not simulated; order/position lifecycle is real.',
-        },
         confidence,
-        priceAtProposal: latestPrice,
+        rationale:
+          llm.parsed?.rationale ??
+          `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`,
+        what_changed:
+          llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
+        why_this_trade:
+          llm.parsed?.why_this_trade ??
+          `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
+        priceAtAnalysis: latestPrice,
+        suggestedTriggerPrice: llm.parsed?.trigger_price,
+        suggestedTakeProfitPrice: llm.parsed?.take_profit_price,
+        suggestedStopLossPrice: llm.parsed?.stop_loss_price,
         indicators: {
           rsi: indicators.rsi,
           macd: indicators.macd,
           ma20: indicators.ma20,
           ma50: indicators.ma50,
         },
-        thesisTags: extractThesisTags({
-          rsi: indicators.rsi,
-          ma20: indicators.ma20,
-          ma50: indicators.ma50,
-          price: latestPrice,
-          macd: indicators.macd,
-        }),
-        origin: 'DEV_TOOLS',
-        status: 'ACTIVE',
-        expiresAt: new Date(createNow.getTime() + 60 * 60_000),
       },
+      mandate: {
+        holdingPeriod: mandate.holdingPeriod,
+        maxTradeSizeUsd: maxTradeSize,
+        maxDrawdown,
+      },
+      positionImpact: {
+        totalUsd: availableUsdc,
+        cashUsd: availableUsdc,
+        assetExposureUsd: 0,
+        verticalExposureUsd: 0,
+      },
+      origin: 'DEV_TOOLS',
+      now: createNow,
+      sizeUsd: defaultSizeUsd,
+      sizeRationale:
+        `Size $${defaultSizeUsd.toFixed(2)} is based on your $${availableUsdc.toFixed(2)} USDC balance ` +
+        `and is within your $${maxTradeSize.toFixed(2)} max trade size.`,
+      rationalePrefix: '[DEV_TOOLS] ',
     });
+    if (!proposal) throw new Error('dev_tools_proposal_not_actionable');
+    return proposal;
   });
 
   console.log(
