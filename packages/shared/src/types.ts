@@ -24,7 +24,7 @@ export const MarketFocusVerticalSchema = z.enum([
   'crypto_mining',
   'industrials',
   'tokenized_etfs',
-  'bluechip_crypto',
+  'crypto',
 ]);
 export type MarketFocusVertical = z.infer<typeof MarketFocusVerticalSchema>;
 
