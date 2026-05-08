@@ -2,7 +2,7 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-Mandate-driven AI trading proposals for tokenized stocks & crypto on Solana.
+Mandate-driven AI trading proposals for xStocks and crypto on Solana.
 
 Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
 
@@ -126,9 +126,10 @@ hunch-it/
 | Doc                                          | What it covers                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------- |
 | [ADR-0001](docs/adr/0001-frozen-synthetic-trigger-architecture.md) | Architecture freeze: synthetic-trigger / tap-to-execute model        |
+| [ADR-0002](docs/adr/0002-canonical-asset-signal-data.md) | Canonical asset ids, xStock/crypto signal data, freshness rule       |
 | [CONTEXT.md](CONTEXT.md)                     | Domain glossary used by reviews + future ADRs                        |
 | [Manual test core](docs/manual-test-core.md) | 10-step click-through that defines "the system works"                |
-| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets (pre-freeze; see ADR-0001)  |
+| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets                             |
 | [Getting Started](docs/getting-started.md)   | Local setup, `/dev-tools`, live setup, development commands          |
 | [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
 | [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |

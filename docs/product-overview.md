@@ -1,6 +1,6 @@
 # Hunch — Product Overview
 
-> AI trading signals with tap-to-execute swaps for tokenized stocks & crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute synthetic trigger Orders through Jupiter Ultra, and get automatic exit protection on every position.
+> AI trading signals with tap-to-execute swaps for xStocks and crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute synthetic trigger Orders through Jupiter Ultra, and get automatic exit protection on every position.
 >
 > Domain: <app-domain> | v1.3 | 2026-04-27
 
@@ -26,7 +26,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 
 ### Four conditions that must be true
 
-1. **Proposals are personalized.** They reference the user's mandate, cash balance, existing positions, P&L, and sector exposure. Alice and Bob receive different proposals for the same stock.
+1. **Proposals are personalized.** They reference the user's mandate, cash balance, existing positions, P&L, and sector exposure. Alice and Bob can receive different proposals for the same asset.
 
 2. **Proposals are actionable.** Each proposal includes: asset, suggested size, trigger price, take-profit price, stop-loss price, expiry, and three-part reasoning (what changed, why this trade, why it fits your mandate). Users can adjust parameters before executing.
 
@@ -45,7 +45,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
 - **Synthetic trigger execution**: ws-server watches Pyth, emits `trigger:hit`, and the user taps Execute to run a Jupiter Ultra sponsored swap
 - **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
-- **Signal Engine**: independent backend (ws-server) using Pyth price feeds + technical indicators + Claude Sonnet/Opus LLM to generate personalized BUY proposals per user mandate
+- **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to generate personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
 - **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
 - **Supported assets**: Jupiter-listed xStocks/tokenized ETFs + crypto (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`)
@@ -56,7 +56,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 | Item                                   | Reason                                                                                                                                                              |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Manual trading                         | All trades originate from proposals. This is the product differentiator.                                                                                            |
-| SELL proposals                         | Sells happen via TP/SL auto-triggers or user-initiated Close Position.                                                                                              |
+| Autonomous selling                     | Exits require user action. TP/SL and thesis-invalidation events notify the user, then the user taps Execute.                                                        |
 | Partial sells                          | v1 simplification: SELL always closes the full position.                                                                                                            |
 | Life Credit (borrow against positions) | v2                                                                                                                                                                  |
 | Integrator swap fees                   | v2                                                                                                                                                                  |
@@ -74,11 +74,13 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 
 USDC is the base currency. All prices, trades, and P&L are denominated in USDC.
 
-### Tokenized Stocks (xStocks)
+### xStocks
 
-Issued by Backed Finance, traded via Jupiter on Solana.
+Issued by Backed Finance, traded via Jupiter on Solana. Hunch displays and stores the xStock symbol (`AAPLx`, `NVDAx`, etc.), not the underlying US equity ticker.
 
 ### Tokenized ETFs
+
+Tokenized ETF xStocks follow the same `*x` convention (`SPYx`, `QQQx`).
 
 ### Crypto
 

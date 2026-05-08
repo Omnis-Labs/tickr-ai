@@ -54,11 +54,11 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 │  ┌──────────────┐  ┌────────────────┐  ┌──────────────┐ │
 │  │   Market     │  │   Proposal     │  │   Order      │ │
 │  │   Scanner    │→ │   Generator    │  │   Tracker    │ │
-│  │ (per ticker) │  │  (per user)    │  │ (cron 30s)   │ │
+│  │ (per asset)  │  │  (per user)    │  │ (cron 30s)   │ │
 │  └──────────────┘  └────────────────┘  └──────────────┘ │
 │         │                  │                   │         │
-│    Pyth Hermes      Claude Sonnet/Opus    Jupiter API    │
-│   (live prices)    (LLM analysis)       (order status)   │
+│    Pyth Hermes          Gemini          Jupiter Ultra    │
+│   (live prices)    (LLM analysis)        (swaps)         │
 │                                                          │
 │  ┌──────────────┐  ┌────────────────┐                   │
 │  │   Auto       │  │    Back-       │                   │
@@ -134,6 +134,7 @@ For ws-server implementation, read alongside:
 1. **signal-engine.md** — Signal pipeline, Trigger Monitor, Back-Evaluator
 2. **data-model.md** — Prisma schema, enums, JSON field interfaces
 3. **api-contract.md** — WebSocket events, order state transitions
+4. **adr/0002-canonical-asset-signal-data.md** — Asset id and signal freshness rules
 
 For frontend implementation, read alongside:
 
