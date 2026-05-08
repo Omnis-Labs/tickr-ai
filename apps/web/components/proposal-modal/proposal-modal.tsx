@@ -3,11 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  XSTOCKS,
-  xStockToBare,
+  getAssetById,
   type Proposal,
   type SkipReason,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { useRouter } from 'next/navigation';
 import { TopAppBar } from '@/components/shell/top-app-bar';
@@ -79,8 +77,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     setSkipReason(null);
     setSkipDetail('');
     let cancelled = false;
-    const bare = xStockToBare(proposal.ticker as XStockTicker);
-    fetch(`/api/bars/${bare}?resolution=5&hours=24`)
+    fetch(`/api/bars/${encodeURIComponent(proposal.ticker)}?resolution=5&hours=24`)
       .then((r) => (r.ok ? (r.json() as Promise<{ bars: ChartBar[] }>) : null))
       .then((j) => {
         if (!cancelled && j?.bars) setBars(j.bars);
@@ -144,7 +141,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     );
   }
 
-  const meta = XSTOCKS[xStockToBare(proposal.ticker as XStockTicker)];
+  const meta = getAssetById(proposal.ticker);
   const walletKey = publicKey?.toBase58() ?? null;
   const portfolioReady = !portfolioQuery.isLoading;
   const sizeNum = num(size);
@@ -196,7 +193,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     }
     if (!meta.mint) {
       toast.error(
-        `${meta.symbol} mint is empty. Run pnpm --filter @hunch-it/ws-server verify:xstocks.`,
+        `${meta.displaySymbol} mint is empty. Check packages/shared/src/assets.ts.`,
       );
       return;
     }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { HoldingsList, type Holding } from '@/components/portfolio/holdings-list';
-import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { usePortfolio } from '@/lib/hooks/queries';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
@@ -40,7 +40,7 @@ export default function PortfolioPage() {
     return positions
       .filter((p) => p.tokenAmount > 0)
       .map((p, idx) => {
-        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        const meta = getAssetById(p.ticker);
         const mark = p.markPrice ?? p.avgCost;
         const value = p.tokenAmount * mark;
         const pnl = p.pnl ?? (mark - p.avgCost) * p.tokenAmount;
@@ -49,7 +49,7 @@ export default function PortfolioPage() {
           id: `${p.ticker}-${idx}`,
           assetId: p.ticker,
           name: meta?.name ?? p.ticker,
-          ticker: meta?.ticker ?? p.ticker,
+          ticker: meta?.displaySymbol ?? p.ticker,
           value,
           pnl,
           pnlPct,

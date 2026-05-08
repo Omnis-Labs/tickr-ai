@@ -19,13 +19,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  BARE_TICKERS,
   USDC_DECIMALS,
-  XSTOCKS,
-  xStockToBare,
-  type BareTicker,
+  getAssetById,
+  getSignalAssets,
   type Proposal,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
@@ -122,6 +119,7 @@ const emptyLogs: Record<LogSection, LogEntry[]> = {
 };
 
 const LOG_SECTIONS: LogSection[] = ['auth', 'proposal', 'orders', 'protection', 'swap'];
+const DEV_TOOL_ASSETS = getSignalAssets();
 
 const LOG_LABELS: Record<LogSection, string> = {
   auth: 'Auth',
@@ -512,7 +510,7 @@ export function DevToolsClient() {
 
   const [session, setSession] = useState<SessionState | null>(null);
   const [password, setPassword] = useState('');
-  const [ticker, setTicker] = useState<BareTicker>('AAPL');
+  const [ticker, setTicker] = useState<string>(DEV_TOOL_ASSETS[0]?.assetId ?? 'AAPLx');
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [devState, setDevState] = useState<DevState>({ proposals: [], orders: [], positions: [] });
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
@@ -820,7 +818,7 @@ export function DevToolsClient() {
       toast.error('Connect a wallet first.');
       return;
     }
-    const meta = XSTOCKS[xStockToBare(proposalToAccept.ticker as XStockTicker)];
+    const meta = getAssetById(proposalToAccept.ticker);
     if (!meta?.mint) {
       toast.error(`${proposalToAccept.ticker} mint not configured.`);
       return;
@@ -901,7 +899,7 @@ export function DevToolsClient() {
   async function executeOrder() {
     if (!selectedOrder) return;
     const orderId = selectedOrder.id;
-    const meta = XSTOCKS[xStockToBare(selectedOrder.ticker as XStockTicker)];
+    const meta = getAssetById(selectedOrder.ticker);
     if (!meta?.mint) {
       toast.error(`${selectedOrder.ticker} mint not configured.`);
       return;
@@ -1045,7 +1043,7 @@ export function DevToolsClient() {
 
   async function closePosition() {
     if (!selectedPosition) return;
-    const meta = XSTOCKS[xStockToBare(selectedPosition.ticker as XStockTicker)];
+    const meta = getAssetById(selectedPosition.ticker);
     if (!meta?.mint) {
       toast.error(`${selectedPosition.ticker} mint not configured.`);
       return;
@@ -1207,12 +1205,12 @@ export function DevToolsClient() {
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
               <select
                 value={ticker}
-                onChange={(event) => setTicker(event.target.value as BareTicker)}
+                onChange={(event) => setTicker(event.target.value)}
                 className="h-12 rounded-full bg-surface-container-low px-4 text-label-lg text-primary outline-none ring-1 ring-outline-variant"
               >
-                {BARE_TICKERS.map((symbol) => (
-                  <option key={symbol} value={symbol}>
-                    {symbol}x
+                {DEV_TOOL_ASSETS.map((asset) => (
+                  <option key={asset.assetId} value={asset.assetId}>
+                    {asset.displaySymbol}
                   </option>
                 ))}
               </select>

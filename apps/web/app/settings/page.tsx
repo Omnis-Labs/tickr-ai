@@ -9,9 +9,7 @@ import {
   HOLDING_PERIOD_OPTIONS,
   MARKET_FOCUS_VERTICALS,
   MAX_DRAWDOWN_OPTIONS,
-  XSTOCKS,
-  xStockToBare,
-  type XStockTicker,
+  getAssetById,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
@@ -342,7 +340,7 @@ function CloseAllPositionsCard() {
     tokenAmount: number;
     markPrice: number;
   }): Promise<void> {
-    const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+    const meta = getAssetById(p.ticker);
     if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
     await runtime.closePosition({
       positionId: p.id,

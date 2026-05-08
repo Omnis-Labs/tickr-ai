@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { XSTOCKS, xStockToBare, type Proposal, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById, type Proposal } from '@hunch-it/shared';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
 import { isLiveProposal } from '@/lib/proposals/expiration';
@@ -73,7 +73,7 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {merged.map((p, i) => {
-        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        const meta = getAssetById(p.ticker);
         return (
           <motion.div
             key={p.id}
