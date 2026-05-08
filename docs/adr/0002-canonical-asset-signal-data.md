@@ -21,9 +21,10 @@ Freshness is data-driven. The signal engine checks the Pyth latest-price publish
 ## Consequences
 
 - Bare equity symbols are not valid Hunch asset identifiers.
+- The Asset Universe is a static whitelist. Runtime code derives signal eligibility and mandate matching from it; it does not repeatedly verify provider state.
 - Pyth adapters use asset registry metadata (`pythFeedId`, `pythSymbol`) instead of building provider symbols from bare tickers.
 - xStock signals and charts use xStock-native Pyth symbols such as `Crypto.AAPLX/USD`; they must not fall back to underlying equity feeds.
 - Proposal, Position, Order, and Trade `ticker` columns retain their column name for migration safety, but values are `AssetId`.
+- The Signal Engine seam is `AssetId + Signal Data -> Base Market Analysis`; Proposal personalization lives in `ProposalCreation`.
 - Dev-tools, docs, feed snapshots, verifier inputs, and smoke tests use the same asset ids as production.
 - Adding a new tradable asset requires a Jupiter-tradable mint and a configured Pyth latest-price plus benchmark-bars source.
-

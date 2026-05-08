@@ -45,7 +45,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
 - **Synthetic trigger execution**: ws-server watches Pyth, emits `trigger:hit`, and the user taps Execute to run a Jupiter Ultra sponsored swap
 - **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
-- **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to generate personalized BUY proposals per user mandate
+- **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to produce Base Market Analysis; shared ProposalCreation turns that into personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
 - **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
 - **Supported assets**: Jupiter-listed xStocks/tokenized ETFs + crypto (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`)

@@ -125,7 +125,7 @@ Sources:
 
 ## Asset Registry
 
-Canonical asset metadata lives in `packages/shared/src/assets.ts`, backed by xStock constants in `packages/shared/src/constants.ts`.
+Canonical asset metadata lives in the Asset Universe at `packages/shared/src/assets.ts`, backed by xStock constants in `packages/shared/src/constants.ts`. It is a static whitelist, not a runtime provider-verification loop.
 
 ```typescript
 interface Asset {
@@ -151,6 +151,14 @@ Supported signal assets:
 
 Market-focus verticals live in `MARKET_FOCUS_VERTICALS`. The `crypto` vertical maps to `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`.
 
+Asset Universe helpers derive signal eligibility and mandate matching from this whitelist:
+
+```typescript
+getSignalAssets();
+getMarketFocusVerticalsForAsset(assetId);
+getSignalAssetIdsForVerticals(verticalIds);
+```
+
 ---
 
 ## Signal Data
@@ -160,7 +168,33 @@ Hunch may generate a proposal only when the asset's signal data is fresh for tha
 - Latest prices come from Pyth Hermes using `Asset.pythFeedId`.
 - Historical bars come from Pyth Benchmarks using `Asset.pythSymbol`.
 - xStock feeds use `Crypto.<XSTOCK>/USD` symbols such as `Crypto.AAPLX/USD`.
+- Freshness is the shared `evaluateSignalDataFreshness` publish-time rule, currently max 15 minutes old.
 - There is no underlying-equity fallback and no US market-hours guardrail.
+
+---
+
+## Proposal Creation
+
+`packages/db/src/lifecycle/proposal-creation.ts` owns BUY Proposal row construction for live signal generation and `/dev-tools`.
+
+Inputs:
+
+- Base Market Analysis: asset id, price at analysis, confidence, rationale, optional target prices, and indicators.
+- Mandate numbers: holding period, max trade size, and max drawdown.
+- Position-impact context: total USD, cash USD, same-asset exposure, and same-vertical exposure.
+
+Owned outputs:
+
+- `suggestedSizeUsd`
+- `suggestedTriggerPrice`
+- `suggestedTakeProfitPrice`
+- `suggestedStopLossPrice`
+- `reasoning`
+- `positionImpact`
+- `thesisTags`
+- `expiresAt`
+
+`/dev-tools` may supply wallet-aware `sizeUsd` so a local test proposal can be accepted and executed, but the Proposal shape and mandate math still come from `ProposalCreation`.
 
 ---
 
