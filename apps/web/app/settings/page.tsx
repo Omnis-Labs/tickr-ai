@@ -1,10 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  BriefcaseBusiness,
+  Check,
+  Clipboard,
+  LogOut,
+  Pencil,
+  SlidersHorizontal,
+  TriangleAlert,
+  UserRound,
+} from 'lucide-react';
 import {
   HOLDING_PERIOD_OPTIONS,
   MARKET_FOCUS_VERTICALS,
@@ -56,13 +65,15 @@ export default function SettingsPage() {
       <TopAppBar title="Settings" />
 
       <main className="px-5 py-6 pb-24 max-w-md mx-auto flex flex-col gap-6">
-        <Section icon="person" title="Account">
+        <Section icon={<UserRound className="h-5 w-5" />} title="Account">
           {!connected ? (
             <p className="text-body-md text-on-surface-variant">Not signed in.</p>
           ) : (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Wallet</span>
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                  Wallet
+                </span>
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-mono text-body-md text-on-surface truncate">
                     {address ? shorten(address) : 'Not connected'}
@@ -72,11 +83,13 @@ export default function SettingsPage() {
                       type="button"
                       onClick={handleCopy}
                       aria-label="Copy wallet address"
-                      className="w-9 h-9 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform"
+                      className="w-11 h-11 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform hover:bg-surface-container-high"
                     >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {copied ? 'check' : 'content_copy'}
-                      </span>
+                      {copied ? (
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Clipboard className="h-4 w-4" aria-hidden="true" />
+                      )}
                     </button>
                   )}
                 </div>
@@ -85,9 +98,9 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="self-start flex items-center gap-2 text-label-md text-negative hover:underline"
+                  className="self-start flex h-11 items-center gap-2 rounded-full px-3 text-label-md text-error transition-colors hover:bg-error-container"
                 >
-                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                   Sign out
                 </button>
               )}
@@ -95,28 +108,33 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        <Section icon="briefcase" title="Positions Overview">
+        <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
           <Row label="Active positions">
             <span className="tabular-nums">{positionsCount}</span>
           </Row>
           <div className="h-px bg-divider my-3" />
           <Row label="Total value">
             <span className="text-primary tabular-nums">
-              ${positionsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              $
+              {positionsValue.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </span>
           </Row>
         </Section>
 
         <Section
-          icon="tune"
+          icon={<SlidersHorizontal className="h-5 w-5" />}
           title="Your Mandate"
           right={
             mandate ? (
               <Link
                 href="/mandate"
-                className="text-label-md text-primary hover:underline"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary shadow-micro transition-colors active:scale-[0.97] hover:bg-surface-container-high"
               >
-                Edit
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                Edit mandate
               </Link>
             ) : null
           }
@@ -142,15 +160,20 @@ export default function SettingsPage() {
                   mandate.holdingPeriod}
               </Row>
               <Row label="Max drawdown">
-                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ?? 'Custom'}
+                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ??
+                  'Custom'}
               </Row>
               <Row label="Max trade size">
                 <span className="tabular-nums">${mandate.maxTradeSize.toFixed(2)}</span>
               </Row>
               <div className="flex flex-col gap-2">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Market focus</span>
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                  Market focus
+                </span>
                 <div className="flex flex-wrap gap-2">
-                  {verticalLabels.length === 0 && <span className="text-body-sm text-on-surface-variant">—</span>}
+                  {verticalLabels.length === 0 && (
+                    <span className="text-body-sm text-on-surface-variant">—</span>
+                  )}
                   {verticalLabels.map((tag) => (
                     <span
                       key={tag}
@@ -162,7 +185,8 @@ export default function SettingsPage() {
                 </div>
               </div>
               <p className="text-body-sm text-on-surface-variant pt-3 mt-1 border-t border-divider">
-                Editing the mandate marks every active proposal as expired and the engine regenerates against the new parameters on its next cycle.
+                Editing the mandate marks every active proposal as expired and the engine
+                regenerates against the new parameters on its next cycle.
               </p>
             </div>
           )}
@@ -244,16 +268,17 @@ function CloseAllPositionsCard() {
   }
 
   return (
-    <Section icon="warning" title="Panic close">
+    <Section icon={<TriangleAlert className="h-5 w-5" />} title="Panic close">
       <p className="text-body-sm text-on-surface-variant mb-3">
-        Cancel every open TP / SL synthetic order and market-sell every position you currently hold. Each position needs a wallet signature for the swap.
+        Cancel every open TP / SL synthetic order and market-sell every position you currently hold.
+        Each position needs a wallet signature for the swap.
       </p>
       {!confirm ? (
         <button
           type="button"
           onClick={() => setConfirm(true)}
           disabled={busy}
-          className="flex items-center justify-center h-11 px-5 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
+          className="flex items-center justify-center h-11 px-5 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
         >
           Close all positions
         </button>
@@ -271,7 +296,7 @@ function CloseAllPositionsCard() {
             type="button"
             onClick={() => void handleCloseAll()}
             disabled={busy}
-            className="flex-[2] h-11 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
+            className="flex-[2] h-11 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
           >
             {busy
               ? progress
@@ -291,27 +316,24 @@ function Section({
   right,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   right?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="bg-surface rounded-lg p-5 shadow-soft"
-    >
+    <section className="bg-surface rounded-lg p-5 shadow-soft">
       <header className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-icon-muted text-[20px]">{icon}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-icon-muted shrink-0" aria-hidden="true">
+            {icon}
+          </span>
           <h2 className="text-title-md text-primary">{title}</h2>
         </div>
-        {right}
+        {right && <div className="shrink-0">{right}</div>}
       </header>
       {children}
-    </motion.section>
+    </section>
   );
 }
 
