@@ -15,7 +15,7 @@ import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.j
 import { runOrderTracker } from './orders/tracker/index.js';
 import { runTriggerMonitor } from './orders/trigger-monitor.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
-import { emitSignal, startSignalLoop } from './signals/generator.js';
+import { startSignalLoop } from './signals/generator.js';
 import { runThesisMonitor } from './signals/thesis-monitor.js';
 import { verifyPrivyToken } from './privy/index.js';
 import { TaskGroup, registerTask } from './scheduler.js';
