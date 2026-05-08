@@ -132,6 +132,18 @@ export {
 } from './signal-data.js';
 export type { SignalDataFreshnessVerdict } from './signal-data.js';
 
+// ── Signal Engine boundary ──────────────────────────────────────────────
+export {
+  baseMarketIndicatorsToSnapshot,
+  buildBaseMarketAnalysis,
+  snapshotToBaseMarketIndicators,
+} from './signal-engine.js';
+export type {
+  BaseMarketAnalysis,
+  BaseMarketIndicators,
+  BuildBaseMarketAnalysisInput,
+} from './signal-engine.js';
+
 // ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
 export {
   THESIS_TAGS,

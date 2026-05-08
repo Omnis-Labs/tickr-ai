@@ -2,32 +2,14 @@ import { Prisma, type PrismaClient, type Proposal, type ProposalOrigin } from '@
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   extractThesisTags,
+  type BaseMarketAnalysis,
+  type BaseMarketIndicators,
 } from '@hunch-it/shared';
 
 type Tx = Prisma.TransactionClient;
 
-export interface ProposalAnalysisIndicators {
-  rsi: number;
-  macd: { macd: number; signal: number; histogram: number };
-  ma20: number;
-  ma50: number;
-}
-
-export interface BuyMarketAnalysis {
-  assetId: string;
-  action: 'BUY' | 'HOLD';
-  confidence: number;
-  rationale: string;
-  what_changed: string;
-  why_this_trade: string;
-  priceAtAnalysis: number;
-  suggestedTriggerPrice?: number;
-  suggestedTakeProfitPrice?: number;
-  suggestedStopLossPrice?: number;
-  suggestedTpPct?: number;
-  suggestedSlPct?: number;
-  indicators: ProposalAnalysisIndicators;
-}
+export type ProposalAnalysisIndicators = BaseMarketIndicators;
+export type BuyMarketAnalysis = BaseMarketAnalysis;
 
 export interface ProposalCreationMandate {
   holdingPeriod: string;

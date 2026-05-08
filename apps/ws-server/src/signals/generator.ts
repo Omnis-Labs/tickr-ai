@@ -3,30 +3,23 @@ import {
   MIN_ACTIONABLE_CONFIDENCE,
   SIGNAL_TTL_DEFAULT,
   WsServerEvents,
+  baseMarketIndicatorsToSnapshot,
+  buildBaseMarketAnalysis,
   getSignalAssets,
-  type IndicatorSnapshot,
   type Signal,
+  snapshotToBaseMarketIndicators,
 } from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
 import { getPrisma, persistSignal } from '../db/index.js';
 import { env } from '../env.js';
 import { getHistoricalBars } from '../pyth/benchmarks.js';
 import { evaluateFreshness, getLatestPrice } from '../pyth/index.js';
-import { computeIndicators, type IndicatorResult } from './indicators.js';
+import { computeIndicators } from './indicators.js';
 import { generateLlmSignal } from './llm.js';
 import {
   generateProposalsForBaseAnalysis,
   type BaseAnalysis,
 } from './proposal-generator.js';
-
-function toIndicatorSnapshot(r: IndicatorResult): IndicatorSnapshot {
-  return {
-    rsi: r.rsi14,
-    macd: { macd: r.macd.macd, signal: r.macd.signal, histogram: r.macd.histogram },
-    ma20: r.ma20,
-    ma50: r.ma50,
-  };
-}
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -89,7 +82,12 @@ export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal
     rationale: llm.signal.rationale,
     ttlSeconds: ttl,
     priceAtSignal: snap.price,
-    indicators: toIndicatorSnapshot(indicators),
+    indicators: baseMarketIndicatorsToSnapshot({
+      rsi: indicators.rsi14,
+      macd: indicators.macd,
+      ma20: indicators.ma20,
+      ma50: indicators.ma50,
+    }),
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + ttl * 1000).toISOString(),
     degraded: llm.degraded,
@@ -112,27 +110,17 @@ export async function emitSignal(io: IoServer, assetId?: string): Promise<Signal
   if (signal.action === 'BUY') {
     const prisma = getPrisma();
     if (prisma) {
-      const baseAnalysis: BaseAnalysis = {
+      const baseAnalysis: BaseAnalysis = buildBaseMarketAnalysis({
         assetId: signal.ticker,
-        action: 'BUY',
+        action: signal.action,
         confidence: signal.confidence,
         rationale: signal.rationale,
-        // Phase E: the legacy LLM path in llm.ts only returns a one-line
-        // rationale, so what_changed / why_this_trade are stubs derived from
-        // it. Phase E+ will rework the LLM prompt to return all three.
-        what_changed: signal.rationale,
-        why_this_trade: signal.rationale,
         priceAtAnalysis: signal.priceAtSignal,
-        // Default TP/SL bands until the LLM emits them directly.
+        // Default TP/SL bands until the Signal Engine emits them directly.
         suggestedTpPct: 0.04,
         suggestedSlPct: 0.025,
-        indicators: {
-          rsi: signal.indicators.rsi ?? 50,
-          macd: signal.indicators.macd ?? { macd: 0, signal: 0, histogram: 0 },
-          ma20: signal.indicators.ma20 ?? signal.priceAtSignal,
-          ma50: signal.indicators.ma50 ?? signal.priceAtSignal,
-        },
-      };
+        indicators: snapshotToBaseMarketIndicators(signal.indicators, signal.priceAtSignal),
+      });
       try {
         const s = await generateProposalsForBaseAnalysis(prisma, io, baseAnalysis);
         if (s.proposalsCreated > 0 || s.errors > 0) {
