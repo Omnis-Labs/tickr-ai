@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 
 const PROPOSALS = [
   {
-    ticker: 'NVDA',
-    label: 'NVIDIA',
+    ticker: 'NVDAx',
+    label: 'NVIDIA xStock',
     size: '2.4',
     trigger: '$187.20',
     tp: '+8%',
@@ -16,8 +16,8 @@ const PROPOSALS = [
       'Earnings momentum breaking overhead resistance. Tech sector rotation confirms strength.',
   },
   {
-    ticker: 'AAPL',
-    label: 'Apple',
+    ticker: 'AAPLx',
+    label: 'Apple xStock',
     size: '1.8',
     trigger: '$224.50',
     tp: '+6%',
@@ -26,17 +26,17 @@ const PROPOSALS = [
       'Services revenue inflecting, holiday cycle setting up. Mandate fits 2 to 8 week horizon.',
   },
   {
-    ticker: 'MSFT',
-    label: 'Microsoft',
+    ticker: 'ETH',
+    label: 'Ether',
     size: '2.1',
     trigger: '$418.80',
     tp: '+7%',
     sl: '−5%',
-    reasoning: 'Azure beat and AI capex narrative reset. Volume profile clean above 415.',
+    reasoning: 'Liquidity and trend breadth improved across majors. Sized for 24/7 crypto volatility.',
   },
   {
-    ticker: 'TSLA',
-    label: 'Tesla',
+    ticker: 'TSLAx',
+    label: 'Tesla xStock',
     size: '1.5',
     trigger: '$248.90',
     tp: '+10%',
@@ -45,14 +45,14 @@ const PROPOSALS = [
       'Delivery print de-risked, energy storage growing fast. Sized down for higher volatility.',
   },
   {
-    ticker: 'SOL',
-    label: 'Solana',
+    ticker: 'wBTC',
+    label: 'Wrapped BTC',
     size: '3.0',
     trigger: '$172.40',
     tp: '+12%',
     sl: '−7%',
     reasoning:
-      'On-chain fee rev at multi-month highs, validator queue thinning. Bluechip crypto allocation.',
+      'BTC beta is leading the session while xStocks are quiet. Fits a daytime Asia signal window.',
   },
 ] as const;
 
@@ -105,7 +105,7 @@ export function ProposalStack() {
             Reasoned in plain English.
           </h3>
           <p className="max-w-[44ch] text-body-lg text-on-surface-variant sm:text-[17px] sm:leading-[1.55]">
-            Each proposal arrives as a complete strategy: a single ticker, sized against your
+            Each proposal arrives as a complete strategy: a single tradable token, sized against your
             mandate, a trigger price, take-profit, stop-loss, and a short reason you can
             sanity-check before you tap.
           </p>

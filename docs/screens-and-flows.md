@@ -58,7 +58,7 @@ Multi-select. Users choose verticals (not individual tickers).
 
 **Tokenized ETFs**: SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx
 
-**Bluechip Crypto**: SOL, BTC, ETH
+**Crypto**: wBTC, ETH, BNB, wXRP, TRX, HYPE
 
 Selecting "No preference" means all assets can generate proposals.
 

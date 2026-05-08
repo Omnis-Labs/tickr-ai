@@ -22,7 +22,7 @@ export const XSTOCK_TICKERS = [
 export type XStockTicker = (typeof XSTOCK_TICKERS)[number];
 
 // Mint addresses verified on Solana mainnet via Helius RPC. Pyth feed ids are
-// xStock-native Crypto.<SYMBOL>/USD feeds, not underlying Equity.US feeds.
+// xStock-native Crypto.<SYMBOL>/USD feeds, not underlying equity feeds.
 // Re-run `pnpm --filter @hunch-it/ws-server verify:xstocks` and
 // `pnpm --filter @hunch-it/ws-server fetch:pyth-feeds` to refresh.
 export const XSTOCKS: Record<XStockTicker, XStockMeta> = {

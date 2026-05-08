@@ -48,7 +48,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **Signal Engine**: independent backend (ws-server) using Pyth price feeds + technical indicators + Claude Sonnet/Opus LLM to generate personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
 - **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
-- **Supported assets**: Jupiter-listed xStocks + bluechip crypto (SOL, BTC, ETH)
+- **Supported assets**: Jupiter-listed xStocks/tokenized ETFs + crypto (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`)
 - **Back-evaluation**: automated proposal quality scoring 1 hour after generation
 
 ### What We Explicitly Exclude
@@ -80,14 +80,19 @@ Issued by Backed Finance, traded via Jupiter on Solana.
 
 ### Tokenized ETFs
 
-### Bluechip Crypto
+### Crypto
 
-| Token | Solana Representation      |
-| ----- | -------------------------- |
-| SOL   | Native                     |
-| BTC   | cbBTC or wBTC              |
-| ETH   | wETH (Wormhole)            |
-| USDC  | Native SPL (base currency) |
+| AssetId | Solana Representation |
+| ------- | --------------------- |
+| wBTC    | Wrapped BTC           |
+| ETH     | Portal ETH            |
+| BNB     | Portal BNB            |
+| wXRP    | Wrapped XRP           |
+| TRX     | TRX                   |
+| HYPE    | HYPE                  |
+| USDC    | Native SPL (base currency) |
+
+`SOL` is wallet fee balance only. Hunch does not recommend it as a Position.
 
 ---
 

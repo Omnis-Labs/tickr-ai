@@ -1,6 +1,6 @@
 [
   {
-    "ticker": "AAPL",
+    "ticker": "AAPLx",
     "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -9,7 +9,7 @@
     "errors": []
   },
   {
-    "ticker": "NVDA",
+    "ticker": "NVDAx",
     "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -18,7 +18,7 @@
     "errors": []
   },
   {
-    "ticker": "TSLA",
+    "ticker": "TSLAx",
     "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -27,7 +27,7 @@
     "errors": []
   },
   {
-    "ticker": "SPY",
+    "ticker": "SPYx",
     "mint": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -36,7 +36,7 @@
     "errors": []
   },
   {
-    "ticker": "QQQ",
+    "ticker": "QQQx",
     "mint": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -45,7 +45,7 @@
     "errors": []
   },
   {
-    "ticker": "MSFT",
+    "ticker": "MSFTx",
     "mint": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -54,7 +54,7 @@
     "errors": []
   },
   {
-    "ticker": "GOOGL",
+    "ticker": "GOOGLx",
     "mint": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,
@@ -63,7 +63,7 @@
     "errors": []
   },
   {
-    "ticker": "META",
+    "ticker": "METAx",
     "mint": "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
     "decimals": 8,

@@ -54,7 +54,7 @@ model Mandate {
 model Proposal {
   id                       String          @id @default(cuid())
   userId                   String
-  assetId                  String          // Canonical asset identifier, e.g. "AAPLx", "SOL", "cbBTC"
+  assetId                  String          // Canonical asset identifier, e.g. "AAPLx", "wBTC", "ETH"
   action                   ProposalAction  // BUY only in v1
   suggestedSizeUsd         Decimal         @db.Decimal(20, 2)
   suggestedTriggerPrice    Decimal         @db.Decimal(20, 8)  // AI-suggested entry price
@@ -319,18 +319,18 @@ These TypeScript interfaces define the shape of all JSON columns. Stored as JSON
 ```typescript
 // Stored in Mandate.marketFocus as MarketFocusOption[]
 type MarketFocusOption =
-  | 'TECH_SOFTWARE'
-  | 'SEMICONDUCTORS'
-  | 'EV_CLEAN_ENERGY'
-  | 'FINANCIALS_FINTECH'
-  | 'HEALTHCARE_PHARMA'
-  | 'CONSUMER_RETAIL'
-  | 'ENERGY_UTILITIES'
-  | 'CRYPTO_MINING'
-  | 'INDUSTRIALS'
-  | 'TOKENIZED_ETFS'
-  | 'BLUECHIP_CRYPTO'
-  | 'NO_PREFERENCE'; // Matches all assets
+  | 'technology_software'
+  | 'semiconductors'
+  | 'ev_clean_energy'
+  | 'financials_fintech'
+  | 'healthcare_pharma'
+  | 'consumer_retail'
+  | 'energy_utilities'
+  | 'crypto_mining'
+  | 'industrials'
+  | 'tokenized_etfs'
+  | 'crypto'
+  | 'no_preference'; // Matches all assets
 ```
 
 ### ProposalReasoning
@@ -400,24 +400,20 @@ Proposal.id
 
 ## Asset Registry
 
-Static TypeScript file at `packages/shared/src/constants.ts`. Manually maintained. New xStocks are added when they become available on Jupiter.
+Static TypeScript files at `packages/shared/src/constants.ts` and `packages/shared/src/assets.ts`. Manually maintained. New assets are added only when they are tradable on Jupiter and have a configured Pyth price/bar source.
 
 ### Asset Structure
 
 ```typescript
 interface AssetMeta {
-  assetId: string; // Canonical ID used across all DB fields. e.g. "AAPLx", "SOL", "cbBTC"
-  underlyingTicker: string; // Bare ticker for display context. e.g. "AAPL", "SOL"
-  name: string; // "Apple", "Solana"
-  mint: string; // SPL Token-2022 mint address
+  assetId: string; // Canonical ID used across all DB fields. e.g. "AAPLx", "wBTC", "ETH"
+  displaySymbol: string; // Usually the same as assetId.
+  name: string; // "Apple xStock", "Wrapped BTC"
+  kind: 'XSTOCK' | 'CRYPTO';
+  mint: string; // SPL mint or Token-2022 mint address
   decimals: number;
   pythFeedId: string; // 0x-prefixed 32-byte hex
-  sector: string; // "Technology / Software"
-  marketFocusTags: MarketFocusOption[]; // e.g. ["TECH_SOFTWARE"] or ["TOKENIZED_ETFS"]
-  liquidityTier: 1 | 2 | 3 | 4;
-  maxSuggestedTradeUsd: number; // Derived from liquidity. Tier 4 assets cap at ~$1K.
-  logoUrl: string;
-  description: string; // Company description, displayed on Position Detail
+  pythSymbol: string; // e.g. "Crypto.AAPLX/USD"
 }
 ```
 
@@ -427,17 +423,17 @@ Canonical asset metadata (including sector assignment and `marketFocusTags`) liv
 
 | MarketFocusOption  | Display Label         | Example Assets                                                                     |
 | ------------------ | --------------------- | ---------------------------------------------------------------------------------- |
-| TECH_SOFTWARE      | Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
-| SEMICONDUCTORS     | Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, ASMLx, GEVx                                       |
-| EV_CLEAN_ENERGY    | EV & Clean Energy     | TSLAx                                                                              |
-| FINANCIALS_FINTECH | Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |
-| HEALTHCARE_PHARMA  | Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                                 |
-| CONSUMER_RETAIL    | Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                            |
-| ENERGY_UTILITIES   | Energy / Utilities    | XLEx, XOPx, URAx                                                                   |
-| CRYPTO_MINING      | Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                         |
-| INDUSTRIALS        | Industrials           | CATx, DELLx, BAx                                                                   |
-| TOKENIZED_ETFS     | Tokenized ETFs        | SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx                       |
-| BLUECHIP_CRYPTO    | Bluechip Crypto       | SOL, cbBTC, wETH                                                                   |
+| technology_software | Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
+| semiconductors     | Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, ASMLx, GEVx                                       |
+| ev_clean_energy    | EV & Clean Energy     | TSLAx                                                                              |
+| financials_fintech | Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |
+| healthcare_pharma  | Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                                 |
+| consumer_retail    | Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                            |
+| energy_utilities   | Energy / Utilities    | XLEx, XOPx, URAx                                                                   |
+| crypto_mining      | Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                         |
+| industrials        | Industrials           | CATx, DELLx, BAx                                                                   |
+| tokenized_etfs     | Tokenized ETFs        | SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx                       |
+| crypto             | Crypto                | wBTC, ETH, BNB, wXRP, TRX, HYPE                                                    |
 
 Assets like SMHx and URAx may have multiple tags (e.g., SMHx: `["SEMICONDUCTORS", "TOKENIZED_ETFS"]`).
 
