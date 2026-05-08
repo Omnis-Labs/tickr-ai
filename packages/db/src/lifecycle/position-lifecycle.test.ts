@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { executedNotionalUsd } from './position-lifecycle';
+import { executedNotionalUsd } from './position-lifecycle.js';
 
 test('exit fill notional uses actual execution price, not planned TP/SL order size', () => {
   const plannedTakeProfitNotional = 5.24;

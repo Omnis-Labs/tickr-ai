@@ -194,7 +194,7 @@ Owned outputs:
 - `thesisTags`
 - `expiresAt`
 
-`/dev-tools` may supply wallet-aware `sizeUsd` so a local test proposal can be accepted and executed, but the Proposal shape and mandate math still come from `ProposalCreation`.
+`/dev-tools` uses the same wallet-aware sizing Module as live signal generation so local test proposals stay close to real execution. Proposal Lab may display the computed size in its LLM prompt, but `ProposalCreation` remains the owner of `suggestedSizeUsd`.
 
 ---
 

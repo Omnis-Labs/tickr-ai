@@ -2,8 +2,8 @@
 //
 // Given a Base Market Analysis for an asset (from the Signal Engine),
 // queries every user whose mandate market_focus contains this asset, builds
-// a personalized Proposal (size scaled by mandate.maxTradeSize, TP/SL bands
-// scaled by mandate.maxDrawdown + holdingPeriod, mandate-aware reasoning),
+// a personalized Proposal (size scaled by wallet USDC + mandate.maxTradeSize,
+// TP/SL bands scaled by mandate.maxDrawdown + holdingPeriod, mandate-aware reasoning),
 // persists each row in Postgres, and emits proposal:new into the user room.
 //
 // This is what makes the same NVDAx market move produce different proposals
@@ -94,7 +94,8 @@ export async function generateProposalsForBaseAnalysis(
 
       // Real positionImpact via on-chain balance read. Falls back to zeros
       // if the RPC call fails so a single user's RPC outage doesn't take
-      // down the whole proposal generation tick.
+      // down the whole proposal generation tick. A zero-cash fallback means
+      // ProposalCreation will decline to create a BUY proposal for that user.
       const ctx = await computePositionImpact({
         walletAddress: user.walletAddress,
         assetId: base.assetId,
