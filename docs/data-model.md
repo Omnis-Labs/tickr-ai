@@ -423,7 +423,7 @@ Canonical asset metadata (including sector assignment and `marketFocusTags`) liv
 
 | MarketFocusOption  | Display Label         | Example Assets                                                                     |
 | ------------------ | --------------------- | ---------------------------------------------------------------------------------- |
-| technology_software | Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
+| technology_software | Technology / Software | AAPLx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
 | semiconductors     | Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, ASMLx, GEVx                                       |
 | ev_clean_energy    | EV & Clean Energy     | TSLAx                                                                              |
 | financials_fintech | Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |

@@ -46,7 +46,7 @@ Multi-select. Users choose verticals (not individual tickers).
 
 | Vertical              | Tickers                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------- |
-| Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
+| Technology / Software | AAPLx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
 | Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, SMHx, ASMLx, GEVx                                 |
 | EV & Clean Energy     | TSLAx                                                                              |
 | Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |

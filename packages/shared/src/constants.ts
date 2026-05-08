@@ -15,7 +15,6 @@ export const XSTOCK_TICKERS = [
   'TSLAx',
   'SPYx',
   'QQQx',
-  'MSFTx',
   'GOOGLx',
   'METAx',
 ] as const;
@@ -66,16 +65,6 @@ export const XSTOCKS: Record<XStockTicker, XStockMeta> = {
     pythFeedId: '0x178a6f73a5aede9d0d682e86b0047c9f333ed0efe5c6537ca937565219c4054d',
     pythSymbol: 'Crypto.QQQX/USD',
   },
-  MSFTx: {
-    symbol: 'MSFTx',
-    name: 'Microsoft xStock',
-    mint: 'XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX',
-    decimals: 8,
-    // Pyth has no Crypto.MSFTX/USD feed yet; this asset is tradeable but not
-    // eligible for signal generation until xStock-native data exists.
-    pythFeedId: '',
-    pythSymbol: 'Crypto.MSFTX/USD',
-  },
   GOOGLx: {
     symbol: 'GOOGLx',
     name: 'Alphabet xStock',
@@ -102,7 +91,6 @@ export const XSTOCK_MINTS: Record<XStockTicker, string> = {
   TSLAx: XSTOCKS.TSLAx.mint,
   SPYx: XSTOCKS.SPYx.mint,
   QQQx: XSTOCKS.QQQx.mint,
-  MSFTx: XSTOCKS.MSFTx.mint,
   GOOGLx: XSTOCKS.GOOGLx.mint,
   METAx: XSTOCKS.METAx.mint,
 };
@@ -113,7 +101,6 @@ export const PYTH_FEED_IDS: Record<XStockTicker, string> = {
   TSLAx: XSTOCKS.TSLAx.pythFeedId,
   SPYx: XSTOCKS.SPYx.pythFeedId,
   QQQx: XSTOCKS.QQQx.pythFeedId,
-  MSFTx: XSTOCKS.MSFTx.pythFeedId,
   GOOGLx: XSTOCKS.GOOGLx.pythFeedId,
   METAx: XSTOCKS.METAx.pythFeedId,
 };
@@ -198,7 +185,6 @@ export const MARKET_FOCUS_VERTICALS: MarketFocusVerticalDef[] = [
     category: 'stocks',
     tickers: [
       'AAPLx',
-      'MSFTx',
       'GOOGLx',
       'METAx',
       'AMZNx',
