@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { QK } from '@/lib/hooks/queries';
 
 /**
  * Single source of truth for the open-exit-order lifecycle attached to
@@ -46,6 +48,7 @@ export interface PlaceOcoExitArgs {
 
 export function useExitOrders() {
   const authedFetch = useAuthedFetch();
+  const qc = useQueryClient();
 
   /**
    * Cancel every open TP / SL exit order attached to the given Position.
@@ -81,9 +84,11 @@ export function useExitOrders() {
       for (const o of exits) {
         await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
       }
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(positionId) });
       return { tpPriceUsd, slPriceUsd };
     },
-    [authedFetch],
+    [authedFetch, qc],
   );
 
   /**
@@ -128,9 +133,12 @@ export function useExitOrders() {
 
       // Caller treats this id opaquely (used for "OCO …8 placed" toast).
       // Returning the TP id is fine — both legs share the same Position.
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(args.positionId) });
+      void qc.invalidateQueries({ queryKey: QK.positions() });
       return { id: orderIds[0] ?? args.positionId };
     },
-    [authedFetch],
+    [authedFetch, qc],
   );
 
   /**
@@ -187,8 +195,11 @@ export function useExitOrders() {
         const j = (await r.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `protection update ${r.status}`);
       }
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(args.positionId) });
+      void qc.invalidateQueries({ queryKey: QK.positions() });
     },
-    [authedFetch],
+    [authedFetch, qc],
   );
 
   return {
