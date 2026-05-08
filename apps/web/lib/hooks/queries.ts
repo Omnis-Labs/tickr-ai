@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Mandate, Proposal } from '@hunch-it/shared';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import type { PortfolioPosition } from '@/lib/portfolio/holdings';
 
 /**
  * Centralised TanStack Query reads. Pages just call these — they don't have
@@ -162,13 +163,7 @@ export function useMandate() {
 
 // ── Portfolio ───────────────────────────────────────────────────────────
 export interface PortfolioResponse {
-  positions: Array<{
-    ticker: string;
-    tokenAmount: number;
-    avgCost: number;
-    markPrice?: number;
-    pnl?: number;
-  }>;
+  positions: PortfolioPosition[];
   trades: Array<{
     id: string;
     ticker: string;

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
+import type { PortfolioResponse } from '@/lib/hooks/queries';
 
 /**
  * GET /api/portfolio
@@ -50,10 +51,11 @@ export async function GET(req: NextRequest) {
   // Unrealized = sum over open positions of (entryPrice * tokenAmount) snapshot.
   // The frontend overlays live Pyth marks; we just hand back tokenAmount + entry
   // so it has everything it needs.
-  const positions = openPositions.map((p) => {
+  const positions: PortfolioResponse['positions'] = openPositions.map((p) => {
     const tokenAmount = p.tokenAmount.toNumber();
     const entryPrice = p.entryPrice.toNumber();
     return {
+      id: p.id,
       ticker: p.ticker,
       tokenAmount,
       avgCost: entryPrice,
