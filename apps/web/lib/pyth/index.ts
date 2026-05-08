@@ -4,11 +4,17 @@
 import {
   PYTH_HERMES_DEFAULT_URL,
   requireAsset,
+  type PriceSnapshot,
 } from '@hunch-it/shared';
 
 interface ParsedPrice {
   id: string;
-  price?: { price: string | number; expo: number; publish_time: number };
+  price?: {
+    price: string | number;
+    conf?: string | number;
+    expo: number;
+    publish_time: number;
+  };
 }
 
 const HERMES = process.env.PYTH_HERMES_URL ?? PYTH_HERMES_DEFAULT_URL;
@@ -26,6 +32,13 @@ function decode(price: string | number, expo: number): number {
 export async function getCurrentPrices(
   assetIds: readonly string[],
 ): Promise<Map<string, number>> {
+  const snapshots = await getCurrentPriceSnapshots(assetIds);
+  return new Map(Array.from(snapshots, ([assetId, snap]) => [assetId, snap.price]));
+}
+
+export async function getCurrentPriceSnapshots(
+  assetIds: readonly string[],
+): Promise<Map<string, PriceSnapshot>> {
   const ids: string[] = [];
   const idToAsset = new Map<string, string>();
   for (const assetId of assetIds) {
@@ -45,12 +58,17 @@ export async function getCurrentPrices(
   if (!res.ok) throw new Error(`Hermes failed: ${res.status} ${res.statusText}`);
   const json = (await res.json()) as { parsed?: ParsedPrice[] };
 
-  const out = new Map<string, number>();
+  const out = new Map<string, PriceSnapshot>();
   for (const p of json.parsed ?? []) {
     const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
     const assetId = idToAsset.get(id);
     if (!assetId || !p.price) continue;
-    out.set(assetId, decode(p.price.price, p.price.expo));
+    out.set(assetId, {
+      ticker: assetId,
+      price: decode(p.price.price, p.price.expo),
+      confidence: decode(p.price.conf ?? 0, p.price.expo),
+      publishTime: p.price.publish_time,
+    });
   }
   return out;
 }
