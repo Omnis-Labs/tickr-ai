@@ -6,7 +6,13 @@
 // name didn't change to avoid a destructive migration, but the value space
 // did — see the schema comment.
 
-import { XSTOCK_TICKERS, XSTOCKS, type XStockTicker } from './constants.js';
+import {
+  MARKET_FOCUS_VERTICALS,
+  XSTOCK_TICKERS,
+  XSTOCKS,
+  type XStockTicker,
+} from './constants.js';
+import type { MarketFocusVertical } from './types.js';
 
 export type AssetKind = 'XSTOCK' | 'CRYPTO';
 export type CryptoAssetId = 'wBTC' | 'ETH' | 'BNB' | 'wXRP' | 'TRX' | 'HYPE';
@@ -111,6 +117,30 @@ export const ASSET_REGISTRY: readonly Asset[] = [...xStockEntries, ...cryptoEntr
 const byId = new Map<string, Asset>();
 for (const a of ASSET_REGISTRY) byId.set(a.assetId, a);
 
+const signalAssetIds = new Set(
+  ASSET_REGISTRY.filter((asset) => asset.pythFeedId.length > 0).map((asset) => asset.assetId),
+);
+
+const verticalsByAssetId = new Map<string, MarketFocusVertical[]>();
+const signalAssetIdsByVertical = new Map<MarketFocusVertical, string[]>();
+
+for (const vertical of MARKET_FOCUS_VERTICALS) {
+  const verticalId = vertical.id as MarketFocusVertical;
+  for (const assetId of vertical.tickers) {
+    if (!byId.has(assetId)) continue;
+
+    const verticals = verticalsByAssetId.get(assetId) ?? [];
+    verticals.push(verticalId);
+    verticalsByAssetId.set(assetId, verticals);
+
+    if (signalAssetIds.has(assetId)) {
+      const ids = signalAssetIdsByVertical.get(verticalId) ?? [];
+      ids.push(assetId);
+      signalAssetIdsByVertical.set(verticalId, ids);
+    }
+  }
+}
+
 export type AssetId = string; // not a literal union — registry can grow at runtime in tests
 
 export function getAssetById(assetId: string): Asset | undefined {
@@ -135,7 +165,36 @@ export function getCryptoAssets(): readonly Asset[] {
 
 /** Assets eligible for proposal generation when market data is configured. */
 export function getSignalAssets(): readonly Asset[] {
-  return ASSET_REGISTRY.filter((asset) => asset.pythFeedId.length > 0);
+  return ASSET_REGISTRY.filter((asset) => signalAssetIds.has(asset.assetId));
+}
+
+export function isSignalAsset(assetId: string): boolean {
+  return signalAssetIds.has(assetId);
+}
+
+export function getMarketFocusVerticalsForAsset(assetId: string): readonly MarketFocusVertical[] {
+  return verticalsByAssetId.get(assetId) ?? [];
+}
+
+export function getSignalAssetIdsForVerticals(
+  verticalIds: readonly MarketFocusVertical[],
+): readonly string[] {
+  const out = new Set<string>();
+  for (const verticalId of verticalIds) {
+    for (const assetId of signalAssetIdsByVertical.get(verticalId) ?? []) {
+      out.add(assetId);
+    }
+  }
+  return Array.from(out);
+}
+
+export function getSignalAssetIdsForMarketFocus(
+  marketFocus: readonly MarketFocusVertical[],
+): readonly string[] {
+  if (marketFocus.includes('no_preference')) {
+    return getSignalAssets().map((asset) => asset.assetId);
+  }
+  return getSignalAssetIdsForVerticals(marketFocus);
 }
 
 /** Asset kind helpers — useful for type-narrowing in ProposalModal et al. */

@@ -12,9 +12,10 @@
 import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
-  MARKET_FOCUS_VERTICALS,
   WsServerEvents,
   extractThesisTags,
+  getMarketFocusVerticalsForAsset,
+  getSignalAssetIdsForVerticals,
 } from '@hunch-it/shared';
 import { computePositionImpact } from './portfolio-context.js';
 import { getLatestPrices } from '../pyth/index.js';
@@ -52,14 +53,6 @@ const HOLDING_PERIOD_TO_TTL_MIN: Record<string, number> = {
   '6+ months': 240,
 };
 
-function tickerVerticals(symbol: string): string[] {
-  const out: string[] = [];
-  for (const v of MARKET_FOCUS_VERTICALS) {
-    if (v.tickers.includes(symbol)) out.push(v.id);
-  }
-  return out;
-}
-
 function clampSize(maxTradeSize: number, baseSize: number): number {
   return Math.max(20, Math.min(maxTradeSize, baseSize));
 }
@@ -80,7 +73,7 @@ export async function generateProposalsForBaseAnalysis(
   };
   if (base.action !== 'BUY' || base.confidence < 0.7) return summary;
 
-  const verticals = tickerVerticals(base.assetId);
+  const verticals = getMarketFocusVerticalsForAsset(base.assetId);
   if (verticals.length === 0) return summary;
 
   // Pre-fetch one Pyth snapshot for every signal asset so positionImpact can mark
@@ -92,14 +85,7 @@ export async function generateProposalsForBaseAnalysis(
 
   // The set of asset ids that share at least one vertical with this asset —
   // used for sector aggregation in positionImpact. Built once.
-  const sectorPeers = new Set<string>();
-  for (const v of MARKET_FOCUS_VERTICALS) {
-    if (!verticals.includes(v.id)) continue;
-    for (const t of v.tickers) {
-      if (typeof t === 'string') sectorPeers.add(t);
-    }
-  }
-  const sectorPeerArr = Array.from(sectorPeers);
+  const sectorPeerArr = Array.from(getSignalAssetIdsForVerticals(verticals));
 
   // Find users whose mandate's market_focus overlaps this asset's verticals,
   // OR who chose "no_preference".

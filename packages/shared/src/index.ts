@@ -119,10 +119,14 @@ export type {
 export {
   ASSET_REGISTRY,
   getCryptoAssets,
+  getMarketFocusVerticalsForAsset,
   getAssetById,
+  getSignalAssetIdsForMarketFocus,
+  getSignalAssetIdsForVerticals,
   getSignalAssets,
   getXStockAssets,
   isCrypto,
+  isSignalAsset,
   isXStock,
   requireAsset,
 } from './assets.js';
