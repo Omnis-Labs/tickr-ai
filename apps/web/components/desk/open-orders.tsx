@@ -57,7 +57,6 @@ export function OpenOrders() {
             // short positionId stub. Position Detail page reveals the full
             // asset metadata when the user clicks through.
             const ticker = order.positionId.slice(0, 8);
-            const isBuyPending = order.kind === 'BUY_TRIGGER' && order.status === 'OPEN';
             const editLeg = order.kind === 'TAKE_PROFIT' ? 'tp' : order.kind === 'STOP_LOSS' ? 'sl' : null;
             const isEditable = editLeg != null && order.status === 'OPEN';
             return (
@@ -86,11 +85,6 @@ export function OpenOrders() {
                   <div className="bg-surface-container text-on-surface text-label-sm px-2 py-1 rounded-full">
                     {order.status}
                   </div>
-                  {isBuyPending && (
-                    <button className="text-label-sm text-negative px-3 py-1.5 rounded-full border border-negative/30 hover:bg-negative/10 transition-colors">
-                      Cancel
-                    </button>
-                  )}
                   {isEditable && (
                     <button
                       type="button"
