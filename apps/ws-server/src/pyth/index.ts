@@ -7,9 +7,11 @@
 
 import { HermesClient } from '@pythnetwork/hermes-client';
 import {
+  evaluateSignalDataFreshness,
   getSignalAssets,
   requireAsset,
   type PriceSnapshot,
+  type SignalDataFreshnessVerdict,
 } from '@hunch-it/shared';
 import { env } from '../env.js';
 
@@ -85,27 +87,5 @@ export async function getLatestPrice(assetId: string): Promise<PriceSnapshot | n
   return m.get(assetId) ?? null;
 }
 
-export interface FreshnessVerdict {
-  fresh: boolean;
-  ageSeconds: number;
-  reason?: string;
-}
-
-export function evaluateFreshness(
-  snap: PriceSnapshot,
-  opts: { maxAgeSeconds?: number; bypass?: boolean } = {},
-): FreshnessVerdict {
-  const ageSeconds = Math.max(0, Math.floor(Date.now() / 1000) - snap.publishTime);
-  const max = opts.maxAgeSeconds ?? 15 * 60;
-  if (opts.bypass) {
-    return { fresh: true, ageSeconds, reason: 'bypassed' };
-  }
-  if (ageSeconds <= max) {
-    return { fresh: true, ageSeconds };
-  }
-  return {
-    fresh: false,
-    ageSeconds,
-    reason: `price is ${ageSeconds}s old (>${max}s)`,
-  };
-}
+export type FreshnessVerdict = SignalDataFreshnessVerdict;
+export const evaluateFreshness = evaluateSignalDataFreshness;

@@ -5,13 +5,14 @@ import { z } from 'zod';
 import { createBuyProposalForUser } from '@hunch-it/db';
 import {
   PYTH_BENCHMARKS_BASE,
+  evaluateSignalDataFreshness,
   requireAsset,
   type Bar,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
-import { getCurrentPrices } from '@/lib/pyth';
+import { getCurrentPriceSnapshots, getCurrentPrices } from '@/lib/pyth';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { devToolsPassword } from './auth';
 
@@ -30,6 +31,7 @@ export interface DevToolsProposalResult {
     model: string;
     degraded: boolean;
     latestPrice: number;
+    priceAgeSeconds: number;
     barsFetched: number;
     inputTokens: number;
     outputTokens: number;
@@ -336,9 +338,14 @@ export async function createDevToolsProposal(input: {
   });
   if (activeProposal) throw new ActiveDevToolsProposalError(activeProposal.id);
 
-  const priceMap = await getCurrentPrices([input.ticker]);
-  const latestPrice = priceMap.get(input.ticker) ?? null;
-  if (!latestPrice) throw new Error(`No Pyth price for ${input.ticker}`);
+  const priceMap = await getCurrentPriceSnapshots([input.ticker]);
+  const latestSnap = priceMap.get(input.ticker) ?? null;
+  if (!latestSnap) throw new Error(`No Pyth price for ${input.ticker}`);
+  const freshness = evaluateSignalDataFreshness(latestSnap);
+  if (!freshness.fresh) {
+    throw new Error(`Stale Pyth price for ${input.ticker}: ${freshness.reason}`);
+  }
+  const latestPrice = latestSnap.price;
 
   const bars = await fetchBars(input.ticker);
   const indicators = computeIndicators(bars, latestPrice);
@@ -449,6 +456,7 @@ export async function createDevToolsProposal(input: {
       model: GEMINI_DEV_TOOLS_MODEL,
       degraded,
       latestPrice,
+      priceAgeSeconds: freshness.ageSeconds,
       barsFetched: bars.length,
       inputTokens: llm.inputTokens,
       outputTokens: llm.outputTokens,

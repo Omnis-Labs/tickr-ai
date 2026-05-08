@@ -132,6 +132,13 @@ export {
 } from './assets.js';
 export type { Asset, AssetId, AssetKind, CryptoAssetId } from './assets.js';
 
+// ── Signal data freshness ────────────────────────────────────────────────
+export {
+  SIGNAL_DATA_MAX_AGE_SECONDS,
+  evaluateSignalDataFreshness,
+} from './signal-data.js';
+export type { SignalDataFreshnessVerdict } from './signal-data.js';
+
 // ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
 export {
   THESIS_TAGS,
