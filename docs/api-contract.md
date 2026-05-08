@@ -367,11 +367,12 @@ No Jupiter request happens here.
 When the ws-server emits `trigger:hit` and the user taps Execute:
 
 1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
-2. Browser requests Jupiter Ultra `/order`.
-3. Browser asks Privy `signTransaction` to sign the user/taker signature slot.
-4. Browser sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
-5. If Jupiter returns a signature, browser posts `{ txSignature, executionPrice, tokenAmount }` to `POST /api/orders/[id]/execute`.
-6. If the swap fails before Jupiter returns a signature, browser releases the claim with `DELETE /api/orders/[id]/execution-claim`.
+2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
+3. Browser requests Jupiter Ultra `/order`.
+4. Browser asks Privy `signTransaction` to sign the user/taker signature slot.
+5. Browser sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
+6. If Jupiter returns a signature, browser posts `{ txSignature, executionPrice, tokenAmount }` to `POST /api/orders/[id]/execute`.
+7. If the swap fails before Jupiter returns a signature, browser releases the claim with `DELETE /api/orders/[id]/execution-claim`.
 
 **Failure recovery by phase:**
 

@@ -108,7 +108,7 @@ The current Jupiter Ultra execution policy. The frontend requests an Ultra `/ord
 
 ### JupiterUltraSwap
 
-The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a swap intent plus wallet signer/connection adapters; its Implementation handles amount preparation, targeted SELL balance capping, Ultra `/order`, transaction decoding, user signature, Ultra `/execute`, and normalized swap diagnostics.
+The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a swap intent plus wallet signer/connection adapters; its Implementation handles amount preparation, targeted SELL balance capping, Ultra `/order`, transaction decoding, user signature, Ultra `/execute`, and normalized swap diagnostics. SELL balance lookup scans both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts because whitelisted crypto wrappers are classic SPL while xStocks are Token-2022.
 
 ### TriggerExecution
 
