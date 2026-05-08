@@ -38,7 +38,7 @@ Pick a holding period, drawdown, max trade size, and one or more market focus ta
 ### 4. The desk shows at least one BUY proposal
 You should see a proposal card. If you don't, open `/dev-tools`, unlock it, and generate a `[DEV_TOOLS]` BUY proposal for the signed-in user. The card has a ticker, suggested size, TP/SL prices, expiry, and short reasoning.
 
-**What's being verified**: `/dev-tools` or `ENABLE_SIGNAL_LOOP=true` ran Pyth + Gemini and persisted Proposal rows for the signed-in user.
+**What's being verified**: `/dev-tools` or `ENABLE_SIGNAL_LOOP=true` used fresh Pyth data and persisted Proposal rows through the shared ProposalCreation path for the signed-in user.
 
 ### 5. Approving a BUY creates the BUY_PENDING row pair
 Click **Review** on the card → adjust parameters if needed → tap **Approve / Place Order**. The card disappears from the feed.

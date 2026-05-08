@@ -30,6 +30,10 @@ A personalized BUY recommendation produced by the signal pipeline. Snapshotted i
 
 The canonical asset a user can trade through Hunch, identified by an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`; equity names without the `x` suffix are not valid Hunch asset identifiers.
 
+### Asset Universe
+
+The declarative whitelist in `packages/shared/src/assets.ts`. It answers product questions about Tradable Assets: which assets are signalable, which mandate verticals contain an asset, and which mint / Pyth latest feed / Pyth bars symbol belongs to that asset. It does not perform runtime provider verification.
+
 ### xStock
 
 The tokenized equity asset Hunch users trade on Solana, identified by the xStock symbol such as `AAPLx` or `NVDAx`; avoid presenting these as direct trades in native US-listed shares.
@@ -45,6 +49,14 @@ Price and bar data keyed by xStock symbols such as `AAPLx`; one xStock-native so
 ### Signal Data Freshness
 
 The asset-specific condition that the price data used to create a Proposal is current enough for that tradable asset, using the existing publish-time staleness check; for xStocks, there is no market-hours logic or equity-feed fallback.
+
+### Base Market Analysis
+
+The standalone Signal Engine output for one asset before personalization. It contains the asset id, current price, indicators, confidence, and technical rationale. It does not know about users, mandates, order creation, or PositionLifecycle.
+
+### ProposalCreation
+
+The `packages/db/src/lifecycle/proposal-creation.ts` Module that turns Base Market Analysis plus a Mandate and position-impact context into a persisted BUY Proposal. It owns sizing defaults, trigger / TP / SL derivation, expiry, reasoning, thesis tags, and Proposal row creation. Live signal generation and `/dev-tools` are adapters into this Module.
 
 ### Crypto
 

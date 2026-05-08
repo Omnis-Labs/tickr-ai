@@ -96,7 +96,7 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Database               | PostgreSQL 15 (self-managed, in Docker on the prod VM)                                                               |
 | ORM                    | Prisma                                                                                                               |
 | Schema Validation      | Zod                                                                                                                  |
-| Asset Registry         | Static TypeScript (packages/shared/src/constants.ts)                                                                 |
+| Asset Universe         | Static TypeScript whitelist (`packages/shared/src/assets.ts`) with derived signal eligibility and mandate matching    |
 | PWA                    | manifest.json + Service Worker (offline fallback page only; all trading, pricing, and auth features require network) |
 
 ---
@@ -131,7 +131,7 @@ The frontend uses a **Shared Worker** to manage the Socket.IO connection:
 
 For ws-server implementation, read alongside:
 
-1. **signal-engine.md** — Signal pipeline, Trigger Monitor, Back-Evaluator
+1. **signal-engine.md** — Signal pipeline, ProposalCreation seam, Trigger Monitor, Back-Evaluator
 2. **data-model.md** — Prisma schema, enums, JSON field interfaces
 3. **api-contract.md** — WebSocket events, order state transitions
 4. **adr/0002-canonical-asset-signal-data.md** — Asset id and signal freshness rules
@@ -140,7 +140,7 @@ For frontend implementation, read alongside:
 
 1. **screens-and-flows.md** — Screen specs, user flows, error states
 2. **api-contract.md** — REST endpoints with request/response contracts
-3. **data-model.md** — Data model, Asset Registry structure
+3. **data-model.md** — Data model, Asset Universe and ProposalCreation structure
 
 ---
 
@@ -158,4 +158,4 @@ pnpm db:push
 pnpm dev   # Runs web + ws-server concurrently
 ```
 
-**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. The in-browser log is intentionally content-rich and is the source of truth for swap diagnostics; client diagnostic events stay in the browser. Deployed production runtimes block this surface.
+**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals through the same ProposalCreation Module used by live signal generation, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. The in-browser log is intentionally content-rich and is the source of truth for swap diagnostics; client diagnostic events stay in the browser. Deployed production runtimes block this surface.

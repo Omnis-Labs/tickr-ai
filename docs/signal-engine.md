@@ -11,13 +11,15 @@
 The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In the frozen synthetic-trigger architecture, only proposal generation and trigger monitoring are in the default runtime; tracker/eval/thesis jobs are env-gated.
 
 1. **Market Scanner** — monitor all supported assets for trading opportunities
-2. **Proposal Generator** — convert opportunities into personalized BUY proposals per user
+2. **Proposal Generator** — convert Base Market Analysis into personalized BUY proposals per user
 3. **Trigger Monitor** — poll Pyth for OPEN synthetic Orders and emit `trigger:hit`
 4. **Back-Evaluator** — score proposal quality after the fact (env-gated)
 
-The pipeline is asset-native. Every signalable item is a canonical `AssetId` from `packages/shared/src/assets.ts` such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`. Equity-like signals use xStock-native Pyth feeds such as `Crypto.AAPLX/USD`; Hunch does not recognize bare US equity symbols and does not fall back to underlying equity feeds.
+The pipeline is asset-native. Every signalable item is a canonical `AssetId` from the Asset Universe in `packages/shared/src/assets.ts` such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`. Equity-like signals use xStock-native Pyth feeds such as `Crypto.AAPLX/USD`; Hunch does not recognize bare US equity symbols and does not fall back to underlying equity feeds.
 
-The canonical proposal rule is: **Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.** Freshness is data-driven using Pyth publish time; there is no US market-hours gate.
+The canonical proposal rule is: **Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.** Freshness is data-driven using Pyth publish time through `evaluateSignalDataFreshness`; there is no US market-hours gate.
+
+The Signal Engine seam is intentionally narrow: `AssetId + Signal Data -> Base Market Analysis`. It owns Pyth/Gemini/indicator work, but it does not own mandate personalization, `/dev-tools`, order acceptance, or PositionLifecycle.
 
 ---
 
@@ -50,16 +52,16 @@ A daily USD cap (`LLM_DAILY_USD_CAP`, default: $10) limits LLM spend inside each
 
 ## Stage 2: Proposal Generator (Per User)
 
-When a Market Scanner cycle produces a viable base analysis (confidence > 0.7 and action = BUY), the Proposal Generator personalizes it for each relevant user. **This stage makes zero LLM calls.**
+When a Market Scanner cycle produces a viable Base Market Analysis (confidence >= `MIN_ACTIONABLE_CONFIDENCE` and action = BUY), the Proposal Generator personalizes it for each relevant user. **This stage makes zero LLM calls.**
 
 ### User Matching
 
-Query users whose `mandate.marketFocus` overlaps any market-focus vertical that contains the asset id:
+Query users whose `mandate.marketFocus` overlaps any market-focus vertical that contains the asset id. Asset-to-vertical membership is derived by the Asset Universe, not rebuilt in the signal engine:
 
 ```sql
 -- Pseudocode
 SELECT users WHERE
-  mandate.marketFocus contains ANY OF tickerVerticals(assetId)
+  mandate.marketFocus contains ANY OF getMarketFocusVerticalsForAsset(assetId)
   OR mandate.marketFocus contains "no_preference"
 ```
 
@@ -71,19 +73,20 @@ For each matching user:
 
 1. Read mandate: `holdingPeriod`, `maxDrawdown`, `maxTradeSize`, `marketFocus`
 2. Read portfolio: current positions, available USDC
-3. **Calculate `suggestedSizeUsd`** from the mandate max trade size (current default: 40% of max trade size, with a small-trade floor).
-4. **Derive TP/SL and expiry** from the base defaults plus the user's mandate.
-5. **Derive `suggestedTriggerPrice`** from current analysis price (current default: 0.3% below the analysis price).
-6. **Assemble `reasoning`** (rule-based):
+3. Pass Base Market Analysis, Mandate, and position-impact context to `ProposalCreation`.
+4. **Calculate `suggestedSizeUsd`** from the mandate max trade size (current default: 40% of max trade size, with a small-trade floor capped by max trade size).
+5. **Derive TP/SL and expiry** from the base defaults plus the user's mandate.
+6. **Derive `suggestedTriggerPrice`** from current analysis price (current default: 0.3% below the analysis price).
+7. **Assemble `reasoning`** (rule-based):
    - `what_changed`: carried from base analysis
    - `why_this_trade`: carried from base analysis
    - `why_fits_mandate`: template-generated sentences mapping mandate parameters, e.g.:
      - "Fits your 1-2 week holding period"
      - "Position size $400 is within your $500 max trade size"
      - "Adds semiconductor exposure, which your mandate targets"
-7. **Calculate `positionImpact`**: before/after comparison of asset weight, cash, and sector exposure. When the user already has active positions in the same asset, use aggregate exposure across all positions for the "before" state.
-8. **Save** the Proposal to PostgreSQL
-9. **Push** to the user's Socket.IO room via `proposal:new`
+8. **Calculate `positionImpact`**: before/after comparison of asset weight, cash, and vertical exposure.
+9. **Save** the Proposal to PostgreSQL
+10. **Push** to the user's Socket.IO room via `proposal:new`
 
 ---
 
@@ -95,10 +98,12 @@ Stage 1 currently returns a signal, not full price targets. `apps/ws-server/src/
 
 ```typescript
 const triggerPrice = priceAtAnalysis * 0.997;
-const suggestedTakeProfitPrice = triggerPrice * (1 + base.suggestedTpPct);
-const drawdownCap = mandate.maxDrawdown ?? base.suggestedSlPct;
-const slPct = Math.min(base.suggestedSlPct, drawdownCap);
-const suggestedStopLossPrice = triggerPrice * (1 - slPct);
+const suggestedTakeProfitPrice = max(baseTpPrice, triggerPrice * 1.01);
+const uncappedStop = min(baseSlPrice, triggerPrice * 0.995);
+const suggestedStopLossPrice =
+  mandate.maxDrawdown == null
+    ? uncappedStop
+    : max(uncappedStop, triggerPrice * (1 - mandate.maxDrawdown));
 ```
 
 ### Proposal Expiry by Holding Period
@@ -114,7 +119,7 @@ const suggestedStopLossPrice = triggerPrice * (1 - slPct);
 
 ## Sizing Logic
 
-The Signal Engine determines signal quality. Current production sizing is deliberately simple: default proposal size is 40% of the user's `maxTradeSize`, clamped by a small-trade floor and the max trade size. The UI prevents accepting a proposal when wallet USDC is insufficient.
+The Signal Engine determines signal quality. `ProposalCreation` determines proposal sizing. Current production sizing is deliberately simple: default proposal size is 40% of the user's `maxTradeSize`, clamped by a small-trade floor and the max trade size. The UI prevents accepting a proposal when wallet USDC is insufficient.
 
 Users can adjust the size on Proposal Detail. If the adjusted size exceeds `maxTradeSize`, a warning is shown but execution is not blocked.
 
