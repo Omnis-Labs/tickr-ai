@@ -1,5 +1,5 @@
-// Asset abstraction — one registry that every consumer (Proposal Generator,
-// Order Tracker, Position Detail, ProposalModal, and tests) reads through.
+// Asset abstraction — one registry that every consumer (Signal Engine,
+// Proposal Generator, Position Detail, ProposalModal, and tests) reads through.
 //
 // Wire convention: every `ticker` column on Proposal / Position / Order /
 // Trade now stores an `AssetId` (e.g. "AAPLx", "wBTC", "HYPE"). The column

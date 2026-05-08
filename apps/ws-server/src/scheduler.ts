@@ -1,7 +1,7 @@
 // Scheduler — single source of truth for the ws-server's recurring loops.
 //
-// Every cron-style task (Pyth scan, evaluator, order tracker, thesis monitor,
-// signal generator) shares the same shape:
+// Every cron-style task (trigger monitor, evaluator, thesis monitor, signal
+// generator) shares the same shape:
 //   - first kickoff some seconds after boot
 //   - run on a fixed interval afterwards
 //   - skip the next tick if the previous one is still busy

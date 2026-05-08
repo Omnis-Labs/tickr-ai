@@ -50,7 +50,6 @@ services:
       - NEXT_PUBLIC_SOLANA_RPC_URLS=${NEXT_PUBLIC_SOLANA_RPC_URLS}
       - NEXT_PUBLIC_JUPITER_API_BASE=${NEXT_PUBLIC_JUPITER_API_BASE}
       - WS_SERVER_PORT=4000
-      - WS_CRON_SECRET=${WS_CRON_SECRET}
       - ENABLE_DEV_TOOLS=false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/healthz | grep -q ok || exit 1"]

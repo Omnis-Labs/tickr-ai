@@ -62,7 +62,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 | Integrator swap fees                   | v2                                                                                                                                                                  |
 | Remote push notifications              | PWA web push is unreliable on iOS. In-session browser desktop notifications (via HTML5 Notification API) ARE included when the app has an active tab/Shared Worker. |
 | Fiat onramp                            | Users must bring their own USDC on Solana                                                                                                                           |
-| Autonomous execution                   | The frozen architecture is tap-to-execute; server-side delegated signing is out of scope                                                                            |
+| Autonomous execution                   | The frozen architecture is tap-to-execute; server-side transaction signing is out of scope                                                                          |
 | Historical performance charts          | v1 shows current state only                                                                                                                                         |
 | Multi-language                         | English only                                                                                                                                                        |
 | Leaderboard                            | v2                                                                                                                                                                  |

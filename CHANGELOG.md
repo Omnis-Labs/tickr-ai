@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Reframed the product around investment mandates, personalized BUY proposals, Jupiter Trigger Orders, and automatic TP/SL protection.
+- Reframed the product around investment mandates, personalized BUY proposals, synthetic Orders, and automatic TP/SL protection.
 - Updated documentation to match the current v1 scope and remove older references to manual BUY/SELL signals, gas-sponsored Ultra swaps, and leaderboard-first behavior.
 
 ## [0.1.0] - 2026-04-26

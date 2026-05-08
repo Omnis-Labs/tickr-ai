@@ -18,7 +18,7 @@ hunch-it/
 
 **apps/web**: Next.js PWA frontend. Handles all user-facing UI and exposes REST API routes under `/api/*`.
 
-**apps/ws-server**: Standalone Node.js backend. Responsible for market monitoring, proposal generation, WebSocket realtime push, back-evaluation, order tracking, and automatic TP/SL placement.
+**apps/ws-server**: Standalone Node.js backend. Responsible for Base Market Analysis, proposal fan-out, WebSocket realtime push, back-evaluation, and synthetic trigger monitoring.
 
 **packages/shared**: Zod schemas, asset registry (static TypeScript), and type definitions shared between both apps.
 
@@ -52,18 +52,18 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 │                Signal Engine                             │
 │                                                          │
 │  ┌──────────────┐  ┌────────────────┐  ┌──────────────┐ │
-│  │   Market     │  │   Proposal     │  │   Order      │ │
-│  │   Scanner    │→ │   Generator    │  │   Tracker    │ │
+│  │   Market     │  │   Proposal     │  │  Trigger     │ │
+│  │   Scanner    │→ │   Generator    │  │  Monitor     │ │
 │  │ (per asset)  │  │  (per user)    │  │ (cron 30s)   │ │
 │  └──────────────┘  └────────────────┘  └──────────────┘ │
 │         │                  │                   │         │
-│    Pyth Hermes          Gemini          Jupiter Ultra    │
-│   (live prices)    (LLM analysis)        (swaps)         │
+│    Pyth Hermes          Gemini          Pyth Hermes      │
+│   (live prices)    (LLM analysis)     (trigger marks)    │
 │                                                          │
 │  ┌──────────────┐  ┌────────────────┐                   │
-│  │   Auto       │  │    Back-       │                   │
-│  │   TP/SL      │  │   Evaluator    │                   │
-│  │   Placer     │  │  (every 5min)  │                   │
+│  │   Thesis     │  │    Back-       │                   │
+│  │   Monitor    │  │   Evaluator    │                   │
+│  │  (opt-in)    │  │  (opt-in)      │                   │
 │  └──────────────┘  └────────────────┘                   │
 └─────────────────────────┬───────────────────────────────┘
                           │
