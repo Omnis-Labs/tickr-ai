@@ -3,6 +3,10 @@ export {
   buildBuyProposalCreateData,
   createBuyProposalForUser,
 } from './lifecycle/proposal-creation.js';
+export {
+  buildProposalSizeRationale,
+  suggestBuyProposalSizeUsd,
+} from './lifecycle/proposal-sizing.js';
 export type {
   BuyMarketAnalysis,
   CreateBuyProposalForUserInput,
@@ -10,6 +14,7 @@ export type {
   ProposalCreationMandate,
   ProposalCreationPositionImpact,
 } from './lifecycle/proposal-creation.js';
+export type { ProposalSizingInput } from './lifecycle/proposal-sizing.js';
 export {
   acceptBuyProposal,
   cancelPendingBuy,

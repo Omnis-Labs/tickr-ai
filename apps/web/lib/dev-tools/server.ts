@@ -2,7 +2,7 @@ import 'server-only';
 
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
-import { createBuyProposalForUser } from '@hunch-it/db';
+import { createBuyProposalForUser, suggestBuyProposalSizeUsd } from '@hunch-it/db';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   PYTH_BENCHMARKS_BASE,
@@ -57,9 +57,6 @@ export interface DevToolsOrderRow {
 }
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
-const MIN_SUGGESTED_SIZE_USD = 5;
-const ROUND_INCREMENT_USD = 5;
-
 const GeminiProposalSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),
   rationale: z.string().max(700).optional(),
@@ -68,7 +65,6 @@ const GeminiProposalSchema = z.object({
   trigger_price: z.number().positive().optional(),
   take_profit_price: z.number().positive().optional(),
   stop_loss_price: z.number().positive().optional(),
-  suggested_size_usd: z.number().positive().optional(),
 });
 
 type IndicatorSet = {
@@ -80,24 +76,6 @@ type IndicatorSet = {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
-}
-
-function finitePositive(value: number): number {
-  return Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-function defaultProposalSizeUsd(input: { availableUsdc: number; maxTradeSizeUsd: number }): number {
-  const availableUsdc = finitePositive(input.availableUsdc);
-  const maxTradeSizeUsd = finitePositive(input.maxTradeSizeUsd);
-  if (availableUsdc === 0 || maxTradeSizeUsd === 0) return 0;
-
-  const rawTarget = availableUsdc * 0.2;
-  const balanceSized =
-    rawTarget < MIN_SUGGESTED_SIZE_USD
-      ? Math.min(availableUsdc, MIN_SUGGESTED_SIZE_USD)
-      : Math.ceil(rawTarget / ROUND_INCREMENT_USD) * ROUND_INCREMENT_USD;
-
-  return Number(Math.min(balanceSized, availableUsdc, maxTradeSizeUsd).toFixed(2));
 }
 
 function ema(values: number[], period: number): number[] {
@@ -233,7 +211,7 @@ Mandate holding period: ${input.holdingPeriod}
 Mandate max drawdown: ${maxDrawdown}
 Mandate max trade size: $${input.maxTradeSize.toFixed(2)}
 Wallet USDC balance: $${input.availableUsdc.toFixed(2)}
-Default proposal size: $${input.defaultSizeUsd.toFixed(2)} (20% of USDC balance, rounded up to the next $5 increment; if below $5, use up to $5)
+ProposalCreation size: $${input.defaultSizeUsd.toFixed(2)} (20% of USDC balance, rounded up to the next $5 increment; if below $5, use up to $5)
 
 Indicators:
 RSI(14): ${input.indicators.rsi.toFixed(2)}
@@ -252,8 +230,7 @@ Output only JSON matching:
   "why_this_trade": string,
   "trigger_price": number,
   "take_profit_price": number,
-  "stop_loss_price": number,
-  "suggested_size_usd": number
+  "stop_loss_price": number
 }`;
 }
 
@@ -357,7 +334,7 @@ export async function createDevToolsProposal(input: {
     forceFresh: true,
     throwOnFailure: true,
   });
-  const defaultSizeUsd = defaultProposalSizeUsd({
+  const defaultSizeUsd = suggestBuyProposalSizeUsd({
     availableUsdc,
     maxTradeSizeUsd: maxTradeSize,
   });
@@ -436,10 +413,6 @@ export async function createDevToolsProposal(input: {
       },
       origin: 'DEV_TOOLS',
       now: createNow,
-      sizeUsd: defaultSizeUsd,
-      sizeRationale:
-        `Size $${defaultSizeUsd.toFixed(2)} is based on your $${availableUsdc.toFixed(2)} USDC balance ` +
-        `and is within your $${maxTradeSize.toFixed(2)} max trade size.`,
       rationalePrefix: '[DEV_TOOLS] ',
     });
     if (!proposal) throw new Error('dev_tools_proposal_not_actionable');

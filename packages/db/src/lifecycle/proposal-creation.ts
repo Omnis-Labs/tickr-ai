@@ -5,6 +5,7 @@ import {
   type BaseMarketAnalysis,
   type BaseMarketIndicators,
 } from '@hunch-it/shared';
+import { buildProposalSizeRationale, suggestBuyProposalSizeUsd } from './proposal-sizing.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -45,11 +46,6 @@ const HOLDING_PERIOD_TO_TTL_MIN: Record<string, number> = {
 
 function roundPrice(value: number): number {
   return Number(value.toFixed(2));
-}
-
-function defaultSizeUsd(maxTradeSizeUsd: number): number {
-  const baseSize = maxTradeSizeUsd * 0.4;
-  return Math.min(maxTradeSizeUsd, Math.max(20, Math.round(baseSize)));
 }
 
 function ttlMinutesForHoldingPeriod(holdingPeriod: string): number {
@@ -114,6 +110,7 @@ function buildPositionImpact(input: {
 
 function buildMandateReason(input: {
   mandate: ProposalCreationMandate;
+  positionImpact: ProposalCreationPositionImpact;
   sizeUsd: number;
   slPrice: number;
   slPct: number;
@@ -121,7 +118,11 @@ function buildMandateReason(input: {
 }): string {
   const sizeRationale =
     input.sizeRationale ??
-    `Size $${input.sizeUsd} is within your $${input.mandate.maxTradeSizeUsd.toFixed(0)} max trade size.`;
+    buildProposalSizeRationale({
+      availableUsdc: input.positionImpact.cashUsd,
+      maxTradeSizeUsd: input.mandate.maxTradeSizeUsd,
+      sizeUsd: input.sizeUsd,
+    });
 
   return (
     `Fits your ${input.mandate.holdingPeriod} holding period. ` +
@@ -140,7 +141,12 @@ export function buildBuyProposalCreateData(
   if (input.analysis.action !== 'BUY') return null;
   if (input.analysis.confidence < MIN_ACTIONABLE_CONFIDENCE) return null;
 
-  const sizeUsd = input.sizeUsd ?? defaultSizeUsd(input.mandate.maxTradeSizeUsd);
+  const sizeUsd =
+    input.sizeUsd ??
+    suggestBuyProposalSizeUsd({
+      availableUsdc: input.positionImpact.cashUsd,
+      maxTradeSizeUsd: input.mandate.maxTradeSizeUsd,
+    });
   if (!(sizeUsd > 0)) return null;
 
   const { triggerPrice, tpPrice, slPrice, slPct } = buildPrices({
@@ -154,6 +160,7 @@ export function buildBuyProposalCreateData(
   const ttlMin = ttlMinutesForHoldingPeriod(input.mandate.holdingPeriod);
   const whyFitsMandate = buildMandateReason({
     mandate: input.mandate,
+    positionImpact: input.positionImpact,
     sizeUsd,
     slPrice,
     slPct,

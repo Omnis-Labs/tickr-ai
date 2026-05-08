@@ -74,7 +74,7 @@ For each matching user:
 1. Read mandate: `holdingPeriod`, `maxDrawdown`, `maxTradeSize`, `marketFocus`
 2. Read portfolio: current positions, available USDC
 3. Pass Base Market Analysis, Mandate, and position-impact context to `ProposalCreation`.
-4. **Calculate `suggestedSizeUsd`** from the mandate max trade size (current default: 40% of max trade size, with a small-trade floor capped by max trade size).
+4. **Calculate `suggestedSizeUsd`** from available USDC and the mandate max trade size (current default: 20% of wallet USDC, rounded up to the next $5 increment, with a small-balance floor and caps at wallet USDC and max trade size).
 5. **Derive TP/SL and expiry** from the base defaults plus the user's mandate.
 6. **Derive `suggestedTriggerPrice`** from current analysis price (current default: 0.3% below the analysis price).
 7. **Assemble `reasoning`** (rule-based):
@@ -119,7 +119,7 @@ const suggestedStopLossPrice =
 
 ## Sizing Logic
 
-The Signal Engine determines signal quality. `ProposalCreation` determines proposal sizing. Current production sizing is deliberately simple: default proposal size is 40% of the user's `maxTradeSize`, clamped by a small-trade floor and the max trade size. The UI prevents accepting a proposal when wallet USDC is insufficient.
+The Signal Engine determines signal quality. `ProposalCreation` determines proposal sizing. Current production sizing is wallet-aware: default proposal size is 20% of the user's available USDC, rounded up to the next $5 increment; if that target is below $5, Hunch uses up to $5; the result is capped by both wallet USDC and the user's `maxTradeSize`. If wallet USDC or max trade size is zero, no BUY proposal is created.
 
 Users can adjust the size on Proposal Detail. If the adjusted size exceeds `maxTradeSize`, a warning is shown but execution is not blocked.
 
