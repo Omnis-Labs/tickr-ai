@@ -28,11 +28,11 @@ A personalized BUY recommendation produced by the signal pipeline. Snapshotted i
 
 ### Tradable Asset
 
-The canonical asset a user can trade through Hunch, identified by an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`; bare underlying equity symbols such as `AAPL` are not valid Hunch asset identifiers.
+The canonical asset a user can trade through Hunch, identified by an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`; equity names without the `x` suffix are not valid Hunch asset identifiers.
 
 ### xStock
 
-The tokenized equity asset Hunch users trade on Solana, identified by the xStock symbol such as `AAPLx` or `NVDAx`; avoid presenting these as direct trades in native US-listed shares such as `AAPL` or `NVDA`.
+The tokenized equity asset Hunch users trade on Solana, identified by the xStock symbol such as `AAPLx` or `NVDAx`; avoid presenting these as direct trades in native US-listed shares.
 
 ### xStock Signal
 

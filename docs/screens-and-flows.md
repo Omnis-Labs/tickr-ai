@@ -298,7 +298,7 @@ Pyth Benchmarks + Lightweight Charts. Same time ranges as Proposal Detail.
 
 Short static company/asset description, hardcoded in the asset registry. One paragraph.
 
-> "NVIDIA designs GPUs and AI accelerators. Dominant in data center AI training chips with ~80% market share. Trades on NASDAQ as NVDA; NVDAx is the tokenized version on Solana."
+> "NVIDIA xStock gives Solana exposure to the tokenized NVIDIA asset. It is an xStock position, not a direct native US share trade."
 
 ### Adjust TP/SL
 

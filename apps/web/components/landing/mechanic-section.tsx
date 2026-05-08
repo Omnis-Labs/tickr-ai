@@ -208,7 +208,7 @@ function ProposalMock({ active }: { active: boolean }) {
           Proposal
         </span>
         <span className="rounded-full bg-on-accent/10 px-2.5 py-0.5 font-mono text-label-sm">
-          BUY · NVDA
+          BUY · NVDAx
         </span>
       </motion.div>
 
@@ -292,7 +292,7 @@ function ExecuteMock({ active }: { active: boolean }) {
 
         <div className="mb-1 flex items-baseline gap-2">
           <span className="font-mono text-[40px] font-semibold leading-none tracking-[-0.03em] text-on-background">
-            NVDA
+            NVDAx
           </span>
           <span className="font-mono text-label-lg text-on-surface-variant">
             $187.20
