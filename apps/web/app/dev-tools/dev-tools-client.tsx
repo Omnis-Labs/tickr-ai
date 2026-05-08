@@ -19,10 +19,10 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  USDC_DECIMALS,
   getAssetById,
   getSignalAssets,
   type Proposal,
+  type TriggerHitPayload,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
@@ -34,6 +34,7 @@ import {
 } from '@/lib/jupiter/use-jupiter-swap';
 import {
   decodeSolanaError as decodeClientSolanaError,
+  emitDevDiagnostic,
   getDevDiagnostics,
   subscribeDevDiagnostics,
   type ClientDiagnosticEvent,
@@ -41,13 +42,7 @@ import {
   type LogDiagnostic,
 } from '@/lib/dev-tools/client-diagnostics';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
-import {
-  claimOrderExecution,
-  isOrderAlreadyExecuting,
-  isOrderAlreadyHandled,
-  OrderExecutionClaimError,
-  releaseOrderExecutionClaim,
-} from '@/lib/orders/execution-claim';
+import { executeTriggerOrder } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useProposalsStore } from '@/lib/store/proposals';
@@ -248,14 +243,6 @@ function logErrorDetail(err: unknown): unknown {
       decodedSolanaError,
       swap: err.debug,
       originalError: compactErrorObject(err.originalError),
-    };
-  }
-  if (err instanceof OrderExecutionClaimError) {
-    return {
-      name: err.name,
-      message: err.message,
-      reason: err.reason,
-      statusCode: err.statusCode,
     };
   }
   if (err instanceof Error) {
@@ -480,6 +467,24 @@ function shortAddress(value: string): string {
 
 function stagedDevProposal(proposals: Proposal[], nowMs = Date.now()): Proposal | null {
   return proposals.find((p) => isLiveProposal(p, nowMs)) ?? null;
+}
+
+function triggerPayloadFromDevOrder(order: DevOrder): TriggerHitPayload {
+  if (order.triggerPriceUsd == null) {
+    throw new Error('Selected order has no trigger price.');
+  }
+  return {
+    orderId: order.id,
+    positionId: order.positionId,
+    ticker: order.ticker,
+    mint: order.mint,
+    kind: order.kind,
+    side: order.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL',
+    triggerPriceUsd: order.triggerPriceUsd,
+    currentPriceUsd: order.triggerPriceUsd,
+    sizeUsd: order.sizeUsd,
+    tokenAmount: order.tokenAmount,
+  };
 }
 
 function logEntryFromClientDiagnostic(event: ClientDiagnosticEvent): LogEntry {
@@ -897,111 +902,54 @@ export function DevToolsClient() {
 
   async function executeOrder() {
     if (!selectedOrder) return;
-    const orderId = selectedOrder.id;
     const meta = getAssetById(selectedOrder.ticker);
     if (!meta?.mint) {
       toast.error(`${selectedOrder.ticker} mint not configured.`);
       return;
     }
     setBusy('execute');
-    let claimed = false;
-    let swapBroadcast = false;
     try {
-      await runLogged('orders', 'order.claimExecution', { orderId }, async () => {
-        return claimOrderExecution(authedFetch, orderId);
-      });
-      claimed = true;
+      const payload = triggerPayloadFromDevOrder(selectedOrder);
+      const outcome = await runLogged(
+        'swap',
+        'order.executeViaTriggerRuntime',
+        { orderId: selectedOrder.id, kind: selectedOrder.kind },
+        async () => {
+          const result = await executeTriggerOrder(
+            {
+              payload,
+              mint: meta.mint,
+              decimals: meta.decimals,
+            },
+            {
+              authedFetch,
+              swap,
+              emitDiagnostic: emitDevDiagnostic,
+            },
+          );
+          if (result.kind === 'preBroadcastFailed') {
+            throw new Error(`${result.message} (claim released=${result.released})`);
+          }
+          if (result.kind === 'broadcastButSettleFailed' || result.kind === 'failed') {
+            throw new Error(result.message);
+          }
+          return result;
+        },
+      );
 
-      await runLogged('swap', 'order.executeSwap', { orderId }, async () => {
-        const diagnostics = { source: 'dev-tools', mode: 'probes' } as const;
-        const result =
-          selectedOrder.kind === 'BUY_TRIGGER'
-            ? await swap({
-                direction: 'BUY',
-                xStockMint: meta.mint,
-                xStockDecimals: meta.decimals,
-                usdAmount: selectedOrder.sizeUsd,
-                diagnostics,
-              })
-            : selectedOrder.tokenAmount && selectedOrder.tokenAmount > 0
-              ? await swap({
-                  direction: 'SELL',
-                  xStockMint: meta.mint,
-                  xStockDecimals: meta.decimals,
-                  tokenAmount: selectedOrder.tokenAmount,
-                  diagnostics,
-                })
-              : await swap({
-                  direction: 'SELL',
-                  xStockMint: meta.mint,
-                  xStockDecimals: meta.decimals,
-                  sellAll: true,
-                  diagnostics,
-                });
-
-        if (result.exec.status !== 'Success') throw new Error(result.exec.error ?? 'swap failed');
-        swapBroadcast = true;
-        const tokenAmount =
-          selectedOrder.kind === 'BUY_TRIGGER'
-            ? Number(result.outputAmount) / 10 ** meta.decimals
-            : Number(result.inputAmount) / 10 ** meta.decimals;
-        const usdValue =
-          selectedOrder.kind === 'BUY_TRIGGER'
-            ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
-            : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
-        const executionPrice =
-          tokenAmount > 0
-            ? usdValue / tokenAmount
-            : (selectedOrder.triggerPriceUsd ?? selectedOrder.sizeUsd);
-
-        const res = await authedFetch(`/api/orders/${selectedOrder.id}/execute`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            txSignature: result.exec.signature ?? `unknown-${Date.now()}`,
-            executionPrice,
-            tokenAmount,
-          }),
-        });
-        const json = (await res.json().catch(() => ({}))) as { error?: string };
-        if (!res.ok) throw new Error(json.error ?? `${res.status}`);
-        return {
-          swap: result.exec,
-          diagnostics: result.debug,
-          settle: json,
-          executionPrice,
-          tokenAmount,
-        };
-      });
-      toast.success('Swap settled.');
+      if (outcome.kind === 'alreadyHandled') {
+        toast.success('Order already settled.');
+      } else if (outcome.kind === 'alreadyExecuting') {
+        toast('Order is already executing.');
+      } else {
+        toast.success('Swap settled.');
+      }
       await refreshDevState();
       void qc.invalidateQueries({ queryKey: QK.orders() });
       void qc.invalidateQueries({ queryKey: QK.positions() });
       void qc.invalidateQueries({ queryKey: QK.portfolio() });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (err instanceof OrderExecutionClaimError) {
-        if (isOrderAlreadyHandled(err.reason)) {
-          toast.success('Order already settled.');
-          await refreshDevState();
-          return;
-        }
-        if (isOrderAlreadyExecuting(err.reason)) {
-          toast('Order is already executing.');
-          await refreshDevState();
-          return;
-        }
-      }
-
-      if (claimed && !swapBroadcast) {
-        await runLogged('orders', 'order.releaseExecution', { orderId }, async () => {
-          return releaseOrderExecutionClaim(authedFetch, orderId);
-        }).catch((releaseErr) => {
-          console.warn('[dev-tools] release execution claim failed', releaseErr);
-        });
-      }
-
-      toast.error(swapBroadcast ? `Swap broadcast, but settle failed: ${msg}` : msg);
+      toast.error(err instanceof Error ? err.message : String(err));
       await refreshDevState().catch(() => {});
     } finally {
       setBusy(null);
