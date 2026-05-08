@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
-import { HoldingsList, type Holding } from '@/components/portfolio/holdings-list';
-import { getAssetById } from '@hunch-it/shared';
+import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { usePortfolio } from '@/lib/hooks/queries';
+import { portfolioPositionsToHoldings } from '@/lib/portfolio/holdings';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 function formatUsdc(value: number): string {
@@ -35,28 +35,10 @@ export default function PortfolioPage() {
   const data = portfolioQuery.data;
   const isLoading = portfolioQuery.isLoading;
 
-  const holdings: Holding[] = useMemo(() => {
-    const positions = data?.positions ?? [];
-    return positions
-      .filter((p) => p.tokenAmount > 0)
-      .map((p, idx) => {
-        const meta = getAssetById(p.ticker);
-        const mark = p.markPrice ?? p.avgCost;
-        const value = p.tokenAmount * mark;
-        const pnl = p.pnl ?? (mark - p.avgCost) * p.tokenAmount;
-        const pnlPct = p.avgCost > 0 ? (mark - p.avgCost) / p.avgCost : 0;
-        return {
-          id: `${p.ticker}-${idx}`,
-          assetId: p.ticker,
-          name: meta?.name ?? p.ticker,
-          ticker: meta?.displaySymbol ?? p.ticker,
-          value,
-          pnl,
-          pnlPct,
-          state: 'ACTIVE' as const,
-        };
-      });
-  }, [data?.positions]);
+  const holdings = useMemo(
+    () => portfolioPositionsToHoldings(data?.positions ?? []),
+    [data?.positions],
+  );
 
   const realized = data?.pnl.realized ?? 0;
   const unrealized = data?.pnl.unrealized ?? 0;

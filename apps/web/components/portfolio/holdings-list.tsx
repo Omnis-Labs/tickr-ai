@@ -1,7 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import type { Holding } from '@/lib/portfolio/holdings';
 
 /**
  * Compact card-row holdings list. Caller hydrates `holdings[]` from
@@ -9,25 +10,14 @@ import { useRouter } from 'next/navigation';
  * presentation layer and avoids the React 19 snapshot loop we hit
  * earlier when filtering inside Zustand selectors.
  */
-export interface Holding {
-  id: string;
-  assetId: string;
-  name: string;
-  ticker: string;
-  value: number;
-  pnl: number;
-  pnlPct: number;
-  state: 'ACTIVE' | 'CLOSED' | string;
-}
-
 interface HoldingsListProps {
   holdings: Holding[];
   isLoading?: boolean;
 }
 
-export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
-  const router = useRouter();
+const MotionLink = motion(Link);
 
+export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-3">
@@ -55,12 +45,12 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
       {holdings.map((pos, i) => {
         const isPositive = pos.pnl >= 0;
         return (
-          <motion.div
+          <MotionLink
             key={pos.id}
+            href={`/positions/${encodeURIComponent(pos.id)}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + i * 0.05 }}
-            onClick={() => router.push(`/positions/${pos.id}`)}
             className="bg-surface rounded-lg p-4 flex items-center gap-3 cursor-pointer active:scale-[0.97] transition-transform shadow-soft"
           >
             <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-label-sm font-bold text-primary shrink-0">
@@ -82,7 +72,7 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
             </div>
 
             <span className="material-symbols-outlined text-[18px] text-icon-muted shrink-0">chevron_right</span>
-          </motion.div>
+          </MotionLink>
         );
       })}
     </div>
