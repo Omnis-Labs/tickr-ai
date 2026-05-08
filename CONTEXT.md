@@ -24,7 +24,40 @@ Two entrypoints: `resolveSession(req)` for API routes (Bearer token), `resolveSe
 
 ### Proposal
 
-A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning. Lifecycle: `ACTIVE → EXECUTED | SKIPPED | EXPIRED`.
+A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning; expiry follows the mandate-based lifetime and is not shortened by US equity market close.
+
+### Tradable Asset
+
+The canonical asset a user can trade through Hunch, identified by an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`; bare underlying equity symbols such as `AAPL` are not valid Hunch asset identifiers.
+
+### xStock
+
+The tokenized equity asset Hunch users trade on Solana, identified by the xStock symbol such as `AAPLx` or `NVDAx`; avoid presenting these as direct trades in native US-listed shares such as `AAPL` or `NVDA`.
+
+### xStock Signal
+
+A Proposal for an xStock based on fresh tokenized-asset price data for that xStock; this replaces the older idea of an underlying US equity signal.
+
+### xStock Market Data
+
+Price and bar data keyed by xStock symbols such as `AAPLx`; one xStock-native source must provide both latest price and historical bars, and Hunch does not fall back to underlying equity feeds or mixed equity charts for xStock Proposals.
+
+### Signal Data Freshness
+
+The asset-specific condition that the price data used to create a Proposal is current enough for that tradable asset, using the existing publish-time staleness check; for xStocks, there is no market-hours logic or equity-feed fallback.
+
+### Crypto
+
+The supported crypto Proposal universe, selected by the `crypto` market focus: `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `bluechip_crypto` is not a supported alias, and `SOL` is excluded because Hunch treats it as wallet fee balance, not a recommended Position.
+
+Approved crypto mints:
+
+- `wBTC` — `3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh`
+- `ETH` — `7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs`
+- `BNB` — `9gP2kCy3wA1ctvYWQk75guqXuHfrEomqydHLtcTCqiLa`
+- `wXRP` — `6UpQcMAb5xMzxc7ZfPaVMgx3KqsvKZdT5U718BzD5We2`
+- `TRX` — `GbbesPbaYh5uiAZSYNXTc7w9jty1rpg3P9L4JeN4LkKc`
+- `HYPE` — `98sMhvDwXj1RQi5c5Mndm3vPe9cBqPrbLaufMXFNMh5g`
 
 ### Synthetic Order
 
