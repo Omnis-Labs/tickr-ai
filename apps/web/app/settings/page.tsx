@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -38,6 +38,7 @@ export default function SettingsPage() {
 
   const mandate = mandateQuery.data?.mandate;
   const isLoading = mandateQuery.isLoading;
+  const isPortfolioLoading = portfolioQuery.isLoading;
 
   const verticalLabels = (mandate?.marketFocus ?? []).map(
     (id) => MARKET_FOCUS_VERTICALS.find((v) => v.id === id)?.label ?? id,
@@ -52,12 +53,26 @@ export default function SettingsPage() {
     return positions.reduce((acc, p) => acc + p.tokenAmount * (p.markPrice ?? p.avgCost), 0);
   }, [portfolioQuery.data?.positions]);
 
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    };
+  }, []);
+
+  const handleCopy = async () => {
     if (!address) return;
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopyStatus('copied');
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch {
+      setCopyStatus('error');
+      toast.error('Could not copy wallet address.');
+    }
   };
 
   return (
@@ -81,11 +96,13 @@ export default function SettingsPage() {
                   {address && (
                     <button
                       type="button"
-                      onClick={handleCopy}
-                      aria-label="Copy wallet address"
+                      onClick={() => void handleCopy()}
+                      aria-label={
+                        copyStatus === 'copied' ? 'Wallet address copied' : 'Copy wallet address'
+                      }
                       className="w-11 h-11 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform hover:bg-surface-container-high"
                     >
-                      {copied ? (
+                      {copyStatus === 'copied' ? (
                         <Check className="h-4 w-4" aria-hidden="true" />
                       ) : (
                         <Clipboard className="h-4 w-4" aria-hidden="true" />
@@ -109,19 +126,30 @@ export default function SettingsPage() {
         </Section>
 
         <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
-          <Row label="Active positions">
-            <span className="tabular-nums">{positionsCount}</span>
-          </Row>
-          <div className="h-px bg-divider my-3" />
-          <Row label="Total value">
-            <span className="text-primary tabular-nums">
-              $
-              {positionsValue.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-          </Row>
+          {isPortfolioLoading ? (
+            <SkeletonRows rows={2} />
+          ) : portfolioQuery.isError ? (
+            <InlineError
+              message="Could not load positions."
+              onRetry={() => void portfolioQuery.refetch()}
+            />
+          ) : (
+            <>
+              <Row label="Active positions">
+                <span className="tabular-nums">{positionsCount}</span>
+              </Row>
+              <div className="h-px bg-divider my-3" />
+              <Row label="Total value">
+                <span className="text-primary tabular-nums">
+                  $
+                  {positionsValue.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </Row>
+            </>
+          )}
         </Section>
 
         <Section
@@ -140,7 +168,12 @@ export default function SettingsPage() {
           }
         >
           {isLoading ? (
-            <p className="text-body-md text-on-surface-variant">Loading…</p>
+            <SkeletonRows rows={4} />
+          ) : mandateQuery.isError ? (
+            <InlineError
+              message="Could not load your mandate."
+              onRetry={() => void mandateQuery.refetch()}
+            />
           ) : !mandate ? (
             <div>
               <p className="text-body-md text-on-surface-variant mb-3">
@@ -234,12 +267,14 @@ function CloseAllPositionsCard() {
       const j = (await r.json().catch(() => ({ positions: [] }))) as {
         positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
       };
-      const targets = (j.positions ?? []).map((p) => ({
-        id: p.id,
-        ticker: p.ticker,
-        tokenAmount: p.tokenAmount,
-        markPrice: p.entryPrice,
-      }));
+      const targets = (j.positions ?? [])
+        .filter((p) => p.tokenAmount > 0)
+        .map((p) => ({
+          id: p.id,
+          ticker: p.ticker,
+          tokenAmount: p.tokenAmount,
+          markPrice: p.entryPrice,
+        }));
 
       if (targets.length === 0) {
         toast('No open positions.');
@@ -248,9 +283,11 @@ function CloseAllPositionsCard() {
       }
 
       setProgress({ done: 0, total: targets.length });
+      let closed = 0;
       for (let i = 0; i < targets.length; i++) {
         try {
           await closeOne(targets[i]!);
+          closed += 1;
         } catch (err) {
           toast.error(
             `Close ${targets[i]!.ticker} failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -258,8 +295,17 @@ function CloseAllPositionsCard() {
         }
         setProgress({ done: i + 1, total: targets.length });
       }
-      toast.success(`Closed ${targets.length} position${targets.length === 1 ? '' : 's'}.`);
-      router.replace('/');
+
+      if (closed === targets.length) {
+        toast.success(`Closed ${closed} position${closed === 1 ? '' : 's'}.`);
+        router.replace('/');
+      } else if (closed > 0) {
+        toast(`Closed ${closed}/${targets.length} positions. Review the failed swaps.`);
+      } else {
+        toast.error('No positions closed. Review the failed swaps and try again.');
+      }
+    } catch (err) {
+      toast.error(`Panic close failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
       setProgress(null);
@@ -278,6 +324,7 @@ function CloseAllPositionsCard() {
           type="button"
           onClick={() => setConfirm(true)}
           disabled={busy}
+          aria-busy={busy}
           className="flex items-center justify-center h-11 px-5 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
         >
           Close all positions
@@ -296,13 +343,16 @@ function CloseAllPositionsCard() {
             type="button"
             onClick={() => void handleCloseAll()}
             disabled={busy}
+            aria-busy={busy}
             className="flex-[2] h-11 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
           >
-            {busy
-              ? progress
-                ? `Closing ${progress.done}/${progress.total}…`
-                : 'Closing…'
-              : 'Confirm close all'}
+            <span aria-live="polite">
+              {busy
+                ? progress
+                  ? `Closing ${progress.done}/${progress.total}...`
+                  : 'Closing...'
+                : 'Confirm close all'}
+            </span>
           </button>
         </div>
       )}
@@ -334,6 +384,36 @@ function Section({
       </header>
       {children}
     </section>
+  );
+}
+
+function SkeletonRows({ rows }: { rows: number }) {
+  return (
+    <div className="flex flex-col gap-3" aria-hidden="true">
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className={`h-5 rounded-full bg-surface-container-high animate-pulse ${
+            index % 2 === 0 ? 'w-3/4' : 'w-1/2'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg bg-error-container px-4 py-3 text-on-error-container">
+      <p className="text-body-sm">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="shrink-0 rounded-full px-3 py-1 text-label-md text-error transition-colors hover:bg-surface/50"
+      >
+        Retry
+      </button>
+    </div>
   );
 }
 
