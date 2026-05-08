@@ -31,6 +31,7 @@
     "schema": "./prisma/schema.prisma"
   },
   "dependencies": {
+    "@hunch-it/shared": "workspace:*",
     "@prisma/client": "^6.1.0"
   },
   "devDependencies": {

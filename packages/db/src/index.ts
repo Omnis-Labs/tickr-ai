@@ -1,5 +1,16 @@
 export { prisma, shutdownPrisma } from './client.js';
 export {
+  buildBuyProposalCreateData,
+  createBuyProposalForUser,
+} from './lifecycle/proposal-creation.js';
+export type {
+  BuyMarketAnalysis,
+  CreateBuyProposalForUserInput,
+  ProposalAnalysisIndicators,
+  ProposalCreationMandate,
+  ProposalCreationPositionImpact,
+} from './lifecycle/proposal-creation.js';
+export {
   acceptBuyProposal,
   cancelPendingBuy,
   claimOrderExecution,
