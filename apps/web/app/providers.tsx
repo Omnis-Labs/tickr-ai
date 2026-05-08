@@ -3,9 +3,15 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { CheckCircle2, CircleAlert, Info, LoaderCircle, TriangleAlert } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { WalletContextProvider } from '@/components/wallet/wallet-provider';
-import { NotificationClient } from '@/components/notifications/notification-client';
+
+const NotificationClient = dynamic(
+  () =>
+    import('@/components/notifications/notification-client').then((mod) => mod.NotificationClient),
+  { ssr: false },
+);
 
 const toastClassNames = {
   toast: 'hunch-toast',
