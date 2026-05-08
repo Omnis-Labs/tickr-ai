@@ -1,7 +1,7 @@
 // Stage 2 Proposal Generator (live mode).
 //
-// Given a base LLM analysis for a ticker (from Stage 1 / Market Scanner),
-// queries every user whose mandate market_focus contains this ticker, builds
+// Given a base LLM analysis for an asset (from Stage 1 / Market Scanner),
+// queries every user whose mandate market_focus contains this asset, builds
 // a personalized Proposal (size scaled by mandate.maxTradeSize, TP/SL bands
 // scaled by mandate.maxDrawdown + holdingPeriod, mandate-aware reasoning),
 // persists each row in Postgres, and emits proposal:new into the user room.
@@ -14,16 +14,13 @@ import type { Server as IoServer } from 'socket.io';
 import {
   MARKET_FOCUS_VERTICALS,
   WsServerEvents,
-  bareToXStock,
   extractThesisTags,
-  xStockToBare,
-  type BareTicker,
 } from '@hunch-it/shared';
 import { computePositionImpact } from './portfolio-context.js';
 import { getLatestPrices } from '../pyth/index.js';
 
 export interface BaseAnalysis {
-  bareTicker: BareTicker;
+  assetId: string;
   action: 'BUY' | 'HOLD';
   confidence: number; // 0-1
   rationale: string;
@@ -83,32 +80,28 @@ export async function generateProposalsForBaseAnalysis(
   };
   if (base.action !== 'BUY' || base.confidence < 0.7) return summary;
 
-  const symbol = bareToXStock(base.bareTicker); // "NVDA" → "NVDAx"
-  const verticals = tickerVerticals(symbol);
+  const verticals = tickerVerticals(base.assetId);
   if (verticals.length === 0) return summary;
 
-  // Pre-fetch one Pyth snapshot for every xStock so positionImpact can mark
+  // Pre-fetch one Pyth snapshot for every signal asset so positionImpact can mark
   // the user's other holdings to current price. Single round-trip up front
   // beats N+1 per user.
   const allMarks = await getLatestPrices().catch(() => new Map());
-  const marksByBareTicker = new Map<BareTicker, number>();
-  for (const [ticker, snap] of allMarks) marksByBareTicker.set(ticker, snap.price);
+  const marksByAssetId = new Map<string, number>();
+  for (const [assetId, snap] of allMarks) marksByAssetId.set(assetId, snap.price);
 
-  // The set of bare tickers that share at least one vertical with `symbol` —
+  // The set of asset ids that share at least one vertical with this asset —
   // used for sector aggregation in positionImpact. Built once.
-  const sectorPeers = new Set<BareTicker>();
+  const sectorPeers = new Set<string>();
   for (const v of MARKET_FOCUS_VERTICALS) {
     if (!verticals.includes(v.id)) continue;
     for (const t of v.tickers) {
-      if (typeof t === 'string' && t.endsWith('x')) {
-        const bare = xStockToBare(t as Parameters<typeof xStockToBare>[0]);
-        sectorPeers.add(bare);
-      }
+      if (typeof t === 'string') sectorPeers.add(t);
     }
   }
   const sectorPeerArr = Array.from(sectorPeers);
 
-  // Find users whose mandate's market_focus overlaps this ticker's verticals,
+  // Find users whose mandate's market_focus overlaps this asset's verticals,
   // OR who chose "no_preference".
   const users = await prisma.user.findMany({
     where: {
@@ -121,9 +114,9 @@ export async function generateProposalsForBaseAnalysis(
     },
     include: {
       mandate: true,
-      // Skip users who already have an open position on this ticker (avoid pile-on).
+      // Skip users who already have an open position on this asset (avoid pile-on).
       positions: {
-        where: { ticker: symbol, state: { not: 'CLOSED' } },
+        where: { ticker: base.assetId, state: { not: 'CLOSED' } },
         select: { id: true },
       },
     },
@@ -154,9 +147,9 @@ export async function generateProposalsForBaseAnalysis(
       // down the whole proposal generation tick.
       const ctx = await computePositionImpact({
         walletAddress: user.walletAddress,
-        bareTicker: base.bareTicker,
-        sameVerticalBareTickers: sectorPeerArr,
-        marksByBareTicker,
+        assetId: base.assetId,
+        sameVerticalAssetIds: sectorPeerArr,
+        marksByAssetId,
       });
       const totalUsd = ctx.totalUsd;
       const weightBefore = totalUsd > 0 ? ctx.tickerExposureUsd / totalUsd : 0;
@@ -177,7 +170,7 @@ export async function generateProposalsForBaseAnalysis(
       const created = await prisma.proposal.create({
         data: {
           userId: user.id,
-          ticker: symbol,
+          ticker: base.assetId,
           action: 'BUY',
           suggestedSizeUsd: sizeUsd,
           suggestedTriggerPrice: triggerPrice,

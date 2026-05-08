@@ -1,4 +1,4 @@
-// Portfolio context — reads a user's USDC + open xStock balances on-chain
+// Portfolio context — reads a user's USDC + open asset balances on-chain
 // so the Proposal Generator can fill positionImpact with real weight /
 // cash / sector deltas instead of zeros.
 //
@@ -9,12 +9,11 @@
 
 import { Connection, PublicKey } from '@solana/web3.js';
 import {
+  ASSET_REGISTRY,
   TOKEN_2022_PROGRAM_ID,
   USDC_DECIMALS,
   USDC_MINT,
-  XSTOCKS,
   parseRpcUrls,
-  type BareTicker,
 } from '@hunch-it/shared';
 import { env } from '../env.js';
 
@@ -74,17 +73,17 @@ async function readBalances(walletAddress: string): Promise<BalancesByMint> {
 }
 
 export interface PositionImpactContext {
-  /** Total USD value (USDC + xStocks at last-known prices). */
+  /** Total USD value (USDC + tradable assets at last-known prices). */
   totalUsd: number;
   cashUsd: number;
-  /** USD value the user already holds in this ticker (0 if no position). */
+  /** USD value the user already holds in this asset (0 if no position). */
   tickerExposureUsd: number;
   /** USD value the user holds across the same vertical. */
   sectorExposureUsd: number;
 }
 
 /**
- * Compute the portfolio context for a single user × ticker pair. xStock
+ * Compute the portfolio context for a single user × asset pair. Asset
  * marks come from the Pyth scanner cache (passed in); USDC defaults to $1.
  *
  * If the wallet read fails for any reason (RPC outage, bad address), all
@@ -94,11 +93,11 @@ export interface PositionImpactContext {
  */
 export async function computePositionImpact(args: {
   walletAddress: string;
-  bareTicker: BareTicker;
-  /** Verticals the bareTicker belongs to (for sector aggregate). */
-  sameVerticalBareTickers: readonly BareTicker[];
-  /** Pyth marks per BareTicker; missing entries treated as zero. */
-  marksByBareTicker: Map<BareTicker, number>;
+  assetId: string;
+  /** Asset ids in the same mandate vertical (for sector aggregate). */
+  sameVerticalAssetIds: readonly string[];
+  /** Pyth marks per asset id; missing entries treated as zero. */
+  marksByAssetId: Map<string, number>;
 }): Promise<PositionImpactContext> {
   const balances = await readBalances(args.walletAddress);
   if (balances.byMint.size === 0) {
@@ -109,24 +108,23 @@ export async function computePositionImpact(args: {
     Math.round(((balances.byMint.get(USDC_MINT) ?? 0) * 10 ** USDC_DECIMALS)) /
     10 ** USDC_DECIMALS;
 
-  let totalXStockUsd = 0;
+  let totalAssetUsd = 0;
   let tickerExposureUsd = 0;
   let sectorExposureUsd = 0;
 
-  for (const bare of Object.keys(XSTOCKS) as BareTicker[]) {
-    const meta = XSTOCKS[bare];
-    if (!meta.mint) continue;
-    const tokenAmt = balances.byMint.get(meta.mint) ?? 0;
+  for (const asset of ASSET_REGISTRY) {
+    if (!asset.mint) continue;
+    const tokenAmt = balances.byMint.get(asset.mint) ?? 0;
     if (tokenAmt === 0) continue;
-    const mark = args.marksByBareTicker.get(bare) ?? 0;
+    const mark = args.marksByAssetId.get(asset.assetId) ?? 0;
     const usd = tokenAmt * mark;
-    totalXStockUsd += usd;
-    if (bare === args.bareTicker) tickerExposureUsd += usd;
-    if (args.sameVerticalBareTickers.includes(bare)) sectorExposureUsd += usd;
+    totalAssetUsd += usd;
+    if (asset.assetId === args.assetId) tickerExposureUsd += usd;
+    if (args.sameVerticalAssetIds.includes(asset.assetId)) sectorExposureUsd += usd;
   }
 
   return {
-    totalUsd: cashUsd + totalXStockUsd,
+    totalUsd: cashUsd + totalAssetUsd,
     cashUsd,
     tickerExposureUsd,
     sectorExposureUsd,

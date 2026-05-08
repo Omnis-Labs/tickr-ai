@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   type Bar,
-  type BareTicker,
 } from '@hunch-it/shared';
 import { env } from '../env.js';
 import type { IndicatorResult } from './indicators.js';
@@ -24,7 +23,7 @@ export const LlmSignalSchema = z.object({
 export type LlmSignal = z.infer<typeof LlmSignalSchema>;
 
 export interface LlmInput {
-  ticker: BareTicker;
+  assetId: string;
   currentPrice: number;
   bars: Bar[];
   indicators: IndicatorResult;
@@ -69,11 +68,11 @@ function fmtBar(b: Bar): string {
 
 export function buildPrompt(input: LlmInput): string {
   const sampled = downsample(input.bars, 48);
-  const { indicators: ind, currentPrice, ticker } = input;
+  const { indicators: ind, currentPrice, assetId } = input;
   const pctVsMa20 = ind.ma20 > 0 ? ((currentPrice / ind.ma20 - 1) * 100).toFixed(2) : 'n/a';
   const pctVsMa50 = ind.ma50 > 0 ? ((currentPrice / ind.ma50 - 1) * 100).toFixed(2) : 'n/a';
-  return `You are a technical analysis assistant for tokenized US stocks on Solana.
-Given the following market data for ${ticker}, output a JSON object with your trading recommendation for the next 1 hour.
+  return `You are a technical analysis assistant for tradable token assets on Solana.
+Given the following market data for ${assetId}, output a JSON object with your trading recommendation for the next 1 hour.
 
 Current price: $${currentPrice.toFixed(2)}
 
@@ -215,7 +214,7 @@ export async function generateLlmSignal(input: LlmInput): Promise<LlmResult> {
   const newSpend = await recordLlmSpendUsd(costUsd);
 
   console.log(
-    `[llm] ${input.ticker} ${validated.data.action} conf=${validated.data.confidence.toFixed(2)} ` +
+    `[llm] ${input.assetId} ${validated.data.action} conf=${validated.data.confidence.toFixed(2)} ` +
       `model=${GEMINI_SIGNAL_MODEL} tokens=${inputTokens}/${outputTokens} cost=$${costUsd.toFixed(4)} spend=$${newSpend.toFixed(2)}`,
   );
 
