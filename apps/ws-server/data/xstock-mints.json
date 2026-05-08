@@ -45,15 +45,6 @@
     "errors": []
   },
   {
-    "ticker": "MSFTx",
-    "mint": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
-    "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
-    "decimals": 8,
-    "supply": "3628697073316",
-    "ok": true,
-    "errors": []
-  },
-  {
     "ticker": "GOOGLx",
     "mint": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
     "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
