@@ -77,7 +77,6 @@ export type {
 
 // ── constants ────────────────────────────────────────────────────────────
 export {
-  BARE_TICKERS,
   HOLDING_PERIOD_OPTIONS,
   JUPITER_TRIGGER_CANCEL_CONFIRM,
   JUPITER_TRIGGER_CANCEL_INITIATE,
@@ -104,14 +103,11 @@ export {
   XSTOCK_MINTS,
   XSTOCK_TICKERS,
   XSTOCKS,
-  bareToXStock,
   requireMint,
   requirePythFeedId,
   solscanTokenUrl,
-  xStockToBare,
 } from './constants.js';
 export type {
-  BareTicker,
   DrawdownOption,
   HoldingPeriodOption,
   MarketFocusVerticalDef,
@@ -120,18 +116,17 @@ export type {
 } from './constants.js';
 
 // ── Asset registry (preferred lookup for new code) ───────────────────────
-// Existing callsites still use XSTOCKS[xStockToBare(...)] and that's fine —
-// see assets.ts for why we didn't mass-rename.
 export {
   ASSET_REGISTRY,
-  assetToUnderlyingTicker,
+  getCryptoAssets,
   getAssetById,
+  getSignalAssets,
   getXStockAssets,
   isCrypto,
   isXStock,
   requireAsset,
 } from './assets.js';
-export type { Asset, AssetId, AssetKind } from './assets.js';
+export type { Asset, AssetId, AssetKind, CryptoAssetId } from './assets.js';
 
 // ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
 export {
