@@ -54,6 +54,10 @@ The asset-specific condition that the price data used to create a Proposal is cu
 
 The standalone Signal Engine output for one asset before personalization. It contains the asset id, current price, indicators, confidence, and technical rationale. It does not know about users, mandates, order creation, or PositionLifecycle.
 
+### Base Analysis Refresh Policy
+
+The rule for when price movement or candle progression is meaningful enough to request a new Base Market Analysis for an asset instead of reusing the previous interpretation.
+
 ### ProposalCreation
 
 The `packages/db/src/lifecycle/proposal-creation.ts` Module that turns Base Market Analysis plus a Mandate and position-impact context into a persisted BUY Proposal. It owns sizing defaults, trigger / TP / SL derivation, expiry, reasoning, thesis tags, and Proposal row creation. Live signal generation and `/dev-tools` are adapters into this Module.
