@@ -73,7 +73,7 @@ Approved crypto mints:
 
 ### Synthetic Order
 
-A row in the `Order` table that the server tracks and the user executes by tapping. **Not** a Jupiter trigger order. `jupiterOrderId` is always `null`. Four kinds:
+A row in the `Order` table that the server tracks and the user executes by tapping. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
 
 - `BUY_TRIGGER` — fire when current price is within 0.5 % of `triggerPriceUsd`.
 - `TAKE_PROFIT` — fire when current price ≥ `triggerPriceUsd`.

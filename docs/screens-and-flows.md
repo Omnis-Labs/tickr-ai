@@ -304,8 +304,8 @@ Short static company/asset description, hardcoded in the asset registry. One par
 
 Inline form (no page navigation). Only available when `state = ACTIVE`.
 
-- **TP Price**: current value, editable → modifies the live TP trigger order via Jupiter in-place edit API
-- **SL Price**: current value, editable → modifies the live SL trigger order
+- **TP Price**: current value, editable → replaces the OPEN synthetic TP Order
+- **SL Price**: current value, editable → replaces the OPEN synthetic SL Order
 - **Update** button → submit changes
 
 ### Close Position
@@ -314,8 +314,8 @@ Bottom button. Only available when `state = ACTIVE`.
 
 **"Close Position"** → Confirmation dialog: "Cancel all exit orders and sell your full position at market price?" → On confirm:
 
-1. Cancel TP + SL trigger orders
-2. Jupiter Swap API market price full sell
+1. Cancel TP + SL synthetic Orders
+2. Jupiter Ultra market sell
 3. Position state → CLOSING → CLOSED
 
 ---

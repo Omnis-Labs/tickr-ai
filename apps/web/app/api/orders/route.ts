@@ -12,7 +12,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  *   GET  /api/orders          List the authed user's open orders.
  *   POST /api/orders          Accept a BUY proposal into synthetic DB Orders.
  *
- * Synthetic orders have no external conditional-order provider. The ws-server
+ * Synthetic orders have no external trigger provider. The ws-server
  * trigger monitor later emits `trigger:hit`; the client executes a Jupiter
  * Ultra swap only after the user taps Execute.
  *

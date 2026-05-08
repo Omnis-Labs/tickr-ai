@@ -6,7 +6,7 @@ Mandate-driven AI trading proposals for xStocks and crypto on Solana.
 
 Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
 
-> The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). xStocks (Backed Finance Token-2022 mints) are not on Jupiter Trigger Order v2's allowlist, so triggers are tracked as DB rows watched by `apps/ws-server` against Pyth, and the user signs a Jupiter Ultra swap via Privy at fire time. Trigger Order v2 is **not** used.
+> The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). Approve writes DB-only synthetic Orders; `apps/ws-server` watches Pyth and emits `trigger:hit`; the user signs a Jupiter Ultra swap via Privy only after tapping Execute. No external trigger API is part of the runtime.
 
 > Hunch It is experimental software and not financial advice. Use small real-fund test amounts only if you understand the risks.
 
@@ -37,7 +37,7 @@ The app is built around proposals, not a manual trading terminal. All trade-stat
 - **Wallet:** Privy auth with embedded Solana wallet support
 - **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap signed client-side via Privy when the user taps Execute. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
-- **Signal engine:** standalone `ws-server` process. Default runtime starts only the `trigger-monitor` task; `ENABLE_BACK_EVAL`, `ENABLE_JUPITER_ORDER_TRACKER`, `ENABLE_THESIS_MONITOR`, `ENABLE_SIGNAL_LOOP` are opt-in.
+- **Signal engine:** standalone `ws-server` process. Default runtime starts the required `trigger-monitor`; `ENABLE_SIGNAL_LOOP`, `ENABLE_BACK_EVAL`, and `ENABLE_THESIS_MONITOR` are opt-in.
 
 See [docs/product-overview.md](docs/product-overview.md) for the full product scope.
 
@@ -97,7 +97,7 @@ For the full env reference, live trading setup, and `/dev-tools` testing flow, s
 hunch-it/
 ├── apps/
 │   ├── web/           # Next.js 15 PWA frontend + REST API routes
-│   └── ws-server/     # Signal Engine, Socket.IO, order tracking, auto TP/SL
+│   └── ws-server/     # Signal Engine, Socket.IO, synthetic order monitoring
 └── packages/
     ├── shared/        # Zod schemas, asset registry, shared types
     └── config/        # Shared TypeScript config
@@ -133,8 +133,8 @@ hunch-it/
 | [Getting Started](docs/getting-started.md)   | Local setup, `/dev-tools`, live setup, development commands          |
 | [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
 | [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |
-| [Signal Engine](docs/signal-engine.md)       | Market scanner, proposal generation, order tracking, back-evaluation |
-| [API Contract](docs/api-contract.md)         | REST endpoints, WebSocket events, Jupiter order flows                |
+| [Signal Engine](docs/signal-engine.md)       | Base market analysis, proposal fan-out, trigger monitoring, back-evaluation |
+| [API Contract](docs/api-contract.md)         | REST endpoints, WebSocket events, Jupiter Ultra swap flows           |
 | [Data Model](docs/data-model.md)             | Prisma models, enums, JSON fields, asset registry                    |
 | [Troubleshooting](docs/troubleshooting.md)   | Common local setup and runtime issues                                |
 

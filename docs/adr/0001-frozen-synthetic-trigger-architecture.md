@@ -1,12 +1,12 @@
 # ADR-0001: Frozen synthetic-trigger architecture
 
 - **Status**: Accepted (2026-05-04)
-- **Supersedes**: the autonomous "Jupiter Trigger Order v2" model described in `docs/architecture.md`, `docs/signal-engine.md`, and `docs/screens-and-flows.md`.
+- **Supersedes**: the earlier autonomous external execution model described in older architecture drafts.
 - **Set by**: PR #8 (commit `c2cb153`, 2026-05-02) verified end-to-end on Solana mainnet (BUY tx `5FUrvR…7Rf`, SELL/close tx `5W9GE5…D2KQ`).
 
 ## Context
 
-The original v1.3 design assumed Jupiter Trigger Order v2 would hold USDC in a vault and execute trigger orders autonomously while the user was away. In practice **Backed Finance xStocks (Token-2022 mints) are not on Jupiter Trigger v2's allowlist**, so we cannot deposit them into a Jupiter vault. Two days of attempts to coerce Jupiter into accepting Token-2022 (custom auth, server-side mint mapping, modal bypasses) ended in PR #8: drop the Jupiter Trigger v2 client entirely and replace it with a synthetic model.
+The original v1.3 design assumed an external provider would custody assets and execute triggers autonomously while the user was away. That model did not fit the tokenized-asset surface we are actually shipping, and it added auth, custody, and polling state that competed with the product's tap-to-execute lifecycle. PR #8 froze the product on a synthetic model instead.
 
 ## Decision
 
@@ -17,7 +17,7 @@ The product is frozen on the synthetic-trigger model. Its shape:
 3. **The user** sees a sticky toast and taps **Execute**. The frontend claims the Order (`OPEN → PENDING`), requests a Jupiter **Ultra** `/order`, has Privy sign the user's/taker's signature slot with `signTransaction`, then submits the signed bytes to Jupiter Ultra `/execute`. Jupiter returns the on-chain signature for the sponsored swap.
 4. **`POST /api/orders/[id]/execute`** settles after the Ultra swap returns a signature: marks the Order `FILLED`, transitions `Position` to `ACTIVE` (BUY) or `CLOSED` (TP/SL), records a `Trade`, arms or OCO-cancels exit Orders.
 
-The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-server detects, user confirms, frontend swaps. Server-side delegated signing is out of scope for this freeze.
+The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-server detects, user confirms, frontend swaps. Server-side transaction signing is out of scope for this freeze.
 
 ## Consequences
 
@@ -34,28 +34,26 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 | Env flag | Service | Why disabled |
 |---|---|---|
-| `ENABLE_JUPITER_ORDER_TRACKER` | `apps/ws-server` Order Tracker | Polls Jupiter for orders that don't exist; synthetic Orders have `jupiterOrderId=null`. |
 | `ENABLE_THESIS_MONITOR` | `apps/ws-server` Thesis Monitor | Generates SELL signals that race the OCO close model; not part of the documented exit flow. |
 | `ENABLE_BACK_EVAL` | `apps/ws-server` back-evaluator | Analytics, not user-visible. |
 
 ### What is dead and can be deleted
 
-- `apps/web/lib/jupiter/use-jupiter-trigger.ts` and the v2 client modules — already deleted in PR #8.
-- `apps/web/app/api/jupiter/[...path]/route.ts` proxy — already deleted.
+- External trigger client/proxy modules — deleted before this freeze.
 - The `localStorage` `onboarded:<wallet>` flag and the four-step `/onboarding` browser-permission wizard — deleted in this branch (commits `62bacb2`, `d73f52d`).
 
 ### What is residual but kept (deliberate)
 
-- **`Order.jupiterOrderId`** column. Always `null` under the frozen model but retained because (a) dropping a column requires a Postgres migration that's not on the cohesive-core critical path, (b) the gated `runOrderTracker` task still type-references it. Treat it as vestigial; do not write it.
+- **`Order.jupiterOrderId`** column. Always `null` under the frozen model but retained as a vestigial nullable column for schema compatibility. Treat it as read-only legacy shape; do not write it.
 - **`Position.state` values `ENTERING` and `CLOSING`**. These are now used as short-lived execution-claim states while the browser is signing/submitting a synthetic trigger swap: `BUY_PENDING → ENTERING → ACTIVE` for BUY fills and `ACTIVE → CLOSING → CLOSED` for TP/SL fills. If the wallet swap fails before Jupiter Ultra `/execute` returns a signature, the claim is released back to `BUY_PENDING` or `ACTIVE`.
 - **`Order.status` value `PENDING`**. This is now the short-lived execution-claim status for synthetic trigger Orders. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING` before any on-chain swap starts; `/execute` consumes either `OPEN` (legacy/no-claim path) or `PENDING`; `DELETE /execution-claim` releases only pre-broadcast failures. `PARTIALLY_FILLED`, `EXPIRED`, and `FAILED` remain residual enum values in the frozen synthetic path.
 - **Legacy v1.2 types in `packages/shared/src/types.ts`** (`Signal`, `SignalSchema`, `Approval*`, `LlmSignalOutput`, `TradeStatus`, the legacy `Trade`/`Position` Zod shapes that collide with Prisma names, `WsServerEvents.SignalNew/SignalExpired`, `WsClientEvents.ApprovalDecision`). Still wired through the parallel signal/proposal flow (`signal-modal`, `apps/ws-server/src/signals/generator.ts`, `/signals/[id]`). Merging that flow into the proposal flow is its own deepening candidate; do not touch in this pass.
 
 ### What we are NOT doing in v1 of the freeze
 
-- Server-side delegated signing.
+- Server-side transaction signing.
 - Truly autonomous execution.
-- Returning to Jupiter Trigger v2.
+- Returning to autonomous external execution.
 - Real LLM-driven proposal generation in production.
 - Back-evaluation in default runtime.
 - OS push notifications.

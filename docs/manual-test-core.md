@@ -110,9 +110,9 @@ Even if the client fails to cancel exits before calling close (the prior best-ef
 
 ## What this script does NOT cover (deferred per ADR-0001)
 
-- Real Privy delegated server signing (the system requires the user to tap)
+- Server-side transaction signing (the system requires the user to tap)
 - LLM proposal generation in production (gated by `ENABLE_SIGNAL_LOOP`)
-- Back-evaluation, thesis-monitor SELL signals, Jupiter Trigger v2 order tracker (gated off)
+- Back-evaluation and thesis-monitor SELL signals (gated off)
 - OS push notifications, leaderboard, fiat onramp
 - Multi-user production hardening beyond ownership checks
 

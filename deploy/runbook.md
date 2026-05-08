@@ -162,11 +162,9 @@ echo -n "<paste-PRIVY_APP_SECRET-from-.env.local>" | \
 echo -n "<paste-GEMINI_API_KEY-from-.env.local>" | \
   gcloud secrets create gemini-key --data-file=-
 
-# WS cron secret (fresh)
-openssl rand -hex 32 | gcloud secrets create ws-cron-secret --data-file=-
 ```
 
-Verify all 5 are there:
+Verify all 4 are there:
 
 ```bash
 gcloud secrets list
@@ -309,7 +307,7 @@ curl -s -X POST "https://mainnet.helius-rpc.com/?api-key=9e45d8e2-dc53-4212-bfe9
 gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
 gcloud sql instances delete "$SQL_INSTANCE" --quiet
 gcloud artifacts repositories delete "$AR_REPO" --location="$REGION" --quiet
-for s in database-url solana-rpc-urls privy-app-secret gemini-key ws-cron-secret; do
+for s in database-url solana-rpc-urls privy-app-secret gemini-key; do
   gcloud secrets delete "$s" --quiet
 done
 ```

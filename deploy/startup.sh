@@ -90,7 +90,6 @@ DATABASE_URL=$(fetch_secret database-url)
 SOLANA_RPC_URLS=$(fetch_secret solana-rpc-urls)
 PRIVY_APP_SECRET_VAL=$(fetch_secret privy-app-secret)
 GEMINI_KEY=$(fetch_secret gemini-key)
-WS_CRON_SECRET_VAL=$(fetch_secret ws-cron-secret)
 
 cat > /opt/hunchit/.env <<EOF
 # Hydrated by startup.sh from Secret Manager + VM metadata. Do not edit
@@ -108,7 +107,6 @@ DATABASE_URL=${DATABASE_URL}
 NEXT_PUBLIC_SOLANA_RPC_URLS=${SOLANA_RPC_URLS}
 PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAL}
 GEMINI_API_KEY=${GEMINI_KEY}
-WS_CRON_SECRET=${WS_CRON_SECRET_VAL}
 
 # Static / public — also embedded in the web image at build time, but
 # server-side handlers + ws-server need them at runtime too.

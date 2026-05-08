@@ -1,6 +1,6 @@
 # Hunch — Signal Engine
 
-> Two-stage signal pipeline, market scanning, proposal generation, sizing logic, LLM cost control, order tracking, and back-evaluation.
+> Base market analysis, proposal fan-out, sizing logic, LLM cost control, synthetic trigger monitoring, and back-evaluation.
 >
 > **Read with**: data-model.md (schema + JSON interfaces), api-contract.md (WebSocket events + order state transitions)
 
@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In the frozen synthetic-trigger architecture, only proposal generation and trigger monitoring are in the default runtime; tracker/eval/thesis jobs are env-gated.
+The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In the frozen synthetic-trigger architecture, trigger monitoring is always on; live signal generation, back-evaluation, and thesis monitoring are env-gated.
 
 1. **Market Scanner** — monitor all supported assets for trading opportunities
 2. **Proposal Generator** — convert Base Market Analysis into personalized BUY proposals per user
@@ -19,7 +19,7 @@ The pipeline is asset-native. Every signalable item is a canonical `AssetId` fro
 
 The canonical proposal rule is: **Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.** Freshness is data-driven using Pyth publish time through `evaluateSignalDataFreshness`; there is no US market-hours gate.
 
-The Signal Engine seam is intentionally narrow: `AssetId + Signal Data -> Base Market Analysis`. It owns Pyth/Gemini/indicator work, but it does not own mandate personalization, `/dev-tools`, order acceptance, or PositionLifecycle.
+The Signal Engine seam is intentionally narrow: `AssetId + Signal Data -> Base Market Analysis`. It owns Pyth/Gemini/indicator work in `apps/ws-server/src/signals/base-analysis.ts`, but it does not own mandate personalization, `/dev-tools`, order acceptance, or PositionLifecycle.
 
 ---
 
@@ -92,7 +92,7 @@ For each matching user:
 
 ## Mandate Personalization (TP/SL/Expiry Adjustment)
 
-Stage 1 currently returns a signal, not full price targets. `apps/ws-server/src/signals/generator.ts` supplies base defaults (`suggestedTpPct = 4%`, `suggestedSlPct = 2.5%`) before Stage 2 personalizes them.
+Stage 1 currently returns a Base Market Analysis with simple base defaults (`suggestedTpPct = 4%`, `suggestedSlPct = 2.5%`) before Stage 2 personalizes them.
 
 ### TP/SL Adjustment
 
