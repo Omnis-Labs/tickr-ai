@@ -26,9 +26,6 @@ import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   WsServerEvents,
-  xStockToBare,
-  type BareTicker,
-  type XStockTicker,
 } from '@hunch-it/shared';
 import { getLatestPrices } from '../pyth/index.js';
 
@@ -61,23 +58,18 @@ export async function runTriggerMonitor(
   };
   if (open.length === 0) return summary;
 
-  // Group orders by bare ticker so we hit Pyth once per asset.
-  const byTicker = new Map<BareTicker, typeof open>();
+  // Group orders by asset id so we hit Pyth once per asset.
+  const byTicker = new Map<string, typeof open>();
   for (const o of open) {
-    let bare: BareTicker;
-    try {
-      bare = xStockToBare(o.position.ticker as XStockTicker);
-    } catch {
-      continue;
-    }
-    const list = byTicker.get(bare) ?? [];
+    const assetId = o.position.ticker;
+    const list = byTicker.get(assetId) ?? [];
     list.push(o);
-    byTicker.set(bare, list);
+    byTicker.set(assetId, list);
   }
   summary.uniqueTickers = byTicker.size;
 
-  const tickers = Array.from(byTicker.keys());
-  const prices = await getLatestPrices(tickers);
+  const assetIds = Array.from(byTicker.keys());
+  const prices = await getLatestPrices(assetIds);
 
   for (const [ticker, orders] of byTicker) {
     const snap = prices.get(ticker);

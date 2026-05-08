@@ -1,14 +1,14 @@
 /**
- * Pyth Benchmarks API — TradingView-shaped historical OHLC for equities.
+ * Pyth Benchmarks API — TradingView-shaped historical OHLC for tradable assets.
  *
  *   GET https://benchmarks.pyth.network/v1/shims/tradingview/history
- *     ?symbol=Equity.US.AAPL/USD&resolution=5&from={unix}&to={unix}
+ *     ?symbol=Crypto.AAPLX/USD&resolution=5&from={unix}&to={unix}
  *
  * Response shape:
  *   { s: "ok" | "no_data", t: number[], o: number[], h: number[], l: number[], c: number[], v?: number[] }
  */
 
-import type { Bar, BareTicker } from '@hunch-it/shared';
+import { requireAsset, type Bar } from '@hunch-it/shared';
 import { env } from '../env.js';
 
 export type BarResolution = '1' | '5' | '15' | '60';
@@ -24,12 +24,16 @@ interface TvResponse {
   errmsg?: string;
 }
 
-function pythSymbol(ticker: BareTicker): string {
-  return `Equity.US.${ticker}/USD`;
+function pythSymbol(assetId: string): string {
+  const asset = requireAsset(assetId);
+  if (!asset.pythSymbol) {
+    throw new Error(`[benchmarks] ${assetId} has no configured Pyth symbol`);
+  }
+  return asset.pythSymbol;
 }
 
 export async function getBarsRange(
-  ticker: BareTicker,
+  assetId: string,
   resolution: BarResolution,
   fromUnix: number,
   toUnix: number,
@@ -37,18 +41,18 @@ export async function getBarsRange(
   if (toUnix <= fromUnix) return [];
   const url =
     `${env.PYTH_BENCHMARKS_URL}/v1/shims/tradingview/history` +
-    `?symbol=${encodeURIComponent(pythSymbol(ticker))}` +
+    `?symbol=${encodeURIComponent(pythSymbol(assetId))}` +
     `&resolution=${resolution}` +
     `&from=${fromUnix}&to=${toUnix}`;
 
   const res = await fetch(url, { headers: { accept: 'application/json' } });
   if (!res.ok) {
-    throw new Error(`Pyth benchmarks ${ticker}/${resolution} failed: ${res.status} ${res.statusText}`);
+    throw new Error(`Pyth benchmarks ${assetId}/${resolution} failed: ${res.status} ${res.statusText}`);
   }
   const json = (await res.json()) as TvResponse;
   if (json.s === 'no_data' || !json.t) return [];
   if (json.s !== 'ok' || !json.o || !json.h || !json.l || !json.c) {
-    throw new Error(`Pyth benchmarks ${ticker}/${resolution}: ${json.errmsg ?? json.s}`);
+    throw new Error(`Pyth benchmarks ${assetId}/${resolution}: ${json.errmsg ?? json.s}`);
   }
   return json.t.map((time, i) => ({
     time,
@@ -60,11 +64,11 @@ export async function getBarsRange(
 }
 
 export async function getHistoricalBars(
-  ticker: BareTicker,
+  assetId: string,
   resolution: BarResolution = '5',
   hoursBack = 24,
 ): Promise<Bar[]> {
   const to = Math.floor(Date.now() / 1000);
   const from = to - hoursBack * 3600;
-  return getBarsRange(ticker, resolution, from, to);
+  return getBarsRange(assetId, resolution, from, to);
 }

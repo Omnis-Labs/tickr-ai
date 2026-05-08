@@ -23,10 +23,6 @@ const EnvSchema = z.object({
   JUPITER_API_KEY: z.string().optional(),
   SIGNAL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   TICKER_STAGGER_SECONDS: z.coerce.number().int().nonnegative().default(2),
-  BYPASS_MARKET_HOURS: z
-    .union([z.literal('true'), z.literal('false')])
-    .transform((v) => v === 'true')
-    .default('false'),
   LLM_DAILY_USD_CAP: z.coerce.number().positive().default(10),
   LLM_ENABLED: z
     .union([z.literal('true'), z.literal('false')])

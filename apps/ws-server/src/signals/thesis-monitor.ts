@@ -17,8 +17,6 @@ import type { Server as IoServer } from 'socket.io';
 import {
   WsServerEvents,
   evaluateThesis,
-  xStockToBare,
-  type BareTicker,
 } from '@hunch-it/shared';
 import { computeIndicators } from './indicators.js';
 import { getHistoricalBars } from '../pyth/benchmarks.js';
@@ -33,7 +31,7 @@ export interface ThesisMonitorSummary {
 const SELL_TTL_MIN = 30; // SELL proposal expiry, mirrors BUY behavior
 
 interface CurrentSnapshotCache {
-  bareTicker: BareTicker;
+  assetId: string;
   rsi: number;
   ma20: number;
   ma50: number;
@@ -42,17 +40,17 @@ interface CurrentSnapshotCache {
 }
 
 async function getCurrentSnapshot(
-  bareTicker: BareTicker,
+  assetId: string,
 ): Promise<CurrentSnapshotCache | null> {
   try {
     const [bars, snap] = await Promise.all([
-      getHistoricalBars(bareTicker, '5', 24),
-      getLatestPrice(bareTicker),
+      getHistoricalBars(assetId, '5', 24),
+      getLatestPrice(assetId),
     ]);
     if (bars.length < 20 || !snap) return null;
     const ind = await computeIndicators(bars);
     return {
-      bareTicker,
+      assetId,
       rsi: ind.rsi14,
       ma20: ind.ma20,
       ma50: ind.ma50,
@@ -60,7 +58,7 @@ async function getCurrentSnapshot(
       macd: ind.macd,
     };
   } catch (err) {
-    console.warn(`[thesis] snapshot ${bareTicker} failed`, err);
+    console.warn(`[thesis] snapshot ${assetId} failed`, err);
     return null;
   }
 }
@@ -111,18 +109,10 @@ export async function runThesisMonitor(
       });
       if (existingSell) continue;
 
-      // Resolve assetId → BareTicker for the indicator pull.
-      let bareTicker: BareTicker;
-      try {
-        bareTicker = xStockToBare(position.ticker as Parameters<typeof xStockToBare>[0]);
-      } catch {
-        continue; // crypto / unknown — no indicators available yet
-      }
-
-      let snap = snapshotCache.get(bareTicker);
+      let snap = snapshotCache.get(position.ticker);
       if (snap === undefined) {
-        snap = await getCurrentSnapshot(bareTicker);
-        snapshotCache.set(bareTicker, snap);
+        snap = await getCurrentSnapshot(position.ticker);
+        snapshotCache.set(position.ticker, snap);
       }
       if (!snap) continue;
 

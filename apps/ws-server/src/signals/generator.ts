@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
-  BARE_TICKERS,
   MIN_ACTIONABLE_CONFIDENCE,
   SIGNAL_TTL_DEFAULT,
   WsServerEvents,
-  bareToXStock,
-  type BareTicker,
+  getSignalAssets,
   type IndicatorSnapshot,
   type Signal,
 } from '@hunch-it/shared';
@@ -33,7 +31,7 @@ function toIndicatorSnapshot(r: IndicatorResult): IndicatorSnapshot {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 interface GenerateOptions {
-  ticker?: BareTicker;
+  assetId?: string;
   forceEmit?: boolean; // bypass MIN_ACTIONABLE_CONFIDENCE / HOLD filter
 }
 
@@ -43,29 +41,29 @@ interface GenerateOptions {
  * whether to skip or surface.
  */
 export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal | null> {
-  const ticker = opts.ticker ?? pickRandomTicker();
+  const assetId = opts.assetId ?? pickRandomAssetId();
 
-  const snap = await getLatestPrice(ticker);
+  const snap = await getLatestPrice(assetId);
   if (!snap) {
-    console.warn(`[gen] ${ticker} no Pyth snapshot`);
+    console.warn(`[gen] ${assetId} no Pyth snapshot`);
     return null;
   }
-  const verdict = evaluateFreshness(snap, { bypass: env.BYPASS_MARKET_HOURS });
+  const verdict = evaluateFreshness(snap);
   if (!verdict.fresh) {
-    console.log(`[gen] ${ticker} skipped: ${verdict.reason}`);
+    console.log(`[gen] ${assetId} skipped: ${verdict.reason}`);
     return null;
   }
 
-  const bars = await getHistoricalBars(ticker, '5', 24);
+  const bars = await getHistoricalBars(assetId, '5', 24);
   if (bars.length < 50) {
-    console.warn(`[gen] ${ticker} insufficient bars (${bars.length} < 50)`);
+    console.warn(`[gen] ${assetId} insufficient bars (${bars.length} < 50)`);
     return null;
   }
 
   const indicators = await computeIndicators(bars);
 
   const llm = await generateLlmSignal({
-    ticker,
+    assetId,
     currentPrice: snap.price,
     bars,
     indicators,
@@ -76,7 +74,7 @@ export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal
     (llm.signal.action === 'HOLD' || llm.signal.confidence < MIN_ACTIONABLE_CONFIDENCE)
   ) {
     console.log(
-      `[gen] ${ticker} not actionable: ${llm.signal.action} conf=${llm.signal.confidence.toFixed(2)}${llm.degraded ? ' (degraded)' : ''}`,
+      `[gen] ${assetId} not actionable: ${llm.signal.action} conf=${llm.signal.confidence.toFixed(2)}${llm.degraded ? ' (degraded)' : ''}`,
     );
     return null;
   }
@@ -85,7 +83,7 @@ export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal
   const ttl = llm.signal.ttl_seconds ?? SIGNAL_TTL_DEFAULT;
   const signal: Signal = {
     id: randomUUID(),
-    ticker: bareToXStock(ticker),
+    ticker: assetId,
     action: llm.signal.action,
     confidence: llm.signal.confidence,
     rationale: llm.signal.rationale,
@@ -101,8 +99,8 @@ export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal
   return signal;
 }
 
-export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Signal | null> {
-  const signal = await generateSignal({ ticker });
+export async function emitSignal(io: IoServer, assetId?: string): Promise<Signal | null> {
+  const signal = await generateSignal({ assetId });
   if (!signal) return null;
   io.emit(WsServerEvents.SignalNew, signal);
   console.log(
@@ -114,11 +112,8 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
   if (signal.action === 'BUY') {
     const prisma = getPrisma();
     if (prisma) {
-      const baseTicker = signal.ticker.endsWith('x')
-        ? (signal.ticker.slice(0, -1) as BareTicker)
-        : (signal.ticker as BareTicker);
       const baseAnalysis: BaseAnalysis = {
-        bareTicker: baseTicker,
+        assetId: signal.ticker,
         action: 'BUY',
         confidence: signal.confidence,
         rationale: signal.rationale,
@@ -154,14 +149,15 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
   return signal;
 }
 
-function pickRandomTicker(): BareTicker {
-  const idx = Math.floor(Math.random() * BARE_TICKERS.length);
-  return BARE_TICKERS[idx] ?? 'AAPL';
+function pickRandomAssetId(): string {
+  const assets = getSignalAssets();
+  const idx = Math.floor(Math.random() * assets.length);
+  return assets[idx]?.assetId ?? 'AAPLx';
 }
 
 /**
- * Long-running loop that walks the full ticker list every `intervalSeconds`.
- * Tickers are processed sequentially with `staggerSeconds` between each call
+ * Long-running loop that walks the full signal asset list every `intervalSeconds`.
+ * Assets are processed sequentially with `staggerSeconds` between each call
  * so we don't burst Hermes / Gemini.
  */
 export function startSignalLoop(io: IoServer): () => void {
@@ -170,19 +166,19 @@ export function startSignalLoop(io: IoServer): () => void {
   let stopped = false;
 
   async function tick() {
-    for (const ticker of BARE_TICKERS) {
+    for (const asset of getSignalAssets()) {
       if (stopped) return;
       try {
-        await emitSignal(io, ticker);
+        await emitSignal(io, asset.assetId);
       } catch (err) {
-        console.warn(`[gen] ${ticker} cycle failed`, err);
+        console.warn(`[gen] ${asset.assetId} cycle failed`, err);
       }
       if (staggerSeconds > 0) await sleep(staggerSeconds * 1000);
     }
   }
 
   console.log(
-    `[signal] loop running interval=${intervalSeconds}s stagger=${staggerSeconds}s tickers=${BARE_TICKERS.length}`,
+    `[signal] loop running interval=${intervalSeconds}s stagger=${staggerSeconds}s assets=${getSignalAssets().length}`,
   );
   // Kick off immediately, then every intervalSeconds.
   void tick();
