@@ -105,6 +105,65 @@ interface SessionState {
   authenticated: boolean;
 }
 
+type DelegatedAuthMode = 'user-jwt' | 'server-key' | 'combined';
+type DelegatedUltraMode = 'preview' | 'execute';
+
+interface DelegatedUltraResponse {
+  ok: true;
+  mode: DelegatedUltraMode;
+  authorizationMode: DelegatedAuthMode;
+  authorizationUsed: {
+    userJwt: boolean;
+    serverKey: boolean;
+    serverKeyConfigured: boolean;
+  };
+  wallet: {
+    address: string;
+    privyWalletId: string;
+    delegated: boolean | null;
+    ownerId: string | null;
+    policyIds: string[];
+    authorizationThreshold: number | null;
+  };
+  trigger: TriggerHitPayload;
+  plan: {
+    inputMint: string;
+    outputMint: string;
+    amount: string;
+    side: 'BUY' | 'SELL';
+    decimals: number;
+  };
+  ultraOrder: {
+    requestId: string;
+    inAmount: string;
+    outAmount: string;
+    priceImpactPct: string;
+    otherAmountThreshold: string;
+    transactionBytes: number;
+    transactionShape: {
+      requiredSignatures: number;
+      zeroSignatureCount: number;
+      signerKeys: string[];
+    };
+  };
+  signedTransaction?: {
+    bytes: number;
+    transactionShape: {
+      zeroSignatureCount: number;
+      signerKeys: string[];
+    };
+  };
+  execution?: {
+    status: 'Success' | 'Failed';
+    signature: string | null;
+    error: string | null;
+    executionPrice: number;
+    tokenAmount: number;
+    usdValue: number;
+    settlement: unknown;
+  };
+}
+
 const emptyLogs: Record<LogSection, LogEntry[]> = {
   auth: [],
   proposal: [],
@@ -343,6 +402,42 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
       },
     ];
   }
+  if (step.startsWith('privyDelegated.')) {
+    const delegated = readPath(source, ['wallet', 'delegated']);
+    const serverKeyConfigured = readPath(source, ['authorizationUsed', 'serverKeyConfigured']);
+    const executeStatus = readPath(source, ['execution', 'status']);
+    return [
+      {
+        hypothesis: 'Privy wallet delegation',
+        status: delegated === true ? 'healthy' : delegated === false ? 'risk' : 'watch',
+        detail:
+          delegated === true
+            ? 'Linked embedded Solana wallet reports delegated access.'
+            : delegated === false
+              ? 'Linked embedded Solana wallet is not delegated yet.'
+              : 'Delegation state was not returned for the linked wallet.',
+      },
+      {
+        hypothesis: 'Automation signer',
+        status: serverKeyConfigured === true ? 'healthy' : 'watch',
+        detail:
+          serverKeyConfigured === true
+            ? 'A Privy server authorization key env var is configured.'
+            : 'User JWT mode can test signing now; offline automation still needs a server authorization key.',
+      },
+      {
+        hypothesis: 'Ultra relay',
+        status:
+          executeStatus === 'Success' ? 'healthy' : step.endsWith('.execute') ? 'watch' : 'unknown',
+        detail:
+          executeStatus === 'Success'
+            ? 'Jupiter Ultra accepted the signed transaction and returned a signature.'
+            : step.endsWith('.execute')
+              ? 'No successful Ultra execution was recorded.'
+              : 'Preview fetched an unsigned Ultra order only.',
+      },
+    ];
+  }
   if (step === 'order.claimExecution') {
     return [
       {
@@ -382,7 +477,11 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
 function severityFor(error: unknown, diagnostics: LogDiagnostic[], step: string): LogSeverity {
   if (error) return 'error';
   if (diagnostics.some((item) => item.status === 'risk')) return 'warning';
-  if (/generate|accept|forceTrigger|executeSwap|manualClose|protection|login|logout/.test(step)) {
+  if (
+    /generate|accept|forceTrigger|executeSwap|manualClose|protection|login|logout|privyDelegated\.execute/.test(
+      step,
+    )
+  ) {
     return 'success';
   }
   return 'info';
@@ -430,6 +529,16 @@ function buildSummary(step: string, payload: unknown, response?: unknown, error?
       const signature = readPath(response, ['swap', 'signature']);
       const price = responseRecord?.executionPrice;
       return `Swap broadcast ${typeof signature === 'string' ? shortAddress(signature) : 'without signature'}; settled at ${typeof price === 'number' ? fmtUsd(price) : 'unknown price'}.`;
+    }
+    case 'privyDelegated.preview': {
+      const requestId = readPath(response, ['ultraOrder', 'requestId']);
+      const delegated = readPath(response, ['wallet', 'delegated']);
+      return `Previewed Ultra order ${typeof requestId === 'string' ? shortAddress(requestId) : 'unknown'}; delegated=${String(delegated)}.`;
+    }
+    case 'privyDelegated.execute': {
+      const signature = readPath(response, ['execution', 'signature']);
+      const price = readPath(response, ['execution', 'executionPrice']);
+      return `Privy delegated Ultra settled ${typeof signature === 'string' ? shortAddress(signature) : 'without signature'} at ${typeof price === 'number' ? fmtUsd(price) : 'unknown price'}.`;
     }
     case 'position.protection':
       return `Updated TP/SL for ${shortAddress(String(payloadRecord?.positionId ?? 'unknown'))}.`;
@@ -525,6 +634,10 @@ export function DevToolsClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<LogSection, LogEntry[]>>(emptyLogs);
   const [selectedLogView, setSelectedLogView] = useState<LogView>('all');
+  const [delegatedAuthMode, setDelegatedAuthMode] = useState<DelegatedAuthMode>('user-jwt');
+  const [delegatedUltraResult, setDelegatedUltraResult] = useState<DelegatedUltraResponse | null>(
+    null,
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const walletAddress = publicKey?.toBase58() ?? null;
@@ -956,6 +1069,53 @@ export function DevToolsClient() {
     }
   }
 
+  async function runDelegatedUltra(mode: DelegatedUltraMode) {
+    if (!selectedOrder) return;
+    setBusy(`delegated:${mode}`);
+    try {
+      const result = await runLogged(
+        'swap',
+        `privyDelegated.${mode}`,
+        {
+          orderId: selectedOrder.id,
+          authorizationMode: delegatedAuthMode,
+        },
+        async () => {
+          const res = await authedFetch('/api/dev-tools/privy-delegated-ultra', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              orderId: selectedOrder.id,
+              mode,
+              authorizationMode: delegatedAuthMode,
+            }),
+          });
+          const json = (await res.json().catch(() => ({}))) as
+            | DelegatedUltraResponse
+            | { error?: string };
+          if (!res.ok)
+            throw new Error('error' in json && json.error ? json.error : `${res.status}`);
+          return json as DelegatedUltraResponse;
+        },
+      );
+      setDelegatedUltraResult(result);
+      toast.success(
+        mode === 'execute' ? 'Delegated Ultra swap settled.' : 'Delegated preview ready.',
+      );
+      await refreshDevState();
+      if (mode === 'execute') {
+        void qc.invalidateQueries({ queryKey: QK.orders() });
+        void qc.invalidateQueries({ queryKey: QK.positions() });
+        void qc.invalidateQueries({ queryKey: QK.portfolio() });
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+      if (mode === 'execute') await refreshDevState().catch(() => {});
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function adjustProtection() {
     if (!selectedPosition) return;
     const body = {
@@ -1030,6 +1190,10 @@ export function DevToolsClient() {
   );
   const triggerSwapLogs = useMemo(
     () => logs.swap.filter((entry) => entry.step.startsWith('trigger.')),
+    [logs.swap],
+  );
+  const delegatedUltraLogs = useMemo(
+    () => logs.swap.filter((entry) => entry.step.startsWith('privyDelegated.')),
     [logs.swap],
   );
 
@@ -1276,6 +1440,68 @@ export function DevToolsClient() {
             <LogBlock title="Trigger swap log" entries={triggerSwapLogs} compact />
           </Panel>
 
+          <Panel title="Privy delegated Ultra" icon={<ShieldCheck className="h-5 w-5" />}>
+            <div className="flex flex-col gap-3">
+              <select
+                value={delegatedAuthMode}
+                onChange={(event) => setDelegatedAuthMode(event.target.value as DelegatedAuthMode)}
+                className="h-12 rounded-full bg-surface-container-low px-4 text-label-md text-primary outline-none ring-1 ring-outline-variant"
+              >
+                <option value="user-jwt">User JWT signer</option>
+                <option value="server-key">Server key signer</option>
+                <option value="combined">User JWT + server key</option>
+              </select>
+              {selectedOrder && (
+                <div className="rounded-md bg-surface-container-low p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-title-md text-primary">
+                        {selectedOrder.side} {selectedOrder.ticker}
+                      </p>
+                      <p className="font-mono text-body-sm text-on-surface-variant">
+                        {shortAddress(selectedOrder.id)}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-surface px-3 py-1 text-label-sm text-primary">
+                      {selectedOrder.kind}
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
+                    <Metric label="Input" value={fmtUsd(selectedOrder.sizeUsd)} />
+                    <Metric label="Trigger" value={fmtUsd(selectedOrder.triggerPriceUsd)} />
+                    <Metric
+                      label="Tokens"
+                      value={selectedOrder.tokenAmount?.toFixed(6) ?? 'Ultra quote'}
+                    />
+                    <Metric label="Status" value={selectedOrder.status} />
+                  </dl>
+                </div>
+              )}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => void runDelegatedUltra('preview')}
+                  disabled={!selectedOrder || busy === 'delegated:preview'}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97] disabled:opacity-50"
+                >
+                  <RefreshCw aria-hidden className="h-4 w-4" />
+                  {busy === 'delegated:preview' ? 'Previewing...' : 'Preview order'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runDelegatedUltra('execute')}
+                  disabled={!selectedOrder || busy === 'delegated:execute'}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-label-lg text-on-primary transition-transform active:scale-[0.97] disabled:opacity-50"
+                >
+                  <Play aria-hidden className="h-4 w-4" />
+                  {busy === 'delegated:execute' ? 'Executing...' : 'Sign + execute'}
+                </button>
+              </div>
+              {delegatedUltraResult && <DelegatedUltraResult result={delegatedUltraResult} />}
+            </div>
+            <LogBlock title="Delegated Ultra log" entries={delegatedUltraLogs} compact />
+          </Panel>
+
           <Panel title="Protection" icon={<SlidersHorizontal className="h-5 w-5" />}>
             <div className="flex flex-col gap-3">
               <select
@@ -1370,6 +1596,68 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-label-sm text-on-surface-variant">{label}</dt>
       <dd className="mt-1 font-mono text-label-md text-primary">{value}</dd>
+    </div>
+  );
+}
+
+function DelegatedUltraResult({ result }: { result: DelegatedUltraResponse }) {
+  const delegated =
+    result.wallet.delegated === true
+      ? 'Delegated'
+      : result.wallet.delegated === false
+        ? 'Not delegated'
+        : 'Unknown';
+  const authUsed = [
+    result.authorizationUsed.userJwt ? 'JWT' : null,
+    result.authorizationUsed.serverKey ? 'Key' : null,
+  ]
+    .filter(Boolean)
+    .join(' + ');
+  const execution = result.execution;
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-title-md text-primary">{shortAddress(result.ultraOrder.requestId)}</p>
+          <p className="text-body-sm text-on-surface-variant">
+            {result.plan.side} via {result.authorizationMode}
+          </p>
+        </div>
+        <span className="rounded-full bg-surface px-3 py-1 text-label-sm text-primary">
+          {execution ? execution.status : 'Preview'}
+        </span>
+      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
+        <Metric label="Wallet" value={shortAddress(result.wallet.address)} />
+        <Metric label="Delegation" value={delegated} />
+        <Metric label="Auth" value={authUsed || 'None'} />
+        <Metric
+          label="Server key"
+          value={result.authorizationUsed.serverKeyConfigured ? 'Configured' : 'Missing'}
+        />
+        <Metric label="Tx bytes" value={result.ultraOrder.transactionBytes.toString()} />
+        <Metric
+          label="Signers"
+          value={`${result.ultraOrder.transactionShape.requiredSignatures} req / ${result.ultraOrder.transactionShape.zeroSignatureCount} blank`}
+        />
+        {result.signedTransaction && (
+          <Metric
+            label="Signed"
+            value={`${result.signedTransaction.bytes} bytes / ${result.signedTransaction.transactionShape.zeroSignatureCount} blank`}
+          />
+        )}
+        {execution && (
+          <>
+            <Metric label="Price" value={fmtUsd(execution.executionPrice)} />
+            <Metric label="Tokens" value={execution.tokenAmount.toFixed(6)} />
+            <Metric
+              label="Signature"
+              value={execution.signature ? shortAddress(execution.signature) : '-'}
+            />
+          </>
+        )}
+      </dl>
     </div>
   );
 }
