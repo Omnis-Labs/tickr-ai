@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { useOpenOrders } from '@/lib/hooks/queries';
 
 /**
@@ -9,6 +10,7 @@ import { useOpenOrders } from '@/lib/hooks/queries';
  * same query cache, so the list stays current without per-component sockets.
  */
 export function OpenOrders() {
+  const router = useRouter();
   const { data, isLoading, error } = useOpenOrders();
   const orders = data?.orders ?? [];
 
@@ -56,7 +58,8 @@ export function OpenOrders() {
             // asset metadata when the user clicks through.
             const ticker = order.positionId.slice(0, 8);
             const isBuyPending = order.kind === 'BUY_TRIGGER' && order.status === 'OPEN';
-            const isEditable = (order.kind === 'TAKE_PROFIT' || order.kind === 'STOP_LOSS') && order.status === 'OPEN';
+            const editLeg = order.kind === 'TAKE_PROFIT' ? 'tp' : order.kind === 'STOP_LOSS' ? 'sl' : null;
+            const isEditable = editLeg != null && order.status === 'OPEN';
             return (
               <div
                 key={order.id}
@@ -89,7 +92,16 @@ export function OpenOrders() {
                     </button>
                   )}
                   {isEditable && (
-                    <button className="text-label-sm text-primary px-3 py-1.5 rounded-full border border-outline hover:bg-surface-dim transition-colors">
+                    <button
+                      type="button"
+                      aria-label={`Edit ${kindLabel} order for ${ticker}`}
+                      onClick={() => {
+                        router.push(
+                          `/positions/${encodeURIComponent(order.positionId)}?focus=protection&leg=${editLeg}`,
+                        );
+                      }}
+                      className="text-label-sm text-primary px-3 py-1.5 rounded-full border border-outline hover:bg-surface-dim transition-colors"
+                    >
                       Edit
                     </button>
                   )}

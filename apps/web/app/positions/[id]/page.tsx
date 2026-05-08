@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { getAssetById } from '@hunch-it/shared';
@@ -27,6 +27,7 @@ const STATE_BADGE: Record<string, { bg: string; text: string; label: string }> =
 export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { placeOcoExit, replaceExits } = useExitOrders();
   const runtime = useRuntime();
   const { address: walletAddress } = useWallet();
@@ -35,6 +36,10 @@ export default function PositionDetailPage() {
   const [tpDraft, setTpDraft] = useState('');
   const [slDraft, setSlDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const focusParam = searchParams.get('focus');
+  const legParam = searchParams.get('leg');
+  const protectionFocusLeg =
+    focusParam === 'protection' && (legParam === 'tp' || legParam === 'sl') ? legParam : null;
 
   // Read from /api/positions/[id] and overlay markPrice from the most recent
   // bar since the API returns DB state only.
@@ -331,6 +336,8 @@ export default function PositionDetailPage() {
             tpDraft={tpDraft}
             slDraft={slDraft}
             busy={busy}
+            focusLeg={protectionFocusLeg}
+            focusKey={position.id}
             onTpChange={setTpDraft}
             onSlChange={setSlDraft}
             onSubmit={() => void handleSubmitTpSl()}
