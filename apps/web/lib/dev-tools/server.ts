@@ -6,6 +6,7 @@ import { createBuyProposalForUser } from '@hunch-it/db';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   PYTH_BENCHMARKS_BASE,
+  buildBaseMarketAnalysis,
   evaluateSignalDataFreshness,
   requireAsset,
   type Bar,
@@ -399,16 +400,16 @@ export async function createDevToolsProposal(input: {
 
     const proposal = await createBuyProposalForUser(tx, {
       userId: user.id,
-      analysis: {
+      analysis: buildBaseMarketAnalysis({
         assetId: input.ticker,
         action: 'BUY',
         confidence,
         rationale:
           llm.parsed?.rationale ??
           `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`,
-        what_changed:
+        whatChanged:
           llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
-        why_this_trade:
+        whyThisTrade:
           llm.parsed?.why_this_trade ??
           `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
         priceAtAnalysis: latestPrice,
@@ -421,7 +422,7 @@ export async function createDevToolsProposal(input: {
           ma20: indicators.ma20,
           ma50: indicators.ma50,
         },
-      },
+      }),
       mandate: {
         holdingPeriod: mandate.holdingPeriod,
         maxTradeSizeUsd: maxTradeSize,

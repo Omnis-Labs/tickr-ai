@@ -10,20 +10,18 @@
 // for different users (PRD §Per-user Signal Problem).
 
 import type { PrismaClient } from '@hunch-it/db';
-import {
-  createBuyProposalForUser,
-  type BuyMarketAnalysis,
-} from '@hunch-it/db';
+import { createBuyProposalForUser } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   WsServerEvents,
+  type BaseMarketAnalysis,
   getMarketFocusVerticalsForAsset,
   getSignalAssetIdsForVerticals,
 } from '@hunch-it/shared';
 import { computePositionImpact } from './portfolio-context.js';
 import { getLatestPrices } from '../pyth/index.js';
 
-export type BaseAnalysis = BuyMarketAnalysis;
+export type BaseAnalysis = BaseMarketAnalysis;
 
 export interface ProposalGeneratorSummary {
   matchingUsers: number;
