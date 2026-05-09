@@ -3,55 +3,51 @@
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
-import { getAssetById } from '@hunch-it/shared';
 import { ProposalsFeed } from '@/components/desk/proposals-feed';
 import { OpenOrders } from '@/components/desk/open-orders';
 import { DepositSection } from '@/components/desk/deposit-section';
 import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
 import { PanicCloseAll } from '@/components/desk/panic-close-all';
-import { usePortfolio, usePositions } from '@/lib/hooks/queries';
+import { HoldingsList } from '@/components/portfolio/holdings-list';
+import { usePortfolio } from '@/lib/hooks/queries';
+import { portfolioPositionsToHoldings } from '@/lib/portfolio/holdings';
 
 export default function DeskPage() {
-  const router = useRouter();
-
-  const positionsQuery = usePositions();
   const portfolioQuery = usePortfolio();
 
-  const isLoading = positionsQuery.isLoading || portfolioQuery.isLoading;
-  const portfolioError = positionsQuery.error || portfolioQuery.error;
+  const isLoading = portfolioQuery.isLoading;
+  const portfolioError = portfolioQuery.error;
 
-  const positions = useMemo(
+  const holdings = useMemo(
+    () => portfolioPositionsToHoldings(portfolioQuery.data?.positions ?? []),
+    [portfolioQuery.data?.positions],
+  );
+  const panicClosePositions = useMemo(
     () =>
-      (positionsQuery.data?.positions ?? []).map((p) => {
-        const meta = getAssetById(p.ticker);
-        return {
-          id: p.id,
-          assetId: p.ticker,
-          state: p.state,
-          tokenAmount: p.tokenAmount,
-          entryPrice: p.entryPrice,
-          totalCost: p.tokenAmount * p.entryPrice,
-          ticker: meta?.displaySymbol ?? p.ticker,
-          name: meta?.name ?? p.ticker,
-        };
-      }),
-    [positionsQuery.data],
+      (portfolioQuery.data?.positions ?? []).map((p) => ({
+        id: p.id,
+        ticker: p.ticker,
+        tokenAmount: p.tokenAmount,
+        entryPrice: p.avgCost,
+        state: p.state ?? 'ACTIVE',
+      })),
+    [portfolioQuery.data?.positions],
   );
 
   const realized = portfolioQuery.data?.pnl.realized ?? 0;
   const unrealized = portfolioQuery.data?.pnl.unrealized ?? 0;
   const totalPnl = realized + unrealized;
   const dayPnl = unrealized; // 24h delta not tracked separately yet
-  const totalValue = positions.reduce((acc, p) => acc + p.totalCost, 0) + realized;
+  const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
+  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
+  const totalValue = positionsValue + cashUsd;
   const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
   const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
   const dayPnlPositive = dayPnl >= 0;
   const totalPnlPositive = totalPnl >= 0;
 
-  const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
-  const hasHoldings = positions.filter((p) => p.state !== 'CLOSED').length > 0;
+  const hasHoldings = holdings.length > 0;
   const hasCash = cashUsd > 0;
   const scrollToDeposit = () => {
     document.getElementById('deposit-section')?.scrollIntoView({ behavior: 'smooth' });
@@ -100,7 +96,7 @@ export default function DeskPage() {
                 <span className="material-symbols-outlined text-negative text-[24px] mb-2">error</span>
                 <p className="text-body-md text-on-surface-variant mb-3">Failed to load portfolio</p>
                 <button
-                  onClick={() => {}}
+                  onClick={() => void portfolioQuery.refetch()}
                   className="px-5 py-2 bg-primary text-on-primary rounded-full text-label-md active:scale-[0.97] transition-transform"
                 >
                   Retry
@@ -177,69 +173,12 @@ export default function DeskPage() {
                 <div key={i} className="bg-surface rounded-lg p-4 h-[72px] animate-pulse" />
               ))}
             </div>
-          ) : positions.length === 0 ? (
-            <div className="bg-surface rounded-lg p-6 flex flex-col items-center justify-center text-center">
-              <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
-                <span className="material-symbols-outlined text-primary text-[24px]">account_balance_wallet</span>
-              </div>
-              <p className="text-title-md text-primary">No positions yet</p>
-              <p className="text-body-sm text-on-surface-variant mt-1">Execute a proposal to open your first position.</p>
-            </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {positions.filter(p => p.state !== 'CLOSED').map((pos, i) => {
-                const ticker = pos.ticker ?? pos.assetId;
-                const name = pos.name ?? pos.assetId;
-                const value = pos.totalCost ?? 0;
-                const pnl = pos.entryPrice && pos.totalCost
-                  ? ((pos.totalCost / (pos.tokenAmount ?? 1)) - pos.entryPrice) / pos.entryPrice
-                  : 0;
-                const isPositive = pnl >= 0;
-
-                return (
-                  <motion.div
-                    key={pos.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.05 }}
-                    onClick={() => router.push(`/positions/${pos.id}`)}
-                    className="bg-surface rounded-lg p-4 flex items-center gap-3 cursor-pointer active:scale-[0.97] transition-transform"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-label-sm font-bold text-primary shrink-0">
-                      {ticker}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="text-label-lg text-on-surface line-clamp-1">{name}</div>
-                      <div className="text-body-sm text-on-surface-variant">{ticker}</div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="text-label-lg text-on-surface tabular-nums">
-                        ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className={`text-label-sm font-semibold tabular-nums ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                        {isPositive ? '+' : ''}{(pnl * 100).toFixed(1)}%
-                      </div>
-                    </div>
-
-                    <span className="material-symbols-outlined text-[18px] text-icon-muted shrink-0">chevron_right</span>
-                  </motion.div>
-                );
-              })}
-            </div>
+            <HoldingsList holdings={holdings} />
           )}
         </section>
 
-        <PanicCloseAll
-          positions={positions.map((p) => ({
-            id: p.id,
-            ticker: p.assetId,
-            tokenAmount: p.tokenAmount,
-            entryPrice: p.entryPrice,
-            state: p.state,
-          }))}
-        />
+        <PanicCloseAll positions={panicClosePositions} />
         <ProposalsFeed />
         <OpenOrders />
         <DepositSection />

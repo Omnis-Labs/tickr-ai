@@ -7,6 +7,7 @@ export interface PortfolioPosition {
   avgCost: number;
   markPrice?: number;
   pnl?: number;
+  state?: 'ACTIVE' | 'CLOSED' | string;
 }
 
 export interface Holding {
@@ -18,6 +19,30 @@ export interface Holding {
   pnl: number;
   pnlPct: number;
   state: 'ACTIVE' | 'CLOSED' | string;
+}
+
+export function applyMarkPricesToPortfolioPositions(
+  positions: PortfolioPosition[],
+  markPrices: ReadonlyMap<string, number>,
+): { positions: PortfolioPosition[]; unrealized: number } {
+  let unrealized = 0;
+  const markedPositions = positions.map((p) => {
+    const currentMark = markPrices.get(p.ticker);
+    const markPrice =
+      currentMark != null && Number.isFinite(currentMark) && currentMark > 0
+        ? currentMark
+        : (p.markPrice ?? p.avgCost);
+    const pnl = (markPrice - p.avgCost) * p.tokenAmount;
+    unrealized += pnl;
+
+    return {
+      ...p,
+      markPrice,
+      pnl,
+    };
+  });
+
+  return { positions: markedPositions, unrealized };
 }
 
 export function portfolioPositionsToHoldings(positions: PortfolioPosition[]): Holding[] {
@@ -37,7 +62,7 @@ export function portfolioPositionsToHoldings(positions: PortfolioPosition[]): Ho
         value,
         pnl,
         pnlPct,
-        state: 'ACTIVE' as const,
+        state: p.state ?? 'ACTIVE',
       };
     });
 }
