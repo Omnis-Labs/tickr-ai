@@ -173,3 +173,11 @@ export type {
   TriggerUltraSwapPlan,
   TriggerUltraSwapSide,
 } from './synthetic-order-execution.js';
+
+// ── Jupiter Ultra helpers ───────────────────────────────────────────────
+export { getUltraOrderProblem } from './jupiter-ultra.js';
+export type {
+  JupiterUltraOrderLike,
+  UltraOrderProblem,
+  UltraOrderProblemCode,
+} from './jupiter-ultra.js';
