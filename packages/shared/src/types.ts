@@ -308,3 +308,17 @@ export const TriggerHitPayloadSchema = z.object({
   tokenAmount: z.number().nullable().optional(),
 });
 export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;
+
+export const TradeFilledPayloadSchema = z.object({
+  orderId: z.string(),
+  positionId: z.string(),
+  ticker: z.string(),
+  kind: OrderKindSchema,
+  side: z.enum(['BUY', 'SELL']),
+  executionMode: z.enum(['delegated', 'manual']),
+  executionPrice: z.number(),
+  tokenAmount: z.number(),
+  usdValue: z.number(),
+  txSignature: z.string(),
+});
+export type TradeFilledPayload = z.infer<typeof TradeFilledPayloadSchema>;
