@@ -25,6 +25,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useMandate, usePortfolio } from '@/lib/hooks/queries';
+import { derivePortfolioSummary } from '@/lib/portfolio/summary';
 
 function shorten(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -44,14 +45,10 @@ export default function SettingsPage() {
     (id) => MARKET_FOCUS_VERTICALS.find((v) => v.id === id)?.label ?? id,
   );
 
-  const positionsCount = useMemo(
-    () => (portfolioQuery.data?.positions ?? []).filter((p) => p.tokenAmount > 0).length,
-    [portfolioQuery.data?.positions],
+  const portfolioSummary = useMemo(
+    () => derivePortfolioSummary(portfolioQuery.data),
+    [portfolioQuery.data],
   );
-  const positionsValue = useMemo(() => {
-    const positions = portfolioQuery.data?.positions ?? [];
-    return positions.reduce((acc, p) => acc + p.tokenAmount * (p.markPrice ?? p.avgCost), 0);
-  }, [portfolioQuery.data?.positions]);
 
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,13 +133,13 @@ export default function SettingsPage() {
           ) : (
             <>
               <Row label="Active positions">
-                <span className="tabular-nums">{positionsCount}</span>
+                <span className="tabular-nums">{portfolioSummary.positionsCount}</span>
               </Row>
               <div className="h-px bg-divider my-3" />
               <Row label="Total value">
                 <span className="text-primary tabular-nums">
                   $
-                  {positionsValue.toLocaleString('en-US', {
+                  {portfolioSummary.positionsValue.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
