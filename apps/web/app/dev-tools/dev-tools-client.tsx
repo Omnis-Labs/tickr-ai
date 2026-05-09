@@ -1260,11 +1260,22 @@ export function DevToolsClient() {
     }
   }
 
+  async function checkDelegatedAccess() {
+    setBusy('delegated-access:status');
+    try {
+      await refreshDelegatedStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function runDelegatedUltraSwap() {
     if (!selectedDelegatedOrder) return;
     setBusy('delegated-swap:execute');
     try {
-      const status = delegatedUltraStatus ?? (await refreshDelegatedStatus({ log: false }));
+      const status = await refreshDelegatedStatus({ log: false });
       if (!status.ready.canExecute) {
         throw new Error(`Delegated swap blocked: ${status.ready.blockers.join(', ')}`);
       }
@@ -1705,12 +1716,12 @@ export function DevToolsClient() {
               <div className="grid gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  onClick={() => void refreshDelegatedStatus()}
+                  onClick={() => void checkDelegatedAccess()}
                   disabled={!connected || busy === 'delegated-access:status'}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97] disabled:opacity-50"
                 >
                   <RefreshCw aria-hidden className="h-4 w-4" />
-                  Check
+                  {busy === 'delegated-access:status' ? 'Checking...' : 'Check'}
                 </button>
                 <button
                   type="button"
