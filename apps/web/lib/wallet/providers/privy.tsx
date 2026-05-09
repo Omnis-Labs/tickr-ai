@@ -220,12 +220,26 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         await refreshUser().catch(() => null);
       },
       revokeDelegatedWallets: async () => {
+        const errors: unknown[] = [];
         if (wallet?.address && AUTHORIZATION_SIGNER_ID) {
-          await removeSigners({ address: wallet.address });
-        } else {
-          await revokeWallets();
+          try {
+            await removeSigners({ address: wallet.address });
+          } catch (err) {
+            errors.push(err);
+          }
+        }
+        if (!AUTHORIZATION_SIGNER_ID || delegated === true) {
+          try {
+            await revokeWallets();
+          } catch (err) {
+            errors.push(err);
+          }
         }
         await refreshUser().catch(() => null);
+        if (errors.length > 0) {
+          const first = errors[0];
+          throw first instanceof Error ? first : new Error(String(first));
+        }
       },
       refreshWalletUser: async () => {
         await refreshUser();
