@@ -47,3 +47,37 @@ test('portfolio summary combines cash and mark value for open holdings', () => {
     state: 'ACTIVE',
   });
 });
+
+test('portfolio summary shows pending buys without double-counting cash', () => {
+  const summary = buildPortfolioSummary({
+    cashUsd: 14.23,
+    positions: [
+      {
+        id: 'active-position-1',
+        ticker: 'QQQx',
+        tokenAmount: 0.007194,
+        avgCost: 694.61,
+        markPrice: 694.61,
+        pnl: 0,
+        state: 'ACTIVE',
+      },
+      {
+        id: 'pending-position-1',
+        ticker: 'AAPLx',
+        tokenAmount: 0,
+        avgCost: 43.26,
+        markPrice: 43.26,
+        pendingSizeUsd: 5,
+        state: 'BUY_PENDING',
+      },
+    ],
+    pnl: { realized: -0.78, unrealized: 0 },
+  });
+
+  assert.equal(summary.holdings.length, 2);
+  assert.equal(summary.holdings[1]?.id, 'pending-position-1');
+  assert.equal(summary.holdings[1]?.isPendingBuy, true);
+  assert.equal(summary.positionsValue.toFixed(2), '5.00');
+  assert.equal(summary.totalValue.toFixed(2), '19.23');
+  assert.equal(summary.closablePositions.length, 1);
+});

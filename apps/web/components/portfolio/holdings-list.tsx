@@ -17,6 +17,14 @@ interface HoldingsListProps {
 
 const MotionLink = motion(Link);
 
+function formatHoldingState(state: string): string {
+  if (state === 'BUY_PENDING') return 'Buy pending';
+  if (state === 'ENTERING') return 'Entering';
+  if (state === 'CLOSING') return 'Closing';
+  if (state === 'CLOSED') return 'Closed';
+  return 'Active';
+}
+
 export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
   if (isLoading) {
     return (
@@ -32,10 +40,14 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
     return (
       <div className="bg-surface rounded-lg p-6 flex flex-col items-center justify-center text-center shadow-soft">
         <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
-          <span className="material-symbols-outlined text-primary text-[24px]">account_balance_wallet</span>
+          <span className="material-symbols-outlined text-primary text-[24px]">
+            account_balance_wallet
+          </span>
         </div>
         <p className="text-title-md text-primary">No positions yet</p>
-        <p className="text-body-sm text-on-surface-variant mt-1">Execute a proposal to open your first position.</p>
+        <p className="text-body-sm text-on-surface-variant mt-1">
+          Execute a proposal to open your first position.
+        </p>
       </div>
     );
   }
@@ -44,6 +56,8 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
     <div className="flex flex-col gap-3">
       {holdings.map((pos, i) => {
         const isPositive = pos.pnl >= 0;
+        const stateLabel = formatHoldingState(pos.state);
+        const showState = pos.state !== 'ACTIVE';
         return (
           <MotionLink
             key={pos.id}
@@ -59,19 +73,32 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
 
             <div className="flex-1 min-w-0">
               <div className="text-label-lg text-on-surface line-clamp-1">{pos.name}</div>
-              <div className="text-body-sm text-on-surface-variant">{pos.ticker}</div>
+              <div className="text-body-sm text-on-surface-variant">
+                {pos.ticker}
+                {showState && <span className="font-medium text-on-surface"> · {stateLabel}</span>}
+              </div>
             </div>
 
             <div className="text-right shrink-0">
               <div className="text-label-lg text-on-surface tabular-nums">
-                ${pos.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {pos.value.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
-              <div className={`text-label-sm font-semibold tabular-nums ${isPositive ? 'text-positive' : 'text-negative'}`}>
-                {isPositive ? '+' : ''}{(pos.pnlPct * 100).toFixed(1)}%
+              <div
+                className={`text-label-sm font-semibold tabular-nums ${pos.isPendingBuy ? 'text-on-surface-variant' : isPositive ? 'text-positive' : 'text-negative'}`}
+              >
+                {pos.isPendingBuy
+                  ? stateLabel
+                  : `${isPositive ? '+' : ''}${(pos.pnlPct * 100).toFixed(1)}%`}
               </div>
             </div>
 
-            <span className="material-symbols-outlined text-[18px] text-icon-muted shrink-0">chevron_right</span>
+            <span className="material-symbols-outlined text-[18px] text-icon-muted shrink-0">
+              chevron_right
+            </span>
           </MotionLink>
         );
       })}

@@ -1,9 +1,5 @@
 import { num } from '../utils/fmt';
-import {
-  portfolioPositionsToHoldings,
-  type Holding,
-  type PortfolioPosition,
-} from './holdings';
+import { portfolioPositionsToHoldings, type Holding, type PortfolioPosition } from './holdings';
 
 export interface PortfolioSummaryInput {
   positions?: PortfolioPosition[];
@@ -46,7 +42,7 @@ export function buildPortfolioSummary(input: PortfolioSummaryInput): PortfolioSu
   const cashUsd = num(input.cashUsd);
   const realizedPnl = num(input.pnl?.realized);
   const unrealizedPnl = num(input.pnl?.unrealized);
-  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
+  const positionsValue = holdings.reduce((acc, h) => acc + (h.isPendingBuy ? 0 : h.value), 0);
   const totalValue = positionsValue + cashUsd;
   const dayPnl = unrealizedPnl;
   const totalPnl = realizedPnl + unrealizedPnl;

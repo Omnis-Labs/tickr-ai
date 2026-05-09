@@ -27,6 +27,17 @@ export async function GET(req: NextRequest) {
   const [openPositions, recentTrades, cashUsd, solBalance] = await Promise.all([
     prisma.position.findMany({
       where: { userId: auth.userId, state: { not: 'CLOSED' } },
+      include: {
+        orders: {
+          where: {
+            kind: 'BUY_TRIGGER',
+            status: { in: ['OPEN', 'PENDING'] },
+          },
+          select: { sizeUsd: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: { firstEntryAt: 'desc' },
     }),
     prisma.trade.findMany({
@@ -54,6 +65,7 @@ export async function GET(req: NextRequest) {
   const positions: PortfolioResponse['positions'] = openPositions.map((p) => {
     const tokenAmount = p.tokenAmount.toNumber();
     const entryPrice = p.entryPrice.toNumber();
+    const pendingSizeUsd = p.orders[0]?.sizeUsd.toNumber();
     return {
       id: p.id,
       ticker: p.ticker,
@@ -61,6 +73,7 @@ export async function GET(req: NextRequest) {
       avgCost: entryPrice,
       markPrice: entryPrice, // overlaid client-side
       pnl: 0, // computed client-side once marks arrive
+      pendingSizeUsd,
       state: p.state,
     };
   });
