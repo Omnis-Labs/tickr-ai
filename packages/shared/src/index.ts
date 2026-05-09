@@ -159,3 +159,15 @@ export type {
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
+
+// ── Synthetic Order execution helpers ───────────────────────────────────
+export {
+  buildTriggerUltraSwapPlan,
+  settlementAmountsForTrigger,
+  submittedInputRawForBalance,
+} from './synthetic-order-execution.js';
+export type {
+  TriggerSettlementAmounts,
+  TriggerUltraSwapPlan,
+  TriggerUltraSwapSide,
+} from './synthetic-order-execution.js';
