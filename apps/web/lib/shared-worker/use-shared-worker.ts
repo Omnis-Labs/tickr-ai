@@ -9,6 +9,7 @@ import {
   type ApprovalDecisionPayload,
   type Proposal,
   type Signal,
+  type TradeFilledPayload,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
@@ -19,7 +20,8 @@ type WorkerToTab =
   | { type: 'connected' }
   | { type: 'disconnected'; reason: string }
   | { type: 'signal:new'; signal: Signal }
-  | { type: 'proposal:new'; proposal: Proposal };
+  | { type: 'proposal:new'; proposal: Proposal }
+  | { type: 'trade:filled'; trade: TradeFilledPayload };
 
 type TabToWorker =
   | { type: 'hello' }
@@ -29,6 +31,7 @@ interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
   onProposal?: (proposal: Proposal) => void;
   onTriggerHit?: (payload: TriggerHitPayload) => void;
+  onTradeFilled?: (payload: TradeFilledPayload) => void;
 }
 
 interface UseSharedWorkerReturn {
@@ -47,9 +50,13 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const onTriggerHitRef = useRef<((p: TriggerHitPayload) => void) | undefined>(
     opts.onTriggerHit,
   );
+  const onTradeFilledRef = useRef<((p: TradeFilledPayload) => void) | undefined>(
+    opts.onTradeFilled,
+  );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
   onTriggerHitRef.current = opts.onTriggerHit;
+  onTradeFilledRef.current = opts.onTradeFilled;
 
   // Send a Privy access token; the server verifies it and resolves the
   // wallet from our DB.
@@ -64,6 +71,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       else if (msg.type === 'disconnected') setConnected(false);
       else if (msg.type === 'signal:new') onSignalRef.current?.(msg.signal);
       else if (msg.type === 'proposal:new') onProposalRef.current?.(msg.proposal);
+      else if (msg.type === 'trade:filled') onTradeFilledRef.current?.(msg.trade);
     }
 
     const channel = new BroadcastChannel<WorkerToTab>(BROADCAST_CHANNEL);
@@ -100,6 +108,9 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     });
     socket.on(WsServerEvents.TriggerHit, (payload: TriggerHitPayload) => {
       onTriggerHitRef.current?.(payload);
+    });
+    socket.on(WsServerEvents.TradeFilled, (payload: TradeFilledPayload) => {
+      onTradeFilledRef.current?.(payload);
     });
 
     return () => {
