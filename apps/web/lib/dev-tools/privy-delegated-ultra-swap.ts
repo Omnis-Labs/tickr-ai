@@ -460,7 +460,7 @@ function statusFromResolved(input: {
   if (!configured) blockers.push('missing_privy_authorization_private_key');
   if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
   if (signerMode && !signerConfigured) blockers.push('missing_privy_authorization_signer_id');
-  if (signerMode && signerConfigured && !signerMatched) {
+  if (signerConfigured && !signerMatched && input.resolved.delegated !== true) {
     blockers.push('wallet_missing_authorization_signer');
   }
   if (!hasDelegatedAccess) blockers.push('wallet_not_delegated');
@@ -529,7 +529,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
       checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS,
     });
   }
-  if (resolved.walletClientType === 'privy-v2' && !signerMatched) {
+  if (signerId && !signerMatched && delegated !== true) {
     throw new DevPrivyDelegatedUltraSwapError('wallet_missing_authorization_signer', 409, {
       walletAddress,
       signerConfigured: Boolean(signerId),
