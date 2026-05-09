@@ -129,6 +129,7 @@ export function usePosition(id: string | undefined) {
 interface OrderRow {
   id: string;
   positionId: string;
+  ticker: string;
   kind: string;
   side: string;
   status: string;
