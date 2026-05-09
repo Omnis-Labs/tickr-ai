@@ -9,10 +9,11 @@ import {
   type Wallet,
 } from '@privy-io/node';
 import {
-  USDC_DECIMALS,
-  USDC_MINT,
+  buildTriggerUltraSwapPlan,
   getAssetById,
   parseRpcUrls,
+  settlementAmountsForTrigger,
+  type TriggerUltraSwapPlan,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import {
@@ -51,13 +52,7 @@ interface TransactionShape {
   signerKeys: string[];
 }
 
-interface SwapPlan {
-  inputMint: string;
-  outputMint: string;
-  amount: string;
-  side: 'BUY' | 'SELL';
-  decimals: number;
-}
+type SwapPlan = TriggerUltraSwapPlan;
 
 interface InputBalanceCheck {
   inputMint: string;
@@ -297,30 +292,6 @@ async function resolvePrivyWallet(input: {
   return { wallet, delegated, walletClientType, connectorType, additionalSignerIds, resolveError };
 }
 
-function swapPlanForPayload(payload: TriggerHitPayload, decimals: number): SwapPlan {
-  if (payload.kind === 'BUY_TRIGGER') {
-    return {
-      inputMint: USDC_MINT,
-      outputMint: payload.mint,
-      amount: Math.round(payload.sizeUsd * 10 ** USDC_DECIMALS).toString(),
-      side: 'BUY',
-      decimals,
-    };
-  }
-
-  if (!payload.tokenAmount || payload.tokenAmount <= 0) {
-    throw new DevPrivyDelegatedUltraSwapError('sell_trigger_missing_token_amount', 400);
-  }
-
-  return {
-    inputMint: payload.mint,
-    outputMint: USDC_MINT,
-    amount: Math.round(payload.tokenAmount * 10 ** decimals).toString(),
-    side: 'SELL',
-    decimals,
-  };
-}
-
 function buildServerAuthorizationContext(): {
   context: AuthorizationContext;
   used: DevPrivyDelegatedUltraSwapResult['authorizationUsed'];
@@ -403,27 +374,6 @@ async function prepareInputBalance(input: {
       tokenProgramIds: balance.programIds,
     },
   };
-}
-
-function settlementFor(input: {
-  payload: TriggerHitPayload;
-  order: UltraOrderResponse;
-  decimals: number;
-}): {
-  executionPrice: number;
-  tokenAmount: number;
-  usdValue: number;
-} {
-  const tokenAmount =
-    input.payload.kind === 'BUY_TRIGGER'
-      ? Number(input.order.outAmount) / 10 ** input.decimals
-      : Number(input.order.inAmount) / 10 ** input.decimals;
-  const usdValue =
-    input.payload.kind === 'BUY_TRIGGER'
-      ? Number(input.order.inAmount) / 10 ** USDC_DECIMALS
-      : Number(input.order.outAmount) / 10 ** USDC_DECIMALS;
-  const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : input.payload.currentPriceUsd;
-  return { executionPrice, tokenAmount, usdValue };
 }
 
 async function settleOrder(input: {
@@ -579,7 +529,12 @@ export async function runPrivyDelegatedUltraSwapDevTool(
     });
   }
 
-  const requestedPlan = swapPlanForPayload(payload, asset.decimals);
+  let requestedPlan: SwapPlan;
+  try {
+    requestedPlan = buildTriggerUltraSwapPlan(payload, asset.decimals);
+  } catch (err) {
+    throw new DevPrivyDelegatedUltraSwapError(errorMessage(err), 400);
+  }
   const { plan, balance } = await prepareInputBalance({ plan: requestedPlan, walletAddress });
   const order = await requestOrder({ plan, taker: walletAddress });
   const transaction = assertUltraOrderTransaction(order);
@@ -690,7 +645,12 @@ export async function runPrivyDelegatedUltraSwapDevTool(
       });
     }
 
-    const settlement = settlementFor({ payload, order, decimals: asset.decimals });
+    const settlement = settlementAmountsForTrigger({
+      payload,
+      inAmount: order.inAmount,
+      outAmount: order.outAmount,
+      decimals: asset.decimals,
+    });
     let settled: unknown;
     try {
       settled = await settleOrder({
