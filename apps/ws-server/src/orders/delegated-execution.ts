@@ -42,6 +42,7 @@ export type DelegatedTriggerExecutionOutcome =
       orderId: string;
       reason: string;
       shouldCooldown: boolean;
+      /** True when no claim was acquired or the claim was released. */
       released: boolean;
       detail?: unknown;
     }
@@ -195,7 +196,7 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
           orderId: input.payload.orderId,
           reason: err.reason,
           shouldCooldown: true,
-          released: false,
+          released: true,
           detail: err.detail,
         };
       }
@@ -211,7 +212,7 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
       orderId: input.payload.orderId,
       reason: 'delegated_preflight_runtime_error',
       shouldCooldown: true,
-      released: false,
+      released: true,
       detail: { cause: errorMessage(err) },
     };
   }
