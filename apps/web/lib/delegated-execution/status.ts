@@ -86,10 +86,8 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
     user.linked_accounts.find((account) => {
       if (account.type !== 'wallet') return false;
       const record = account as unknown as Record<string, unknown>;
-      const walletClient = record.wallet_client;
       return (
         record.chain_type === 'solana' &&
-        (walletClient === 'privy' || walletClient === 'privy-v2') &&
         record.connector_type === 'embedded' &&
         typeof record.address === 'string' &&
         record.address === address
@@ -145,16 +143,17 @@ function statusFromResolved(input: {
   const signerId = getAuthorizationSignerId();
   const signerConfigured = signerId !== null;
   const signerMatched = signerId ? input.resolved.additionalSignerIds.includes(signerId) : false;
-  const signerMode = input.resolved.walletClientType === 'privy-v2';
-  const hasDelegatedAccess = input.resolved.delegated === true || signerMatched;
+  const unsupportedWalletClient =
+    input.resolved.walletClientType != null && input.resolved.walletClientType !== 'privy-v2';
 
   if (!configured) blockers.push('missing_privy_authorization_private_key');
   if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
-  if (signerMode && !signerConfigured) blockers.push('missing_privy_authorization_signer_id');
-  if (signerConfigured && !signerMatched && input.resolved.delegated !== true) {
+  if (unsupportedWalletClient) blockers.push('unsupported_privy_wallet_client_type');
+  if (!signerConfigured) blockers.push('missing_privy_authorization_signer_id');
+  if (signerConfigured && !signerMatched) {
     blockers.push('wallet_missing_authorization_signer');
   }
-  if (!hasDelegatedAccess) blockers.push('wallet_not_delegated');
+  if (!signerMatched) blockers.push('wallet_not_delegated');
 
   return {
     ok: true,

@@ -84,7 +84,7 @@ Response `404`: Proposal not found or not owned by user.
 
 **`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy delegated wallet access or falls back to `trigger:hit` tap-to-execute.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy wallet v2 signer access or falls back to `trigger:hit` tap-to-execute.
 
 Request:
 
@@ -235,7 +235,7 @@ Response `409`: Position not in closeable state.
 
 **`GET /api/delegated-execution/status`** — Read live Auto-execute triggers readiness.
 
-This route does not read or write a Hunch DB toggle. Privy delegated wallet status is the source of truth, and Settings uses Privy client APIs to grant or revoke delegated wallet access.
+This route does not read or write a Hunch DB toggle. Privy wallet v2 signer status is the source of truth, and Settings uses Privy client APIs to attach or remove signer access.
 
 Response `200`:
 
@@ -275,6 +275,8 @@ Response `200`:
 
 Response `401`: Not authenticated.
 Response `500`: Privy server configuration or lookup failed.
+
+Common readiness blockers include `missing_privy_authorization_private_key`, `missing_privy_authorization_signer_id`, `unsupported_privy_wallet_client_type`, `wallet_missing_authorization_signer`, and `wallet_not_delegated`.
 
 ---
 
@@ -413,7 +415,7 @@ No Jupiter request happens here.
 
 ### Tap-to-Execute Trigger Fill
 
-This is the fallback when Auto-execute triggers is off, delegated wallet access is not live, or delegated execution fails before broadcast. When the ws-server emits `trigger:hit` and the user taps Execute:
+This is the fallback when Auto-execute triggers is off, Privy wallet v2 signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
 
 1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
 2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -426,12 +428,12 @@ This is the fallback when Auto-execute triggers is off, delegated wallet access 
 **Failure recovery by phase:**
 
 - Claim fails: another tab/user action already owns or settled the Order; do not start a swap.
-- Ultra `/order`, signing, or `/execute` fails before a signature: release claim and allow retry.
-- Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
+- Ultra `/order` or signing fails before `/execute` is attempted: release claim and allow retry.
+- `/execute` is attempted but no signature is returned, or Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
 
 ### Delegated Trigger Fill
 
-When a trigger hits and Privy delegated wallet access is live:
+When a trigger hits and Privy wallet v2 signer access is live:
 
 1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time.
 2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -442,7 +444,7 @@ When a trigger hits and Privy delegated wallet access is live:
 7. If Jupiter returns a signature, ws-server settles through the same PositionLifecycle functions used by `POST /api/orders/[id]/execute`.
 8. On success, ws-server emits `trade:filled`.
 
-If delegation, server signing readiness, or balance is unavailable, ws-server emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before broadcast, ws-server may apply a short delegated runtime cooldown and then falls back. If Jupiter broadcasts but DB settlement fails, ws-server does not offer immediate retry because a second swap could double-fill.
+If delegation, server signing readiness, or balance is unavailable, ws-server emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, ws-server may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
 
 ### BUY Fill Settlement
 

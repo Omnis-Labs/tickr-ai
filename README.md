@@ -17,7 +17,7 @@ Users define a simple investment mandate, receive AI-assisted BUY proposals for 
 - Lets users adjust size, trigger price, take-profit, and stop-loss before placing an order
 - Tracks BUY orders, active positions, open TP/SL orders, and portfolio state
 - Uses automatic TP/SL placement after entry, with one-cancels-other behavior when an exit fills
-- Offers optional Auto-execute triggers through Privy delegated wallet access, which remains non-custodial and revocable from Settings
+- Offers optional Auto-execute triggers through Privy wallet v2 signer access, which remains non-custodial and revocable from Settings
 
 ## How It Works
 
@@ -38,7 +38,7 @@ The app is built around proposals, not a manual trading terminal. All trade-stat
 - **Base currency:** USDC on Solana
 - **Supported assets:** Jupiter-listed xStocks/tokenized ETFs plus `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
 - **Wallet:** Privy auth with embedded Solana wallet support
-- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy delegated wallet access when Auto-execute triggers is enabled. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
+- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy wallet v2 signer access when Auto-execute triggers is enabled. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
 - **Signal engine:** standalone `ws-server` process. Default runtime starts the required `trigger-monitor`; `ENABLE_SIGNAL_LOOP`, `ENABLE_BACK_EVAL`, and `ENABLE_THESIS_MONITOR` are opt-in.
 
@@ -130,7 +130,7 @@ hunch-it/
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
 | [ADR-0001](docs/adr/0001-frozen-synthetic-trigger-architecture.md) | Architecture freeze: synthetic-trigger / tap-to-execute fallback model      |
 | [ADR-0002](docs/adr/0002-canonical-asset-signal-data.md)           | Canonical asset ids, xStock/crypto signal data, freshness rule              |
-| [ADR-0003](docs/adr/0003-opt-in-delegated-execution.md)            | Opt-in Auto-execute triggers through Privy delegated wallet access          |
+| [ADR-0003](docs/adr/0003-opt-in-delegated-execution.md)            | Opt-in Auto-execute triggers through Privy wallet v2 signer access          |
 | [CONTEXT.md](CONTEXT.md)                                           | Domain glossary used by reviews + future ADRs                               |
 | [Manual test core](docs/manual-test-core.md)                       | 10-step click-through that defines "the system works"                       |
 | [Product Overview](docs/product-overview.md)                       | Product promise, scope, supported assets                                    |

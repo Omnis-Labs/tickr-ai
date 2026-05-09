@@ -21,7 +21,7 @@ export interface UnifiedWallet {
   privyWalletId?: string | null;
   delegated?: boolean | null;
   authorizationSignerIdConfigured?: boolean;
-  delegationMode?: 'legacy-delegated-actions' | 'signers' | null;
+  delegationMode?: 'signers' | null;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
   /** Sign + broadcast in one round-trip. This is for generic wallet sends
    *  only. Sponsored Jupiter Ultra swaps must use signTransaction and hand
@@ -37,10 +37,10 @@ export interface UnifiedWallet {
   /** Privy access token. null when disconnected. Used as the
    *  Authorization: Bearer credential for /api/* + the ws-server socket. */
   getAccessToken: () => Promise<string | null>;
-  /** Dev/advanced: prompt the connected embedded Solana wallet to grant
-   *  server-side delegated access. Providers without this capability reject. */
+  /** Dev/advanced: prompt the connected embedded Solana wallet to attach
+   *  the server-side Privy wallet v2 signer. Providers without this capability reject. */
   delegateWallet: () => Promise<void>;
-  /** Dev/advanced: revoke delegated access for Privy embedded wallets. */
+  /** Dev/advanced: remove Privy wallet v2 signer access for embedded wallets. */
   revokeDelegatedWallets: () => Promise<void>;
   /** Refresh provider user metadata after delegation changes. */
   refreshWalletUser: () => Promise<void>;

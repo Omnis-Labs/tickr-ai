@@ -7,7 +7,7 @@ import {
   type DelegatedExecutionSettingsStatus,
 } from './settings-state';
 
-test('Settings treats local delegation as active when server status check fails', () => {
+test('Settings does not treat legacy local delegation metadata as active', () => {
   const state = deriveAutoExecuteSettingsState({
     connected: true,
     loading: false,
@@ -15,13 +15,13 @@ test('Settings treats local delegation as active when server status check fails'
     status: { ok: false, error: 'missing_privy_server_credentials' },
   });
 
-  assert.equal(state.grantActive, true);
-  assert.equal(state.primaryAction, 'disable');
+  assert.equal(state.grantActive, false);
+  assert.equal(state.primaryAction, 'enable');
   assert.equal(state.statusLabel, 'Check failed');
-  assert.match(state.detail, /Delegation is present locally/);
+  assert.match(state.detail, /Could not read wallet signer status/);
 });
 
-test('Settings exposes readiness blockers when delegation exists but cannot execute', () => {
+test('Settings exposes readiness blockers when signer access exists but cannot execute', () => {
   const status: DelegatedExecutionSettingsStatus = {
     ok: true,
     serverKey: { configured: false, env: 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' },
@@ -56,6 +56,42 @@ test('Settings exposes readiness blockers when delegation exists but cannot exec
   assert.equal(state.ready, false);
   assert.equal(state.statusLabel, 'Needs setup');
   assert.equal(state.blockerLabel, 'missing privy authorization private key');
+});
+
+test('Settings ignores signer metadata on unsupported legacy Privy wallets', () => {
+  const status: DelegatedExecutionSettingsStatus = {
+    ok: true,
+    serverKey: { configured: true, env: 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' },
+    serverSigner: {
+      configured: true,
+      walletMatched: true,
+      env: [
+        'PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
+        'NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
+      ],
+    },
+    wallet: {
+      delegated: true,
+      privyWalletId: 'wallet-legacy',
+      walletClientType: 'privy',
+      resolveError: null,
+    },
+    ready: {
+      canExecute: false,
+      blockers: ['unsupported_privy_wallet_client_type'],
+    },
+  };
+
+  const state = deriveAutoExecuteSettingsState({
+    connected: true,
+    loading: false,
+    clientDelegated: true,
+    status,
+  });
+
+  assert.equal(state.grantActive, false);
+  assert.equal(state.primaryAction, 'enable');
+  assert.equal(state.statusLabel, 'Manual');
 });
 
 test('Settings trusts server status over stale local delegated metadata', () => {
@@ -131,8 +167,8 @@ test('delegated access revoke resolves when status shows the grant is already go
     readStatus: async () => {
       reads += 1;
       return {
-        wallet: { delegated: reads === 1 },
-        serverSigner: { walletMatched: false },
+        wallet: { delegated: true, walletClientType: 'privy-v2' },
+        serverSigner: { walletMatched: reads === 1 },
       };
     },
     timeoutMs: 50,
@@ -140,6 +176,6 @@ test('delegated access revoke resolves when status shows the grant is already go
   });
 
   assert.equal(reads, 2);
-  assert.equal(status.wallet.delegated, false);
+  assert.equal(status.wallet.delegated, true);
   assert.equal(status.serverSigner.walletMatched, false);
 });

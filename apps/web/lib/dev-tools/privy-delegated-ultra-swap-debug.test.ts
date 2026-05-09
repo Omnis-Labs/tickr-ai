@@ -110,3 +110,18 @@ test('delegated Ultra API diagnostics explain Privy server signing failures', ()
   assert.equal(diagnostics[0]?.hypothesis, 'Privy signing');
   assert.match(diagnostics[0]?.detail ?? '', /wallet delegation policy/);
 });
+
+test('delegated Ultra API diagnostics explain unsupported Privy wallet versions', () => {
+  const diagnostics = diagnosticsForDelegatedUltraApiError({
+    message: 'unsupported_privy_wallet_client_type',
+    status: 409,
+    detail: {
+      walletClientType: 'privy',
+      expectedWalletClientType: 'privy-v2',
+    },
+  });
+
+  assert.equal(diagnostics[0]?.hypothesis, 'Privy wallet version');
+  assert.equal(diagnostics[0]?.status, 'risk');
+  assert.match(diagnostics[0]?.detail ?? '', /wallet v2 signer wallet/);
+});

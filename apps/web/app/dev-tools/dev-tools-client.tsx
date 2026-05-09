@@ -575,20 +575,20 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
           hypothesis: 'Privy authorization signer',
           status: 'watch',
           detail:
-            'After restart, Enable should use signer delegation instead of the legacy delegated-actions flow.',
+            'After restart, Enable should attach the Privy wallet v2 signer from the browser bundle.',
         },
       ];
     }
     return [
       {
-        hypothesis: 'Wallet delegation',
-        status: serverDelegated === true ? 'healthy' : serverDelegated === false ? 'risk' : 'watch',
+        hypothesis: 'Wallet signer access',
+        status: signerMatched === true ? 'healthy' : serverDelegated === true ? 'watch' : 'risk',
         detail:
-          serverDelegated === true
-            ? 'Server can resolve delegated access for this embedded Solana wallet.'
-            : serverDelegated === false
-              ? 'Delegated access is not enabled for this wallet.'
-              : 'Delegation status is not resolved yet.',
+          signerMatched === true
+            ? 'Server can resolve the configured wallet v2 authorization signer for this embedded Solana wallet.'
+            : serverDelegated === true
+              ? 'Legacy delegated wallet metadata is present, but Auto-execute now requires the wallet v2 signer.'
+              : 'The wallet v2 authorization signer is not attached yet.',
       },
       {
         hypothesis: 'Server authorization key',
@@ -615,7 +615,7 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
               ? 'Add NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID before enabling signer delegation.'
               : signerConfigured === true
                 ? 'Signer ID is configured; wallet has not attached it yet.'
-                : 'Legacy delegated-access mode does not expose a signer ID.',
+                : 'Privy wallet v2 signer configuration is missing.',
       },
       {
         hypothesis: 'Execution readiness',

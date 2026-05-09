@@ -334,7 +334,7 @@ function AutoExecuteTriggersCard() {
       if (next?.ok && next.ready.canExecute) {
         toast.success('Auto-execute triggers enabled.');
       } else {
-        toast('Delegation granted. Server readiness is still incomplete.');
+        toast('Signer access granted. Server readiness is still incomplete.');
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -351,7 +351,7 @@ function AutoExecuteTriggersCard() {
         readStatus: async () => {
           const next = await refreshStatus();
           if (!next?.ok) {
-            throw delegatedAccessError(next?.error ?? 'Could not read delegated wallet status.', {
+            throw delegatedAccessError(next?.error ?? 'Could not read wallet signer status.', {
               code: 'delegated_status_unavailable',
               status: next,
             });
@@ -465,8 +465,8 @@ function AutoExecuteTriggersCard() {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <p className="text-body-sm leading-5 text-on-surface-variant">
-            Enabling delegates execution ability to Hunch for trigger fills. Your wallet stays
-            non-custodial, and revoking removes that grant.
+            Enabling attaches a Privy wallet v2 signer for trigger fills. Your wallet stays
+            non-custodial, and revoking removes that signer access.
           </p>
         </div>
         {status?.ok === false && <p className="mt-2 text-body-sm text-error">{status.error}</p>}
