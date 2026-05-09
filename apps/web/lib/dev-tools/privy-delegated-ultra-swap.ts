@@ -14,7 +14,6 @@ import {
 } from '@hunch-it/execution';
 import {
   DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
-  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
   buildTriggerUltraSwapPlan,
   delegatedExecutionReadinessStatus,
   getAssetById,
@@ -112,7 +111,6 @@ export class DevPrivyDelegatedUltraSwapError extends Error {
 }
 
 const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV;
-const AUTHORIZATION_SIGNER_ID_ENV_KEYS = DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
