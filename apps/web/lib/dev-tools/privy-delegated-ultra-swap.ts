@@ -9,10 +9,17 @@ import {
   type Wallet,
 } from '@privy-io/node';
 import {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
   buildTriggerUltraSwapPlan,
+  delegatedExecutionReadinessStatus,
   getAssetById,
+  getDelegatedExecutionAuthorizationSignerId,
   parseRpcUrls,
   settlementAmountsForTrigger,
+  type DelegatedExecutionReadinessBlocker,
+  type DelegatedExecutionReadinessStatus,
+  type DelegatedExecutionResolvedWallet,
   type TriggerUltraSwapPlan,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
@@ -62,34 +69,7 @@ interface InputBalanceCheck {
   tokenProgramIds: string[];
 }
 
-export interface DevPrivyDelegatedUltraSwapStatus {
-  ok: true;
-  serverKey: {
-    configured: boolean;
-    env: typeof AUTHORIZATION_PRIVATE_KEY_ENV_KEY;
-  };
-  serverSigner: {
-    configured: boolean;
-    env: (typeof AUTHORIZATION_SIGNER_ID_ENV_KEYS)[number][];
-    walletMatched: boolean;
-  };
-  wallet: {
-    address: string;
-    privyWalletId: string | null;
-    delegated: boolean | null;
-    walletClientType: string | null;
-    connectorType: string | null;
-    additionalSignerIds: string[];
-    ownerId: string | null;
-    policyIds: string[];
-    authorizationThreshold: number | null;
-    resolveError: string | null;
-  };
-  ready: {
-    canExecute: boolean;
-    blockers: string[];
-  };
-}
+export type DevPrivyDelegatedUltraSwapStatus = DelegatedExecutionReadinessStatus;
 
 export interface DevPrivyDelegatedUltraSwapResult {
   ok: true;
@@ -145,11 +125,8 @@ export class DevPrivyDelegatedUltraSwapError extends Error {
   }
 }
 
-const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
-const AUTHORIZATION_SIGNER_ID_ENV_KEYS = [
-  'PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-  'NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-] as const;
+const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV;
+const AUTHORIZATION_SIGNER_ID_ENV_KEYS = DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
@@ -166,11 +143,7 @@ function getAuthorizationPrivateKeys(): string[] {
 }
 
 function getAuthorizationSignerId(): string | null {
-  for (const key of AUTHORIZATION_SIGNER_ID_ENV_KEYS) {
-    const value = getEnv(key);
-    if (value) return value;
-  }
-  return null;
+  return getDelegatedExecutionAuthorizationSignerId(getEnv);
 }
 
 function serverKeyConfigured(): boolean {
@@ -250,6 +223,21 @@ interface ResolvedPrivyWallet {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function readinessWalletFromResolved(resolved: ResolvedPrivyWallet): DelegatedExecutionResolvedWallet {
+  return {
+    walletId: resolved.wallet?.id ?? null,
+    walletChainType: resolved.wallet?.chain_type ?? null,
+    delegated: resolved.delegated,
+    walletClientType: resolved.walletClientType,
+    connectorType: resolved.connectorType,
+    additionalSignerIds: resolved.additionalSignerIds,
+    ownerId: resolved.wallet?.owner_id ?? null,
+    policyIds: resolved.wallet?.policy_ids ?? [],
+    authorizationThreshold: resolved.wallet?.authorization_threshold ?? null,
+    resolveError: resolved.resolveError,
+  };
 }
 
 async function resolvePrivyWallet(input: {
@@ -412,50 +400,76 @@ function statusFromResolved(input: {
   walletAddress: string;
   resolved: ResolvedPrivyWallet;
 }): DevPrivyDelegatedUltraSwapStatus {
-  const blockers: string[] = [];
-  const configured = serverKeyConfigured();
-  const signerId = getAuthorizationSignerId();
-  const signerConfigured = signerId !== null;
-  const signerMatched = signerId ? input.resolved.additionalSignerIds.includes(signerId) : false;
-  const unsupportedWalletClient =
-    input.resolved.wallet != null && input.resolved.walletClientType !== 'privy-v2';
-  if (!configured) blockers.push('missing_privy_authorization_private_key');
-  if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
-  if (unsupportedWalletClient) blockers.push('unsupported_privy_wallet_client_type');
-  if (!signerConfigured) blockers.push('missing_privy_authorization_signer_id');
-  if (signerConfigured && !signerMatched) {
-    blockers.push('wallet_missing_authorization_signer');
-  }
-  if (!signerMatched) blockers.push('wallet_not_delegated');
+  return delegatedExecutionReadinessStatus({
+    walletAddress: input.walletAddress,
+    resolved: readinessWalletFromResolved(input.resolved),
+    serverKeyConfigured: serverKeyConfigured(),
+    authorizationSignerId: getAuthorizationSignerId(),
+  });
+}
 
+function readinessErrorDetail(input: {
+  blocker: DelegatedExecutionReadinessBlocker;
+  walletAddress: string;
+  resolved: ResolvedPrivyWallet;
+  status: DevPrivyDelegatedUltraSwapStatus;
+}): { status: number; detail?: unknown } {
+  if (input.blocker === 'missing_privy_authorization_private_key') {
+    return { status: 500, detail: { checkedEnv: [AUTHORIZATION_PRIVATE_KEY_ENV_KEY] } };
+  }
+  if (input.blocker === 'missing_privy_authorization_signer_id') {
+    return { status: 500, detail: { checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS } };
+  }
+  if (input.blocker === 'unsupported_privy_wallet_client_type') {
+    return {
+      status: 409,
+      detail: {
+        walletAddress: input.walletAddress,
+        walletClientType: input.resolved.walletClientType,
+        expectedWalletClientType: 'privy-v2',
+      },
+    };
+  }
+  if (input.blocker === 'wallet_missing_authorization_signer') {
+    return {
+      status: 409,
+      detail: {
+        walletAddress: input.walletAddress,
+        signerConfigured: input.status.serverSigner.configured,
+        additionalSignerIds: input.resolved.additionalSignerIds,
+      },
+    };
+  }
+  if (input.blocker === 'privy_wallet_not_solana') {
+    return {
+      status: 400,
+      detail: {
+        walletId: input.resolved.wallet?.id ?? null,
+        chainType: input.resolved.wallet?.chain_type ?? null,
+      },
+    };
+  }
   return {
-    ok: true,
-    serverKey: {
-      configured,
-      env: AUTHORIZATION_PRIVATE_KEY_ENV_KEY,
-    },
-    serverSigner: {
-      configured: signerConfigured,
-      env: [...AUTHORIZATION_SIGNER_ID_ENV_KEYS],
-      walletMatched: signerMatched,
-    },
-    wallet: {
-      address: input.walletAddress,
-      privyWalletId: input.resolved.wallet?.id ?? null,
+    status: 409,
+    detail: {
+      walletAddress: input.walletAddress,
       delegated: input.resolved.delegated,
-      walletClientType: input.resolved.walletClientType,
-      connectorType: input.resolved.connectorType,
-      additionalSignerIds: input.resolved.additionalSignerIds,
-      ownerId: input.resolved.wallet?.owner_id ?? null,
-      policyIds: input.resolved.wallet?.policy_ids ?? [],
-      authorizationThreshold: input.resolved.wallet?.authorization_threshold ?? null,
+      signerMatched: input.status.serverSigner.walletMatched,
       resolveError: input.resolved.resolveError,
     },
-    ready: {
-      canExecute: blockers.length === 0,
-      blockers,
-    },
   };
+}
+
+function assertReadyForDelegatedUltraSwap(input: {
+  walletAddress: string;
+  resolved: ResolvedPrivyWallet;
+}): DevPrivyDelegatedUltraSwapStatus {
+  const status = statusFromResolved(input);
+  const blocker = status.ready.blockers[0];
+  if (!blocker) return status;
+
+  const error = readinessErrorDetail({ ...input, status, blocker });
+  throw new DevPrivyDelegatedUltraSwapError(blocker, error.status, error.detail);
 }
 
 export async function getPrivyDelegatedUltraSwapStatus(input: {
@@ -485,49 +499,8 @@ export async function runPrivyDelegatedUltraSwapDevTool(
   const resolved = await resolvePrivyWallet({ client, walletAddress });
   const { context, used } = buildServerAuthorizationContext();
   const { wallet, delegated } = resolved;
-  const signerId = getAuthorizationSignerId();
-  const signerMatched = signerId ? resolved.additionalSignerIds.includes(signerId) : false;
-  if (!wallet) {
-    throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409, {
-      walletAddress,
-      delegated,
-      signerMatched,
-      resolveError: resolved.resolveError,
-    });
-  }
-  if (resolved.walletClientType !== 'privy-v2') {
-    throw new DevPrivyDelegatedUltraSwapError('unsupported_privy_wallet_client_type', 409, {
-      walletAddress,
-      walletClientType: resolved.walletClientType,
-      expectedWalletClientType: 'privy-v2',
-    });
-  }
-  if (!signerId) {
-    throw new DevPrivyDelegatedUltraSwapError('missing_privy_authorization_signer_id', 500, {
-      checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS,
-    });
-  }
-  if (!signerMatched) {
-    throw new DevPrivyDelegatedUltraSwapError('wallet_missing_authorization_signer', 409, {
-      walletAddress,
-      signerConfigured: Boolean(signerId),
-      additionalSignerIds: resolved.additionalSignerIds,
-    });
-  }
-  if (!signerMatched) {
-    throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409, {
-      walletAddress,
-      delegated,
-      signerMatched,
-      resolveError: resolved.resolveError,
-    });
-  }
-  if (wallet.chain_type !== 'solana') {
-    throw new DevPrivyDelegatedUltraSwapError('privy_wallet_not_solana', 400, {
-      walletId: wallet.id,
-      chainType: wallet.chain_type,
-    });
-  }
+  assertReadyForDelegatedUltraSwap({ walletAddress, resolved });
+  if (!wallet) throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409);
 
   let requestedPlan: SwapPlan;
   try {

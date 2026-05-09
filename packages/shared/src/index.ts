@@ -181,3 +181,16 @@ export type {
   UltraOrderProblem,
   UltraOrderProblemCode,
 } from './jupiter-ultra.js';
+
+// ── Delegated Execution readiness ──────────────────────────────────────
+export {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
+  delegatedExecutionReadinessStatus,
+  getDelegatedExecutionAuthorizationSignerId,
+} from './delegated-execution-readiness.js';
+export type {
+  DelegatedExecutionReadinessBlocker,
+  DelegatedExecutionReadinessStatus,
+  DelegatedExecutionResolvedWallet,
+} from './delegated-execution-readiness.js';
