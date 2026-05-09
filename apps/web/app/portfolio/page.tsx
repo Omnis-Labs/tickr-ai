@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { usePortfolio } from '@/lib/hooks/queries';
-import { portfolioPositionsToHoldings } from '@/lib/portfolio/holdings';
+import { buildPortfolioSummary } from '@/lib/portfolio/summary';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 function formatUsdc(value: number): string {
@@ -35,23 +35,26 @@ export default function PortfolioPage() {
   const data = portfolioQuery.data;
   const isLoading = portfolioQuery.isLoading;
 
-  const holdings = useMemo(
-    () => portfolioPositionsToHoldings(data?.positions ?? []),
-    [data?.positions],
+  const summary = useMemo(
+    () =>
+      buildPortfolioSummary({
+        positions: data?.positions ?? [],
+        cashUsd: data?.cashUsd,
+        pnl: data?.pnl,
+      }),
+    [data],
   );
 
-  const realized = data?.pnl.realized ?? 0;
-  const unrealized = data?.pnl.unrealized ?? 0;
-  const totalPnl = realized + unrealized;
-  const dayPnl = unrealized;
-  const cashUsd = data?.cashUsd ?? 0;
+  const holdings = summary.holdings;
+  const totalPnl = summary.totalPnl;
+  const dayPnl = summary.dayPnl;
+  const cashUsd = summary.cashUsd;
   const solBalance = data?.solBalance ?? 0;
-  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
-  const totalValue = positionsValue + cashUsd;
-  const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
-  const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
-  const dayPnlPositive = dayPnl >= 0;
-  const totalPnlPositive = totalPnl >= 0;
+  const totalValue = summary.totalValue;
+  const totalPnlPct = summary.totalPnlPct;
+  const dayPnlPct = summary.dayPnlPct;
+  const dayPnlPositive = summary.dayPnlPositive;
+  const totalPnlPositive = summary.totalPnlPositive;
 
   return (
     <>

@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       avgCost: entryPrice,
       markPrice: entryPrice, // overlaid client-side
       pnl: 0, // computed client-side once marks arrive
+      state: p.state,
     };
   });
   const unrealized = 0;

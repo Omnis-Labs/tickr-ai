@@ -90,6 +90,10 @@ Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived 
 
 A holding in a single asset. Durable states are `BUY_PENDING → ACTIVE → CLOSED`. `ENTERING` and `CLOSING` are short-lived execution-claim states while an execution adapter is signing/submitting a BUY or TP/SL swap.
 
+### Portfolio Summary
+
+The user-visible valuation snapshot shared by Desk and Portfolio. It combines wallet USDC (`cashUsd`) plus open holding mark value into Total Value, reports realized and unrealized P&L separately, and exposes the derived holdings / closable positions that portfolio surfaces need. `apps/web/lib/portfolio/summary.ts` is the Module that owns this calculation; pages should not recompute Total Value locally.
+
 ### Trade
 
 A historical row recording a fill. Always paired with an `Order` and a `Position`. `source` is one of `BUY_APPROVAL | TP_FILL | SL_FILL | USER_CLOSE`.
