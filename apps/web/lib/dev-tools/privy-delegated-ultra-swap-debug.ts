@@ -172,10 +172,14 @@ export function buildDelegatedUltraPreflightReport(
           'Exit orders need tokenAmount so the server can ask Ultra for the right input size.',
       });
     } else if (expectedInput) {
+      const detail =
+        input.order.kind === 'BUY_TRIGGER'
+          ? `${expectedInput.reason} Fund at least ${expectedInput.amount} ${expectedInput.symbol}; BUY inputs are not balance-capped.`
+          : `${expectedInput.reason} Target ${expectedInput.amount} ${expectedInput.symbol}; if the wallet has less than the target, the server submits the available balance.`;
       diagnostics.push({
         hypothesis: 'Order funding',
         status: 'watch',
-        detail: `${expectedInput.reason} Fund at least ${expectedInput.amount} ${expectedInput.symbol}; the server preflights raw balance before asking Ultra.`,
+        detail,
       });
     }
   } else {

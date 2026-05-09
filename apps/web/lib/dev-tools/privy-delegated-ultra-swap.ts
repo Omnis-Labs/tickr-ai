@@ -32,6 +32,7 @@ import {
 import { readOwnerMintBalanceRaw } from '@/lib/jupiter/ultra-swap';
 import type { AuthContext } from '@/lib/auth/context';
 import { getUltraOrderProblem } from './privy-delegated-ultra-swap-guards';
+import { submittedInputRawForBalance } from './privy-delegated-ultra-swap-amounts';
 import { buildOwnedDevTriggerPayload } from './server';
 
 interface DevPrivyDelegatedUltraSwapInput {
@@ -61,6 +62,7 @@ interface SwapPlan {
 interface InputBalanceCheck {
   inputMint: string;
   requestedRaw: string;
+  submittedRaw: string;
   walletRaw: string;
   tokenProgramIds: string[];
 }
@@ -368,15 +370,20 @@ function assertUltraOrderTransaction(order: UltraOrderResponse): string {
   throw new DevPrivyDelegatedUltraSwapError(problem.message, 400, problem.detail);
 }
 
-async function assertInputBalance(input: {
+async function prepareInputBalance(input: {
   plan: SwapPlan;
   walletAddress: string;
-}): Promise<InputBalanceCheck> {
+}): Promise<{ plan: SwapPlan; balance: InputBalanceCheck }> {
   const owner = new PublicKey(input.walletAddress);
   const balance = await readOwnerMintBalanceRaw(getSolanaConnection(), owner, input.plan.inputMint);
   const requestedRaw = BigInt(input.plan.amount);
+  const submittedRaw = submittedInputRawForBalance({
+    side: input.plan.side,
+    requestedRaw,
+    walletRaw: balance.raw,
+  });
 
-  if (balance.raw < requestedRaw) {
+  if (submittedRaw == null) {
     throw new DevPrivyDelegatedUltraSwapError('insufficient_funds', 400, {
       inputMint: input.plan.inputMint,
       requestedRaw: requestedRaw.toString(),
@@ -386,10 +393,17 @@ async function assertInputBalance(input: {
   }
 
   return {
-    inputMint: input.plan.inputMint,
-    requestedRaw: requestedRaw.toString(),
-    walletRaw: balance.raw.toString(),
-    tokenProgramIds: balance.programIds,
+    plan: {
+      ...input.plan,
+      amount: submittedRaw.toString(),
+    },
+    balance: {
+      inputMint: input.plan.inputMint,
+      requestedRaw: requestedRaw.toString(),
+      submittedRaw: submittedRaw.toString(),
+      walletRaw: balance.raw.toString(),
+      tokenProgramIds: balance.programIds,
+    },
   };
 }
 
@@ -551,8 +565,8 @@ export async function runPrivyDelegatedUltraSwapDevTool(
     });
   }
 
-  const plan = swapPlanForPayload(payload, asset.decimals);
-  const balance = await assertInputBalance({ plan, walletAddress });
+  const requestedPlan = swapPlanForPayload(payload, asset.decimals);
+  const { plan, balance } = await prepareInputBalance({ plan: requestedPlan, walletAddress });
   const order = await requestOrder({ plan, taker: walletAddress });
   const transaction = assertUltraOrderTransaction(order);
   const orderTransactionBytes = toBase64Bytes(transaction).byteLength;

@@ -165,6 +165,7 @@ interface DelegatedUltraResponse {
   balance: {
     inputMint: string;
     requestedRaw: string;
+    submittedRaw: string;
     walletRaw: string;
     tokenProgramIds: string[];
   };
@@ -2214,6 +2215,7 @@ function DelegatedUltraResult({ result }: { result: DelegatedUltraResponse }) {
         />
         <Metric label="Balance raw" value={result.balance.walletRaw} />
         <Metric label="Requested raw" value={result.balance.requestedRaw} />
+        <Metric label="Submitted raw" value={result.balance.submittedRaw} />
         <Metric label="Router" value={result.ultraOrder.router ?? '-'} />
         <Metric
           label="Gasless"
