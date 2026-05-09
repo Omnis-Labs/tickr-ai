@@ -38,7 +38,7 @@ The app is built around proposals, not a manual trading terminal. All trade-stat
 - **Base currency:** USDC on Solana
 - **Supported assets:** Jupiter-listed xStocks/tokenized ETFs plus `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
 - **Wallet:** Privy auth with embedded Solana wallet support
-- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy wallet v2 signer access when Auto-execute triggers is enabled. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
+- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy wallet v2 signer access when Auto-execute triggers is enabled. The shared `@hunch-it/execution` package owns delegated trigger execution; the server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
 - **Signal engine:** standalone `ws-server` process. Default runtime starts the required `trigger-monitor`; `ENABLE_SIGNAL_LOOP`, `ENABLE_BACK_EVAL`, and `ENABLE_THESIS_MONITOR` are opt-in.
 

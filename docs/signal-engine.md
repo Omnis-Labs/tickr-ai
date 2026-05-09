@@ -150,8 +150,8 @@ Runs every 30 seconds in the ws-server.
    - BUY: current price within 0.5% of trigger
    - TP: current price >= trigger price
    - SL: current price <= trigger price
-4. If Auto-execute triggers is live for the user's Privy wallet, execute the same Jupiter Ultra swap from ws-server and emit `trade:filled` after PositionLifecycle settlement.
-5. Otherwise emit `trigger:hit` to the user's Socket.IO room. The browser performs tap-to-execute: execution claim, Jupiter Ultra `/order`, Privy user signature, Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` to settle DB state.
+4. Hand the trigger to TriggerExecutionDispatch. It tries the shared `@hunch-it/execution` Delegated Execution Runtime first.
+5. If Delegated Execution settles, emit `trade:filled`; otherwise emit `trigger:hit` only for fallback-safe outcomes. The browser performs tap-to-execute: execution claim, Jupiter Ultra `/order`, Privy user signature, Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` to settle DB state.
 
 The monitor is intentionally idempotent: fallback may re-emit the same OPEN Order every poll until the user executes, cancels, or the Order is filled. Delegated execution claims the Order before signing, so repeated polls and stale toasts cannot start a second swap after the first execution path owns the trigger.
 

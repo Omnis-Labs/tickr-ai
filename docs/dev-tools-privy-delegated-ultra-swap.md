@@ -1,13 +1,13 @@
 # Dev Tools Privy Delegated Ultra Swap
 
-This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy wallet v2 signer access and Jupiter Ultra. The same delegated execution primitives now power production Auto-execute triggers; `/dev-tools` remains the deterministic local diagnostic surface.
+This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy wallet v2 signer access and Jupiter Ultra. `/dev-tools` wraps the same `@hunch-it/execution` Delegated Execution Runtime used by production Auto-execute triggers, adding diagnostic capture around the concrete adapters.
 
 ## Scope
 
 - Lives behind `/dev-tools` and `ENABLE_DEV_TOOLS=true`.
 - Executes only owned Orders that came from `DEV_TOOLS` proposals.
 - Uses Privy wallet v2 signer access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-- Exercises the same delegated Ultra shape that production ws-server uses when a trigger hits and the wallet is delegated.
+- Exercises the same delegated Ultra Module that production ws-server uses when a trigger hits and the wallet is delegated.
 
 ## Privy Setup
 
@@ -32,7 +32,7 @@ The signer ID is not secret, but it must match the private key's registered key 
 6. Generate and accept a dev-tools proposal to create a BUY trigger Order, or pick an existing open TP/SL Order.
 7. In **Privy delegated Ultra swap**, select the exact open Order to execute.
 8. Read **Preflight hypotheses**. It should say **Can attempt** before the real swap path runs.
-9. Click **Execute swap**. The server will first write a `privyDelegatedUltraSwap.preflight` log, then claim the Order, request a Jupiter Ultra order, ask Privy to sign with the server authorization key, submit `/execute`, and settle the DB lifecycle.
+9. Click **Execute swap**. The server will first write a `privyDelegatedUltraSwap.preflight` log, then call the shared Delegated Execution Runtime. The harness records the resolved wallet, prepared amount, Jupiter Ultra order, delegated signature, `/execute` response, and settlement outcome around that production path.
 
 ## Debug Logs
 
@@ -57,12 +57,10 @@ Clicking **Execute swap** is allowed even when preflight is blocked. In that cas
 - `wallet_missing_authorization_signer`: click **Enable** again and approve the Privy signer delegation prompt.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.
-- `jupiter_ultra_order_failed`: the server could not fetch a Jupiter Ultra order.
 - `ultra_order_unavailable`: Jupiter did not return a usable unsigned transaction.
-- `ultra_transaction_deserialize_failed`: Jupiter returned transaction bytes that Solana web3.js could not decode.
-- `privy_sign_transaction_failed`: Privy could not sign with the server authorization key.
-- `privy_signed_transaction_invalid`: Privy returned signed bytes that could not be decoded.
-- `jupiter_ultra_execute_failed`: Jupiter rejected the signed transaction.
-- `order_settlement_failed`: swap broadcast may have succeeded, but DB settlement failed.
+- `delegated_order_or_sign_runtime_error`: Jupiter Ultra `/order`, transaction decoding, or Privy signing failed before `/execute`; the claim is released when one was acquired.
+- `delegated_execute_signature_unknown`: Jupiter Ultra `/execute` was attempted but no signature was returned; the claim is retained for reconciliation.
+- `delegated_settlement_runtime_error`: Jupiter returned a signature, but settlement threw before the response could be completed.
+- `settle_*`: PositionLifecycle rejected settlement after a signature was known.
 
 When debugging, use the `/dev-tools` logs. The delegated access log reports configuration readiness. The delegated Ultra swap log reports wallet delegation, server signer, Ultra relay, signature, and settlement details.

@@ -71,7 +71,7 @@ Open `/desk` and wait for the trigger condition, or use `/dev-tools` to force tr
 
 With **Auto-execute triggers** off or unavailable, you should see a sticky `trigger:hit` toast. With **Auto-execute triggers** on and Privy delegation live, ws-server should execute the swap from the server and the client should receive a `trade:filled` notification instead of an Execute prompt.
 
-**What's being verified**: `apps/ws-server/src/orders/trigger-monitor.ts` selects OPEN synthetic Orders, checks Pyth, and either routes the trigger to delegated execution or emits `trigger:hit` to the user's Socket.IO room for fallback. A plain fallback toast does **not** mutate DB. The fallback toast can fire repeatedly (every poll) until the user executes — that's intentional idempotent re-firing.
+**What's being verified**: `apps/ws-server/src/orders/trigger-monitor.ts` selects OPEN synthetic Orders and checks Pyth. `TriggerExecutionDispatch` then routes the trigger to the shared Delegated Execution Runtime or emits `trigger:hit` to the user's Socket.IO room for fallback. A plain fallback toast does **not** mutate DB. The fallback toast can fire repeatedly (every poll) until the user executes — that's intentional idempotent re-firing.
 
 ### 7. Executing the BUY trigger fills the order, activates the position, arms TP+SL
 
