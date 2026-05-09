@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
-import { useDelegatedActions, usePrivy, useSigners, useUser } from '@privy-io/react-auth';
+import { usePrivy, useSigners, useUser } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
@@ -34,7 +34,6 @@ const AUTHORIZATION_POLICY_IDS = (
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
   const { user, refreshUser } = useUser();
-  const { delegateWallet: privyDelegateWallet, revokeWallets } = useDelegatedActions();
   const { addSigners, removeSigners } = useSigners();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
@@ -96,11 +95,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       privyWalletId,
       delegated,
       authorizationSignerIdConfigured: AUTHORIZATION_SIGNER_ID.length > 0,
-      delegationMode: AUTHORIZATION_SIGNER_ID
-        ? 'signers'
-        : walletClientType === 'privy'
-          ? 'legacy-delegated-actions'
-          : null,
+      delegationMode: AUTHORIZATION_SIGNER_ID ? 'signers' : null,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
             const isVersioned = tx instanceof VersionedTransaction;
@@ -192,45 +187,32 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         ) {
           throw new Error('Only Privy embedded wallets support delegated access here.');
         }
-        if (walletClientType !== 'privy' && walletClientType !== 'privy-v2') {
+        if (walletClientType !== 'privy-v2') {
           throw new Error(
-            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}.`,
+            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}. Privy wallet v2 is required.`,
           );
         }
-        if (delegated === true) {
-          await refreshUser().catch(() => null);
-          return;
+        if (!AUTHORIZATION_SIGNER_ID) {
+          throw new Error('Privy wallet v2 signer delegation is not configured.');
         }
-        if (AUTHORIZATION_SIGNER_ID) {
-          await addSigners({
-            address: wallet.address,
-            signers: [
-              {
-                signerId: AUTHORIZATION_SIGNER_ID,
-                ...(AUTHORIZATION_POLICY_IDS.length > 0
-                  ? { policyIds: AUTHORIZATION_POLICY_IDS }
-                  : {}),
-              },
-            ],
-          });
-          await refreshUser().catch(() => null);
-          return;
-        }
-        await privyDelegateWallet({ address: wallet.address, chainType: 'solana' });
+        await addSigners({
+          address: wallet.address,
+          signers: [
+            {
+              signerId: AUTHORIZATION_SIGNER_ID,
+              ...(AUTHORIZATION_POLICY_IDS.length > 0
+                ? { policyIds: AUTHORIZATION_POLICY_IDS }
+                : {}),
+            },
+          ],
+        });
         await refreshUser().catch(() => null);
       },
       revokeDelegatedWallets: async () => {
         const errors: unknown[] = [];
-        if (wallet?.address && AUTHORIZATION_SIGNER_ID) {
+        if (wallet?.address) {
           try {
             await removeSigners({ address: wallet.address });
-          } catch (err) {
-            errors.push(err);
-          }
-        }
-        if (!AUTHORIZATION_SIGNER_ID || delegated === true) {
-          try {
-            await revokeWallets();
           } catch (err) {
             errors.push(err);
           }
@@ -263,10 +245,8 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     authenticated,
     login,
     logout,
-    privyDelegateWallet,
     addSigners,
     removeSigners,
-    revokeWallets,
     refreshUser,
     privySign,
     privySignAndSend,

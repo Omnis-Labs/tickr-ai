@@ -70,10 +70,8 @@ function linkedSolanaEmbeddedWallet(user: PrivyUser, address: string): LinkedAcc
     user.linked_accounts.find((account) => {
       if (account.type !== 'wallet') return false;
       const record = account as unknown as Record<string, unknown>;
-      const walletClient = record.wallet_client;
       return (
         record.chain_type === 'solana' &&
-        (walletClient === 'privy' || walletClient === 'privy-v2') &&
         record.connector_type === 'embedded' &&
         typeof record.address === 'string' &&
         record.address === address
@@ -132,28 +130,40 @@ export async function resolveDelegatedWalletByAddress(
   const linkedWallet = linkedSolanaEmbeddedWallet(user, walletAddress);
   const linkedRecord = linkedWallet as unknown as Record<string, unknown> | null;
   const delegated =
-    linkedRecord && typeof linkedRecord.delegated === 'boolean'
-      ? linkedRecord.delegated
-      : null;
+    linkedRecord && typeof linkedRecord.delegated === 'boolean' ? linkedRecord.delegated : null;
   const walletClientType =
     typeof linkedRecord?.wallet_client === 'string' ? linkedRecord.wallet_client : null;
   const signerId = getAuthorizationSignerId();
   const signerIds = additionalSignerIds(wallet);
   const signerMatched = signerId ? signerIds.includes(signerId) : false;
 
-  if (walletClientType === 'privy-v2' && !signerId) {
+  if (!wallet) {
+    throw new DelegatedWalletUnavailableError('wallet_not_delegated', {
+      walletAddress,
+      delegated,
+      signerMatched,
+    });
+  }
+  if (walletClientType !== 'privy-v2') {
+    throw new DelegatedWalletUnavailableError('unsupported_privy_wallet_client_type', {
+      walletAddress,
+      walletClientType,
+      expectedWalletClientType: 'privy-v2',
+    });
+  }
+  if (!signerId) {
     throw new DelegatedWalletUnavailableError('missing_privy_authorization_signer_id', {
       checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS,
     });
   }
-  if (signerId && !signerMatched && delegated !== true) {
+  if (!signerMatched) {
     throw new DelegatedWalletUnavailableError('wallet_missing_authorization_signer', {
       walletAddress,
       signerConfigured: true,
       additionalSignerIds: signerIds,
     });
   }
-  if (!wallet || (delegated !== true && !signerMatched)) {
+  if (!signerMatched) {
     throw new DelegatedWalletUnavailableError('wallet_not_delegated', {
       walletAddress,
       delegated,
@@ -183,13 +193,10 @@ export async function signDelegatedSolanaTransaction(input: {
   authorizationContext: AuthorizationContext;
   idempotencyKey: string;
 }): Promise<string> {
-  const signed = await getPrivyClient()
-    .wallets()
-    .solana()
-    .signTransaction(input.walletId, {
-      transaction: input.transaction,
-      authorization_context: input.authorizationContext,
-      idempotency_key: input.idempotencyKey,
-    });
+  const signed = await getPrivyClient().wallets().solana().signTransaction(input.walletId, {
+    transaction: input.transaction,
+    authorization_context: input.authorizationContext,
+    idempotency_key: input.idempotencyKey,
+  });
   return signed.signed_transaction;
 }

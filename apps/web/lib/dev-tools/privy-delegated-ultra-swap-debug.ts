@@ -111,7 +111,7 @@ export function buildDelegatedUltraPreflightReport(
   const statusBlockers = input.status?.ready?.blockers ?? [];
   const serverDelegated = input.status?.wallet?.delegated ?? null;
   const serverSignerMatched = input.status?.serverSigner?.walletMatched === true;
-  const serverCanSign = serverDelegated === true || serverSignerMatched;
+  const serverCanSign = serverSignerMatched;
   const clientDelegated = input.clientDelegated ?? null;
   const expectedInput = expectedInputForOrder(input.order);
 
@@ -194,7 +194,7 @@ export function buildDelegatedUltraPreflightReport(
     diagnostics.push({
       hypothesis: 'Server readiness',
       status: 'watch',
-      detail: 'Delegation status has not been fetched yet; Execute swap will fetch it first.',
+      detail: 'Signer status has not been fetched yet; Execute swap will fetch it first.',
     });
   } else if (statusBlockers.length > 0) {
     blockers.push(...statusBlockers);
@@ -207,37 +207,35 @@ export function buildDelegatedUltraPreflightReport(
     diagnostics.push({
       hypothesis: 'Server readiness',
       status: 'healthy',
-      detail: 'Server key, Privy wallet lookup, and delegation checks are ready.',
+      detail: 'Server key, Privy wallet lookup, and signer checks are ready.',
     });
   }
 
   if (serverCanSign) {
     diagnostics.push({
-      hypothesis: 'Privy delegation',
+      hypothesis: 'Privy signer access',
       status: 'healthy',
-      detail: serverSignerMatched
-        ? 'Server sees the configured authorization signer on the embedded Solana wallet.'
-        : 'Server sees delegated access on the embedded Solana wallet.',
+      detail: 'Server sees the configured authorization signer on the embedded Solana wallet.',
     });
   } else if (serverDelegated === false) {
     diagnostics.push({
-      hypothesis: 'Privy delegation',
+      hypothesis: 'Privy signer access',
       status: 'risk',
-      detail: 'Use Enable in Delegated access, then Check until the server also sees delegation.',
+      detail: 'Use Enable in Delegated access, then Check until the server sees signer access.',
     });
   } else if (clientDelegated === true) {
     diagnostics.push({
-      hypothesis: 'Privy delegation',
+      hypothesis: 'Privy signer access',
       status: 'watch',
-      detail: 'Client reports delegation, but the server has not resolved it yet.',
+      detail: 'Client reports legacy delegation metadata, but Auto-execute requires signer access.',
     });
   } else {
     diagnostics.push({
-      hypothesis: 'Privy delegation',
+      hypothesis: 'Privy signer access',
       status: 'watch',
       detail: input.status?.wallet?.resolveError
         ? `Privy lookup returned: ${input.status.wallet.resolveError}.`
-        : 'Delegation is unknown until the server resolves the linked embedded wallet.',
+        : 'Signer access is unknown until the server resolves the linked embedded wallet.',
     });
   }
 
@@ -259,7 +257,7 @@ export function buildDelegatedUltraPreflightReport(
           : 'unknown',
     detail:
       input.status?.serverKey?.configured && serverCanSign
-        ? 'Server authorization key is present; signing can still fail if the key does not match the delegated policy.'
+        ? 'Server authorization key is present; signing can still fail if the key does not match the signer policy.'
         : input.status?.serverKey?.configured === false
           ? 'Add PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY before testing delegated signing.'
           : 'Signing readiness depends on server key and delegated policy resolution.',
@@ -359,6 +357,17 @@ export function diagnosticsForDelegatedUltraApiError(input: {
         status: 'risk',
         detail:
           'Enable delegated access again so the wallet adds the configured authorization signer.',
+      },
+    ];
+  }
+
+  if (message === 'unsupported_privy_wallet_client_type') {
+    return [
+      {
+        hypothesis: 'Privy wallet version',
+        status: 'risk',
+        detail:
+          'Auto-execute requires a Privy wallet v2 signer wallet. Create or reconnect with a wallet v2 embedded Solana wallet.',
       },
     ];
   }

@@ -1,12 +1,12 @@
 # Dev Tools Privy Delegated Ultra Swap
 
-This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy delegated wallet access and Jupiter Ultra. The same delegated execution primitives now power production Auto-execute triggers; `/dev-tools` remains the deterministic local diagnostic surface.
+This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy wallet v2 signer access and Jupiter Ultra. The same delegated execution primitives now power production Auto-execute triggers; `/dev-tools` remains the deterministic local diagnostic surface.
 
 ## Scope
 
 - Lives behind `/dev-tools` and `ENABLE_DEV_TOOLS=true`.
 - Executes only owned Orders that came from `DEV_TOOLS` proposals.
-- Uses Privy delegated wallet access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
+- Uses Privy wallet v2 signer access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
 - Exercises the same delegated Ultra shape that production ws-server uses when a trigger hits and the wallet is delegated.
 
 ## Privy Setup
@@ -53,6 +53,7 @@ Clicking **Execute swap** is allowed even when preflight is blocked. In that cas
 
 - `missing_privy_authorization_private_key`: add `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
 - `missing_privy_authorization_signer_id`: add `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
+- `unsupported_privy_wallet_client_type`: use a Privy wallet v2 embedded Solana wallet; legacy Privy wallet delegation is not supported in the current dev phase.
 - `wallet_missing_authorization_signer`: click **Enable** again and approve the Privy signer delegation prompt.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.

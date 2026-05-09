@@ -36,9 +36,9 @@ export function deriveAutoExecuteSettingsState(input: {
 }): AutoExecuteSettingsState {
   const serverGrantActive =
     input.status?.ok === true &&
-    (input.status.wallet.delegated === true || input.status.serverSigner.walletMatched === true);
-  const clientGrantActive =
-    input.clientDelegated === true && (input.status == null || input.status.ok === false);
+    input.status.wallet.walletClientType === 'privy-v2' &&
+    input.status.serverSigner.walletMatched === true;
+  const clientGrantActive = false;
   const grantActive = serverGrantActive || clientGrantActive;
   const ready = input.status?.ok === true && input.status.ready.canExecute;
 
@@ -63,10 +63,10 @@ export function deriveAutoExecuteSettingsState(input: {
       ? 'Hunch can fill accepted BUY, TP, and SL triggers when prices hit.'
       : input.status?.ok === false
         ? grantActive
-          ? 'Delegation is present locally, but server readiness could not be checked.'
-          : 'Could not read delegated wallet status.'
+          ? 'Signer access is present, but server readiness could not be checked.'
+          : 'Could not read wallet signer status.'
         : grantActive
-          ? 'Delegation exists, but server readiness is incomplete.'
+          ? 'Signer access exists, but server readiness is incomplete.'
           : 'Triggers will keep using manual Execute prompts.';
 
   const blockerLabel =
@@ -94,14 +94,16 @@ export function delegatedAccessError(message: string, detail: unknown): Error {
 }
 
 export interface DelegatedAccessGrantStatus {
-  wallet: { delegated: boolean | null };
+  wallet: { delegated: boolean | null; walletClientType?: string | null };
   serverSigner: { walletMatched: boolean };
 }
 
 export function delegatedAccessGrantActive(
   status: DelegatedAccessGrantStatus | null | undefined,
 ): boolean {
-  return status?.wallet.delegated === true || status?.serverSigner.walletMatched === true;
+  return (
+    status?.wallet.walletClientType === 'privy-v2' && status.serverSigner.walletMatched === true
+  );
 }
 
 export async function withDelegatedAccessTimeout<T>(
@@ -142,7 +144,10 @@ export async function withDelegatedAccessTimeout<T>(
 function compactGrantStatus(status: DelegatedAccessGrantStatus | null): unknown {
   if (!status) return null;
   return {
-    wallet: { delegated: status.wallet.delegated },
+    wallet: {
+      delegated: status.wallet.delegated,
+      walletClientType: status.wallet.walletClientType,
+    },
     serverSigner: { walletMatched: status.serverSigner.walletMatched },
   };
 }
