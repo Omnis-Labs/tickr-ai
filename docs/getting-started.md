@@ -36,10 +36,10 @@ Edit only the root `.env`; `pnpm dev` and `pnpm start` sync it into `apps/web/.e
 
 ## Two Ways to Run It
 
-| Mode                                       | When to use                                            | Hot reload | First start |
-| ------------------------------------------ | ------------------------------------------------------ | ---------- | ----------- |
-| **A. Full Docker** (`docker compose up`)   | Smoke test the whole stack end-to-end                  | No         | Slow (image build, ~10–15 min cold) |
-| **B. Hybrid** (`pnpm dev`)                 | Day-to-day coding                                      | Yes        | Fast (~30s + Next cold compile) |
+| Mode                                     | When to use                           | Hot reload | First start                         |
+| ---------------------------------------- | ------------------------------------- | ---------- | ----------------------------------- |
+| **A. Full Docker** (`docker compose up`) | Smoke test the whole stack end-to-end | No         | Slow (image build, ~10–15 min cold) |
+| **B. Hybrid** (`pnpm dev`)               | Day-to-day coding                     | Yes        | Fast (~30s + Next cold compile)     |
 
 Both modes use the same `docker-compose.yml`, so the `hunch-pgdata` volume is shared — switching does not wipe your data.
 
@@ -95,9 +95,11 @@ DEV_TOOLS_PASSWORD=Omnis-2026
 GEMINI_API_KEY=<optional-for-LLM-proposals>
 ```
 
-Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from fresh live Pyth bars, accept them into real `Position` and `Order` rows, force `trigger:hit` for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, adjust TP/SL, and copy the full structured browser diagnostics from the `/dev-tools` log.
+Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from fresh live Pyth bars, accept them into real `Position` and `Order` rows, force fallback `trigger:hit` events for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, exercise delegated Ultra diagnostics, adjust TP/SL, and copy the full structured browser diagnostics from the `/dev-tools` log.
 
 `/dev-tools` is an adapter into the same `ProposalCreation` Module used by live signal generation. It does not use a market-hours guardrail; it uses the shared Pyth publish-time freshness rule.
+
+For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy delegated wallet access.
 
 ---
 
@@ -149,24 +151,24 @@ pnpm dev          # or `docker compose up --build -d` if you prefer Method A
 
 ## Useful Commands
 
-| Command                                   | What it does                                                            |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
+| Command                                   | What it does                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
 | `pnpm dev`                                | Sync root `.env`, auto-start docker postgres, run web and ws-server in parallel |
-| `pnpm dev:no-db`                          | Run web + ws-server without the postgres preflight                      |
-| `pnpm dev:web`                            | Run the frontend only                                                   |
-| `pnpm dev:ws`                             | Run the ws-server only                                                  |
-| `pnpm build`                              | Build all workspaces                                                    |
-| `pnpm typecheck`                          | Run TypeScript checks in all workspaces                                 |
-| `pnpm db:up`                              | Start the docker postgres container and wait for healthy                |
-| `pnpm db:down`                            | `docker compose down` — stop postgres (and any other compose services)  |
-| `pnpm db:generate`                        | Generate Prisma client                                                  |
-| `pnpm db:push`                            | Push Prisma schema to the database (no migration history)               |
-| `pnpm db:migrate`                         | `prisma migrate dev` — interactive, creates a new migration             |
-| `pnpm db:migrate:deploy`                  | `prisma migrate deploy` — apply existing migrations                     |
-| `pnpm db:studio`                          | Open Prisma Studio                                                      |
-| `docker compose up --build -d`            | Full Docker stack: postgres + ws-server + web                           |
-| `docker compose down`                     | Stop all compose services                                               |
-| `pnpm --filter @hunch-it/ws-server smoke` | Run the ws-server smoke probe                                           |
+| `pnpm dev:no-db`                          | Run web + ws-server without the postgres preflight                              |
+| `pnpm dev:web`                            | Run the frontend only                                                           |
+| `pnpm dev:ws`                             | Run the ws-server only                                                          |
+| `pnpm build`                              | Build all workspaces                                                            |
+| `pnpm typecheck`                          | Run TypeScript checks in all workspaces                                         |
+| `pnpm db:up`                              | Start the docker postgres container and wait for healthy                        |
+| `pnpm db:down`                            | `docker compose down` — stop postgres (and any other compose services)          |
+| `pnpm db:generate`                        | Generate Prisma client                                                          |
+| `pnpm db:push`                            | Push Prisma schema to the database (no migration history)                       |
+| `pnpm db:migrate`                         | `prisma migrate dev` — interactive, creates a new migration                     |
+| `pnpm db:migrate:deploy`                  | `prisma migrate deploy` — apply existing migrations                             |
+| `pnpm db:studio`                          | Open Prisma Studio                                                              |
+| `docker compose up --build -d`            | Full Docker stack: postgres + ws-server + web                                   |
+| `docker compose down`                     | Stop all compose services                                                       |
+| `pnpm --filter @hunch-it/ws-server smoke` | Run the ws-server smoke probe                                                   |
 
 ---
 

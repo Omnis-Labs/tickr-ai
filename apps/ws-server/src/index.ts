@@ -131,7 +131,8 @@ const tasks = new TaskGroup();
 const stopSignalLoop = env.ENABLE_SIGNAL_LOOP ? startSignalLoop(io) : () => {};
 
 // Default runtime services for the frozen synthetic-trigger model:
-//   trigger-monitor — REQUIRED. Polls Pyth, emits trigger:hit. Core flow.
+//   trigger-monitor — REQUIRED. Polls Pyth, then delegates trigger execution
+//     or emits trigger:hit fallback. Core flow.
 //   eval, thesis — OPTIONAL. Off by default; opt-in via env.
 //
 // trigger-monitor is the only path the minimal cohesive core depends on.
@@ -168,9 +169,7 @@ tasks.add(
       if (!p) return;
       const s = await evaluatePendingSignals(p);
       if (s.evaluated > 0 || s.errors > 0) {
-        console.log(
-          `[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`,
-        );
+        console.log(`[eval] evaluated=${s.evaluated} skipped=${s.skipped} errors=${s.errors}`);
       }
     },
   }),

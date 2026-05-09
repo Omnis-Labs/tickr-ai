@@ -21,12 +21,12 @@ Do not store or pass bare US equity symbols.
 
 `Mandate` stores the four setup constraints:
 
-| Field | Current value shape |
-| --- | --- |
+| Field           | Current value shape                                           |
+| --------------- | ------------------------------------------------------------- |
 | `holdingPeriod` | `"1-3 days"`, `"1-2 weeks"`, `"1-3 months"`, or `"6+ months"` |
-| `maxDrawdown` | `0.0300`, `0.0500`, `0.0800`, or `null` |
-| `maxTradeSize` | USD decimal |
-| `marketFocus` | JSON array of lowercase ids from `MarketFocusVerticalSchema` |
+| `maxDrawdown`   | `0.0300`, `0.0500`, `0.0800`, or `null`                       |
+| `maxTradeSize`  | USD decimal                                                   |
+| `marketFocus`   | JSON array of lowercase ids from `MarketFocusVerticalSchema`  |
 
 Market focus ids include:
 
@@ -52,25 +52,25 @@ type MarketFocusVertical =
 
 Important fields:
 
-| Field | Notes |
-| --- | --- |
-| `ticker` | Canonical `AssetId`; column name is legacy. |
-| `action` | `BUY` for entry proposals; `SELL` for thesis-invalidation exit proposals. |
-| `suggestedSizeUsd` | Suggested USDC notional. |
-| `suggestedTriggerPrice` | Synthetic trigger price watched by ws-server. |
-| `suggestedTakeProfitPrice` / `suggestedStopLossPrice` | Initial exit protection prices. |
-| `reasoning` | `{ what_changed, why_this_trade, why_fits_mandate }`. |
-| `positionImpact` | `{ weight_before, weight_after, cash_after, sector_before, sector_after }`. |
-| `thesisTags` | BUY-time structured thesis tags used by the env-gated thesis monitor. |
-| `origin` | `SIGNAL_ENGINE` or `DEV_TOOLS`. |
+| Field                                                 | Notes                                                                       |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ticker`                                              | Canonical `AssetId`; column name is legacy.                                 |
+| `action`                                              | `BUY` for entry proposals; `SELL` for thesis-invalidation exit proposals.   |
+| `suggestedSizeUsd`                                    | Suggested USDC notional.                                                    |
+| `suggestedTriggerPrice`                               | Synthetic trigger price watched by ws-server.                               |
+| `suggestedTakeProfitPrice` / `suggestedStopLossPrice` | Initial exit protection prices.                                             |
+| `reasoning`                                           | `{ what_changed, why_this_trade, why_fits_mandate }`.                       |
+| `positionImpact`                                      | `{ weight_before, weight_after, cash_after, sector_before, sector_after }`. |
+| `thesisTags`                                          | BUY-time structured thesis tags used by the env-gated thesis monitor.       |
+| `origin`                                              | `SIGNAL_ENGINE` or `DEV_TOOLS`.                                             |
 
 Lifecycle:
 
-| From | Trigger | To |
-| --- | --- | --- |
+| From     | Trigger                                   | To         |
+| -------- | ----------------------------------------- | ---------- |
 | `ACTIVE` | BUY acceptance through `POST /api/orders` | `EXECUTED` |
-| `ACTIVE` | `POST /api/skips` | `SKIPPED` |
-| `ACTIVE` | `expiresAt` passes or mandate changes | `EXPIRED` |
+| `ACTIVE` | `POST /api/skips`                         | `SKIPPED`  |
+| `ACTIVE` | `expiresAt` passes or mandate changes     | `EXPIRED`  |
 
 ### Position
 
@@ -82,29 +82,29 @@ Durable states:
 BUY_PENDING -> ACTIVE -> CLOSED
 ```
 
-`ENTERING` and `CLOSING` are short-lived execution-claim states while the browser is signing/submitting a Jupiter Ultra swap.
+`ENTERING` and `CLOSING` are short-lived execution-claim states while the active execution path is signing/submitting a Jupiter Ultra swap.
 
 ### Order
 
-`Order` is a synthetic trigger or close intent. Synthetic orders have `jupiterOrderId = null`; ws-server watches Pyth and emits `trigger:hit` when conditions match.
+`Order` is a synthetic trigger or close intent. Synthetic orders have `jupiterOrderId = null`; ws-server watches Pyth and either auto-executes through Privy delegated wallet access or emits `trigger:hit` fallback when conditions match.
 
 Kinds:
 
-| Kind | Meaning |
-| --- | --- |
+| Kind          | Meaning                                                      |
+| ------------- | ------------------------------------------------------------ |
 | `BUY_TRIGGER` | Fire when current price is within 0.5% of `triggerPriceUsd`. |
-| `TAKE_PROFIT` | Fire when current price is at or above `triggerPriceUsd`. |
-| `STOP_LOSS` | Fire when current price is at or below `triggerPriceUsd`. |
-| `CLOSE_SWAP` | Reserved for explicit close flows. |
+| `TAKE_PROFIT` | Fire when current price is at or above `triggerPriceUsd`.    |
+| `STOP_LOSS`   | Fire when current price is at or below `triggerPriceUsd`.    |
+| `CLOSE_SWAP`  | Reserved for explicit close flows.                           |
 
 Statuses used in the frozen synthetic path:
 
-| Status | Meaning |
-| --- | --- |
-| `OPEN` | Waiting for ws-server trigger monitor. |
-| `PENDING` | Browser claimed execution and is signing/submitting. |
-| `FILLED` | On-chain swap settled and DB lifecycle wrote the fill. |
-| `CANCELLED` | User/lifecycle cancelled the synthetic order. |
+| Status      | Meaning                                                        |
+| ----------- | -------------------------------------------------------------- |
+| `OPEN`      | Waiting for ws-server trigger monitor.                         |
+| `PENDING`   | An execution path claimed the order and is signing/submitting. |
+| `FILLED`    | On-chain swap settled and DB lifecycle wrote the fill.         |
+| `CANCELLED` | User/lifecycle cancelled the synthetic order.                  |
 
 `PARTIALLY_FILLED`, `EXPIRED`, and `FAILED` remain enum values but are residual in the frozen synthetic-trigger path.
 
@@ -114,12 +114,12 @@ Statuses used in the frozen synthetic path:
 
 Sources:
 
-| Source | Meaning |
-| --- | --- |
-| `BUY_APPROVAL` | BUY trigger fill activated the Position. |
-| `TP_FILL` | Take-profit exit fill closed the Position. |
-| `SL_FILL` | Stop-loss exit fill closed the Position. |
-| `USER_CLOSE` | User manually closed the Position. |
+| Source         | Meaning                                    |
+| -------------- | ------------------------------------------ |
+| `BUY_APPROVAL` | BUY trigger fill activated the Position.   |
+| `TP_FILL`      | Take-profit exit fill closed the Position. |
+| `SL_FILL`      | Stop-loss exit fill closed the Position.   |
+| `USER_CLOSE`   | User manually closed the Position.         |
 
 ---
 
@@ -142,10 +142,10 @@ interface Asset {
 
 Supported signal assets:
 
-| Kind | Assets |
-| --- | --- |
+| Kind                | Assets                                                       |
+| ------------------- | ------------------------------------------------------------ |
 | xStock / ETF xStock | `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx` |
-| Crypto | `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE` |
+| Crypto              | `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`                  |
 
 `SOL` is wallet fee balance only. It is not a Position recommendation asset. `MSFTx` is not in the supported universe until xStock-native Pyth signal data exists.
 
@@ -200,6 +200,6 @@ Owned outputs:
 
 ## Data Sync
 
-The Proposal Generator reads wallet balances on-chain to calculate portfolio context. The synthetic trigger monitor reads Pyth every poll cycle for open synthetic Orders and emits `trigger:hit`; the browser executes the Jupiter Ultra swap and then settles DB state through `/api/orders/[id]/execute`.
+The Proposal Generator reads wallet balances on-chain to calculate portfolio context. The synthetic trigger monitor reads Pyth every poll cycle for open synthetic Orders. If Auto-execute triggers is live, ws-server executes the Jupiter Ultra swap through Privy delegated wallet access and settles with PositionLifecycle. Otherwise it emits `trigger:hit`; the browser executes the Jupiter Ultra swap and then settles DB state through `/api/orders/[id]/execute`.
 
 Back-evaluation is env-gated and writes `evaluatedAt`, `priceAfter`, `pctChange`, and `outcome` after the 1-hour mark when benchmark data is available.

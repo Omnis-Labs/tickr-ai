@@ -12,8 +12,9 @@ import { QK } from '@/lib/hooks/queries';
  *
  * Synthetic-trigger architecture: TP/SL legs are plain DB rows with
  * `jupiterOrderId IS NULL`; the ws-server price monitor watches them
- * against Pyth and emits `trigger:hit` when the user needs to sign an
- * Ultra swap to actually exit. So all "place" / "cancel" operations on
+ * against Pyth and either auto-executes delegated triggers or emits
+ * `trigger:hit` when the user needs to sign an Ultra swap to actually exit.
+ * So all "place" / "cancel" operations on
  * exit Orders here are pure DB persistence — no off-chain escrow to
  * lock or release.
  *
@@ -68,9 +69,7 @@ export function useExitOrders() {
         }>;
       };
       const exits = (j.orders ?? []).filter(
-        (o) =>
-          o.positionId === positionId &&
-          (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS'),
+        (o) => o.positionId === positionId && (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS'),
       );
 
       let tpPriceUsd: number | null = null;
