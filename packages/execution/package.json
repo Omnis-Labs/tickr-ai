@@ -1,0 +1,51 @@
+{
+  "name": "@hunch-it/execution",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./orders/delegated-execution": {
+      "types": "./dist/orders/delegated-execution.d.ts",
+      "development": "./src/orders/delegated-execution.ts",
+      "default": "./dist/orders/delegated-execution.js"
+    },
+    "./jupiter/ultra": {
+      "types": "./dist/jupiter/ultra.d.ts",
+      "development": "./src/jupiter/ultra.ts",
+      "default": "./dist/jupiter/ultra.js"
+    },
+    "./privy/delegated-wallet": {
+      "types": "./dist/privy/delegated-wallet.d.ts",
+      "development": "./src/privy/delegated-wallet.ts",
+      "default": "./dist/privy/delegated-wallet.js"
+    },
+    "./solana/token-balance": {
+      "types": "./dist/solana/token-balance.d.ts",
+      "development": "./src/solana/token-balance.ts",
+      "default": "./dist/solana/token-balance.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsc --watch --preserveWatchOutput",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hunch-it/db": "workspace:*",
+    "@hunch-it/shared": "workspace:*",
+    "@privy-io/node": "^0.18.0",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

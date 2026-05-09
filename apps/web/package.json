@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.52.0",
     "@hunch-it/db": "workspace:*",
+    "@hunch-it/execution": "workspace:*",
     "@hunch-it/shared": "workspace:*",
     "@paper-design/shaders-react": "^0.0.76",
     "@prisma/client": "^6.1.0",

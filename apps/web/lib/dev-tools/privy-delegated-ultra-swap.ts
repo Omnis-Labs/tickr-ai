@@ -1,13 +1,17 @@
 import 'server-only';
 
 import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { PrivyClient, type LinkedAccount, type User, type Wallet } from '@privy-io/node';
 import {
-  PrivyClient,
-  type AuthorizationContext,
-  type LinkedAccount,
-  type User,
-  type Wallet,
-} from '@privy-io/node';
+  DelegatedWalletUnavailableError,
+  defaultDelegatedExecutionDeps,
+  readOwnerMintBalanceRaw,
+  tryExecuteDelegatedTriggerOrder,
+  type DelegatedExecutionDeps,
+  type DelegatedTriggerExecutionOutcome,
+  type ResolvedDelegatedWallet,
+  type UltraExecuteResponse,
+} from '@hunch-it/execution';
 import {
   DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
   DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
@@ -16,30 +20,12 @@ import {
   getAssetById,
   getDelegatedExecutionAuthorizationSignerId,
   parseRpcUrls,
-  settlementAmountsForTrigger,
-  type DelegatedExecutionReadinessBlocker,
   type DelegatedExecutionReadinessStatus,
   type DelegatedExecutionResolvedWallet,
   type TriggerUltraSwapPlan,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
-import {
-  claimOrderExecution,
-  confirmBuyFill,
-  confirmExitFill,
-  prisma,
-  releaseOrderExecutionClaim,
-} from '@hunch-it/db';
-import { decimalsToNumbers } from '@/lib/db/decimal';
-import {
-  executeUltraOrder,
-  requestUltraOrder,
-  type UltraExecuteResponse,
-  type UltraOrderResponse,
-} from '@/lib/jupiter';
-import { readOwnerMintBalanceRaw } from '@/lib/jupiter/ultra-swap';
 import type { AuthContext } from '@/lib/auth/context';
-import { getUltraOrderProblem } from './privy-delegated-ultra-swap-guards';
 import { submittedInputRawForBalance } from './privy-delegated-ultra-swap-amounts';
 import { buildOwnedDevTriggerPayload } from './server';
 
@@ -280,69 +266,24 @@ async function resolvePrivyWallet(input: {
   return { wallet, delegated, walletClientType, connectorType, additionalSignerIds, resolveError };
 }
 
-function buildServerAuthorizationContext(): {
-  context: AuthorizationContext;
-  used: DevPrivyDelegatedUltraSwapResult['authorizationUsed'];
-} {
-  const serverKeys = getAuthorizationPrivateKeys();
-  if (serverKeys.length === 0) {
-    throw new DevPrivyDelegatedUltraSwapError('missing_privy_authorization_private_key', 500, {
-      checkedEnv: [AUTHORIZATION_PRIVATE_KEY_ENV_KEY],
-    });
-  }
-
-  return {
-    context: {
-      authorization_private_keys: serverKeys,
-    },
-    used: {
-      serverKey: true,
-      serverKeyConfigured: true,
-    },
-  };
-}
-
-async function requestOrder(input: { plan: SwapPlan; taker: string }): Promise<UltraOrderResponse> {
-  try {
-    return await requestUltraOrder({
-      inputMint: input.plan.inputMint,
-      outputMint: input.plan.outputMint,
-      amount: input.plan.amount,
-      taker: input.taker,
-    });
-  } catch (err) {
-    throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_order_failed', 502, {
-      cause: errorMessage(err),
-      inputMint: input.plan.inputMint,
-      outputMint: input.plan.outputMint,
-      requestedRaw: input.plan.amount,
-    });
-  }
-}
-
-function assertUltraOrderTransaction(order: UltraOrderResponse): string {
-  const problem = getUltraOrderProblem(order);
-  if (!problem) return order.transaction;
-
-  throw new DevPrivyDelegatedUltraSwapError(problem.message, 400, problem.detail);
-}
-
 async function prepareInputBalance(input: {
-  plan: SwapPlan;
+  payload: TriggerHitPayload;
+  decimals: number;
   walletAddress: string;
 }): Promise<{ plan: SwapPlan; balance: InputBalanceCheck }> {
+  const requestedPlan = buildTriggerUltraSwapPlan(input.payload, input.decimals);
   const owner = new PublicKey(input.walletAddress);
-  const balance = await readOwnerMintBalanceRaw(getSolanaConnection(), owner, input.plan.inputMint);
-  const requestedRaw = BigInt(input.plan.amount);
+  const balance = await readOwnerMintBalanceRaw(getSolanaConnection(), owner, requestedPlan.inputMint);
+  const requestedRaw = BigInt(requestedPlan.amount);
   const submittedRaw = submittedInputRawForBalance({
-    side: input.plan.side,
+    side: requestedPlan.side,
     requestedRaw,
     walletRaw: balance.raw,
   });
 
   if (submittedRaw == null) {
-    throw new DevPrivyDelegatedUltraSwapError('insufficient_funds', 400, {
-      inputMint: input.plan.inputMint,
+    throw new DelegatedWalletUnavailableError('insufficient_funds', {
+      inputMint: requestedPlan.inputMint,
       requestedRaw: requestedRaw.toString(),
       walletRaw: balance.raw.toString(),
       tokenProgramIds: balance.programIds,
@@ -351,49 +292,17 @@ async function prepareInputBalance(input: {
 
   return {
     plan: {
-      ...input.plan,
+      ...requestedPlan,
       amount: submittedRaw.toString(),
     },
     balance: {
-      inputMint: input.plan.inputMint,
+      inputMint: requestedPlan.inputMint,
       requestedRaw: requestedRaw.toString(),
       submittedRaw: submittedRaw.toString(),
       walletRaw: balance.raw.toString(),
       tokenProgramIds: balance.programIds,
     },
   };
-}
-
-async function settleOrder(input: {
-  auth: AuthContext;
-  payload: TriggerHitPayload;
-  executionPrice: number;
-  tokenAmount: number;
-  signature: string;
-}): Promise<unknown> {
-  const result =
-    input.payload.kind === 'BUY_TRIGGER'
-      ? await confirmBuyFill({
-          userId: input.auth.userId,
-          orderId: input.payload.orderId,
-          txSignature: input.signature,
-          executionPrice: input.executionPrice,
-          tokenAmount: input.tokenAmount,
-        })
-      : await confirmExitFill({
-          userId: input.auth.userId,
-          orderId: input.payload.orderId,
-          txSignature: input.signature,
-          executionPrice: input.executionPrice,
-          tokenAmount: input.tokenAmount,
-        });
-
-  if (result.status === 'conflict') {
-    throw new DevPrivyDelegatedUltraSwapError(`settle_${result.reason}`, 409);
-  }
-
-  const order = await prisma.order.findUnique({ where: { id: input.payload.orderId } });
-  return { result, order: decimalsToNumbers(order) };
 }
 
 function statusFromResolved(input: {
@@ -408,68 +317,31 @@ function statusFromResolved(input: {
   });
 }
 
-function readinessErrorDetail(input: {
-  blocker: DelegatedExecutionReadinessBlocker;
-  walletAddress: string;
-  resolved: ResolvedPrivyWallet;
-  status: DevPrivyDelegatedUltraSwapStatus;
-}): { status: number; detail?: unknown } {
-  if (input.blocker === 'missing_privy_authorization_private_key') {
-    return { status: 500, detail: { checkedEnv: [AUTHORIZATION_PRIVATE_KEY_ENV_KEY] } };
+function outcomeError(outcome: Exclude<DelegatedTriggerExecutionOutcome, { kind: 'settled' }>): {
+  message: string;
+  status: number;
+  detail: unknown;
+} {
+  if (outcome.kind === 'alreadyHandled' || outcome.kind === 'alreadyExecuting') {
+    return { message: outcome.reason, status: 409, detail: outcome };
   }
-  if (input.blocker === 'missing_privy_authorization_signer_id') {
-    return { status: 500, detail: { checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS } };
+  if (outcome.kind === 'notAvailable') {
+    const status =
+      outcome.reason === 'missing_privy_authorization_private_key' ||
+      outcome.reason === 'missing_privy_authorization_signer_id'
+        ? 500
+        : outcome.reason === 'insufficient_funds'
+          ? 400
+          : 409;
+    return { message: outcome.reason, status, detail: outcome };
   }
-  if (input.blocker === 'unsupported_privy_wallet_client_type') {
-    return {
-      status: 409,
-      detail: {
-        walletAddress: input.walletAddress,
-        walletClientType: input.resolved.walletClientType,
-        expectedWalletClientType: 'privy-v2',
-      },
-    };
+  if (outcome.kind === 'preBroadcastFailed') {
+    return { message: outcome.reason, status: outcome.released ? 502 : 500, detail: outcome };
   }
-  if (input.blocker === 'wallet_missing_authorization_signer') {
-    return {
-      status: 409,
-      detail: {
-        walletAddress: input.walletAddress,
-        signerConfigured: input.status.serverSigner.configured,
-        additionalSignerIds: input.resolved.additionalSignerIds,
-      },
-    };
+  if (outcome.kind === 'broadcastUnknown') {
+    return { message: outcome.reason, status: 502, detail: { ...outcome, claimRetained: true } };
   }
-  if (input.blocker === 'privy_wallet_not_solana') {
-    return {
-      status: 400,
-      detail: {
-        walletId: input.resolved.wallet?.id ?? null,
-        chainType: input.resolved.wallet?.chain_type ?? null,
-      },
-    };
-  }
-  return {
-    status: 409,
-    detail: {
-      walletAddress: input.walletAddress,
-      delegated: input.resolved.delegated,
-      signerMatched: input.status.serverSigner.walletMatched,
-      resolveError: input.resolved.resolveError,
-    },
-  };
-}
-
-function assertReadyForDelegatedUltraSwap(input: {
-  walletAddress: string;
-  resolved: ResolvedPrivyWallet;
-}): DevPrivyDelegatedUltraSwapStatus {
-  const status = statusFromResolved(input);
-  const blocker = status.ready.blockers[0];
-  if (!blocker) return status;
-
-  const error = readinessErrorDetail({ ...input, status, blocker });
-  throw new DevPrivyDelegatedUltraSwapError(blocker, error.status, error.detail);
+  return { message: outcome.reason, status: 500, detail: { ...outcome, claimRetained: true } };
 }
 
 export async function getPrivyDelegatedUltraSwapStatus(input: {
@@ -495,179 +367,126 @@ export async function runPrivyDelegatedUltraSwapDevTool(
     throw new DevPrivyDelegatedUltraSwapError(`${payload.ticker}_asset_missing_decimals`, 500);
   }
 
-  const client = getPrivyClient();
-  const resolved = await resolvePrivyWallet({ client, walletAddress });
-  const { context, used } = buildServerAuthorizationContext();
-  const { wallet, delegated } = resolved;
-  assertReadyForDelegatedUltraSwap({ walletAddress, resolved });
-  if (!wallet) throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409);
+  const captured: {
+    wallet: ResolvedDelegatedWallet | null;
+    plan: SwapPlan | null;
+    balance: InputBalanceCheck | null;
+    ultraOrder: DevPrivyDelegatedUltraSwapResult['ultraOrder'] | null;
+    signedTransaction: DevPrivyDelegatedUltraSwapResult['signedTransaction'] | null;
+    exec: UltraExecuteResponse | null;
+  } = {
+    wallet: null,
+    plan: null,
+    balance: null,
+    ultraOrder: null,
+    signedTransaction: null,
+    exec: null,
+  };
 
-  let requestedPlan: SwapPlan;
-  try {
-    requestedPlan = buildTriggerUltraSwapPlan(payload, asset.decimals);
-  } catch (err) {
-    throw new DevPrivyDelegatedUltraSwapError(errorMessage(err), 400);
-  }
-  const { plan, balance } = await prepareInputBalance({ plan: requestedPlan, walletAddress });
-  const order = await requestOrder({ plan, taker: walletAddress });
-  const transaction = assertUltraOrderTransaction(order);
-  const orderTransactionBytes = toBase64Bytes(transaction).byteLength;
-  let orderTransactionShape: TransactionShape;
-  try {
-    orderTransactionShape = describeTransaction(transaction);
-  } catch (err) {
-    throw new DevPrivyDelegatedUltraSwapError('ultra_transaction_deserialize_failed', 502, {
-      cause: errorMessage(err),
-      requestId: order.requestId,
-      transactionBytes: orderTransactionBytes,
-    });
-  }
-
-  const base: Omit<DevPrivyDelegatedUltraSwapResult, 'ok'> = {
-    authorizationUsed: used,
-    wallet: {
-      address: walletAddress,
-      privyWalletId: wallet.id,
-      delegated,
-      ownerId: wallet.owner_id,
-      policyIds: wallet.policy_ids,
-      authorizationThreshold: wallet.authorization_threshold ?? null,
+  const deps: DelegatedExecutionDeps = {
+    ...defaultDelegatedExecutionDeps,
+    resolveDelegatedWalletByAddress: async (address) => {
+      const wallet = await defaultDelegatedExecutionDeps.resolveDelegatedWalletByAddress(address);
+      captured.wallet = wallet;
+      return wallet;
     },
-    trigger: payload,
-    plan,
-    balance,
-    ultraOrder: {
-      requestId: order.requestId,
-      inAmount: order.inAmount,
-      outAmount: order.outAmount,
-      priceImpactPct: order.priceImpactPct,
-      otherAmountThreshold: order.otherAmountThreshold,
-      transactionBytes: orderTransactionBytes,
-      transactionShape: orderTransactionShape,
-      gasless: typeof order.gasless === 'boolean' ? order.gasless : null,
-      router: order.router ?? null,
+    prepareInputAmount: async (amountInput) => {
+      const prepared = await prepareInputBalance(amountInput);
+      captured.plan = prepared.plan;
+      captured.balance = prepared.balance;
+      return prepared.plan;
+    },
+    requestUltraOrder: async (orderInput) => {
+      const order = await defaultDelegatedExecutionDeps.requestUltraOrder(orderInput);
+      const transactionBytes = toBase64Bytes(order.transaction).byteLength;
+      captured.ultraOrder = {
+        requestId: order.requestId,
+        inAmount: order.inAmount,
+        outAmount: order.outAmount,
+        priceImpactPct: order.priceImpactPct,
+        otherAmountThreshold: order.otherAmountThreshold,
+        transactionBytes,
+        transactionShape: describeTransaction(order.transaction),
+        gasless: typeof order.gasless === 'boolean' ? order.gasless : null,
+        router: order.router ?? null,
+      };
+      return order;
+    },
+    signDelegatedSolanaTransaction: async (signInput) => {
+      const signed =
+        await defaultDelegatedExecutionDeps.signDelegatedSolanaTransaction(signInput);
+      captured.signedTransaction = {
+        bytes: toBase64Bytes(signed).byteLength,
+        transactionShape: describeTransaction(signed),
+      };
+      return signed;
+    },
+    executeUltraOrder: async (executeInput) => {
+      const exec = await defaultDelegatedExecutionDeps.executeUltraOrder(executeInput);
+      captured.exec = exec;
+      return exec;
     },
   };
 
-  let claimed = false;
-  let executeAttempted = false;
-  let broadcasted = false;
-  try {
-    const claim = await claimOrderExecution({
+  const outcome = await tryExecuteDelegatedTriggerOrder(
+    {
       userId: input.auth.userId,
-      orderId: payload.orderId,
-    });
-    if (claim.status === 'conflict') {
-      throw new DevPrivyDelegatedUltraSwapError(`claim_${claim.reason}`, 409);
-    }
-    claimed = true;
-
-    let signed: { signed_transaction: string };
-    try {
-      signed = await client
-        .wallets()
-        .solana()
-        .signTransaction(wallet.id, {
-          transaction,
-          authorization_context: context,
-          idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
-        });
-    } catch (err) {
-      throw new DevPrivyDelegatedUltraSwapError('privy_sign_transaction_failed', 502, {
-        cause: errorMessage(err),
-        walletId: wallet.id,
-        requestId: order.requestId,
-        signerKeys: orderTransactionShape.signerKeys,
-        zeroSignatureCount: orderTransactionShape.zeroSignatureCount,
-      });
-    }
-    const signedTransactionBytes = toBase64Bytes(signed.signed_transaction).byteLength;
-    let signedTransactionShape: TransactionShape;
-    try {
-      signedTransactionShape = describeTransaction(signed.signed_transaction);
-    } catch (err) {
-      throw new DevPrivyDelegatedUltraSwapError('privy_signed_transaction_invalid', 502, {
-        cause: errorMessage(err),
-        walletId: wallet.id,
-        requestId: order.requestId,
-        signedTransactionBytes,
-      });
-    }
-
-    let exec: UltraExecuteResponse;
-    try {
-      executeAttempted = true;
-      exec = await executeUltraOrder({
-        requestId: order.requestId,
-        signedTransaction: signed.signed_transaction,
-      });
-    } catch (err) {
-      throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_execute_failed', 502, {
-        cause: errorMessage(err),
-        requestId: order.requestId,
-        claimRetained: true,
-      });
-    }
-    broadcasted = exec.status === 'Success' && !!exec.signature;
-    if (!broadcasted) {
-      throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_execute_failed', 502, {
-        status: exec.status,
-        cause: exec.error ?? 'Ultra did not return a success signature.',
-        requestId: order.requestId,
-        claimRetained: true,
-      });
-    }
-
-    const settlement = settlementAmountsForTrigger({
+      walletAddress,
       payload,
-      inAmount: order.inAmount,
-      outAmount: order.outAmount,
-      decimals: asset.decimals,
-    });
-    let settled: unknown;
-    try {
-      settled = await settleOrder({
-        auth: input.auth,
-        payload,
-        executionPrice: settlement.executionPrice,
-        tokenAmount: settlement.tokenAmount,
-        signature: exec.signature!,
-      });
-    } catch (err) {
-      if (err instanceof DevPrivyDelegatedUltraSwapError) throw err;
-      throw new DevPrivyDelegatedUltraSwapError('order_settlement_failed', 500, {
-        cause: errorMessage(err),
-        orderId: payload.orderId,
-        signature: exec.signature,
-      });
-    }
+    },
+    deps,
+  );
 
-    return {
-      ok: true,
-      ...base,
-      signedTransaction: {
-        bytes: signedTransactionBytes,
-        transactionShape: signedTransactionShape,
-      },
-      execution: {
-        status: exec.status,
-        signature: exec.signature ?? null,
-        error: exec.error ?? null,
-        executionPrice: settlement.executionPrice,
-        tokenAmount: settlement.tokenAmount,
-        usdValue: settlement.usdValue,
-        settlement: settled,
-      },
-    };
-  } catch (err) {
-    // Once /execute is attempted, a missing response signature is ambiguous:
-    // the relay may still broadcast, so the claim stays PENDING.
-    if (claimed && !executeAttempted && !broadcasted) {
-      await releaseOrderExecutionClaim({
-        userId: input.auth.userId,
-        orderId: payload.orderId,
-      }).catch(() => null);
-    }
-    throw err;
+  if (outcome.kind !== 'settled') {
+    const error = outcomeError(outcome);
+    throw new DevPrivyDelegatedUltraSwapError(error.message, error.status, error.detail);
   }
+
+  if (
+    !captured.wallet ||
+    !captured.plan ||
+    !captured.balance ||
+    !captured.ultraOrder ||
+    !captured.signedTransaction ||
+    !captured.exec
+  ) {
+    throw new DevPrivyDelegatedUltraSwapError('delegated_execution_diagnostics_incomplete', 500, {
+      hasWallet: Boolean(captured.wallet),
+      hasPlan: Boolean(captured.plan),
+      hasBalance: Boolean(captured.balance),
+      hasUltraOrder: Boolean(captured.ultraOrder),
+      hasSignedTransaction: Boolean(captured.signedTransaction),
+      hasExec: Boolean(captured.exec),
+    });
+  }
+
+  return {
+    ok: true,
+    authorizationUsed: {
+      serverKey: true,
+      serverKeyConfigured: serverKeyConfigured(),
+    },
+    wallet: {
+      address: walletAddress,
+      privyWalletId: captured.wallet.wallet.id,
+      delegated: captured.wallet.delegated,
+      ownerId: captured.wallet.wallet.owner_id,
+      policyIds: captured.wallet.wallet.policy_ids,
+      authorizationThreshold: captured.wallet.wallet.authorization_threshold ?? null,
+    },
+    trigger: payload,
+    plan: captured.plan,
+    balance: captured.balance,
+    ultraOrder: captured.ultraOrder,
+    signedTransaction: captured.signedTransaction,
+    execution: {
+      status: captured.exec.status,
+      signature: outcome.signature,
+      error: captured.exec.error ?? null,
+      executionPrice: outcome.executionPrice,
+      tokenAmount: outcome.tokenAmount,
+      usdValue: outcome.usdValue,
+      settlement: outcome,
+    },
+  };
 }
