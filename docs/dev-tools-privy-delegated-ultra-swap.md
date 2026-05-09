@@ -1,13 +1,13 @@
 # Dev Tools Privy Delegated Ultra Swap
 
-This document covers the `/dev-tools` experiment for executing a synthetic Order from the server with Privy delegated wallet access and Jupiter Ultra. It is not the production trade flow.
+This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy delegated wallet access and Jupiter Ultra. The same delegated execution primitives now power production Auto-execute triggers; `/dev-tools` remains the deterministic local diagnostic surface.
 
 ## Scope
 
 - Lives behind `/dev-tools` and `ENABLE_DEV_TOOLS=true`.
 - Executes only owned Orders that came from `DEV_TOOLS` proposals.
 - Uses Privy delegated wallet access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-- Leaves the production tap-to-execute `TriggerExecution` flow unchanged.
+- Exercises the same delegated Ultra shape that production ws-server uses when a trigger hits and the wallet is delegated.
 
 ## Privy Setup
 

@@ -4,9 +4,9 @@
 
 Mandate-driven AI trading proposals for xStocks and crypto on Solana.
 
-Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, and **tap to execute** when the price reaches the trigger. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
+Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, then either **tap to execute** when the price reaches the trigger or opt into **Auto-execute triggers**. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
 
-> The execution model is **synthetic-trigger / tap-to-execute** (ADR-0001). Approve writes DB-only synthetic Orders; `apps/ws-server` watches Pyth and emits `trigger:hit`; the user signs a Jupiter Ultra swap via Privy only after tapping Execute. No external trigger API is part of the runtime.
+> The execution model is **synthetic-trigger first**. Approve writes DB-only synthetic Orders; `apps/ws-server` watches Pyth. If the user's Privy wallet is delegated, ws-server executes the same Jupiter Ultra swap and emits `trade:filled` (ADR-0003). Otherwise it emits `trigger:hit` and the user signs after tapping Execute (ADR-0001). No external trigger API is part of the runtime.
 
 > Hunch It is experimental software and not financial advice. Use small real-fund test amounts only if you understand the risks.
 
@@ -17,25 +17,28 @@ Users define a simple investment mandate, receive AI-assisted BUY proposals for 
 - Lets users adjust size, trigger price, take-profit, and stop-loss before placing an order
 - Tracks BUY orders, active positions, open TP/SL orders, and portfolio state
 - Uses automatic TP/SL placement after entry, with one-cancels-other behavior when an exit fills
+- Offers optional Auto-execute triggers through Privy delegated wallet access, which remains non-custodial and revocable from Settings
 
 ## How It Works
 
 ```text
 Login → Mandate setup → Desk → Review BUY proposal → Approve (DB-only Order)
-  → ws-server detects price hit → toast → tap Execute (Jupiter Ultra swap)
+  → ws-server detects price hit
+    → delegated path: Auto-execute triggers fills through Jupiter Ultra → trade:filled
+    → fallback path: toast → tap Execute (Jupiter Ultra swap)
   → Position ACTIVE + TP/SL Orders armed atomically
-  → Either tap to fire TP/SL, or tap Close to exit; sibling exit Order
+  → Either auto-execute/tap TP/SL, or tap Close to exit; sibling exit Order
     cancelled in the same transaction; realized P&L recorded.
 ```
 
-The app is built around proposals, not a manual trading terminal. All trade-state transitions go through `packages/db/src/lifecycle/position-lifecycle.ts` so race conditions and partial fills can't leak. See `docs/adr/0001-frozen-synthetic-trigger-architecture.md` and `docs/manual-test-core.md` for the architecture freeze and the 10-step click-through DoD.
+The app is built around proposals, not a manual trading terminal. All trade-state transitions go through `packages/db/src/lifecycle/position-lifecycle.ts` so race conditions and partial fills can't leak. See `docs/adr/0001-frozen-synthetic-trigger-architecture.md`, `docs/adr/0003-opt-in-delegated-execution.md`, and `docs/manual-test-core.md` for the execution model and click-through DoD.
 
 ## Current Scope
 
 - **Base currency:** USDC on Solana
 - **Supported assets:** Jupiter-listed xStocks/tokenized ETFs plus `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
 - **Wallet:** Privy auth with embedded Solana wallet support
-- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap signed client-side via Privy when the user taps Execute. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
+- **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy delegated wallet access when Auto-execute triggers is enabled. The server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
 - **Signal engine:** standalone `ws-server` process. Default runtime starts the required `trigger-monitor`; `ENABLE_SIGNAL_LOOP`, `ENABLE_BACK_EVAL`, and `ENABLE_THESIS_MONITOR` are opt-in.
 
@@ -64,7 +67,7 @@ pnpm db:push      # push the Prisma schema to the (still empty) docker postgres 
 
 Edit only the root `.env`; `pnpm dev` and `pnpm start` sync it into `apps/web/.env` and `apps/ws-server/.env` before booting.
 
-> **Need deterministic local testing?** Set `ENABLE_DEV_TOOLS=true`, run web + ws-server, then open `/dev-tools`. The page is password-gated, creates real `[DEV_TOOLS]` proposals, persists real DB orders, and can force synthetic `trigger:hit` events for owned dev orders.
+> **Need deterministic local testing?** Set `ENABLE_DEV_TOOLS=true`, run web + ws-server, then open `/dev-tools`. The page is password-gated, creates real `[DEV_TOOLS]` proposals, persists real DB orders, can force synthetic trigger behavior for owned dev orders, and includes delegated Ultra swap diagnostics.
 
 ### Run — pick one
 
@@ -75,7 +78,7 @@ docker compose up --build -d
 docker compose down            # to stop
 ```
 
-**B. `pnpm dev` with hot reload** *(recommended for coding)* — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, and runs `prisma generate` for you.
+**B. `pnpm dev` with hot reload** _(recommended for coding)_ — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, and runs `prisma generate` for you.
 
 ```bash
 pnpm dev                       # syncs .env → auto-starts OrbStack/Docker → postgres → prisma generate → web + ws-server
@@ -105,38 +108,39 @@ hunch-it/
 
 ## Scripts
 
-| Command                  | Description                                                              |
-| ------------------------ | ------------------------------------------------------------------------ |
+| Command                  | Description                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
 | `pnpm dev`               | Sync root `.env`, auto-start docker postgres, generate Prisma client, run web + ws-server |
-| `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)  |
-| `pnpm dev:web`           | Run the Next.js app only                                                 |
-| `pnpm dev:ws`            | Run the ws-server only                                                   |
-| `pnpm build`             | Build all workspaces                                                     |
-| `pnpm typecheck`         | Type-check all workspaces                                                |
-| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy)          |
-| `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)      |
-| `pnpm db:generate`       | Generate the Prisma client                                               |
-| `pnpm db:push`           | Push the Prisma schema to the database                                   |
-| `pnpm db:migrate`        | `prisma migrate dev` (interactive, creates a new migration)              |
-| `pnpm db:migrate:deploy` | `prisma migrate deploy` (apply existing migrations, for prod-like flows) |
-| `pnpm db:studio`         | Open Prisma Studio                                                       |
+| `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)                   |
+| `pnpm dev:web`           | Run the Next.js app only                                                                  |
+| `pnpm dev:ws`            | Run the ws-server only                                                                    |
+| `pnpm build`             | Build all workspaces                                                                      |
+| `pnpm typecheck`         | Type-check all workspaces                                                                 |
+| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy)                           |
+| `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)                       |
+| `pnpm db:generate`       | Generate the Prisma client                                                                |
+| `pnpm db:push`           | Push the Prisma schema to the database                                                    |
+| `pnpm db:migrate`        | `prisma migrate dev` (interactive, creates a new migration)                               |
+| `pnpm db:migrate:deploy` | `prisma migrate deploy` (apply existing migrations, for prod-like flows)                  |
+| `pnpm db:studio`         | Open Prisma Studio                                                                        |
 
 ## Documentation
 
-| Doc                                          | What it covers                                                       |
-| -------------------------------------------- | -------------------------------------------------------------------- |
-| [ADR-0001](docs/adr/0001-frozen-synthetic-trigger-architecture.md) | Architecture freeze: synthetic-trigger / tap-to-execute model        |
-| [ADR-0002](docs/adr/0002-canonical-asset-signal-data.md) | Canonical asset ids, xStock/crypto signal data, freshness rule       |
-| [CONTEXT.md](CONTEXT.md)                     | Domain glossary used by reviews + future ADRs                        |
-| [Manual test core](docs/manual-test-core.md) | 10-step click-through that defines "the system works"                |
-| [Product Overview](docs/product-overview.md) | Product promise, scope, supported assets                             |
-| [Getting Started](docs/getting-started.md)   | Local setup, `/dev-tools`, live setup, development commands          |
-| [Architecture](docs/architecture.md)         | Monorepo layout, infrastructure, realtime design                     |
-| [Screens & Flows](docs/screens-and-flows.md) | Main screens, user flows, state and error handling                   |
-| [Signal Engine](docs/signal-engine.md)       | Base market analysis, proposal fan-out, trigger monitoring, back-evaluation |
-| [API Contract](docs/api-contract.md)         | REST endpoints, WebSocket events, Jupiter Ultra swap flows           |
-| [Data Model](docs/data-model.md)             | Prisma models, enums, JSON fields, asset registry                    |
-| [Troubleshooting](docs/troubleshooting.md)   | Common local setup and runtime issues                                |
+| Doc                                                                | What it covers                                                              |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| [ADR-0001](docs/adr/0001-frozen-synthetic-trigger-architecture.md) | Architecture freeze: synthetic-trigger / tap-to-execute fallback model      |
+| [ADR-0002](docs/adr/0002-canonical-asset-signal-data.md)           | Canonical asset ids, xStock/crypto signal data, freshness rule              |
+| [ADR-0003](docs/adr/0003-opt-in-delegated-execution.md)            | Opt-in Auto-execute triggers through Privy delegated wallet access          |
+| [CONTEXT.md](CONTEXT.md)                                           | Domain glossary used by reviews + future ADRs                               |
+| [Manual test core](docs/manual-test-core.md)                       | 10-step click-through that defines "the system works"                       |
+| [Product Overview](docs/product-overview.md)                       | Product promise, scope, supported assets                                    |
+| [Getting Started](docs/getting-started.md)                         | Local setup, `/dev-tools`, live setup, development commands                 |
+| [Architecture](docs/architecture.md)                               | Monorepo layout, infrastructure, realtime design                            |
+| [Screens & Flows](docs/screens-and-flows.md)                       | Main screens, user flows, state and error handling                          |
+| [Signal Engine](docs/signal-engine.md)                             | Base market analysis, proposal fan-out, trigger monitoring, back-evaluation |
+| [API Contract](docs/api-contract.md)                               | REST endpoints, WebSocket events, Jupiter Ultra swap flows                  |
+| [Data Model](docs/data-model.md)                                   | Prisma models, enums, JSON fields, asset registry                           |
+| [Troubleshooting](docs/troubleshooting.md)                         | Common local setup and runtime issues                                       |
 
 ## Contributing
 

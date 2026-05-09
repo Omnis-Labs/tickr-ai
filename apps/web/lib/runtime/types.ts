@@ -1,8 +1,9 @@
 // Runtime facade for the real synthetic-trigger product path.
 //
 // Synthetic-trigger architecture: TP/SL legs are DB-only synthetic
-// Orders. The ws-server price monitor watches them against Pyth and
-// emits trigger:hit when the user needs to sign an Ultra swap.
+// Orders. The ws-server price monitor watches them against Pyth and either
+// auto-executes delegated triggers or emits trigger:hit fallback when the
+// user needs to sign an Ultra swap.
 // placeOcoExit / cancelExits / replaceExits operate on those DB rows
 // directly.
 

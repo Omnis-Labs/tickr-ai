@@ -1,8 +1,8 @@
 // Privy server-auth helper.
 //
 // ws-server verifies browser-supplied Privy access tokens before joining a
-// user Socket.IO room. It never signs transactions; all swaps remain
-// tap-to-execute in the browser via Jupiter Ultra.
+// user Socket.IO room. Delegated wallet signing lives in delegated-wallet.ts;
+// this helper stays focused on socket authentication.
 
 import { env } from '../env.js';
 

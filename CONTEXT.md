@@ -77,18 +77,18 @@ Approved crypto mints:
 
 ### Synthetic Order
 
-A row in the `Order` table that the server tracks and the user executes by tapping. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
+A row in the `Order` table that the server tracks and later fills through delegated execution or tap-to-execute fallback. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
 
 - `BUY_TRIGGER` — fire when current price is within 0.5 % of `triggerPriceUsd`.
 - `TAKE_PROFIT` — fire when current price ≥ `triggerPriceUsd`.
 - `STOP_LOSS` — fire when current price ≤ `triggerPriceUsd`.
 - `CLOSE_SWAP` — currently unused; reserved for future user-initiated market close.
 
-Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the browser is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
+Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the execution adapter is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
 
 ### Position
 
-A holding in a single asset. Durable states are `BUY_PENDING → ACTIVE → CLOSED`. `ENTERING` and `CLOSING` are short-lived execution-claim states while the browser is signing/submitting a BUY or TP/SL swap.
+A holding in a single asset. Durable states are `BUY_PENDING → ACTIVE → CLOSED`. `ENTERING` and `CLOSING` are short-lived execution-claim states while an execution adapter is signing/submitting a BUY or TP/SL swap.
 
 ### Trade
 
@@ -100,7 +100,7 @@ The Socket.IO event emitted by `apps/ws-server` when a Synthetic Order's price c
 
 ### tap-to-execute
 
-The user-facing interaction model: ws-server detects a trigger, the frontend shows a sticky toast, the user taps **Execute**, the frontend obtains the user's signature for a Jupiter Ultra transaction, submits the signed bytes to Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` settles the DB. The system is deliberately **not** autonomous.
+The fallback user-facing interaction model: ws-server detects a trigger, the frontend shows a sticky toast, the user taps **Execute**, the frontend obtains the user's signature for a Jupiter Ultra transaction, submits the signed bytes to Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` settles the DB. This remains the default path when the wallet is not delegated, when delegated execution is unavailable, and for manual flows such as Close Position.
 
 ### Delegated Execution
 
@@ -116,7 +116,7 @@ The current Jupiter Ultra execution policy. The frontend requests an Ultra `/ord
 
 ### Privy Delegated Ultra Swap Experiment
 
-A `/dev-tools`-only experiment that lets an operator test server-side execution of an owned synthetic Order using Privy delegated wallet access plus Jupiter Ultra `/order` and `/execute`. It requires the user to grant delegated access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. It does not replace Sponsored Ultra Execution, TriggerExecution, or the production tap-to-execute model.
+The server-side Ultra execution adapter proven first in `/dev-tools` and now used by Delegated Execution. It requires the user to grant Privy delegated wallet access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. `/dev-tools` remains the diagnostic harness for owned dev Orders; production trigger fills call the shared delegated path from `apps/ws-server`.
 
 ### JupiterUltraSwap
 
@@ -124,7 +124,7 @@ The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a
 
 ### TriggerExecution
 
-The frontend Module that owns tap-to-execute execution semantics after a `trigger:hit`. Its Implementation claims the Order, invokes JupiterUltraSwap, settles `/api/orders/[id]/execute`, releases only pre-signature/pre-broadcast failures, and returns typed outcomes for the toast UI to render.
+The frontend Module that owns tap-to-execute fallback semantics after a `trigger:hit`. Its Implementation claims the Order, invokes JupiterUltraSwap, settles `/api/orders/[id]/execute`, releases only pre-signature/pre-broadcast failures, and returns typed outcomes for the toast UI to render.
 
 ### ClientDiagnosticsLog
 
