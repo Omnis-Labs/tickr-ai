@@ -102,6 +102,10 @@ The Socket.IO event emitted by `apps/ws-server` when a synthetic Order's price c
 
 The user-facing interaction model: ws-server detects a trigger, the frontend shows a sticky toast, the user taps **Execute**, the frontend obtains the user's signature for a Jupiter Ultra transaction, submits the signed bytes to Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` settles the DB. The system is deliberately **not** autonomous.
 
+### Delegated Execution
+
+The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through delegated wallet access, without a manual Execute tap.
+
 ### Jupiter Ultra
 
 The single broker integration. Used for sponsored, client-authorized swaps (BUY entry, exit on TP/SL fill, manual close). Trigger Order v2 is **not** used (xStocks fail allowlist).
@@ -126,13 +130,13 @@ The frontend Module that owns tap-to-execute execution semantics after a `trigge
 
 The in-browser diagnostic bus used by `/dev-tools`. It stores rich events in session storage and renders full payload/error/debug context for future incident analysis. Terminal mirroring is a separate opt-in adapter; the browser log is the source of truth.
 
-### PositionLifecycle (forthcoming)
+### PositionLifecycle
 
-The single owner of `Position`/`Order`/`Trade` state transitions. Lives in `packages/db/src/lifecycle/`. Scheduled to land in commits 14-20 of `refactor/minimal-cohesive-core`. Until then, transitions are scattered across `/api/orders/[id]/execute`, `/api/positions/[id]/close`, and `apps/ws-server` tasks.
+The single owner of `Position`/`Order`/`Trade` state transitions. Lives in `packages/db/src/lifecycle/position-lifecycle.ts`; API routes and execution adapters call this Module instead of writing lifecycle state directly.
 
-### ProtectionOrders (forthcoming)
+### ProtectionOrders
 
-The pair of OPEN exit Orders attached to an ACTIVE `Position`. After C5 lands, the Order rows become the canonical TP/SL source of truth and `Position.currentTpPrice/currentSlPrice` will be deleted or downgraded to a denormalized cache.
+The pair of OPEN exit Orders attached to an ACTIVE `Position`. Order rows are the canonical TP/SL source of truth; `Position.currentTpPrice/currentSlPrice` remain as denormalized cache fields.
 
 ## Architecture vocabulary
 
