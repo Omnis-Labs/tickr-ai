@@ -1,0 +1,171 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { PrismaClient } from '@hunch-it/db';
+import { WsServerEvents, type PriceSnapshot } from '@hunch-it/shared';
+import type { Server as IoServer } from 'socket.io';
+import {
+  clearDelegatedExecutionCooldownForTests,
+  runTriggerMonitor,
+} from './trigger-monitor.js';
+
+function decimal(value: number): { toNumber: () => number } {
+  return { toNumber: () => value };
+}
+
+function openOrder(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'order-1',
+    userId: 'user-1',
+    positionId: 'position-1',
+    kind: 'BUY_TRIGGER',
+    side: 'BUY',
+    status: 'OPEN',
+    triggerPriceUsd: decimal(100),
+    sizeUsd: decimal(25),
+    tokenAmount: null,
+    jupiterOrderId: null,
+    user: { walletAddress: 'wallet-1' },
+    position: { ticker: 'AAPLx', mint: 'mint-aapl' },
+    ...overrides,
+  };
+}
+
+function prismaWithOrders(orders: unknown[]): PrismaClient {
+  return {
+    order: {
+      findMany: async () => orders,
+    },
+  } as unknown as PrismaClient;
+}
+
+function ioRecorder() {
+  const events: Array<{ room: string; event: string; payload: unknown }> = [];
+  const io = {
+    to: (room: string) => ({
+      emit: (event: string, payload: unknown) => {
+        events.push({ room, event, payload });
+      },
+    }),
+  } as unknown as IoServer;
+  return { io, events };
+}
+
+async function priceFetcher(): Promise<Map<string, PriceSnapshot>> {
+  return new Map([
+    ['AAPLx', { ticker: 'AAPLx', price: 100, confidence: 0.01, publishTime: 1 }],
+  ]);
+}
+
+test('runTriggerMonitor emits trade:filled after delegated execution settles', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    delegatedExecutor: async ({ payload }) => ({
+      kind: 'settled',
+      orderId: payload.orderId,
+      positionId: payload.positionId,
+      ticker: payload.ticker,
+      orderKind: payload.kind,
+      signature: 'sig-1',
+      executionPrice: 100,
+      tokenAmount: 0.25,
+      usdValue: 25,
+    }),
+  });
+
+  assert.equal(summary.hits, 1);
+  assert.equal(summary.delegatedSettled, 1);
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.room, 'user:wallet-1');
+  assert.equal(events[0]?.event, WsServerEvents.TradeFilled);
+  assert.deepEqual(events[0]?.payload, {
+    orderId: 'order-1',
+    positionId: 'position-1',
+    ticker: 'AAPLx',
+    kind: 'BUY_TRIGGER',
+    side: 'BUY',
+    executionMode: 'delegated',
+    executionPrice: 100,
+    tokenAmount: 0.25,
+    usdValue: 25,
+    txSignature: 'sig-1',
+  });
+});
+
+test('runTriggerMonitor falls back to trigger:hit when delegation is unavailable', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    delegatedExecutor: async ({ payload }) => ({
+      kind: 'notAvailable',
+      orderId: payload.orderId,
+      reason: 'wallet_not_delegated',
+    }),
+  });
+
+  assert.equal(summary.hits, 1);
+  assert.equal(summary.delegatedFallbacks, 1);
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.event, WsServerEvents.TriggerHit);
+});
+
+test('runTriggerMonitor suppresses manual fallback after unreleased pre-broadcast failure', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    delegatedExecutor: async ({ payload }) => ({
+      kind: 'preBroadcastFailed',
+      orderId: payload.orderId,
+      reason: 'claim_release_failed',
+      shouldCooldown: true,
+      released: false,
+    }),
+  });
+
+  assert.equal(summary.hits, 1);
+  assert.equal(summary.delegatedFailures, 1);
+  assert.equal(events.length, 0);
+});
+
+test('runTriggerMonitor uses manual fallback during delegated runtime cooldown', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+  let calls = 0;
+
+  await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    nowMs: () => 1_000,
+    delegatedRuntimeCooldownMs: 60_000,
+    delegatedExecutor: async ({ payload }) => {
+      calls += 1;
+      return {
+        kind: 'preBroadcastFailed',
+        orderId: payload.orderId,
+        reason: 'jupiter_runtime',
+        shouldCooldown: true,
+        released: true,
+      };
+    },
+  });
+
+  await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    nowMs: () => 2_000,
+    delegatedRuntimeCooldownMs: 60_000,
+    delegatedExecutor: async () => {
+      calls += 1;
+      throw new Error('cooldown should skip delegated executor');
+    },
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(events.length, 2);
+  assert.equal(events[0]?.event, WsServerEvents.TriggerHit);
+  assert.equal(events[1]?.event, WsServerEvents.TriggerHit);
+});

@@ -150,7 +150,7 @@ tasks.add(
       const s = await runTriggerMonitor(p, io);
       if (s.hits > 0) {
         console.log(
-          `[trigger-monitor] orders=${s.polledOrders} tickers=${s.uniqueTickers} hits=${s.hits}`,
+          `[trigger-monitor] orders=${s.polledOrders} tickers=${s.uniqueTickers} hits=${s.hits} delegatedSettled=${s.delegatedSettled} fallback=${s.delegatedFallbacks} suppressed=${s.delegatedSuppressed} failures=${s.delegatedFailures}`,
         );
       }
     },
