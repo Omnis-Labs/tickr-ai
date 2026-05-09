@@ -1,11 +1,6 @@
 import 'server-only';
 
-import {
-  PrivyClient,
-  type LinkedAccount,
-  type User,
-  type Wallet,
-} from '@privy-io/node';
+import { PrivyClient, type LinkedAccount, type User, type Wallet } from '@privy-io/node';
 import type { AuthContext } from '@/lib/auth/context';
 
 const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
@@ -116,9 +111,7 @@ async function resolvePrivyWallet(input: {
   const linkedWallet = user ? linkedSolanaEmbeddedWallet(user, input.walletAddress) : null;
   const linkedRecord = linkedWallet as unknown as Record<string, unknown> | null;
   const delegated =
-    linkedRecord && typeof linkedRecord.delegated === 'boolean'
-      ? linkedRecord.delegated
-      : null;
+    linkedRecord && typeof linkedRecord.delegated === 'boolean' ? linkedRecord.delegated : null;
   const walletClientType =
     typeof linkedRecord?.wallet_client === 'string' ? linkedRecord.wallet_client : null;
   const connectorType =
