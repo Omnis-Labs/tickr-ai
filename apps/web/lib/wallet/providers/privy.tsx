@@ -96,12 +96,11 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       privyWalletId,
       delegated,
       authorizationSignerIdConfigured: AUTHORIZATION_SIGNER_ID.length > 0,
-      delegationMode:
-        walletClientType === 'privy-v2'
-          ? 'signers'
-          : walletClientType === 'privy'
-            ? 'legacy-delegated-actions'
-            : null,
+      delegationMode: AUTHORIZATION_SIGNER_ID
+        ? 'signers'
+        : walletClientType === 'privy'
+          ? 'legacy-delegated-actions'
+          : null,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
             const isVersioned = tx instanceof VersionedTransaction;
@@ -202,12 +201,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
           await refreshUser().catch(() => null);
           return;
         }
-        if (walletClientType === 'privy-v2') {
-          if (!AUTHORIZATION_SIGNER_ID) {
-            throw new Error(
-              'Missing NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID for Privy signer delegation.',
-            );
-          }
+        if (AUTHORIZATION_SIGNER_ID) {
           await addSigners({
             address: wallet.address,
             signers: [
@@ -226,7 +220,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         await refreshUser().catch(() => null);
       },
       revokeDelegatedWallets: async () => {
-        if (wallet?.address && walletClientType === 'privy-v2') {
+        if (wallet?.address && AUTHORIZATION_SIGNER_ID) {
           await removeSigners({ address: wallet.address });
         } else {
           await revokeWallets();

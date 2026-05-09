@@ -227,6 +227,7 @@ const MAX_LOG_OBJECT_KEYS = 28;
 const MAX_LOG_DEPTH = 4;
 const MAX_COPY_CHARS = 32_000;
 const DELEGATED_ACCESS_TIMEOUT_MS = 45_000;
+const STALE_SIGNER_ENV_ERROR = 'stale_privy_authorization_signer_client_env';
 
 function requestId(): string {
   return Math.random().toString(36).slice(2, 9);
@@ -556,6 +557,23 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
           status: 'watch',
           detail:
             'Refresh status after approving any Privy modal; if it remains off, retry delegation.',
+        },
+      ];
+    }
+    const staleClientEnvCode = readPath(source, ['detail', 'code']);
+    if (staleClientEnvCode === STALE_SIGNER_ENV_ERROR) {
+      return [
+        {
+          hypothesis: 'Client env bundle',
+          status: 'risk',
+          detail:
+            'The server can read the signer ID, but the browser bundle cannot. Restart the Next dev server.',
+        },
+        {
+          hypothesis: 'Privy authorization signer',
+          status: 'watch',
+          detail:
+            'After restart, Enable should use signer delegation instead of the legacy delegated-actions flow.',
         },
       ];
     }
@@ -1356,6 +1374,14 @@ export function DevToolsClient() {
         clientDelegated,
       };
       const status = await runLogged('auth', 'delegatedAccess.enable', payload, async () => {
+        const preflight = await refreshDelegatedStatus({ log: false }).catch(() => null);
+        if (preflight?.serverSigner.configured && !wallet.authorizationSignerIdConfigured) {
+          throw timeoutError('Restart the web dev server to expose the Privy signer ID.', {
+            code: STALE_SIGNER_ENV_ERROR,
+            serverSigner: preflight.serverSigner,
+            wallet: payload,
+          });
+        }
         await withTimeout(delegateWallet(), DELEGATED_ACCESS_TIMEOUT_MS, () =>
           timeoutError('Privy delegated-access prompt did not complete.', {
             code: 'delegated_access_timeout',
