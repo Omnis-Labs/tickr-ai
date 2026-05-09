@@ -104,7 +104,7 @@ The user-facing interaction model: ws-server detects a trigger, the frontend sho
 
 ### Delegated Execution
 
-The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through delegated wallet access, without a manual Execute tap.
+The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through delegated wallet access, without a manual Execute tap. Turning it off revokes the delegated wallet access rather than merely pausing automation.
 
 ### Jupiter Ultra
 
