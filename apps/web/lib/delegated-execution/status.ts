@@ -144,7 +144,7 @@ function statusFromResolved(input: {
   const signerConfigured = signerId !== null;
   const signerMatched = signerId ? input.resolved.additionalSignerIds.includes(signerId) : false;
   const unsupportedWalletClient =
-    input.resolved.walletClientType != null && input.resolved.walletClientType !== 'privy-v2';
+    input.resolved.wallet != null && input.resolved.walletClientType !== 'privy-v2';
 
   if (!configured) blockers.push('missing_privy_authorization_private_key');
   if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
