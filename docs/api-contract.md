@@ -435,7 +435,7 @@ This is the fallback when Auto-execute triggers is off, Privy wallet v2 signer a
 
 When a trigger hits and Privy wallet v2 signer access is live:
 
-1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time.
+1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time using the shared readiness Module.
 2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
 3. ws-server atomically claims the Order.
 4. ws-server requests Jupiter Ultra `/order`.
@@ -444,7 +444,7 @@ When a trigger hits and Privy wallet v2 signer access is live:
 7. If Jupiter returns a signature, ws-server settles through the same PositionLifecycle functions used by `POST /api/orders/[id]/execute`.
 8. On success, ws-server emits `trade:filled`.
 
-If delegation, server signing readiness, or balance is unavailable, ws-server emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, ws-server may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
+If delegation, server signing readiness, or balance is unavailable, TriggerExecutionDispatch emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, TriggerExecutionDispatch may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
 
 ### BUY Fill Settlement
 

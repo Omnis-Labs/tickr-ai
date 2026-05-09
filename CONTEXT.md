@@ -108,7 +108,11 @@ The fallback user-facing interaction model: ws-server detects a trigger, the fro
 
 ### Delegated Execution
 
-The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through Privy wallet v2 signer access, without a manual Execute tap. The UI label is **Auto-execute triggers**, with copy that enabling it delegates execution ability, remains non-custodial, and can be revoked anytime. It applies only to triggered Synthetic Orders (`BUY_TRIGGER`, `TAKE_PROFIT`, `STOP_LOSS`); manual close and SELL proposal confirmation stay user-signed. Privy wallet v2 delegated signer status is the source of truth; Hunch does not keep a separate DB toggle or support legacy Privy wallet delegation in the current dev phase. Turning it off revokes the delegated signer access rather than merely pausing automation. Delegated Execution runs from `apps/ws-server` so it can fill Orders when the user has no browser tab open. If delegated execution is unavailable or fails before `/execute` is attempted, Hunch falls back to tap-to-execute; persistent readiness blockers fall back without retrying delegated execution, while transient Privy/Jupiter runtime errors may use a light cooldown. Once `/execute` is attempted, Hunch keeps the Order claim locked for reconciliation if no signature is returned, because a second swap could double-fill. Successful delegated execution emits `trade:filled` as a status event, not `trigger:hit` as an action prompt.
+The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through Privy wallet v2 signer access, without a manual Execute tap. The UI label is **Auto-execute triggers**, with copy that enabling it delegates execution ability, remains non-custodial, and can be revoked anytime. It applies only to triggered Synthetic Orders (`BUY_TRIGGER`, `TAKE_PROFIT`, `STOP_LOSS`); manual close and SELL proposal confirmation stay user-signed. Privy wallet v2 delegated signer status is the source of truth; Hunch does not keep a separate DB toggle or support legacy Privy wallet delegation in the current dev phase. Turning it off revokes the delegated signer access rather than merely pausing automation. Delegated Execution runs from `apps/ws-server` so it can fill Orders when the user has no browser tab open. If delegated execution is unavailable or fails before `/execute` is attempted, Hunch falls back to tap-to-execute; persistent readiness blockers fall back without retrying delegated execution, while transient Privy/Jupiter runtime errors may use a light cooldown. Once `/execute` is attempted, Hunch keeps the Order claim locked for reconciliation if no signature is returned, because a second swap could double-fill. Successful delegated execution emits `trade:filled` as a status event, not `trigger:hit` as an action prompt. `packages/shared/src/delegated-execution-readiness.ts` owns readiness blocker derivation so Settings, `/dev-tools`, and execution adapters use the same readiness vocabulary.
+
+### Delegated Execution Runtime
+
+The `@hunch-it/execution` package. It owns the production Delegated Execution Module and concrete adapters for Privy wallet v2 signing, Jupiter Ultra `/order` + `/execute`, Solana token balance reads, and PositionLifecycle settlement. `apps/ws-server` calls it from the trigger dispatch path; `/dev-tools` wraps the same Module with diagnostic adapters instead of reimplementing execution order.
 
 ### Jupiter Ultra
 
@@ -120,7 +124,7 @@ The current Jupiter Ultra execution policy. The frontend requests an Ultra `/ord
 
 ### Privy Delegated Ultra Swap Experiment
 
-The server-side Ultra execution adapter proven first in `/dev-tools` and now used by Delegated Execution. It requires the user to attach Privy wallet v2 signer access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. `/dev-tools` remains the diagnostic harness for owned dev Orders; production trigger fills call the shared delegated path from `apps/ws-server`.
+The server-side Ultra execution adapter proven first in `/dev-tools` and now used by Delegated Execution. It requires the user to attach Privy wallet v2 signer access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. `/dev-tools` remains the diagnostic harness for owned dev Orders; production trigger fills and the diagnostic harness both call the shared Delegated Execution Runtime.
 
 ### JupiterUltraSwap
 
@@ -129,6 +133,10 @@ The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a
 ### TriggerExecution
 
 The frontend Module that owns tap-to-execute fallback semantics after a `trigger:hit`. Its Implementation claims the Order, invokes JupiterUltraSwap, settles `/api/orders/[id]/execute`, releases only pre-signature/pre-broadcast failures, and returns typed outcomes for the toast UI to render.
+
+### TriggerExecutionDispatch
+
+The ws-server Module in `apps/ws-server/src/orders/trigger-execution-dispatch.ts` that owns what happens after a Synthetic Order trigger is detected: try Delegated Execution, emit `trade:filled`, emit fallback `trigger:hit`, suppress already-owned work, or retain the claim for reconciliation. `trigger-monitor.ts` owns price polling and trigger detection, not execution outcome policy.
 
 ### ClientDiagnosticsLog
 
