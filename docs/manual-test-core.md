@@ -14,6 +14,7 @@ cp .env.example .env
 #   ENABLE_SIGNAL_LOOP=true      (live Pyth + Gemini proposals; needs GEMINI_API_KEY)
 # For Auto-execute triggers:
 #   PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY=<base64 pkcs8 key>
+#   PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=<Privy signer id>
 #   NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=<Privy signer id>
 pnpm db:up && pnpm db:push
 pnpm dev                          # syncs .env into both app env files before booting
