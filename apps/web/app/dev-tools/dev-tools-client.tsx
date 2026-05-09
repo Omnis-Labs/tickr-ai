@@ -117,10 +117,18 @@ interface DelegatedUltraStatus {
     configured: boolean;
     env: string;
   };
+  serverSigner: {
+    configured: boolean;
+    env: string[];
+    walletMatched: boolean;
+  };
   wallet: {
     address: string;
     privyWalletId: string | null;
     delegated: boolean | null;
+    walletClientType: string | null;
+    connectorType: string | null;
+    additionalSignerIds: string[];
     ownerId: string | null;
     policyIds: string[];
     authorizationThreshold: number | null;
@@ -218,9 +226,32 @@ const MAX_LOG_ARRAY_ITEMS = 5;
 const MAX_LOG_OBJECT_KEYS = 28;
 const MAX_LOG_DEPTH = 4;
 const MAX_COPY_CHARS = 32_000;
+const DELEGATED_ACCESS_TIMEOUT_MS = 45_000;
 
 function requestId(): string {
   return Math.random().toString(36).slice(2, 9);
+}
+
+function timeoutError(message: string, detail: unknown): Error {
+  const err = new Error(message) as Error & { detail?: unknown; status?: number };
+  err.name = 'DevToolsTimeoutError';
+  err.status = 408;
+  err.detail = detail;
+  return err;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, makeError: () => Error): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(makeError()), ms);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function fmtUsd(v: number | null | undefined): string {
@@ -507,7 +538,27 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
   if (step.startsWith('delegatedAccess.')) {
     const serverDelegated = readPath(source, ['wallet', 'delegated']);
     const serverKeyConfigured = readPath(source, ['serverKey', 'configured']);
+    const signerConfigured = readPath(source, ['serverSigner', 'configured']);
+    const signerMatched = readPath(source, ['serverSigner', 'walletMatched']);
+    const walletClientType = readPath(source, ['wallet', 'walletClientType']);
     const blockers = readPath(source, ['ready', 'blockers']);
+    const timeoutCode = readPath(source, ['detail', 'code']);
+    if (timeoutCode === 'delegated_access_timeout') {
+      return [
+        {
+          hypothesis: 'Privy consent flow',
+          status: 'risk',
+          detail:
+            'Privy did not resolve or reject the delegated-access prompt before the local timeout.',
+        },
+        {
+          hypothesis: 'Wallet delegation',
+          status: 'watch',
+          detail:
+            'Refresh status after approving any Privy modal; if it remains off, retry delegation.',
+        },
+      ];
+    }
     return [
       {
         hypothesis: 'Wallet delegation',
@@ -526,6 +577,25 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
           serverKeyConfigured === true
             ? 'The server authorization private key is configured.'
             : 'Add PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY before executing delegated swaps.',
+      },
+      {
+        hypothesis: 'Privy authorization signer',
+        status:
+          signerMatched === true
+            ? 'healthy'
+            : walletClientType === 'privy-v2' && signerConfigured !== true
+              ? 'risk'
+              : signerConfigured === true
+                ? 'watch'
+                : 'unknown',
+        detail:
+          signerMatched === true
+            ? 'Configured signer is attached to this wallet.'
+            : walletClientType === 'privy-v2' && signerConfigured !== true
+              ? 'Add NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID before enabling signer delegation.'
+              : signerConfigured === true
+                ? 'Signer ID is configured; wallet has not attached it yet.'
+                : 'Legacy delegated-access mode does not expose a signer ID.',
       },
       {
         hypothesis: 'Execution readiness',
@@ -1276,16 +1346,26 @@ export function DevToolsClient() {
     }
     setBusy('delegated-access:enable');
     try {
-      const status = await runLogged(
-        'auth',
-        'delegatedAccess.enable',
-        { walletAddress },
-        async () => {
-          await delegateWallet();
-          await refreshWalletUser().catch(() => {});
-          return refreshDelegatedStatus({ log: false });
-        },
-      );
+      const payload = {
+        walletAddress,
+        walletClientType: wallet.walletClientType,
+        connectorType: wallet.connectorType,
+        privyWalletId: wallet.privyWalletId,
+        delegationMode: wallet.delegationMode,
+        authorizationSignerIdConfigured: wallet.authorizationSignerIdConfigured,
+        clientDelegated,
+      };
+      const status = await runLogged('auth', 'delegatedAccess.enable', payload, async () => {
+        await withTimeout(delegateWallet(), DELEGATED_ACCESS_TIMEOUT_MS, () =>
+          timeoutError('Privy delegated-access prompt did not complete.', {
+            code: 'delegated_access_timeout',
+            timeoutMs: DELEGATED_ACCESS_TIMEOUT_MS,
+            wallet: payload,
+          }),
+        );
+        await refreshWalletUser().catch(() => {});
+        return refreshDelegatedStatus({ log: false });
+      });
       setDelegatedUltraStatus(status);
       toast.success('Delegated access enabled.');
     } catch (err) {
@@ -1302,7 +1382,15 @@ export function DevToolsClient() {
       const status = await runLogged(
         'auth',
         'delegatedAccess.revoke',
-        { walletAddress },
+        {
+          walletAddress,
+          walletClientType: wallet.walletClientType,
+          connectorType: wallet.connectorType,
+          privyWalletId: wallet.privyWalletId,
+          delegationMode: wallet.delegationMode,
+          authorizationSignerIdConfigured: wallet.authorizationSignerIdConfigured,
+          clientDelegated,
+        },
         async () => {
           await revokeDelegatedWallets();
           await refreshWalletUser().catch(() => {});
@@ -1781,6 +1869,15 @@ export function DevToolsClient() {
                     value={delegatedUltraStatus?.serverKey.configured ? 'Configured' : 'Missing'}
                   />
                   <Metric
+                    label="Signer ID"
+                    value={
+                      (delegatedUltraStatus?.serverSigner?.configured ??
+                      wallet.authorizationSignerIdConfigured)
+                        ? 'Configured'
+                        : 'Missing'
+                    }
+                  />
+                  <Metric
                     label="Privy wallet"
                     value={
                       delegatedUltraStatus?.wallet.privyWalletId
@@ -1790,6 +1887,23 @@ export function DevToolsClient() {
                           : '-'
                     }
                   />
+                  <Metric
+                    label="Wallet type"
+                    value={
+                      delegatedUltraStatus?.wallet.walletClientType ??
+                      wallet.walletClientType ??
+                      'Unknown'
+                    }
+                  />
+                  <Metric
+                    label="Connector"
+                    value={
+                      delegatedUltraStatus?.wallet.connectorType ??
+                      wallet.connectorType ??
+                      'Unknown'
+                    }
+                  />
+                  <Metric label="Mode" value={wallet.delegationMode ?? 'Unknown'} />
                 </dl>
                 {delegatedUltraStatus?.ready.blockers.length ? (
                   <p className="mt-3 text-body-sm text-on-surface-variant">

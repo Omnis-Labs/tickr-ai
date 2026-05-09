@@ -20,6 +20,8 @@ export interface UnifiedWallet {
   connectorType?: string | null;
   privyWalletId?: string | null;
   delegated?: boolean | null;
+  authorizationSignerIdConfigured?: boolean;
+  delegationMode?: 'legacy-delegated-actions' | 'signers' | null;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
   /** Sign + broadcast in one round-trip. This is for generic wallet sends
    *  only. Sponsored Jupiter Ultra swaps must use signTransaction and hand
@@ -58,6 +60,8 @@ export const STUB_WALLET: UnifiedWallet = {
   connectorType: null,
   privyWalletId: null,
   delegated: null,
+  authorizationSignerIdConfigured: false,
+  delegationMode: null,
   signTransaction: async () => {
     throw new Error('Wallet not connected — call login() first.');
   },

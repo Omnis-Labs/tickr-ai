@@ -14,10 +14,12 @@ This document covers the `/dev-tools` experiment for executing a synthetic Order
 1. In the Privy dashboard, enable server-side access or signers for the app.
 2. Enable signed requests.
 3. Copy the generated P-256 signing private key into local `.env` as `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-4. Keep `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_ID`, and `PRIVY_APP_SECRET` configured.
-5. Restart the web dev server after changing `.env`.
+4. Copy the key quorum/signer ID into local `.env` as `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
+5. Keep `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_ID`, and `PRIVY_APP_SECRET` configured.
+6. Restart the web dev server after changing `.env`.
 
-The key must be the base64 PKCS8 private key with no PEM headers. Do not commit a real value.
+The private key must be the base64 PKCS8 private key with no PEM headers. Do not commit a real value.
+The signer ID is not secret, but it must match the private key's registered key quorum.
 
 ## First Swap Runbook
 
@@ -49,6 +51,8 @@ Clicking **Execute swap** is allowed even when preflight is blocked. In that cas
 ## Expected Failures
 
 - `missing_privy_authorization_private_key`: add `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
+- `missing_privy_authorization_signer_id`: add `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
+- `wallet_missing_authorization_signer`: click **Enable** again and approve the Privy signer delegation prompt.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.
 - `jupiter_ultra_order_failed`: the server could not fetch a Jupiter Ultra order.

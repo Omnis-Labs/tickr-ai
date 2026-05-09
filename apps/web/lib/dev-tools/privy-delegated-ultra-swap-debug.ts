@@ -10,9 +10,16 @@ export interface DelegatedUltraDebugStatus {
   serverKey?: {
     configured?: boolean;
   };
+  serverSigner?: {
+    configured?: boolean;
+    walletMatched?: boolean;
+  };
   wallet?: {
     delegated?: boolean | null;
     privyWalletId?: string | null;
+    walletClientType?: string | null;
+    connectorType?: string | null;
+    additionalSignerIds?: string[];
     resolveError?: string | null;
   };
   ready?: {
@@ -103,6 +110,8 @@ export function buildDelegatedUltraPreflightReport(
   const blockers: string[] = [];
   const statusBlockers = input.status?.ready?.blockers ?? [];
   const serverDelegated = input.status?.wallet?.delegated ?? null;
+  const serverSignerMatched = input.status?.serverSigner?.walletMatched === true;
+  const serverCanSign = serverDelegated === true || serverSignerMatched;
   const clientDelegated = input.clientDelegated ?? null;
   const expectedInput = expectedInputForOrder(input.order);
 
@@ -198,11 +207,13 @@ export function buildDelegatedUltraPreflightReport(
     });
   }
 
-  if (serverDelegated === true) {
+  if (serverCanSign) {
     diagnostics.push({
       hypothesis: 'Privy delegation',
       status: 'healthy',
-      detail: 'Server sees delegated access on the embedded Solana wallet.',
+      detail: serverSignerMatched
+        ? 'Server sees the configured authorization signer on the embedded Solana wallet.'
+        : 'Server sees delegated access on the embedded Solana wallet.',
     });
   } else if (serverDelegated === false) {
     diagnostics.push({
@@ -237,13 +248,13 @@ export function buildDelegatedUltraPreflightReport(
   diagnostics.push({
     hypothesis: 'Privy signing',
     status:
-      input.status?.serverKey?.configured && serverDelegated === true
+      input.status?.serverKey?.configured && serverCanSign
         ? 'watch'
         : input.status?.serverKey?.configured === false
           ? 'risk'
           : 'unknown',
     detail:
-      input.status?.serverKey?.configured && serverDelegated === true
+      input.status?.serverKey?.configured && serverCanSign
         ? 'Server authorization key is present; signing can still fail if the key does not match the delegated policy.'
         : input.status?.serverKey?.configured === false
           ? 'Add PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY before testing delegated signing.'
@@ -322,6 +333,28 @@ export function diagnosticsForDelegatedUltraApiError(input: {
         status: 'risk',
         detail:
           'PRIVY_APP_ID/NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET must be available to the server.',
+      },
+    ];
+  }
+
+  if (message === 'missing_privy_authorization_signer_id') {
+    return [
+      {
+        hypothesis: 'Privy authorization signer',
+        status: 'risk',
+        detail:
+          'Set NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID to the Privy key quorum ID and restart the web server.',
+      },
+    ];
+  }
+
+  if (message === 'wallet_missing_authorization_signer') {
+    return [
+      {
+        hypothesis: 'Privy authorization signer',
+        status: 'risk',
+        detail:
+          'Enable delegated access again so the wallet adds the configured authorization signer.',
       },
     ];
   }
