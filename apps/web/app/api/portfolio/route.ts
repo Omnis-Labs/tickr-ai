@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
+import { getCurrentPrices } from '@/lib/pyth';
+import { applyMarkPricesToPortfolioPositions } from '@/lib/portfolio/holdings';
 import type { PortfolioResponse } from '@/lib/hooks/queries';
 
 /**
@@ -11,9 +13,7 @@ import type { PortfolioResponse } from '@/lib/hooks/queries';
  * Live: aggregates positions (open + closed) + recent trades for the authed
  * user. PnL is split into realized (sum of Trade.realizedPnl on closed
  * legs) and unrealized (sum of (markPrice - entryPrice) * tokenAmount on
- * ACTIVE / ENTERING / BUY_PENDING positions). Mark price is the position's
- * stored `entryPrice` until the frontend joins live Pyth quotes — good
- * enough for portfolio screen seed.
+ * ACTIVE / ENTERING / BUY_PENDING positions).
  */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -48,10 +48,7 @@ export async function GET(req: NextRequest) {
     return acc + v;
   }, 0);
 
-  // Unrealized = sum over open positions of (entryPrice * tokenAmount) snapshot.
-  // The frontend overlays live Pyth marks; we just hand back tokenAmount + entry
-  // so it has everything it needs.
-  const positions: PortfolioResponse['positions'] = openPositions.map((p) => {
+  const basePositions: PortfolioResponse['positions'] = openPositions.map((p) => {
     const tokenAmount = p.tokenAmount.toNumber();
     const entryPrice = p.entryPrice.toNumber();
     return {
@@ -59,11 +56,21 @@ export async function GET(req: NextRequest) {
       ticker: p.ticker,
       tokenAmount,
       avgCost: entryPrice,
-      markPrice: entryPrice, // overlaid client-side
-      pnl: 0, // computed client-side once marks arrive
+      markPrice: entryPrice,
+      pnl: 0,
+      state: p.state,
     };
   });
-  const unrealized = 0;
+
+  const assetIds = Array.from(new Set(basePositions.map((p) => p.ticker)));
+  const markPrices =
+    assetIds.length > 0
+      ? await getCurrentPrices(assetIds).catch(() => new Map<string, number>())
+      : new Map<string, number>();
+  const { positions, unrealized } = applyMarkPricesToPortfolioPositions(
+    basePositions,
+    markPrices,
+  );
 
   const trades = recentTrades.map((t) => ({
     id: t.id,
