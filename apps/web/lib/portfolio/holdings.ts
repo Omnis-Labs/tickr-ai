@@ -7,6 +7,7 @@ export interface PortfolioPosition {
   avgCost: number;
   markPrice?: number;
   pnl?: number;
+  state?: string;
 }
 
 export interface Holding {
