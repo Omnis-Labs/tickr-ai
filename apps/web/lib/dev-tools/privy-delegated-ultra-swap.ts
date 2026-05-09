@@ -71,10 +71,18 @@ export interface DevPrivyDelegatedUltraSwapStatus {
     configured: boolean;
     env: typeof AUTHORIZATION_PRIVATE_KEY_ENV_KEY;
   };
+  serverSigner: {
+    configured: boolean;
+    env: (typeof AUTHORIZATION_SIGNER_ID_ENV_KEYS)[number][];
+    walletMatched: boolean;
+  };
   wallet: {
     address: string;
     privyWalletId: string | null;
     delegated: boolean | null;
+    walletClientType: string | null;
+    connectorType: string | null;
+    additionalSignerIds: string[];
     ownerId: string | null;
     policyIds: string[];
     authorizationThreshold: number | null;
@@ -141,6 +149,10 @@ export class DevPrivyDelegatedUltraSwapError extends Error {
 }
 
 const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
+const AUTHORIZATION_SIGNER_ID_ENV_KEYS = [
+  'PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
+  'NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
+] as const;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
@@ -154,6 +166,14 @@ function getAuthorizationPrivateKeys(): string[] {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function getAuthorizationSignerId(): string | null {
+  for (const key of AUTHORIZATION_SIGNER_ID_ENV_KEYS) {
+    const value = getEnv(key);
+    if (value) return value;
+  }
+  return null;
 }
 
 function serverKeyConfigured(): boolean {
@@ -227,6 +247,9 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
 interface ResolvedPrivyWallet {
   wallet: Wallet | null;
   delegated: boolean | null;
+  walletClientType: string | null;
+  connectorType: string | null;
+  additionalSignerIds: string[];
   resolveError: string | null;
 }
 
@@ -249,6 +272,21 @@ async function resolvePrivyWallet(input: {
     linkedWallet && 'delegated' in linkedWallet
       ? Boolean((linkedWallet as unknown as Record<string, unknown>).delegated)
       : null;
+  const linkedRecord = linkedWallet as unknown as Record<string, unknown> | null;
+  const walletClientType =
+    typeof linkedRecord?.wallet_client === 'string' ? linkedRecord.wallet_client : null;
+  const connectorType =
+    typeof linkedRecord?.connector_type === 'string' ? linkedRecord.connector_type : null;
+  const additionalSignerIds =
+    wallet && Array.isArray((wallet as unknown as Record<string, unknown>).additional_signers)
+      ? ((wallet as unknown as Record<string, unknown>).additional_signers as unknown[])
+          .map((signer) =>
+            typeof (signer as Record<string, unknown>).signer_id === 'string'
+              ? ((signer as Record<string, unknown>).signer_id as string)
+              : null,
+          )
+          .filter((signerId): signerId is string => Boolean(signerId))
+      : [];
   const resolveError =
     walletResult.status === 'rejected'
       ? errorMessage(walletResult.reason)
@@ -256,7 +294,7 @@ async function resolvePrivyWallet(input: {
         ? errorMessage(userResult.reason)
         : null;
 
-  return { wallet, delegated, resolveError };
+  return { wallet, delegated, walletClientType, connectorType, additionalSignerIds, resolveError };
 }
 
 function swapPlanForPayload(payload: TriggerHitPayload, decimals: number): SwapPlan {
@@ -414,9 +452,18 @@ function statusFromResolved(input: {
 }): DevPrivyDelegatedUltraSwapStatus {
   const blockers: string[] = [];
   const configured = serverKeyConfigured();
+  const signerId = getAuthorizationSignerId();
+  const signerConfigured = signerId !== null;
+  const signerMatched = signerId ? input.resolved.additionalSignerIds.includes(signerId) : false;
+  const signerMode = input.resolved.walletClientType === 'privy-v2';
+  const hasDelegatedAccess = input.resolved.delegated === true || signerMatched;
   if (!configured) blockers.push('missing_privy_authorization_private_key');
   if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
-  if (input.resolved.delegated !== true) blockers.push('wallet_not_delegated');
+  if (signerMode && !signerConfigured) blockers.push('missing_privy_authorization_signer_id');
+  if (signerMode && signerConfigured && !signerMatched) {
+    blockers.push('wallet_missing_authorization_signer');
+  }
+  if (!hasDelegatedAccess) blockers.push('wallet_not_delegated');
 
   return {
     ok: true,
@@ -424,10 +471,18 @@ function statusFromResolved(input: {
       configured,
       env: AUTHORIZATION_PRIVATE_KEY_ENV_KEY,
     },
+    serverSigner: {
+      configured: signerConfigured,
+      env: [...AUTHORIZATION_SIGNER_ID_ENV_KEYS],
+      walletMatched: signerMatched,
+    },
     wallet: {
       address: input.walletAddress,
       privyWalletId: input.resolved.wallet?.id ?? null,
       delegated: input.resolved.delegated,
+      walletClientType: input.resolved.walletClientType,
+      connectorType: input.resolved.connectorType,
+      additionalSignerIds: input.resolved.additionalSignerIds,
       ownerId: input.resolved.wallet?.owner_id ?? null,
       policyIds: input.resolved.wallet?.policy_ids ?? [],
       authorizationThreshold: input.resolved.wallet?.authorization_threshold ?? null,
@@ -467,10 +522,25 @@ export async function runPrivyDelegatedUltraSwapDevTool(
   const resolved = await resolvePrivyWallet({ client, walletAddress });
   const { context, used } = buildServerAuthorizationContext();
   const { wallet, delegated } = resolved;
-  if (!wallet || delegated !== true) {
+  const signerId = getAuthorizationSignerId();
+  const signerMatched = signerId ? resolved.additionalSignerIds.includes(signerId) : false;
+  if (resolved.walletClientType === 'privy-v2' && !signerId) {
+    throw new DevPrivyDelegatedUltraSwapError('missing_privy_authorization_signer_id', 500, {
+      checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS,
+    });
+  }
+  if (resolved.walletClientType === 'privy-v2' && !signerMatched) {
+    throw new DevPrivyDelegatedUltraSwapError('wallet_missing_authorization_signer', 409, {
+      walletAddress,
+      signerConfigured: Boolean(signerId),
+      additionalSignerIds: resolved.additionalSignerIds,
+    });
+  }
+  if (!wallet || (delegated !== true && !signerMatched)) {
     throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409, {
       walletAddress,
       delegated,
+      signerMatched,
       resolveError: resolved.resolveError,
     });
   }

@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
-import { useDelegatedActions, usePrivy, useUser } from '@privy-io/react-auth';
+import { useDelegatedActions, usePrivy, useSigners, useUser } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
@@ -13,6 +13,15 @@ import {
 } from '@privy-io/react-auth/solana';
 import bs58 from 'bs58';
 import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
+
+const AUTHORIZATION_SIGNER_ID =
+  process.env.NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID?.trim() ?? '';
+const AUTHORIZATION_POLICY_IDS = (
+  process.env.NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS ?? ''
+)
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
 
 /**
  * The only file that imports @privy-io/react-auth. Mounted INSIDE
@@ -26,6 +35,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
   const { user, refreshUser } = useUser();
   const { delegateWallet: privyDelegateWallet, revokeWallets } = useDelegatedActions();
+  const { addSigners, removeSigners } = useSigners();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { signAndSendTransaction: privySignAndSend } = useSignAndSendTransaction();
@@ -85,6 +95,13 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       connectorType,
       privyWalletId,
       delegated,
+      authorizationSignerIdConfigured: AUTHORIZATION_SIGNER_ID.length > 0,
+      delegationMode:
+        walletClientType === 'privy-v2'
+          ? 'signers'
+          : walletClientType === 'privy'
+            ? 'legacy-delegated-actions'
+            : null,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
             const isVersioned = tx instanceof VersionedTransaction;
@@ -161,11 +178,59 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       },
       delegateWallet: async () => {
         if (!wallet?.address) throw new Error('No Solana wallet to delegate.');
+        if (!linkedRecord) {
+          throw new Error('Connected wallet is not a Privy embedded Solana wallet.');
+        }
+        if (
+          linkedRecord.chainType !== 'solana' &&
+          (linkedRecord as Record<string, unknown>).chain_type !== 'solana'
+        ) {
+          throw new Error('Only Solana embedded wallets can be delegated here.');
+        }
+        if (
+          linkedRecord.connectorType !== 'embedded' &&
+          (linkedRecord as Record<string, unknown>).connector_type !== 'embedded'
+        ) {
+          throw new Error('Only Privy embedded wallets support delegated access here.');
+        }
+        if (walletClientType !== 'privy' && walletClientType !== 'privy-v2') {
+          throw new Error(
+            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}.`,
+          );
+        }
+        if (delegated === true) {
+          await refreshUser().catch(() => null);
+          return;
+        }
+        if (walletClientType === 'privy-v2') {
+          if (!AUTHORIZATION_SIGNER_ID) {
+            throw new Error(
+              'Missing NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID for Privy signer delegation.',
+            );
+          }
+          await addSigners({
+            address: wallet.address,
+            signers: [
+              {
+                signerId: AUTHORIZATION_SIGNER_ID,
+                ...(AUTHORIZATION_POLICY_IDS.length > 0
+                  ? { policyIds: AUTHORIZATION_POLICY_IDS }
+                  : {}),
+              },
+            ],
+          });
+          await refreshUser().catch(() => null);
+          return;
+        }
         await privyDelegateWallet({ address: wallet.address, chainType: 'solana' });
         await refreshUser().catch(() => null);
       },
       revokeDelegatedWallets: async () => {
-        await revokeWallets();
+        if (wallet?.address && walletClientType === 'privy-v2') {
+          await removeSigners({ address: wallet.address });
+        } else {
+          await revokeWallets();
+        }
         await refreshUser().catch(() => null);
       },
       refreshWalletUser: async () => {
@@ -191,6 +256,8 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     login,
     logout,
     privyDelegateWallet,
+    addSigners,
+    removeSigners,
     revokeWallets,
     refreshUser,
     privySign,
