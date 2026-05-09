@@ -25,10 +25,18 @@ import {
   getAssetById,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
+import {
+  STALE_SIGNER_ENV_ERROR,
+  delegatedAccessError,
+  deriveAutoExecuteSettingsState,
+  withDelegatedAccessTimeout,
+  type DelegatedExecutionSettingsStatus,
+} from '@/lib/delegated-execution/settings-state';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useMandate, usePortfolio } from '@/lib/hooks/queries';
+import { cn } from '@/lib/utils';
 
 function shorten(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -237,25 +245,22 @@ export default function SettingsPage() {
   );
 }
 
-type DelegatedExecutionStatusResponse =
-  | {
-      ok: true;
-      serverKey: { configured: boolean; env: string };
-      serverSigner: { configured: boolean; walletMatched: boolean; env: string[] };
-      wallet: {
-        delegated: boolean | null;
-        privyWalletId: string | null;
-        walletClientType: string | null;
-        resolveError: string | null;
-      };
-      ready: { canExecute: boolean; blockers: string[] };
-    }
-  | { ok: false; error: string };
-
 function AutoExecuteTriggersCard() {
-  const { connected, delegateWallet, revokeDelegatedWallets, refreshWalletUser } = useWallet();
+  const {
+    connected,
+    address,
+    delegateWallet,
+    revokeDelegatedWallets,
+    refreshWalletUser,
+    delegated: clientDelegated,
+    authorizationSignerIdConfigured,
+    delegationMode,
+    walletClientType,
+    connectorType,
+    privyWalletId,
+  } = useWallet();
   const authedFetch = useAuthedFetch();
-  const [status, setStatus] = useState<DelegatedExecutionStatusResponse | null>(null);
+  const [status, setStatus] = useState<DelegatedExecutionSettingsStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<'enable' | 'disable' | null>(null);
 
@@ -267,7 +272,7 @@ function AutoExecuteTriggersCard() {
     setLoading(true);
     try {
       const res = await authedFetch('/api/delegated-execution/status');
-      const body = (await res.json().catch(() => null)) as DelegatedExecutionStatusResponse | null;
+      const body = (await res.json().catch(() => null)) as DelegatedExecutionSettingsStatus | null;
       if (!res.ok || !body) {
         const error = body && 'error' in body ? body.error : `status ${res.status}`;
         const next = { ok: false as const, error };
@@ -289,47 +294,40 @@ function AutoExecuteTriggersCard() {
     void refreshStatus();
   }, [refreshStatus]);
 
-  const grantActive =
-    status?.ok === true &&
-    (status.wallet.delegated === true || status.serverSigner.walletMatched === true);
-  const ready = status?.ok === true && status.ready.canExecute;
-  const statusLabel = !connected
-    ? 'Signed out'
-    : loading
-      ? 'Checking'
-      : status?.ok === false
-        ? 'Check failed'
-        : ready
-          ? 'On'
-          : grantActive
-            ? 'Needs setup'
-            : 'Off';
-  const statusTone =
-    status?.ok === false
-      ? 'bg-error-container text-error'
-      : ready
-        ? 'bg-positive-container text-primary'
-        : grantActive
-          ? 'bg-tertiary-container text-on-tertiary-container'
-          : 'bg-surface-container-low text-on-surface-variant';
-  const detail = !connected
-    ? 'Sign in to manage delegated trigger execution.'
-    : ready
-      ? 'Hunch can execute accepted BUY, TP, and SL triggers when prices hit.'
-      : status?.ok === false
-        ? 'Could not read delegated wallet status.'
-        : grantActive
-          ? 'Delegation exists, but server readiness is incomplete.'
-          : 'Hunch will keep sending manual Execute prompts when triggers hit.';
-  const blockerLabel =
-    grantActive && status?.ok === true && status.ready.blockers.length > 0
-      ? status.ready.blockers.map((item) => item.replaceAll('_', ' ')).join(', ')
-      : null;
+  const { grantActive, statusLabel, statusTone, detail, blockerLabel, primaryAction } =
+    deriveAutoExecuteSettingsState({
+      connected,
+      loading,
+      status,
+      clientDelegated,
+    });
+  const statusToneClass = {
+    error: 'bg-error-container text-on-error-container',
+    ready: 'bg-accent text-on-accent',
+    setup: 'bg-tertiary-container text-on-tertiary-container',
+    off: 'bg-surface-container-low text-on-surface-variant',
+  }[statusTone];
 
   async function handleEnable() {
+    if (!connected) return;
     setBusy('enable');
     try {
-      await delegateWallet();
+      const preflight = await refreshStatus();
+      if (preflight?.ok && preflight.serverSigner.configured && !authorizationSignerIdConfigured) {
+        throw delegatedAccessError('Restart the web dev server to expose the Privy signer ID.', {
+          code: STALE_SIGNER_ENV_ERROR,
+          serverSigner: preflight.serverSigner,
+          wallet: {
+            address,
+            clientDelegated,
+            connectorType,
+            delegationMode,
+            privyWalletId,
+            walletClientType,
+          },
+        });
+      }
+      await withDelegatedAccessTimeout(delegateWallet());
       await refreshWalletUser().catch(() => null);
       const next = await refreshStatus();
       if (next?.ok && next.ready.canExecute) {
@@ -363,9 +361,9 @@ function AutoExecuteTriggersCard() {
   return (
     <Section icon={<Zap className="h-5 w-5" />} title="Auto-execute triggers">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-label-sm ${statusTone}`}>
+            <span className={cn('rounded-full px-2.5 py-1 text-label-sm', statusToneClass)}>
               {statusLabel}
             </span>
             {status?.ok === true && status.wallet.walletClientType && (
@@ -380,37 +378,52 @@ function AutoExecuteTriggersCard() {
           type="button"
           role="switch"
           aria-checked={grantActive}
-          aria-label="Toggle auto-execute triggers"
+          aria-label={
+            grantActive ? 'Disable auto-execute triggers' : 'Enable auto-execute triggers'
+          }
+          aria-busy={busy !== null}
           disabled={toggleDisabled}
           onClick={() => void (grantActive ? handleDisable() : handleEnable())}
-          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-            grantActive ? 'bg-primary' : 'bg-surface-container-highest'
-          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+          className={cn(
+            'relative h-12 w-20 shrink-0 rounded-full p-1 ring-1 transition-colors duration-fast ease-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-[0.38]',
+            grantActive
+              ? 'bg-primary ring-primary'
+              : 'bg-surface-container-low ring-outline-variant hover:bg-surface-container-high',
+          )}
         >
           <span
-            className={`absolute top-1 h-6 w-6 rounded-full bg-surface shadow-micro transition-transform ${
-              grantActive ? 'translate-x-7' : 'translate-x-1'
-            }`}
-          />
+            className={cn(
+              'grid h-10 w-10 place-items-center rounded-full bg-surface text-primary shadow-micro transition-transform duration-fast ease-soft',
+              grantActive ? 'translate-x-8' : 'translate-x-0',
+            )}
+          >
+            {busy ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : grantActive ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Zap className="h-4 w-4 text-icon-muted" aria-hidden="true" />
+            )}
+          </span>
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void refreshStatus()}
           disabled={!connected || loading || busy !== null}
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-surface-container-low px-3 text-label-md text-primary transition-colors hover:bg-surface-container-high disabled:opacity-50"
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary ring-1 ring-outline-variant transition-colors hover:bg-surface-container-high disabled:opacity-[0.38]"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
           Check
         </button>
-        {grantActive ? (
+        {primaryAction === 'disable' ? (
           <button
             type="button"
             onClick={() => void handleDisable()}
             disabled={toggleDisabled}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-error-container px-3 text-label-md text-error transition-colors hover:bg-error-container/80 disabled:opacity-50"
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-error-container px-4 text-label-md text-error transition-colors hover:bg-error-container/80 disabled:opacity-[0.38]"
           >
             {busy === 'disable' ? (
               <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -424,7 +437,7 @@ function AutoExecuteTriggersCard() {
             type="button"
             onClick={() => void handleEnable()}
             disabled={toggleDisabled}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-accent px-3 text-label-md text-on-accent transition-colors hover:bg-accent/90 disabled:opacity-50"
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-4 text-label-md text-on-accent shadow-micro transition-colors hover:bg-accent-bright disabled:opacity-[0.38]"
           >
             {busy === 'enable' ? (
               <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -436,7 +449,7 @@ function AutoExecuteTriggersCard() {
         )}
       </div>
 
-      <div className="mt-4 rounded-lg bg-surface-container-low px-4 py-3">
+      <div className="mt-4 rounded-md bg-surface-container px-4 py-3">
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <p className="text-body-sm leading-5 text-on-surface-variant">
@@ -594,10 +607,13 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-surface rounded-lg p-5 shadow-soft">
+    <section className="bg-surface rounded-lg p-5 shadow-micro">
       <header className="flex items-center justify-between mb-4">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-icon-muted shrink-0" aria-hidden="true">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container text-primary"
+            aria-hidden="true"
+          >
             {icon}
           </span>
           <h2 className="text-title-md text-primary">{title}</h2>
