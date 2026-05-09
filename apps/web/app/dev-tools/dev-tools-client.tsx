@@ -42,6 +42,11 @@ import {
   type DiagnosticStatus,
   type LogDiagnostic,
 } from '@/lib/dev-tools/client-diagnostics';
+import {
+  buildDelegatedUltraPreflightReport,
+  diagnosticsForDelegatedUltraApiError,
+  type DelegatedUltraPreflightReport,
+} from '@/lib/dev-tools/privy-delegated-ultra-swap-debug';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
 import { executeTriggerOrder } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
@@ -415,8 +420,32 @@ function decodedSolanaErrorFrom(value: unknown): DecodedSolanaError | null {
   return null;
 }
 
+function isLogDiagnosticArray(value: unknown): value is LogDiagnostic[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        typeof (item as LogDiagnostic).hypothesis === 'string' &&
+        typeof (item as LogDiagnostic).status === 'string' &&
+        typeof (item as LogDiagnostic).detail === 'string',
+    )
+  );
+}
+
+function embeddedDiagnosticsFrom(value: unknown): LogDiagnostic[] | null {
+  const direct = readPath(value, ['diagnostics']);
+  if (isLogDiagnosticArray(direct)) return direct;
+  const detail = readPath(value, ['detail', 'diagnostics']);
+  if (isLogDiagnosticArray(detail)) return detail;
+  return null;
+}
+
 function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown): LogDiagnostic[] {
   const source = errorDetail ?? response;
+  const embeddedDiagnostics = embeddedDiagnosticsFrom(source);
+  if (embeddedDiagnostics) return embeddedDiagnostics;
   const debug = swapDebugFrom(source);
   const decoded = decodedSolanaErrorFrom(source);
   if (debug) return diagnosticsFromSwapDebug(debug, decoded);
@@ -430,6 +459,16 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
     ];
   }
   if (step.startsWith('privyDelegatedUltraSwap.')) {
+    const apiDiagnostics = diagnosticsForDelegatedUltraApiError({
+      message: String(readPath(source, ['message']) ?? ''),
+      status:
+        typeof readPath(source, ['status']) === 'number'
+          ? (readPath(source, ['status']) as number)
+          : undefined,
+      detail: readPath(source, ['detail']),
+    });
+    if (apiDiagnostics.length > 0) return apiDiagnostics;
+
     const delegated = readPath(source, ['wallet', 'delegated']);
     const serverKeyConfigured = readPath(source, ['authorizationUsed', 'serverKeyConfigured']);
     const executeStatus = readPath(source, ['execution', 'status']);
@@ -592,6 +631,16 @@ function buildSummary(step: string, payload: unknown, response?: unknown, error?
     }
     case 'delegatedAccess.revoke':
       return 'Delegated access revoked.';
+    case 'privyDelegatedUltraSwap.preflight': {
+      const canAttempt = readPath(response, ['canAttempt']);
+      const blockers = readPath(response, ['blockers']);
+      if (Array.isArray(blockers) && blockers.length > 0) {
+        return `Delegated Ultra preflight blocked by ${blockers.join(', ')}.`;
+      }
+      return canAttempt === true
+        ? 'Delegated Ultra preflight passed; server-key execution can be attempted.'
+        : 'Delegated Ultra preflight needs attention.';
+    }
     case 'proposal.generate':
       return `Generated ${String(payloadRecord?.ticker ?? 'ticker')} proposal.`;
     case 'proposal.accept':
@@ -751,6 +800,17 @@ export function DevToolsClient() {
   const selectedDelegatedOrder = useMemo(
     () => delegatedOpenOrders.find((order) => order.id === delegatedOrderId) ?? null,
     [delegatedOpenOrders, delegatedOrderId],
+  );
+  const delegatedPreflightPreview = useMemo(
+    () =>
+      buildDelegatedUltraPreflightReport({
+        connected,
+        walletAddress,
+        clientDelegated,
+        status: delegatedUltraStatus,
+        order: selectedDelegatedOrder,
+      }),
+    [clientDelegated, connected, delegatedUltraStatus, selectedDelegatedOrder, walletAddress],
   );
   const activeProposal = useMemo(() => {
     if (proposal && isLiveProposal(proposal, nowMs)) return proposal;
@@ -1275,10 +1335,34 @@ export function DevToolsClient() {
     if (!selectedDelegatedOrder) return;
     setBusy('delegated-swap:execute');
     try {
-      const status = await refreshDelegatedStatus({ log: false });
-      if (!status.ready.canExecute) {
-        throw new Error(`Delegated swap blocked: ${status.ready.blockers.join(', ')}`);
-      }
+      await runLogged(
+        'swap',
+        'privyDelegatedUltraSwap.preflight',
+        { orderId: selectedDelegatedOrder.id },
+        async () => {
+          const status = await refreshDelegatedStatus({ log: false });
+          const report = buildDelegatedUltraPreflightReport({
+            connected,
+            walletAddress,
+            clientDelegated,
+            status,
+            order: selectedDelegatedOrder,
+          });
+          if (!report.canAttempt) {
+            const err = new Error(
+              `Delegated Ultra preflight blocked: ${report.blockers.join(', ')}`,
+            ) as Error & {
+              detail?: unknown;
+              status?: number;
+            };
+            err.name = 'DevToolsPreflightError';
+            err.status = 400;
+            err.detail = report;
+            throw err;
+          }
+          return report;
+        },
+      );
       const result = await runLogged(
         'swap',
         'privyDelegatedUltraSwap.execute',
@@ -1799,14 +1883,11 @@ export function DevToolsClient() {
                   </dl>
                 </div>
               )}
+              <DelegatedPreflightPanel report={delegatedPreflightPreview} />
               <button
                 type="button"
                 onClick={() => void runDelegatedUltraSwap()}
-                disabled={
-                  !selectedDelegatedOrder ||
-                  busy === 'delegated-swap:execute' ||
-                  delegatedUltraStatus?.ready.canExecute === false
-                }
+                disabled={!selectedDelegatedOrder || busy === 'delegated-swap:execute'}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-label-lg text-on-primary transition-transform active:scale-[0.97] disabled:opacity-50"
               >
                 <Play aria-hidden className="h-4 w-4" />
@@ -1911,6 +1992,54 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-label-sm text-on-surface-variant">{label}</dt>
       <dd className="mt-1 font-mono text-label-md text-primary">{value}</dd>
+    </div>
+  );
+}
+
+function DelegatedPreflightPanel({ report }: { report: DelegatedUltraPreflightReport }) {
+  const riskCount = report.diagnostics.filter((item) => item.status === 'risk').length;
+  const watchCount = report.diagnostics.filter((item) => item.status === 'watch').length;
+  const visibleDiagnostics = report.diagnostics.slice(0, 8);
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-label-md text-primary">Preflight hypotheses</p>
+          <p className="text-body-sm text-on-surface-variant">
+            {riskCount > 0
+              ? `${riskCount} blocker${riskCount === 1 ? '' : 's'} before execution`
+              : `${watchCount} watch item${watchCount === 1 ? '' : 's'} to verify during execution`}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-label-sm ${
+            report.canAttempt
+              ? 'bg-positive-container text-primary'
+              : 'bg-error-container text-on-error-container'
+          }`}
+        >
+          {report.canAttempt ? 'Can attempt' : 'Blocked'}
+        </span>
+      </div>
+      {report.expectedInput && (
+        <p className="mt-3 text-body-sm text-on-surface-variant">
+          Expected input: {report.expectedInput.amount} {report.expectedInput.symbol}.
+        </p>
+      )}
+      <div className="mt-3 flex flex-col gap-1">
+        {visibleDiagnostics.map((item) => (
+          <div key={`${item.hypothesis}-${item.status}`} className="min-w-0">
+            <span
+              className={`inline-flex max-w-full rounded-full px-2 py-1 text-left text-label-sm ${diagnosticStyles(item.status)}`}
+            >
+              <span className="truncate">
+                {item.hypothesis}: {item.detail}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
