@@ -110,6 +110,10 @@ The single broker integration. Used for sponsored, client-authorized swaps (BUY 
 
 The current Jupiter Ultra execution policy. The frontend requests an Ultra `/order`, deserializes the returned transaction, asks Privy to sign only the user's/taker's required signature slot, then submits the signed transaction bytes to Jupiter Ultra `/execute`. Direct Privy `signAndSendTransaction` is **not** the sponsored Ultra path because it bypasses Jupiter `/execute` and can fail sponsored multi-signer transactions before program execution.
 
+### Privy Delegated Ultra Swap Experiment
+
+A `/dev-tools`-only experiment that lets an operator test server-side execution of an owned synthetic Order using Privy delegated wallet access plus Jupiter Ultra `/order` and `/execute`. It requires the user to grant delegated access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. It does not replace Sponsored Ultra Execution, TriggerExecution, or the production tap-to-execute model.
+
 ### JupiterUltraSwap
 
 The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a swap intent plus wallet signer/connection adapters; its Implementation handles amount preparation, targeted SELL balance capping, Ultra `/order`, transaction decoding, user signature, Ultra `/execute`, and normalized swap diagnostics. SELL balance lookup scans both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts because whitelisted crypto wrappers are classic SPL while xStocks are Token-2022.

@@ -32,10 +32,10 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 ### What is now opt-in (env-gated, default off)
 
-| Env flag | Service | Why disabled |
-|---|---|---|
+| Env flag                | Service                         | Why disabled                                                                                |
+| ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
 | `ENABLE_THESIS_MONITOR` | `apps/ws-server` Thesis Monitor | Generates SELL signals that race the OCO close model; not part of the documented exit flow. |
-| `ENABLE_BACK_EVAL` | `apps/ws-server` back-evaluator | Analytics, not user-visible. |
+| `ENABLE_BACK_EVAL`      | `apps/ws-server` back-evaluator | Analytics, not user-visible.                                                                |
 
 ### What is dead and can be deleted
 
@@ -51,7 +51,7 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 ### What we are NOT doing in v1 of the freeze
 
-- Server-side transaction signing.
+- Server-side transaction signing in the default product flow. `/dev-tools` may contain isolated experiments, such as the Privy delegated Ultra swap block, but those experiments do not change the frozen production runtime.
 - Truly autonomous execution.
 - Returning to autonomous external execution.
 - Real LLM-driven proposal generation in production.
