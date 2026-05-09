@@ -11,12 +11,13 @@ This document covers the `/dev-tools` harness for executing a synthetic Order fr
 
 ## Privy Setup
 
-1. In the Privy dashboard, enable server-side access or signers for the app.
+1. In the Privy dashboard, enable wallet v2 signers for the app.
 2. Enable signed requests.
 3. Copy the generated P-256 signing private key into local `.env` as `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-4. Copy the key quorum/signer ID into local `.env` as `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
-5. Keep `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_ID`, and `PRIVY_APP_SECRET` configured.
-6. Restart the web dev server after changing `.env`.
+4. Copy the key quorum/signer ID into local `.env` as both `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
+5. If your signer requires policies, set `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS` to the comma-separated policy IDs.
+6. Keep `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_ID`, and `PRIVY_APP_SECRET` configured.
+7. Restart the web dev server after changing `.env`.
 
 The private key must be the base64 PKCS8 private key with no PEM headers. Do not commit a real value.
 The signer ID is not secret, but it must match the private key's registered key quorum.
@@ -51,7 +52,7 @@ Clicking **Execute swap** is allowed even when preflight is blocked. In that cas
 ## Expected Failures
 
 - `missing_privy_authorization_private_key`: add `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-- `missing_privy_authorization_signer_id`: add `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
+- `missing_privy_authorization_signer_id`: add `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
 - `wallet_missing_authorization_signer`: click **Enable** again and approve the Privy signer delegation prompt.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.

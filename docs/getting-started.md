@@ -99,7 +99,7 @@ Restart the apps, sign in with Privy, complete a mandate, then open http://local
 
 `/dev-tools` is an adapter into the same `ProposalCreation` Module used by live signal generation. It does not use a market-hours guardrail; it uses the shared Pyth publish-time freshness rule.
 
-For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy delegated wallet access.
+For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`, and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy wallet v2 signer access.
 
 ---
 
@@ -111,23 +111,27 @@ Live mode connects the app to real services. **Use small amounts first.**
 
 Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app env files automatically. The variables that matter for live mode:
 
-| Variable                              | Purpose                                                                                                                     |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SOLANA_RPC_URLS`         | Solana RPC endpoints (comma-separated for failover)                                                                         |
-| `NEXT_PUBLIC_PRIVY_APP_ID`            | Privy app ID for auth and embedded wallet                                                                                   |
-| `PRIVY_APP_ID`                        | Same Privy app ID, server-side                                                                                              |
-| `PRIVY_APP_SECRET`                    | Privy server SDK secret (verifies tokens)                                                                                   |
-| `NEXT_PUBLIC_JUPITER_API_BASE`        | Jupiter API base URL                                                                                                        |
-| `PYTH_HERMES_URL`                     | Live Pyth price endpoint                                                                                                    |
-| `PYTH_BENCHMARKS_URL`                 | Historical candle endpoint                                                                                                  |
-| `GEMINI_API_KEY`                      | LLM analysis for the Signal Engine and `/dev-tools`                                                                         |
-| `LLM_DAILY_USD_CAP`                   | Daily LLM spend guardrail                                                                                                   |
-| `SIGNAL_INTERVAL_SECONDS`             | Cheap asset price scan interval                                                                                             |
-| `BASE_ANALYSIS_BAR_CLOSE_SECONDS`     | Candle bucket that can trigger a fresh Base Market Analysis                                                                 |
-| `BASE_ANALYSIS_MATERIAL_MOVE_PCT`     | Price move threshold that can trigger early LLM analysis                                                                    |
-| `BASE_ANALYSIS_FORCE_REFRESH_SECONDS` | Maximum age before refreshing an otherwise quiet asset analysis                                                             |
-| `DATABASE_URL`                        | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
-| `NEXT_PUBLIC_WS_URL`                  | Public ws-server URL for the browser, usually `http://localhost:4000`                                                       |
+| Variable                                            | Purpose                                                                                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SOLANA_RPC_URLS`                       | Solana RPC endpoints (comma-separated for failover)                                                                         |
+| `NEXT_PUBLIC_PRIVY_APP_ID`                          | Privy app ID for auth and embedded wallet                                                                                   |
+| `PRIVY_APP_ID`                                      | Same Privy app ID, server-side                                                                                              |
+| `PRIVY_APP_SECRET`                                  | Privy server SDK secret (verifies tokens)                                                                                   |
+| `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`            | Privy wallet v2 delegated signer private key for server-side trigger execution                                              |
+| `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`              | Server-readable Privy wallet v2 delegated signer ID                                                                         |
+| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`  | Browser-bundled Privy wallet v2 delegated signer ID for the Settings enable prompt                                          |
+| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS` | Optional comma-separated Privy policy IDs attached by the Settings enable prompt                                            |
+| `NEXT_PUBLIC_JUPITER_API_BASE`                      | Jupiter API base URL                                                                                                        |
+| `PYTH_HERMES_URL`                                   | Live Pyth price endpoint                                                                                                    |
+| `PYTH_BENCHMARKS_URL`                               | Historical candle endpoint                                                                                                  |
+| `GEMINI_API_KEY`                                    | LLM analysis for the Signal Engine and `/dev-tools`                                                                         |
+| `LLM_DAILY_USD_CAP`                                 | Daily LLM spend guardrail                                                                                                   |
+| `SIGNAL_INTERVAL_SECONDS`                           | Cheap asset price scan interval                                                                                             |
+| `BASE_ANALYSIS_BAR_CLOSE_SECONDS`                   | Candle bucket that can trigger a fresh Base Market Analysis                                                                 |
+| `BASE_ANALYSIS_MATERIAL_MOVE_PCT`                   | Price move threshold that can trigger early LLM analysis                                                                    |
+| `BASE_ANALYSIS_FORCE_REFRESH_SECONDS`               | Maximum age before refreshing an otherwise quiet asset analysis                                                             |
+| `DATABASE_URL`                                      | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
+| `NEXT_PUBLIC_WS_URL`                                | Public ws-server URL for the browser, usually `http://localhost:4000`                                                       |
 
 Leave `ENABLE_DEV_TOOLS=false` outside local development.
 

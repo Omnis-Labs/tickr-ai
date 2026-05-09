@@ -85,10 +85,14 @@ fi
 #    and docker compose picks up the new values.
 # ──────────────────────────────────────────────────────────────────────
 fetch_secret() { gcloud secrets versions access latest --secret="$1"; }
+fetch_optional_secret() { gcloud secrets versions access latest --secret="$1" 2>/dev/null || true; }
 
 DATABASE_URL=$(fetch_secret database-url)
 SOLANA_RPC_URLS=$(fetch_secret solana-rpc-urls)
 PRIVY_APP_SECRET_VAL=$(fetch_secret privy-app-secret)
+PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY_VAL=$(fetch_optional_secret privy-wallet-authorization-private-key)
+PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL=$(fetch_optional_secret privy-wallet-authorization-signer-id)
+PRIVY_WALLET_AUTHORIZATION_POLICY_IDS_VAL=$(fetch_optional_secret privy-wallet-authorization-policy-ids)
 GEMINI_KEY=$(fetch_secret gemini-key)
 
 cat > /opt/hunchit/.env <<EOF
@@ -106,6 +110,10 @@ LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
 DATABASE_URL=${DATABASE_URL}
 NEXT_PUBLIC_SOLANA_RPC_URLS=${SOLANA_RPC_URLS}
 PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAL}
+PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY=${PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY_VAL}
+PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL}
+NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL}
+NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS=${PRIVY_WALLET_AUTHORIZATION_POLICY_IDS_VAL}
 GEMINI_API_KEY=${GEMINI_KEY}
 
 # Static / public — also embedded in the web image at build time, but
