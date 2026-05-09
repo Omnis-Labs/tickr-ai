@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
-import { usePrivy } from '@privy-io/react-auth';
+import { useDelegatedActions, usePrivy, useUser } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
@@ -24,6 +24,8 @@ import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { user, refreshUser } = useUser();
+  const { delegateWallet: privyDelegateWallet, revokeWallets } = useDelegatedActions();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { signAndSendTransaction: privySignAndSend } = useSignAndSendTransaction();
@@ -33,7 +35,38 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
   const { fundWallet: privyFund } = useFundWallet();
 
   const wallet = wallets[0];
+  const linkedWallet = useMemo(() => {
+    if (!wallet?.address) return null;
+    return (
+      user?.linkedAccounts.find((account) => {
+        if (account.type !== 'wallet') return false;
+        const record = account as unknown as Record<string, unknown>;
+        const address = record.address;
+        const chainType = record.chainType ?? record.chain_type;
+        const connectorType = record.connectorType ?? record.connector_type;
+        const walletClientType = record.walletClientType ?? record.wallet_client;
+        return (
+          address === wallet.address &&
+          chainType === 'solana' &&
+          connectorType === 'embedded' &&
+          (walletClientType === 'privy' || walletClientType === 'privy-v2')
+        );
+      }) ?? null
+    );
+  }, [user?.linkedAccounts, wallet?.address]);
   const value = useMemo<UnifiedWallet>(() => {
+    const linkedRecord = linkedWallet as unknown as Record<string, unknown> | null;
+    const delegated = typeof linkedRecord?.delegated === 'boolean' ? linkedRecord.delegated : null;
+    const privyWalletId =
+      typeof linkedRecord?.id === 'string' && linkedRecord.id.length > 0 ? linkedRecord.id : null;
+    const walletClientType =
+      typeof (linkedRecord?.walletClientType ?? linkedRecord?.wallet_client) === 'string'
+        ? String(linkedRecord?.walletClientType ?? linkedRecord?.wallet_client)
+        : null;
+    const connectorType =
+      typeof (linkedRecord?.connectorType ?? linkedRecord?.connector_type) === 'string'
+        ? String(linkedRecord?.connectorType ?? linkedRecord?.connector_type)
+        : null;
     const publicKey = (() => {
       if (!wallet?.address) return null;
       try {
@@ -48,6 +81,10 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       address: wallet?.address ?? null,
       connected: ready && authenticated && !!wallet,
       ready,
+      walletClientType,
+      connectorType,
+      privyWalletId,
+      delegated,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
             const isVersioned = tx instanceof VersionedTransaction;
@@ -122,6 +159,18 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         if (!ready || !authenticated) return null;
         return getAccessToken().catch(() => null);
       },
+      delegateWallet: async () => {
+        if (!wallet?.address) throw new Error('No Solana wallet to delegate.');
+        await privyDelegateWallet({ address: wallet.address, chainType: 'solana' });
+        await refreshUser().catch(() => null);
+      },
+      revokeDelegatedWallets: async () => {
+        await revokeWallets();
+        await refreshUser().catch(() => null);
+      },
+      refreshWalletUser: async () => {
+        await refreshUser();
+      },
       fundWallet: async (amountUsdc?: number) => {
         if (!wallet?.address) throw new Error('No Solana wallet to fund.');
         await privyFund({
@@ -136,10 +185,14 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     };
   }, [
     wallet,
+    linkedWallet,
     ready,
     authenticated,
     login,
     logout,
+    privyDelegateWallet,
+    revokeWallets,
+    refreshUser,
     privySign,
     privySignAndSend,
     privySignMessage,
