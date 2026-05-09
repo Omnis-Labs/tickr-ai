@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { Proposal } from '@hunch-it/shared';
 import { useProposals } from '@/lib/hooks/queries';
 import { isLiveProposal } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { fmtUsd } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
@@ -34,7 +35,7 @@ export function ProposalsFeed() {
     const out: Proposal[] = [];
     const nowMs = Date.now();
     for (const id of order) {
-      const p = proposalsById[id];
+      const p = normalizeProposalForClient(proposalsById[id]);
       if (!p || seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);

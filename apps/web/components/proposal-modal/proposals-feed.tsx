@@ -6,6 +6,7 @@ import { getAssetById, type Proposal } from '@hunch-it/shared';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
 import { isLiveProposal } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { num } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 
@@ -32,7 +33,10 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   // returns a new array each render and trips React 19's snapshot guard.
   const order = useProposalsStore((s) => s.order);
   const proposalsById = useProposalsStore((s) => s.proposalsById);
-  const live = useMemo(() => order.map((id) => proposalsById[id]), [order, proposalsById]);
+  const live = useMemo(
+    () => order.map((id) => normalizeProposalForClient(proposalsById[id])),
+    [order, proposalsById],
+  );
 
   // Merge: in-memory first, then API seed (de-duped by id), sorted by expiry.
   const merged = useMemo(() => {

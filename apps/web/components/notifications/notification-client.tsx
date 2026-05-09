@@ -17,13 +17,12 @@ import { useProposalsStore } from '@/lib/store/proposals';
 import { useOrdersStore } from '@/lib/store/orders';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import {
-  emitDevDiagnostic,
-} from '@/lib/dev-tools/client-diagnostics';
+import { emitDevDiagnostic } from '@/lib/dev-tools/client-diagnostics';
 import { QK } from '@/lib/hooks/queries';
 import { runEffects } from '@/lib/notifications/effects';
 import { executeTriggerOrder, triggerDiagnosticPayload } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { proposalNewHandler, setNavigator } from '@/lib/notifications/registry';
 import { clearAlertFavicon } from './favicon-dot';
 import { stopTitleFlash } from './tab-title-flasher';
@@ -61,12 +60,9 @@ export function NotificationClient() {
   const inflightTriggers = useRef<Set<string>>(new Set());
   const settledTriggers = useRef<Set<string>>(new Set());
 
-  const emitTriggerDiagnostic = useCallback(
-    (input: Parameters<typeof emitDevDiagnostic>[0]) => {
-      return emitDevDiagnostic(input);
-    },
-    [],
-  );
+  const emitTriggerDiagnostic = useCallback((input: Parameters<typeof emitDevDiagnostic>[0]) => {
+    return emitDevDiagnostic(input);
+  }, []);
 
   // The registry's navigateTo() needs a router; patch it on mount.
   useEffect(() => {
@@ -80,7 +76,9 @@ export function NotificationClient() {
   }, [clearExpiredProposals]);
 
   const handleProposal = useCallback(
-    (proposal: Proposal) => {
+    (incoming: Proposal) => {
+      const proposal = normalizeProposalForClient(incoming);
+      if (!proposal) return;
       if (!isLiveProposal(proposal)) {
         removeProposal(proposal.id);
         return;
@@ -269,10 +267,9 @@ export function NotificationClient() {
       if (settledTriggers.current.has(payload.orderId)) return;
       const meta = getAssetById(payload.ticker);
       if (!meta?.mint) {
-        toast.error(
-          `${payload.ticker} mint missing — check packages/shared/src/assets.ts.`,
-          { id: payload.orderId },
-        );
+        toast.error(`${payload.ticker} mint missing — check packages/shared/src/assets.ts.`, {
+          id: payload.orderId,
+        });
         return;
       }
       // While a swap is mid-flight, ignore re-emits — the loading toast

@@ -6,6 +6,7 @@ import { ProposalModal } from '@/components/proposal-modal/proposal-modal';
 import { useProposalsStore, type ProposalUI } from '@/lib/store/proposals';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { isProposalExpired } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 export default function ProposalDetailPage() {
@@ -55,7 +56,7 @@ export default function ProposalDetailPage() {
     authedFetch(`/api/proposals/${params.id}`)
       .then(async (r) => (r.ok ? ((await r.json()) as { proposal: ProposalUI }) : null))
       .then((j) => {
-        if (!cancelled && j?.proposal) setColdRead(j.proposal);
+        if (!cancelled && j?.proposal) setColdRead(normalizeProposalForClient(j.proposal));
         if (!cancelled) setLoaded(true);
       })
       .catch(() => {
@@ -67,7 +68,9 @@ export default function ProposalDetailPage() {
   }, [params?.id, inMemory, ready, connected, authedFetch, removeProposal]);
 
   const displayInMemory =
-    inMemory && inMemory.status !== 'EXPIRED' && !isProposalExpired(inMemory) ? inMemory : null;
+    inMemory && inMemory.status !== 'EXPIRED' && !isProposalExpired(inMemory)
+      ? normalizeProposalForClient(inMemory)
+      : null;
   const proposal = displayInMemory ?? coldRead ?? null;
 
   function handleBack() {
