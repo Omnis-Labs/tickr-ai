@@ -47,6 +47,7 @@ import {
   diagnosticsForDelegatedUltraApiError,
   type DelegatedUltraPreflightReport,
 } from '@/lib/dev-tools/privy-delegated-ultra-swap-debug';
+import { waitForDelegatedAccessRevocation } from '@/lib/delegated-execution/settings-state';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
 import { executeTriggerOrder } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
@@ -1419,9 +1420,12 @@ export function DevToolsClient() {
           clientDelegated,
         },
         async () => {
-          await revokeDelegatedWallets();
-          await refreshWalletUser().catch(() => {});
-          return refreshDelegatedStatus({ log: false });
+          const status = await waitForDelegatedAccessRevocation({
+            revoke: revokeDelegatedWallets,
+            readStatus: () => refreshDelegatedStatus({ log: false }),
+          });
+          void refreshWalletUser().catch(() => {});
+          return status;
         },
       );
       setDelegatedUltraStatus(status);

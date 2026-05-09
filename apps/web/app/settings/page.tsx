@@ -29,6 +29,7 @@ import {
   STALE_SIGNER_ENV_ERROR,
   delegatedAccessError,
   deriveAutoExecuteSettingsState,
+  waitForDelegatedAccessRevocation,
   withDelegatedAccessTimeout,
   type DelegatedExecutionSettingsStatus,
 } from '@/lib/delegated-execution/settings-state';
@@ -345,9 +346,20 @@ function AutoExecuteTriggersCard() {
   async function handleDisable() {
     setBusy('disable');
     try {
-      await revokeDelegatedWallets();
-      await refreshWalletUser().catch(() => null);
-      await refreshStatus();
+      await waitForDelegatedAccessRevocation({
+        revoke: revokeDelegatedWallets,
+        readStatus: async () => {
+          const next = await refreshStatus();
+          if (!next?.ok) {
+            throw delegatedAccessError(next?.error ?? 'Could not read delegated wallet status.', {
+              code: 'delegated_status_unavailable',
+              status: next,
+            });
+          }
+          return next;
+        },
+      });
+      void refreshWalletUser().catch(() => null);
       toast.success('Auto-execute triggers disabled.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
