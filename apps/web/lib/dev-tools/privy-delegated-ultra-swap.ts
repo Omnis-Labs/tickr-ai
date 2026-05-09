@@ -608,6 +608,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
   };
 
   let claimed = false;
+  let executeAttempted = false;
   let broadcasted = false;
   try {
     const claim = await claimOrderExecution({
@@ -653,6 +654,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
 
     let exec: UltraExecuteResponse;
     try {
+      executeAttempted = true;
       exec = await executeUltraOrder({
         requestId: order.requestId,
         signedTransaction: signed.signed_transaction,
@@ -661,6 +663,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
       throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_execute_failed', 502, {
         cause: errorMessage(err),
         requestId: order.requestId,
+        claimRetained: true,
       });
     }
     broadcasted = exec.status === 'Success' && !!exec.signature;
@@ -669,6 +672,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
         status: exec.status,
         cause: exec.error ?? 'Ultra did not return a success signature.',
         requestId: order.requestId,
+        claimRetained: true,
       });
     }
 
@@ -709,7 +713,9 @@ export async function runPrivyDelegatedUltraSwapDevTool(
       },
     };
   } catch (err) {
-    if (claimed && !broadcasted) {
+    // Once /execute is attempted, a missing response signature is ambiguous:
+    // the relay may still broadcast, so the claim stays PENDING.
+    if (claimed && !executeAttempted && !broadcasted) {
       await releaseOrderExecutionClaim({
         userId: input.auth.userId,
         orderId: payload.orderId,
