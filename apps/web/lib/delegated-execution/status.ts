@@ -1,53 +1,18 @@
 import 'server-only';
 
-import { PrivyClient, type LinkedAccount, type User, type Wallet } from '@privy-io/node';
+import { PrivyClient, type LinkedAccount, type User } from '@privy-io/node';
+import {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  delegatedExecutionReadinessStatus,
+  getDelegatedExecutionAuthorizationSignerId,
+  type DelegatedExecutionReadinessStatus,
+  type DelegatedExecutionResolvedWallet,
+} from '@hunch-it/shared';
 import type { AuthContext } from '@/lib/auth/context';
-
-const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
-const AUTHORIZATION_SIGNER_ID_ENV_KEYS = [
-  'PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-  'NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-] as const;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
-export interface DelegatedExecutionStatus {
-  ok: true;
-  serverKey: {
-    configured: boolean;
-    env: typeof AUTHORIZATION_PRIVATE_KEY_ENV_KEY;
-  };
-  serverSigner: {
-    configured: boolean;
-    env: (typeof AUTHORIZATION_SIGNER_ID_ENV_KEYS)[number][];
-    walletMatched: boolean;
-  };
-  wallet: {
-    address: string;
-    privyWalletId: string | null;
-    delegated: boolean | null;
-    walletClientType: string | null;
-    connectorType: string | null;
-    additionalSignerIds: string[];
-    ownerId: string | null;
-    policyIds: string[];
-    authorizationThreshold: number | null;
-    resolveError: string | null;
-  };
-  ready: {
-    canExecute: boolean;
-    blockers: string[];
-  };
-}
-
-interface ResolvedPrivyWallet {
-  wallet: Wallet | null;
-  delegated: boolean | null;
-  walletClientType: string | null;
-  connectorType: string | null;
-  additionalSignerIds: string[];
-  resolveError: string | null;
-}
+export type DelegatedExecutionStatus = DelegatedExecutionReadinessStatus;
 
 function getEnv(name: string): string | null {
   const value = process.env[name]?.trim();
@@ -55,15 +20,11 @@ function getEnv(name: string): string | null {
 }
 
 function serverKeyConfigured(): boolean {
-  return Boolean(getEnv(AUTHORIZATION_PRIVATE_KEY_ENV_KEY));
+  return Boolean(getEnv(DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV));
 }
 
 function getAuthorizationSignerId(): string | null {
-  for (const key of AUTHORIZATION_SIGNER_ID_ENV_KEYS) {
-    const value = getEnv(key);
-    if (value) return value;
-  }
-  return null;
+  return getDelegatedExecutionAuthorizationSignerId(getEnv);
 }
 
 function getPrivyClient(): PrivyClient {
@@ -99,7 +60,7 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
 async function resolvePrivyWallet(input: {
   client: PrivyClient;
   walletAddress: string;
-}): Promise<ResolvedPrivyWallet> {
+}): Promise<DelegatedExecutionResolvedWallet> {
   const [walletResult, userResult] = await Promise.allSettled([
     input.client.wallets().getWalletByAddress({ address: input.walletAddress }),
     input.client.users().getByWalletAddress({ address: input.walletAddress }),
@@ -131,57 +92,17 @@ async function resolvePrivyWallet(input: {
         ? errorMessage(userResult.reason)
         : null;
 
-  return { wallet, delegated, walletClientType, connectorType, additionalSignerIds, resolveError };
-}
-
-function statusFromResolved(input: {
-  walletAddress: string;
-  resolved: ResolvedPrivyWallet;
-}): DelegatedExecutionStatus {
-  const blockers: string[] = [];
-  const configured = serverKeyConfigured();
-  const signerId = getAuthorizationSignerId();
-  const signerConfigured = signerId !== null;
-  const signerMatched = signerId ? input.resolved.additionalSignerIds.includes(signerId) : false;
-  const unsupportedWalletClient =
-    input.resolved.wallet != null && input.resolved.walletClientType !== 'privy-v2';
-
-  if (!configured) blockers.push('missing_privy_authorization_private_key');
-  if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
-  if (unsupportedWalletClient) blockers.push('unsupported_privy_wallet_client_type');
-  if (!signerConfigured) blockers.push('missing_privy_authorization_signer_id');
-  if (signerConfigured && !signerMatched) {
-    blockers.push('wallet_missing_authorization_signer');
-  }
-  if (!signerMatched) blockers.push('wallet_not_delegated');
-
   return {
-    ok: true,
-    serverKey: {
-      configured,
-      env: AUTHORIZATION_PRIVATE_KEY_ENV_KEY,
-    },
-    serverSigner: {
-      configured: signerConfigured,
-      env: [...AUTHORIZATION_SIGNER_ID_ENV_KEYS],
-      walletMatched: signerMatched,
-    },
-    wallet: {
-      address: input.walletAddress,
-      privyWalletId: input.resolved.wallet?.id ?? null,
-      delegated: input.resolved.delegated,
-      walletClientType: input.resolved.walletClientType,
-      connectorType: input.resolved.connectorType,
-      additionalSignerIds: input.resolved.additionalSignerIds,
-      ownerId: input.resolved.wallet?.owner_id ?? null,
-      policyIds: input.resolved.wallet?.policy_ids ?? [],
-      authorizationThreshold: input.resolved.wallet?.authorization_threshold ?? null,
-      resolveError: input.resolved.resolveError,
-    },
-    ready: {
-      canExecute: blockers.length === 0,
-      blockers,
-    },
+    walletId: wallet?.id ?? null,
+    walletChainType: wallet?.chain_type ?? null,
+    delegated,
+    walletClientType,
+    connectorType,
+    additionalSignerIds,
+    ownerId: wallet?.owner_id ?? null,
+    policyIds: wallet?.policy_ids ?? [],
+    authorizationThreshold: wallet?.authorization_threshold ?? null,
+    resolveError,
   };
 }
 
@@ -193,5 +114,10 @@ export async function getDelegatedExecutionStatus(
     client,
     walletAddress: auth.walletAddress,
   });
-  return statusFromResolved({ walletAddress: auth.walletAddress, resolved });
+  return delegatedExecutionReadinessStatus({
+    walletAddress: auth.walletAddress,
+    resolved,
+    serverKeyConfigured: serverKeyConfigured(),
+    authorizationSignerId: getAuthorizationSignerId(),
+  });
 }

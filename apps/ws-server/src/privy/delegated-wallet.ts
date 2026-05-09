@@ -5,13 +5,19 @@ import {
   type User as PrivyUser,
   type Wallet,
 } from '@privy-io/node';
+import {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
+  delegatedExecutionReadinessStatus,
+  getDelegatedExecutionAuthorizationSignerId,
+  type DelegatedExecutionReadinessBlocker,
+  type DelegatedExecutionReadinessStatus,
+  type DelegatedExecutionResolvedWallet,
+} from '@hunch-it/shared';
 import { env } from '../env.js';
 
-const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
-const AUTHORIZATION_SIGNER_ID_ENV_KEYS = [
-  'PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-  'NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID',
-] as const;
+const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV;
+const AUTHORIZATION_SIGNER_ID_ENV_KEYS = DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
@@ -45,11 +51,7 @@ function getAuthorizationPrivateKeys(): string[] {
 }
 
 function getAuthorizationSignerId(): string | null {
-  for (const key of AUTHORIZATION_SIGNER_ID_ENV_KEYS) {
-    const value = getEnv(key);
-    if (value) return value;
-  }
-  return null;
+  return getDelegatedExecutionAuthorizationSignerId(getEnv);
 }
 
 function getPrivyClient(): PrivyClient {
@@ -90,6 +92,71 @@ function additionalSignerIds(wallet: Wallet | null): string[] {
         : null,
     )
     .filter((signerId): signerId is string => Boolean(signerId));
+}
+
+function readinessWallet(input: {
+  wallet: Wallet | null;
+  delegated: boolean | null;
+  walletClientType: string | null;
+  additionalSignerIds: string[];
+  resolveError: string | null;
+}): DelegatedExecutionResolvedWallet {
+  return {
+    walletId: input.wallet?.id ?? null,
+    walletChainType: input.wallet?.chain_type ?? null,
+    delegated: input.delegated,
+    walletClientType: input.walletClientType,
+    connectorType: 'embedded',
+    additionalSignerIds: input.additionalSignerIds,
+    ownerId: input.wallet?.owner_id ?? null,
+    policyIds: input.wallet?.policy_ids ?? [],
+    authorizationThreshold: input.wallet?.authorization_threshold ?? null,
+    resolveError: input.resolveError,
+  };
+}
+
+function unavailableDetail(input: {
+  blocker: DelegatedExecutionReadinessBlocker;
+  walletAddress: string;
+  wallet: Wallet | null;
+  delegated: boolean | null;
+  walletClientType: string | null;
+  signerIds: string[];
+  status: DelegatedExecutionReadinessStatus;
+  resolveError: string | null;
+}): unknown {
+  if (input.blocker === 'missing_privy_authorization_private_key') {
+    return { checkedEnv: [AUTHORIZATION_PRIVATE_KEY_ENV_KEY] };
+  }
+  if (input.blocker === 'missing_privy_authorization_signer_id') {
+    return { checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS };
+  }
+  if (input.blocker === 'unsupported_privy_wallet_client_type') {
+    return {
+      walletAddress: input.walletAddress,
+      walletClientType: input.walletClientType,
+      expectedWalletClientType: 'privy-v2',
+    };
+  }
+  if (input.blocker === 'wallet_missing_authorization_signer') {
+    return {
+      walletAddress: input.walletAddress,
+      signerConfigured: input.status.serverSigner.configured,
+      additionalSignerIds: input.signerIds,
+    };
+  }
+  if (input.blocker === 'privy_wallet_not_solana') {
+    return {
+      walletId: input.wallet?.id ?? null,
+      chainType: input.wallet?.chain_type ?? null,
+    };
+  }
+  return {
+    walletAddress: input.walletAddress,
+    delegated: input.delegated,
+    signerMatched: input.status.serverSigner.walletMatched,
+    resolveError: input.resolveError,
+  };
 }
 
 export async function resolveDelegatedWalletByAddress(
@@ -135,52 +202,43 @@ export async function resolveDelegatedWalletByAddress(
     typeof linkedRecord?.wallet_client === 'string' ? linkedRecord.wallet_client : null;
   const signerId = getAuthorizationSignerId();
   const signerIds = additionalSignerIds(wallet);
-  const signerMatched = signerId ? signerIds.includes(signerId) : false;
-
-  if (!wallet) {
-    throw new DelegatedWalletUnavailableError('wallet_not_delegated', {
-      walletAddress,
+  const resolveError = null;
+  const status = delegatedExecutionReadinessStatus({
+    walletAddress,
+    resolved: readinessWallet({
+      wallet,
       delegated,
-      signerMatched,
-    });
-  }
-  if (walletClientType !== 'privy-v2') {
-    throw new DelegatedWalletUnavailableError('unsupported_privy_wallet_client_type', {
-      walletAddress,
       walletClientType,
-      expectedWalletClientType: 'privy-v2',
-    });
-  }
-  if (!signerId) {
-    throw new DelegatedWalletUnavailableError('missing_privy_authorization_signer_id', {
-      checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS,
-    });
-  }
-  if (!signerMatched) {
-    throw new DelegatedWalletUnavailableError('wallet_missing_authorization_signer', {
-      walletAddress,
-      signerConfigured: true,
       additionalSignerIds: signerIds,
-    });
+      resolveError,
+    }),
+    serverKeyConfigured: authorizationPrivateKeys.length > 0,
+    authorizationSignerId: signerId,
+  });
+  const blocker = status.ready.blockers[0];
+  if (blocker) {
+    throw new DelegatedWalletUnavailableError(
+      blocker,
+      unavailableDetail({
+        blocker,
+        walletAddress,
+        wallet,
+        delegated,
+        walletClientType,
+        signerIds,
+        status,
+        resolveError,
+      }),
+    );
   }
-  if (!signerMatched) {
-    throw new DelegatedWalletUnavailableError('wallet_not_delegated', {
-      walletAddress,
-      delegated,
-      signerMatched,
-    });
-  }
-  if (wallet.chain_type !== 'solana') {
-    throw new DelegatedWalletUnavailableError('privy_wallet_not_solana', {
-      walletId: wallet.id,
-      chainType: wallet.chain_type,
-    });
+  if (!wallet) {
+    throw new DelegatedWalletUnavailableError('wallet_not_delegated', { walletAddress });
   }
 
   return {
     wallet,
     delegated,
-    signerMatched,
+    signerMatched: status.serverSigner.walletMatched,
     authorizationContext: {
       authorization_private_keys: authorizationPrivateKeys,
     },
