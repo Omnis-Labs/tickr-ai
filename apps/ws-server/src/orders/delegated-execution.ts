@@ -8,18 +8,22 @@ import {
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import {
-  claimOrderExecution,
-  confirmBuyFill,
-  confirmExitFill,
-  releaseOrderExecutionClaim,
+  claimOrderExecution as claimOrderExecutionDb,
+  confirmBuyFill as confirmBuyFillDb,
+  confirmExitFill as confirmExitFillDb,
+  releaseOrderExecutionClaim as releaseOrderExecutionClaimDb,
 } from '@hunch-it/db';
 import { env } from '../env.js';
 import {
   DelegatedWalletUnavailableError,
-  resolveDelegatedWalletByAddress,
-  signDelegatedSolanaTransaction,
+  resolveDelegatedWalletByAddress as resolveDelegatedWalletByAddressPrivy,
+  signDelegatedSolanaTransaction as signDelegatedSolanaTransactionPrivy,
 } from '../privy/delegated-wallet.js';
-import { executeUltraOrder, getUltraOrderProblem, requestUltraOrder } from '../jupiter/ultra.js';
+import {
+  executeUltraOrder as executeUltraOrderJupiter,
+  getUltraOrderProblem as getUltraOrderProblemJupiter,
+  requestUltraOrder as requestUltraOrderJupiter,
+} from '../jupiter/ultra.js';
 import { readOwnerMintBalanceRaw } from '../solana/token-balance.js';
 
 export type DelegatedTriggerExecutionOutcome =
@@ -52,7 +56,16 @@ export type DelegatedTriggerExecutionOutcome =
       reason: string;
       signature: string;
       detail?: unknown;
+    }
+  | {
+      kind: 'broadcastUnknown';
+      orderId: string;
+      reason: string;
+      requestId: string | null;
+      detail?: unknown;
     };
+
+type TriggerUltraSwapPlan = ReturnType<typeof buildTriggerUltraSwapPlan>;
 
 function getSolanaConnection(): Connection {
   const rpcUrl = parseRpcUrls(env.NEXT_PUBLIC_SOLANA_RPC_URLS)[0];
@@ -88,7 +101,7 @@ async function prepareInputAmount(input: {
   payload: TriggerHitPayload;
   decimals: number;
   walletAddress: string;
-}): Promise<ReturnType<typeof buildTriggerUltraSwapPlan>> {
+}): Promise<TriggerUltraSwapPlan> {
   const requestedPlan = buildTriggerUltraSwapPlan(input.payload, input.decimals);
   const balance = await readOwnerMintBalanceRaw(
     getSolanaConnection(),
@@ -117,23 +130,54 @@ async function prepareInputAmount(input: {
   };
 }
 
-async function settleOrder(input: {
-  userId: string;
-  payload: TriggerHitPayload;
-  signature: string;
-  executionPrice: number;
-  tokenAmount: number;
-}): Promise<DelegatedTriggerExecutionOutcome> {
+export interface DelegatedExecutionDeps {
+  getAssetById: typeof getAssetById;
+  resolveDelegatedWalletByAddress: typeof resolveDelegatedWalletByAddressPrivy;
+  prepareInputAmount: typeof prepareInputAmount;
+  claimOrderExecution: typeof claimOrderExecutionDb;
+  releaseOrderExecutionClaim: typeof releaseOrderExecutionClaimDb;
+  confirmBuyFill: typeof confirmBuyFillDb;
+  confirmExitFill: typeof confirmExitFillDb;
+  requestUltraOrder: typeof requestUltraOrderJupiter;
+  getUltraOrderProblem: typeof getUltraOrderProblemJupiter;
+  signDelegatedSolanaTransaction: typeof signDelegatedSolanaTransactionPrivy;
+  executeUltraOrder: typeof executeUltraOrderJupiter;
+}
+
+const defaultDelegatedExecutionDeps: DelegatedExecutionDeps = {
+  getAssetById,
+  resolveDelegatedWalletByAddress: resolveDelegatedWalletByAddressPrivy,
+  prepareInputAmount,
+  claimOrderExecution: claimOrderExecutionDb,
+  releaseOrderExecutionClaim: releaseOrderExecutionClaimDb,
+  confirmBuyFill: confirmBuyFillDb,
+  confirmExitFill: confirmExitFillDb,
+  requestUltraOrder: requestUltraOrderJupiter,
+  getUltraOrderProblem: getUltraOrderProblemJupiter,
+  signDelegatedSolanaTransaction: signDelegatedSolanaTransactionPrivy,
+  executeUltraOrder: executeUltraOrderJupiter,
+};
+
+async function settleOrder(
+  input: {
+    userId: string;
+    payload: TriggerHitPayload;
+    signature: string;
+    executionPrice: number;
+    tokenAmount: number;
+  },
+  deps: Pick<DelegatedExecutionDeps, 'confirmBuyFill' | 'confirmExitFill'>,
+): Promise<DelegatedTriggerExecutionOutcome> {
   const result =
     input.payload.kind === 'BUY_TRIGGER'
-      ? await confirmBuyFill({
+      ? await deps.confirmBuyFill({
           userId: input.userId,
           orderId: input.payload.orderId,
           txSignature: input.signature,
           executionPrice: input.executionPrice,
           tokenAmount: input.tokenAmount,
         })
-      : await confirmExitFill({
+      : await deps.confirmExitFill({
           userId: input.userId,
           orderId: input.payload.orderId,
           txSignature: input.signature,
@@ -153,8 +197,7 @@ async function settleOrder(input: {
   return {
     kind: 'settled',
     orderId: input.payload.orderId,
-    positionId:
-      result.status === 'success' ? result.data.positionId : input.payload.positionId,
+    positionId: result.status === 'success' ? result.data.positionId : input.payload.positionId,
     ticker: input.payload.ticker,
     orderKind: input.payload.kind,
     signature: input.signature,
@@ -164,12 +207,15 @@ async function settleOrder(input: {
   };
 }
 
-export async function tryExecuteDelegatedTriggerOrder(input: {
-  userId: string;
-  walletAddress: string;
-  payload: TriggerHitPayload;
-}): Promise<DelegatedTriggerExecutionOutcome> {
-  const asset = getAssetById(input.payload.ticker);
+export async function tryExecuteDelegatedTriggerOrder(
+  input: {
+    userId: string;
+    walletAddress: string;
+    payload: TriggerHitPayload;
+  },
+  deps: DelegatedExecutionDeps = defaultDelegatedExecutionDeps,
+): Promise<DelegatedTriggerExecutionOutcome> {
+  const asset = deps.getAssetById(input.payload.ticker);
   if (!asset) {
     return {
       kind: 'notAvailable',
@@ -179,11 +225,11 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
     };
   }
 
-  let delegatedWallet: Awaited<ReturnType<typeof resolveDelegatedWalletByAddress>>;
-  let plan: ReturnType<typeof buildTriggerUltraSwapPlan>;
+  let delegatedWallet: Awaited<ReturnType<typeof resolveDelegatedWalletByAddressPrivy>>;
+  let plan: TriggerUltraSwapPlan;
   try {
-    delegatedWallet = await resolveDelegatedWalletByAddress(input.walletAddress);
-    plan = await prepareInputAmount({
+    delegatedWallet = await deps.resolveDelegatedWalletByAddress(input.walletAddress);
+    plan = await deps.prepareInputAmount({
       payload: input.payload,
       decimals: asset.decimals,
       walletAddress: input.walletAddress,
@@ -217,7 +263,7 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
     };
   }
 
-  const claim = await claimOrderExecution({
+  const claim = await deps.claimOrderExecution({
     userId: input.userId,
     orderId: input.payload.orderId,
   });
@@ -227,20 +273,24 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
 
   let signedTransaction: string | null = null;
   let signature: string | null = null;
+  let ultraExecuteAttempted = false;
+  let ultraRequestId: string | null = null;
   try {
-    const order = await requestUltraOrder({
+    const order = await deps.requestUltraOrder({
       inputMint: plan.inputMint,
       outputMint: plan.outputMint,
       amount: plan.amount,
       taker: input.walletAddress,
     });
-    const problem = getUltraOrderProblem(order);
+    ultraRequestId = order.requestId;
+    const problem = deps.getUltraOrderProblem(order);
     if (problem) {
       if (problem.code === 'insufficient_funds') {
-        const released = await releaseOrderExecutionClaim({
-          userId: input.userId,
-          orderId: input.payload.orderId,
-        })
+        const released = await deps
+          .releaseOrderExecutionClaim({
+            userId: input.userId,
+            orderId: input.payload.orderId,
+          })
           .then((result) => result.status === 'success')
           .catch(() => false);
         if (!released) {
@@ -263,7 +313,7 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
       throw new Error(problem.message);
     }
 
-    signedTransaction = await signDelegatedSolanaTransaction({
+    signedTransaction = await deps.signDelegatedSolanaTransaction({
       walletId: delegatedWallet.wallet.id,
       transaction: order.transaction,
       authorizationContext: delegatedWallet.authorizationContext,
@@ -271,7 +321,8 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
     });
     if (!signedTransaction) throw new Error('privy_sign_transaction_missing_result');
 
-    const exec = await executeUltraOrder({
+    ultraExecuteAttempted = true;
+    const exec = await deps.executeUltraOrder({
       requestId: order.requestId,
       signedTransaction,
     });
@@ -286,13 +337,16 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
       outAmount: order.outAmount,
       decimals: asset.decimals,
     });
-    return settleOrder({
-      userId: input.userId,
-      payload: input.payload,
-      signature,
-      executionPrice: settlement.executionPrice,
-      tokenAmount: settlement.tokenAmount,
-    });
+    return settleOrder(
+      {
+        userId: input.userId,
+        payload: input.payload,
+        signature,
+        executionPrice: settlement.executionPrice,
+        tokenAmount: settlement.tokenAmount,
+      },
+      deps,
+    );
   } catch (err) {
     if (signature) {
       return {
@@ -303,10 +357,22 @@ export async function tryExecuteDelegatedTriggerOrder(input: {
         detail: { cause: errorMessage(err) },
       };
     }
-    const released = await releaseOrderExecutionClaim({
-      userId: input.userId,
-      orderId: input.payload.orderId,
-    })
+    if (ultraExecuteAttempted) {
+      // The relay may have accepted and broadcast the signed bytes even if
+      // our HTTP response failed; keep the DB claim locked for reconciliation.
+      return {
+        kind: 'broadcastUnknown',
+        orderId: input.payload.orderId,
+        reason: 'delegated_execute_signature_unknown',
+        requestId: ultraRequestId,
+        detail: { cause: errorMessage(err) },
+      };
+    }
+    const released = await deps
+      .releaseOrderExecutionClaim({
+        userId: input.userId,
+        orderId: input.payload.orderId,
+      })
       .then((result) => result.status === 'success')
       .catch(() => false);
     return {

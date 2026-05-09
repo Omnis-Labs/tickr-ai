@@ -20,11 +20,7 @@
 
 import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
-import {
-  type TradeFilledPayload,
-  type TriggerHitPayload,
-  WsServerEvents,
-} from '@hunch-it/shared';
+import { type TradeFilledPayload, type TriggerHitPayload, WsServerEvents } from '@hunch-it/shared';
 import { getLatestPrices } from '../pyth/index.js';
 import {
   tryExecuteDelegatedTriggerOrder,
@@ -56,10 +52,13 @@ export function clearDelegatedExecutionCooldownForTests(): void {
   delegatedRuntimeCooldownUntil.clear();
 }
 
-function shouldFire(order: {
-  kind: string;
-  triggerPriceUsd: { toNumber: () => number } | null;
-}, currentPriceUsd: number): boolean {
+function shouldFire(
+  order: {
+    kind: string;
+    triggerPriceUsd: { toNumber: () => number } | null;
+  },
+  currentPriceUsd: number,
+): boolean {
   const trigger = order.triggerPriceUsd?.toNumber();
   if (trigger == null || !Number.isFinite(trigger) || trigger <= 0) return false;
 
@@ -104,11 +103,7 @@ function emitTriggerHit(io: IoServer, walletAddress: string, payload: TriggerHit
   io.to(`user:${walletAddress}`).emit(WsServerEvents.TriggerHit, payload);
 }
 
-function emitTradeFilled(
-  io: IoServer,
-  walletAddress: string,
-  payload: TradeFilledPayload,
-): void {
+function emitTradeFilled(io: IoServer, walletAddress: string, payload: TradeFilledPayload): void {
   io.to(`user:${walletAddress}`).emit(WsServerEvents.TradeFilled, payload);
 }
 
@@ -231,9 +226,15 @@ export async function runTriggerMonitor(
       }
 
       summary.delegatedFailures++;
-      console.error(
-        `[delegated-execution] broadcast/settlement failure order=${order.id} reason=${outcome.reason} signature=${outcome.signature}`,
-      );
+      if (outcome.kind === 'broadcastUnknown') {
+        console.error(
+          `[delegated-execution] execute submitted but signature unknown order=${order.id} reason=${outcome.reason} requestId=${outcome.requestId ?? 'unknown'}`,
+        );
+      } else {
+        console.error(
+          `[delegated-execution] broadcast/settlement failure order=${order.id} reason=${outcome.reason} signature=${outcome.signature}`,
+        );
+      }
     }
   }
 

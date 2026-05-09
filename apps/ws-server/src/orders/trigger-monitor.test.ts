@@ -3,10 +3,7 @@ import test from 'node:test';
 import type { PrismaClient } from '@hunch-it/db';
 import { WsServerEvents, type PriceSnapshot } from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
-import {
-  clearDelegatedExecutionCooldownForTests,
-  runTriggerMonitor,
-} from './trigger-monitor.js';
+import { clearDelegatedExecutionCooldownForTests, runTriggerMonitor } from './trigger-monitor.js';
 
 function decimal(value: number): { toNumber: () => number } {
   return { toNumber: () => value };
@@ -51,9 +48,7 @@ function ioRecorder() {
 }
 
 async function priceFetcher(): Promise<Map<string, PriceSnapshot>> {
-  return new Map([
-    ['AAPLx', { ticker: 'AAPLx', price: 100, confidence: 0.01, publishTime: 1 }],
-  ]);
+  return new Map([['AAPLx', { ticker: 'AAPLx', price: 100, confidence: 0.01, publishTime: 1 }]]);
 }
 
 test('runTriggerMonitor emits trade:filled after delegated execution settles', async () => {
@@ -125,6 +120,25 @@ test('runTriggerMonitor suppresses manual fallback after unreleased pre-broadcas
       reason: 'claim_release_failed',
       shouldCooldown: true,
       released: false,
+    }),
+  });
+
+  assert.equal(summary.hits, 1);
+  assert.equal(summary.delegatedFailures, 1);
+  assert.equal(events.length, 0);
+});
+
+test('runTriggerMonitor suppresses manual fallback after ambiguous Ultra execute', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    delegatedExecutor: async ({ payload }) => ({
+      kind: 'broadcastUnknown',
+      orderId: payload.orderId,
+      reason: 'delegated_execute_signature_unknown',
+      requestId: 'request-1',
     }),
   });
 
