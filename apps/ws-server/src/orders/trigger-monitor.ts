@@ -20,12 +20,14 @@
 
 import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
-import { type TradeFilledPayload, type TriggerHitPayload, WsServerEvents } from '@hunch-it/shared';
+import { type TriggerHitPayload } from '@hunch-it/shared';
 import { getLatestPrices } from '../pyth/index.js';
 import {
-  tryExecuteDelegatedTriggerOrder,
-  type DelegatedTriggerExecutionOutcome,
-} from './delegated-execution.js';
+  clearDelegatedExecutionCooldownForTests,
+  dispatchTriggeredOrderExecution,
+  type DelegatedExecutor,
+} from './trigger-execution-dispatch.js';
+export { clearDelegatedExecutionCooldownForTests };
 
 export interface TriggerMonitorSummary {
   polledOrders: number;
@@ -38,19 +40,7 @@ export interface TriggerMonitorSummary {
 }
 
 const BUY_TOLERANCE = 0.005; // 0.5%
-const DELEGATED_RUNTIME_COOLDOWN_MS = 2 * 60_000;
-const delegatedRuntimeCooldownUntil = new Map<string, number>();
-
-type DelegatedExecutor = (input: {
-  userId: string;
-  walletAddress: string;
-  payload: TriggerHitPayload;
-}) => Promise<DelegatedTriggerExecutionOutcome>;
 type PriceFetcher = typeof getLatestPrices;
-
-export function clearDelegatedExecutionCooldownForTests(): void {
-  delegatedRuntimeCooldownUntil.clear();
-}
 
 function shouldFire(
   order: {
@@ -97,14 +87,6 @@ function buildPayload(
     sizeUsd: order.sizeUsd.toNumber(),
     tokenAmount: order.tokenAmount?.toNumber() ?? null,
   };
-}
-
-function emitTriggerHit(io: IoServer, walletAddress: string, payload: TriggerHitPayload): void {
-  io.to(`user:${walletAddress}`).emit(WsServerEvents.TriggerHit, payload);
-}
-
-function emitTradeFilled(io: IoServer, walletAddress: string, payload: TradeFilledPayload): void {
-  io.to(`user:${walletAddress}`).emit(WsServerEvents.TradeFilled, payload);
 }
 
 export async function runTriggerMonitor(
@@ -163,78 +145,20 @@ export async function runTriggerMonitor(
       if (!payload) continue;
 
       summary.hits++;
-      const now = deps.nowMs?.() ?? Date.now();
-      const cooldownUntil = delegatedRuntimeCooldownUntil.get(order.id) ?? 0;
-      if (cooldownUntil > now) {
-        summary.delegatedFallbacks++;
-        emitTriggerHit(io, order.user.walletAddress, payload);
-        continue;
-      }
-
-      const executeDelegated = deps.delegatedExecutor ?? tryExecuteDelegatedTriggerOrder;
-      const outcome = await executeDelegated({
+      const dispatch = await dispatchTriggeredOrderExecution({
+        io,
         userId: order.userId,
         walletAddress: order.user.walletAddress,
         payload,
+        delegatedExecutor: deps.delegatedExecutor,
+        nowMs: deps.nowMs?.() ?? Date.now(),
+        delegatedRuntimeCooldownMs: deps.delegatedRuntimeCooldownMs,
       });
 
-      if (outcome.kind === 'settled') {
-        summary.delegatedSettled++;
-        emitTradeFilled(io, order.user.walletAddress, {
-          orderId: outcome.orderId,
-          positionId: outcome.positionId,
-          ticker: outcome.ticker,
-          kind: outcome.orderKind,
-          side: payload.side,
-          executionMode: 'delegated',
-          executionPrice: outcome.executionPrice,
-          tokenAmount: outcome.tokenAmount,
-          usdValue: outcome.usdValue,
-          txSignature: outcome.signature,
-        });
-        continue;
-      }
-
-      if (outcome.kind === 'alreadyHandled' || outcome.kind === 'alreadyExecuting') {
-        summary.delegatedSuppressed++;
-        continue;
-      }
-
-      if (outcome.kind === 'notAvailable') {
-        summary.delegatedFallbacks++;
-        emitTriggerHit(io, order.user.walletAddress, payload);
-        continue;
-      }
-
-      if (outcome.kind === 'preBroadcastFailed') {
-        if (outcome.shouldCooldown) {
-          delegatedRuntimeCooldownUntil.set(
-            order.id,
-            now + (deps.delegatedRuntimeCooldownMs ?? DELEGATED_RUNTIME_COOLDOWN_MS),
-          );
-        }
-        if (outcome.released) {
-          summary.delegatedFallbacks++;
-          emitTriggerHit(io, order.user.walletAddress, payload);
-        } else {
-          summary.delegatedFailures++;
-          console.warn(
-            `[delegated-execution] pre-broadcast failure without release order=${order.id} reason=${outcome.reason}`,
-          );
-        }
-        continue;
-      }
-
-      summary.delegatedFailures++;
-      if (outcome.kind === 'broadcastUnknown') {
-        console.error(
-          `[delegated-execution] execute submitted but signature unknown order=${order.id} reason=${outcome.reason} requestId=${outcome.requestId ?? 'unknown'}`,
-        );
-      } else {
-        console.error(
-          `[delegated-execution] broadcast/settlement failure order=${order.id} reason=${outcome.reason} signature=${outcome.signature}`,
-        );
-      }
+      if (dispatch.kind === 'delegatedSettled') summary.delegatedSettled++;
+      else if (dispatch.kind === 'delegatedFallback') summary.delegatedFallbacks++;
+      else if (dispatch.kind === 'delegatedSuppressed') summary.delegatedSuppressed++;
+      else summary.delegatedFailures++;
     }
   }
 
