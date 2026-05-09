@@ -41,6 +41,10 @@ test('delegated Ultra preflight reports missing server readiness blockers before
     ),
     true,
   );
+  assert.match(
+    report.diagnostics.find((item) => item.hypothesis === 'Order funding')?.detail ?? '',
+    /BUY inputs are not balance-capped/,
+  );
 });
 
 test('delegated Ultra preflight predicts sell order token funding requirement', () => {
@@ -72,6 +76,10 @@ test('delegated Ultra preflight predicts sell order token funding requirement', 
     amount: '1.25',
     reason: 'STOP_LOSS exits spend the position token before receiving USDC.',
   });
+  assert.match(
+    report.diagnostics.find((item) => item.hypothesis === 'Order funding')?.detail ?? '',
+    /submits the available balance/,
+  );
 });
 
 test('delegated Ultra API diagnostics explain insufficient funds', () => {
