@@ -9,7 +9,7 @@
 // This is what makes the same NVDAx market move produce different proposals
 // for different users (PRD §Per-user Signal Problem).
 
-import type { PrismaClient } from '@hunch-it/db';
+import type { PrismaClient, Proposal } from '@hunch-it/db';
 import { createBuyProposalForUser } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
@@ -27,6 +27,33 @@ export interface ProposalGeneratorSummary {
   matchingUsers: number;
   proposalsCreated: number;
   errors: number;
+}
+
+export function serializeProposalForClient(proposal: Proposal) {
+  return {
+    id: proposal.id,
+    userId: proposal.userId,
+    ticker: proposal.ticker,
+    action: proposal.action,
+    suggestedSizeUsd: proposal.suggestedSizeUsd.toNumber(),
+    suggestedTriggerPrice: proposal.suggestedTriggerPrice.toNumber(),
+    suggestedTakeProfitPrice: proposal.suggestedTakeProfitPrice.toNumber(),
+    suggestedStopLossPrice: proposal.suggestedStopLossPrice.toNumber(),
+    rationale: proposal.rationale,
+    reasoning: proposal.reasoning,
+    positionImpact: proposal.positionImpact,
+    confidence: proposal.confidence.toNumber(),
+    priceAtProposal: proposal.priceAtProposal.toNumber(),
+    indicators: proposal.indicators,
+    thesisTags: proposal.thesisTags,
+    sourceBuyProposalId: proposal.sourceBuyProposalId,
+    positionId: proposal.positionId,
+    triggeringTag: proposal.triggeringTag,
+    origin: proposal.origin,
+    status: proposal.status,
+    expiresAt: proposal.expiresAt.toISOString(),
+    createdAt: proposal.createdAt.toISOString(),
+  };
 }
 
 /**
@@ -137,12 +164,10 @@ export async function generateProposalsForBaseAnalysis(
       });
       if (!created) continue;
 
-      io.to(`user:${user.walletAddress}`).emit(WsServerEvents.ProposalNew, {
-        ...created,
-        // serialize Date fields the way the client expects
-        expiresAt: created.expiresAt.toISOString(),
-        createdAt: created.createdAt.toISOString(),
-      });
+      io.to(`user:${user.walletAddress}`).emit(
+        WsServerEvents.ProposalNew,
+        serializeProposalForClient(created),
+      );
       summary.proposalsCreated++;
     } catch (err) {
       console.warn(`[gen2] user=${user.walletAddress.slice(0, 6)}… failed`, err);

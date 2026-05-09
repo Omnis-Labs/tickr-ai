@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { Mandate, Proposal } from '@hunch-it/shared';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { PortfolioPosition } from '@/lib/portfolio/holdings';
+import { normalizeProposalForClient, normalizeProposalsForClient } from '@/lib/proposals/normalize';
 
 /**
  * Centralised TanStack Query reads. Pages just call these — they don't have
@@ -31,7 +32,8 @@ export function useProposals() {
     queryFn: async () => {
       const r = await authedFetch('/api/proposals');
       if (!r.ok) return { proposals: [] };
-      return r.json();
+      const json = (await r.json()) as { proposals?: unknown[] };
+      return { proposals: normalizeProposalsForClient(json.proposals ?? []) };
     },
     refetchInterval: 30_000,
     enabled: true,
@@ -46,7 +48,8 @@ export function useProposal(id: string | null | undefined) {
       if (!id) return { proposal: null };
       const r = await authedFetch(`/api/proposals/${id}`);
       if (!r.ok) return { proposal: null };
-      return r.json();
+      const json = (await r.json()) as { proposal?: unknown };
+      return { proposal: normalizeProposalForClient(json.proposal) };
     },
     enabled: !!id,
   });
