@@ -306,12 +306,21 @@ function buildServerAuthorizationContext(): {
 }
 
 async function requestOrder(input: { plan: SwapPlan; taker: string }): Promise<UltraOrderResponse> {
-  return requestUltraOrder({
-    inputMint: input.plan.inputMint,
-    outputMint: input.plan.outputMint,
-    amount: input.plan.amount,
-    taker: input.taker,
-  });
+  try {
+    return await requestUltraOrder({
+      inputMint: input.plan.inputMint,
+      outputMint: input.plan.outputMint,
+      amount: input.plan.amount,
+      taker: input.taker,
+    });
+  } catch (err) {
+    throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_order_failed', 502, {
+      cause: errorMessage(err),
+      inputMint: input.plan.inputMint,
+      outputMint: input.plan.outputMint,
+      requestedRaw: input.plan.amount,
+    });
+  }
 }
 
 function assertUltraOrderTransaction(order: UltraOrderResponse): string {
@@ -477,7 +486,16 @@ export async function runPrivyDelegatedUltraSwapDevTool(
   const order = await requestOrder({ plan, taker: walletAddress });
   const transaction = assertUltraOrderTransaction(order);
   const orderTransactionBytes = toBase64Bytes(transaction).byteLength;
-  const orderTransactionShape = describeTransaction(transaction);
+  let orderTransactionShape: TransactionShape;
+  try {
+    orderTransactionShape = describeTransaction(transaction);
+  } catch (err) {
+    throw new DevPrivyDelegatedUltraSwapError('ultra_transaction_deserialize_failed', 502, {
+      cause: errorMessage(err),
+      requestId: order.requestId,
+      transactionBytes: orderTransactionBytes,
+    });
+  }
 
   const base: Omit<DevPrivyDelegatedUltraSwapResult, 'ok'> = {
     authorizationUsed: used,
@@ -517,36 +535,77 @@ export async function runPrivyDelegatedUltraSwapDevTool(
     }
     claimed = true;
 
-    const signed = await client
-      .wallets()
-      .solana()
-      .signTransaction(wallet.id, {
-        transaction,
-        authorization_context: context,
-        idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
+    let signed: { signed_transaction: string };
+    try {
+      signed = await client
+        .wallets()
+        .solana()
+        .signTransaction(wallet.id, {
+          transaction,
+          authorization_context: context,
+          idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
+        });
+    } catch (err) {
+      throw new DevPrivyDelegatedUltraSwapError('privy_sign_transaction_failed', 502, {
+        cause: errorMessage(err),
+        walletId: wallet.id,
+        requestId: order.requestId,
+        signerKeys: orderTransactionShape.signerKeys,
+        zeroSignatureCount: orderTransactionShape.zeroSignatureCount,
       });
+    }
     const signedTransactionBytes = toBase64Bytes(signed.signed_transaction).byteLength;
-    const signedTransactionShape = describeTransaction(signed.signed_transaction);
+    let signedTransactionShape: TransactionShape;
+    try {
+      signedTransactionShape = describeTransaction(signed.signed_transaction);
+    } catch (err) {
+      throw new DevPrivyDelegatedUltraSwapError('privy_signed_transaction_invalid', 502, {
+        cause: errorMessage(err),
+        walletId: wallet.id,
+        requestId: order.requestId,
+        signedTransactionBytes,
+      });
+    }
 
-    const exec = await executeUltraOrder({
-      requestId: order.requestId,
-      signedTransaction: signed.signed_transaction,
-    });
+    let exec: UltraExecuteResponse;
+    try {
+      exec = await executeUltraOrder({
+        requestId: order.requestId,
+        signedTransaction: signed.signed_transaction,
+      });
+    } catch (err) {
+      throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_execute_failed', 502, {
+        cause: errorMessage(err),
+        requestId: order.requestId,
+      });
+    }
     broadcasted = exec.status === 'Success' && !!exec.signature;
     if (!broadcasted) {
-      throw new DevPrivyDelegatedUltraSwapError(exec.error ?? 'jupiter_ultra_execute_failed', 502, {
+      throw new DevPrivyDelegatedUltraSwapError('jupiter_ultra_execute_failed', 502, {
         status: exec.status,
+        cause: exec.error ?? 'Ultra did not return a success signature.',
+        requestId: order.requestId,
       });
     }
 
     const settlement = settlementFor({ payload, order, decimals: asset.decimals });
-    const settled = await settleOrder({
-      auth: input.auth,
-      payload,
-      executionPrice: settlement.executionPrice,
-      tokenAmount: settlement.tokenAmount,
-      signature: exec.signature!,
-    });
+    let settled: unknown;
+    try {
+      settled = await settleOrder({
+        auth: input.auth,
+        payload,
+        executionPrice: settlement.executionPrice,
+        tokenAmount: settlement.tokenAmount,
+        signature: exec.signature!,
+      });
+    } catch (err) {
+      if (err instanceof DevPrivyDelegatedUltraSwapError) throw err;
+      throw new DevPrivyDelegatedUltraSwapError('order_settlement_failed', 500, {
+        cause: errorMessage(err),
+        orderId: payload.orderId,
+        signature: exec.signature,
+      });
+    }
 
     return {
       ok: true,
