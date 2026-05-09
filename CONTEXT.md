@@ -96,7 +96,7 @@ A historical row recording a fill. Always paired with an `Order` and a `Position
 
 ### trigger:hit
 
-The Socket.IO event emitted by `apps/ws-server` when a synthetic Order's price condition matches Pyth. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the user executes or the Order is cancelled.
+The Socket.IO event emitted by `apps/ws-server` when a Synthetic Order's price condition matches Pyth and the user needs tap-to-execute fallback. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the Order is executed or cancelled.
 
 ### tap-to-execute
 
@@ -104,7 +104,7 @@ The user-facing interaction model: ws-server detects a trigger, the frontend sho
 
 ### Delegated Execution
 
-The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through delegated wallet access, without a manual Execute tap. Privy delegated wallet status is the source of truth; Hunch does not keep a separate DB toggle. Turning it off revokes the delegated wallet access rather than merely pausing automation. If delegated execution is unavailable or fails before broadcast, Hunch falls back to tap-to-execute; after broadcast, Hunch does not offer an immediate retry because a second swap could double-fill.
+The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through delegated wallet access, without a manual Execute tap. Privy delegated wallet status is the source of truth; Hunch does not keep a separate DB toggle. Turning it off revokes the delegated wallet access rather than merely pausing automation. Delegated Execution runs from `apps/ws-server` so it can fill Orders when the user has no browser tab open. If delegated execution is unavailable or fails before broadcast, Hunch falls back to tap-to-execute; after broadcast, Hunch does not offer an immediate retry because a second swap could double-fill.
 
 ### Jupiter Ultra
 
