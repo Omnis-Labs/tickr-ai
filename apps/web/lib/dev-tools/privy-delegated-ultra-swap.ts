@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { VersionedTransaction } from '@solana/web3.js';
+import { Connection, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import {
   PrivyClient,
   type AuthorizationContext,
@@ -8,7 +8,13 @@ import {
   type User,
   type Wallet,
 } from '@privy-io/node';
-import { USDC_DECIMALS, USDC_MINT, getAssetById, type TriggerHitPayload } from '@hunch-it/shared';
+import {
+  USDC_DECIMALS,
+  USDC_MINT,
+  getAssetById,
+  parseRpcUrls,
+  type TriggerHitPayload,
+} from '@hunch-it/shared';
 import {
   claimOrderExecution,
   confirmBuyFill,
@@ -23,18 +29,14 @@ import {
   type UltraExecuteResponse,
   type UltraOrderResponse,
 } from '@/lib/jupiter';
+import { readOwnerMintBalanceRaw } from '@/lib/jupiter/ultra-swap';
 import type { AuthContext } from '@/lib/auth/context';
+import { getUltraOrderProblem } from './privy-delegated-ultra-swap-guards';
 import { buildOwnedDevTriggerPayload } from './server';
 
-export type DevPrivyDelegatedUltraMode = 'preview' | 'execute';
-export type DevPrivyAuthorizationMode = 'user-jwt' | 'server-key' | 'combined';
-
-interface DevPrivyDelegatedUltraInput {
+interface DevPrivyDelegatedUltraSwapInput {
   auth: AuthContext;
   orderId: string;
-  mode: DevPrivyDelegatedUltraMode;
-  authorizationMode: DevPrivyAuthorizationMode;
-  userJwt: string | null;
 }
 
 interface TransactionShape {
@@ -56,12 +58,37 @@ interface SwapPlan {
   decimals: number;
 }
 
-export interface DevPrivyDelegatedUltraResult {
+interface InputBalanceCheck {
+  inputMint: string;
+  requestedRaw: string;
+  walletRaw: string;
+  tokenProgramIds: string[];
+}
+
+export interface DevPrivyDelegatedUltraSwapStatus {
   ok: true;
-  mode: DevPrivyDelegatedUltraMode;
-  authorizationMode: DevPrivyAuthorizationMode;
+  serverKey: {
+    configured: boolean;
+    env: typeof AUTHORIZATION_PRIVATE_KEY_ENV_KEY;
+  };
+  wallet: {
+    address: string;
+    privyWalletId: string | null;
+    delegated: boolean | null;
+    ownerId: string | null;
+    policyIds: string[];
+    authorizationThreshold: number | null;
+    resolveError: string | null;
+  };
+  ready: {
+    canExecute: boolean;
+    blockers: string[];
+  };
+}
+
+export interface DevPrivyDelegatedUltraSwapResult {
+  ok: true;
   authorizationUsed: {
-    userJwt: boolean;
     serverKey: boolean;
     serverKeyConfigured: boolean;
   };
@@ -75,6 +102,7 @@ export interface DevPrivyDelegatedUltraResult {
   };
   trigger: TriggerHitPayload;
   plan: SwapPlan;
+  balance: InputBalanceCheck;
   ultraOrder: {
     requestId: string;
     inAmount: string;
@@ -83,6 +111,8 @@ export interface DevPrivyDelegatedUltraResult {
     otherAmountThreshold: string;
     transactionBytes: number;
     transactionShape: TransactionShape;
+    gasless: boolean | null;
+    router: string | null;
   };
   signedTransaction?: {
     bytes: number;
@@ -99,22 +129,18 @@ export interface DevPrivyDelegatedUltraResult {
   };
 }
 
-export class DevPrivyDelegatedUltraError extends Error {
+export class DevPrivyDelegatedUltraSwapError extends Error {
   constructor(
     message: string,
     public readonly status = 400,
     public readonly detail?: unknown,
   ) {
     super(message);
-    this.name = 'DevPrivyDelegatedUltraError';
+    this.name = 'DevPrivyDelegatedUltraSwapError';
   }
 }
 
-const AUTHORIZATION_PRIVATE_KEY_ENV_KEYS = [
-  'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY',
-  'PRIVY_AUTHORIZATION_PRIVATE_KEY',
-  'PRIVY_WALLET_AUTH_PRIVATE_KEY',
-] as const;
+const AUTHORIZATION_PRIVATE_KEY_ENV_KEY = 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' as const;
 
 let cachedPrivyClient: PrivyClient | null = null;
 
@@ -124,12 +150,14 @@ function getEnv(name: string): string | null {
 }
 
 function getAuthorizationPrivateKeys(): string[] {
-  return AUTHORIZATION_PRIVATE_KEY_ENV_KEYS.flatMap((name) =>
-    (getEnv(name) ?? '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-  );
+  return (getEnv(AUTHORIZATION_PRIVATE_KEY_ENV_KEY) ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function serverKeyConfigured(): boolean {
+  return getAuthorizationPrivateKeys().length > 0;
 }
 
 function getPrivyClient(): PrivyClient {
@@ -137,10 +165,17 @@ function getPrivyClient(): PrivyClient {
   const appId = getEnv('PRIVY_APP_ID') ?? getEnv('NEXT_PUBLIC_PRIVY_APP_ID');
   const appSecret = getEnv('PRIVY_APP_SECRET');
   if (!appId || !appSecret) {
-    throw new DevPrivyDelegatedUltraError('missing_privy_server_credentials', 500);
+    throw new DevPrivyDelegatedUltraSwapError('missing_privy_server_credentials', 500);
   }
   cachedPrivyClient = new PrivyClient({ appId, appSecret });
   return cachedPrivyClient;
+}
+
+function getSolanaConnection(): Connection {
+  const rpcUrl = parseRpcUrls(process.env.NEXT_PUBLIC_SOLANA_RPC_URLS)[0];
+  return new Connection(rpcUrl ?? 'https://api.mainnet-beta.solana.com', {
+    commitment: 'confirmed',
+  });
 }
 
 function toBase64Bytes(value: string): Uint8Array {
@@ -177,9 +212,10 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
     user.linked_accounts.find((account) => {
       if (account.type !== 'wallet') return false;
       const record = account as unknown as Record<string, unknown>;
+      const walletClient = record.wallet_client;
       return (
         record.chain_type === 'solana' &&
-        record.wallet_client === 'privy' &&
+        (walletClient === 'privy' || walletClient === 'privy-v2') &&
         record.connector_type === 'embedded' &&
         typeof record.address === 'string' &&
         record.address === address
@@ -188,21 +224,39 @@ function linkedSolanaEmbeddedWallet(user: User, address: string): LinkedAccount 
   );
 }
 
-async function resolvePrivyWallet(input: { client: PrivyClient; walletAddress: string }): Promise<{
-  wallet: Wallet;
+interface ResolvedPrivyWallet {
+  wallet: Wallet | null;
   delegated: boolean | null;
-}> {
-  const [wallet, user] = await Promise.all([
+  resolveError: string | null;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+async function resolvePrivyWallet(input: {
+  client: PrivyClient;
+  walletAddress: string;
+}): Promise<ResolvedPrivyWallet> {
+  const [walletResult, userResult] = await Promise.allSettled([
     input.client.wallets().getWalletByAddress({ address: input.walletAddress }),
     input.client.users().getByWalletAddress({ address: input.walletAddress }),
   ]);
-  const linkedWallet = linkedSolanaEmbeddedWallet(user, input.walletAddress);
+  const wallet = walletResult.status === 'fulfilled' ? walletResult.value : null;
+  const user = userResult.status === 'fulfilled' ? userResult.value : null;
+  const linkedWallet = user ? linkedSolanaEmbeddedWallet(user, input.walletAddress) : null;
   const delegated =
     linkedWallet && 'delegated' in linkedWallet
       ? Boolean((linkedWallet as unknown as Record<string, unknown>).delegated)
       : null;
+  const resolveError =
+    walletResult.status === 'rejected'
+      ? errorMessage(walletResult.reason)
+      : userResult.status === 'rejected'
+        ? errorMessage(userResult.reason)
+        : null;
 
-  return { wallet, delegated };
+  return { wallet, delegated, resolveError };
 }
 
 function swapPlanForPayload(payload: TriggerHitPayload, decimals: number): SwapPlan {
@@ -217,7 +271,7 @@ function swapPlanForPayload(payload: TriggerHitPayload, decimals: number): SwapP
   }
 
   if (!payload.tokenAmount || payload.tokenAmount <= 0) {
-    throw new DevPrivyDelegatedUltraError('sell_trigger_missing_token_amount', 400);
+    throw new DevPrivyDelegatedUltraSwapError('sell_trigger_missing_token_amount', 400);
   }
 
   return {
@@ -229,37 +283,24 @@ function swapPlanForPayload(payload: TriggerHitPayload, decimals: number): SwapP
   };
 }
 
-function buildAuthorizationContext(input: {
-  authorizationMode: DevPrivyAuthorizationMode;
-  userJwt: string | null;
-}): {
+function buildServerAuthorizationContext(): {
   context: AuthorizationContext;
-  used: DevPrivyDelegatedUltraResult['authorizationUsed'];
+  used: DevPrivyDelegatedUltraSwapResult['authorizationUsed'];
 } {
   const serverKeys = getAuthorizationPrivateKeys();
-  const wantsUserJwt =
-    input.authorizationMode === 'user-jwt' || input.authorizationMode === 'combined';
-  const wantsServerKey =
-    input.authorizationMode === 'server-key' || input.authorizationMode === 'combined';
-
-  if (wantsUserJwt && !input.userJwt) {
-    throw new DevPrivyDelegatedUltraError('missing_privy_user_jwt', 401);
-  }
-  if (wantsServerKey && serverKeys.length === 0) {
-    throw new DevPrivyDelegatedUltraError('missing_privy_authorization_private_key', 500, {
-      checkedEnv: AUTHORIZATION_PRIVATE_KEY_ENV_KEYS,
+  if (serverKeys.length === 0) {
+    throw new DevPrivyDelegatedUltraSwapError('missing_privy_authorization_private_key', 500, {
+      checkedEnv: [AUTHORIZATION_PRIVATE_KEY_ENV_KEY],
     });
   }
 
   return {
     context: {
-      ...(wantsUserJwt && input.userJwt ? { user_jwts: [input.userJwt] } : {}),
-      ...(wantsServerKey ? { authorization_private_keys: serverKeys } : {}),
+      authorization_private_keys: serverKeys,
     },
     used: {
-      userJwt: wantsUserJwt && !!input.userJwt,
-      serverKey: wantsServerKey && serverKeys.length > 0,
-      serverKeyConfigured: serverKeys.length > 0,
+      serverKey: true,
+      serverKeyConfigured: true,
     },
   };
 }
@@ -271,6 +312,38 @@ async function requestOrder(input: { plan: SwapPlan; taker: string }): Promise<U
     amount: input.plan.amount,
     taker: input.taker,
   });
+}
+
+function assertUltraOrderTransaction(order: UltraOrderResponse): string {
+  const problem = getUltraOrderProblem(order);
+  if (!problem) return order.transaction;
+
+  throw new DevPrivyDelegatedUltraSwapError(problem.message, 400, problem.detail);
+}
+
+async function assertInputBalance(input: {
+  plan: SwapPlan;
+  walletAddress: string;
+}): Promise<InputBalanceCheck> {
+  const owner = new PublicKey(input.walletAddress);
+  const balance = await readOwnerMintBalanceRaw(getSolanaConnection(), owner, input.plan.inputMint);
+  const requestedRaw = BigInt(input.plan.amount);
+
+  if (balance.raw < requestedRaw) {
+    throw new DevPrivyDelegatedUltraSwapError('insufficient_funds', 400, {
+      inputMint: input.plan.inputMint,
+      requestedRaw: requestedRaw.toString(),
+      walletRaw: balance.raw.toString(),
+      tokenProgramIds: balance.programIds,
+    });
+  }
+
+  return {
+    inputMint: input.plan.inputMint,
+    requestedRaw: requestedRaw.toString(),
+    walletRaw: balance.raw.toString(),
+    tokenProgramIds: balance.programIds,
+  };
 }
 
 function settlementFor(input: {
@@ -319,46 +392,94 @@ async function settleOrder(input: {
         });
 
   if (result.status === 'conflict') {
-    throw new DevPrivyDelegatedUltraError(`settle_${result.reason}`, 409);
+    throw new DevPrivyDelegatedUltraSwapError(`settle_${result.reason}`, 409);
   }
 
   const order = await prisma.order.findUnique({ where: { id: input.payload.orderId } });
   return { result, order: decimalsToNumbers(order) };
 }
 
-export async function runPrivyDelegatedUltraDevTool(
-  input: DevPrivyDelegatedUltraInput,
-): Promise<DevPrivyDelegatedUltraResult> {
+function statusFromResolved(input: {
+  walletAddress: string;
+  resolved: ResolvedPrivyWallet;
+}): DevPrivyDelegatedUltraSwapStatus {
+  const blockers: string[] = [];
+  const configured = serverKeyConfigured();
+  if (!configured) blockers.push('missing_privy_authorization_private_key');
+  if (!input.resolved.wallet) blockers.push('privy_wallet_not_delegated');
+  if (input.resolved.delegated !== true) blockers.push('wallet_not_delegated');
+
+  return {
+    ok: true,
+    serverKey: {
+      configured,
+      env: AUTHORIZATION_PRIVATE_KEY_ENV_KEY,
+    },
+    wallet: {
+      address: input.walletAddress,
+      privyWalletId: input.resolved.wallet?.id ?? null,
+      delegated: input.resolved.delegated,
+      ownerId: input.resolved.wallet?.owner_id ?? null,
+      policyIds: input.resolved.wallet?.policy_ids ?? [],
+      authorizationThreshold: input.resolved.wallet?.authorization_threshold ?? null,
+      resolveError: input.resolved.resolveError,
+    },
+    ready: {
+      canExecute: blockers.length === 0,
+      blockers,
+    },
+  };
+}
+
+export async function getPrivyDelegatedUltraSwapStatus(input: {
+  auth: AuthContext;
+}): Promise<DevPrivyDelegatedUltraSwapStatus> {
+  const client = getPrivyClient();
+  const resolved = await resolvePrivyWallet({
+    client,
+    walletAddress: input.auth.walletAddress,
+  });
+  return statusFromResolved({ walletAddress: input.auth.walletAddress, resolved });
+}
+
+export async function runPrivyDelegatedUltraSwapDevTool(
+  input: DevPrivyDelegatedUltraSwapInput,
+): Promise<DevPrivyDelegatedUltraSwapResult> {
   const { payload, walletAddress } = await buildOwnedDevTriggerPayload({
     userId: input.auth.userId,
     orderId: input.orderId,
   });
   const asset = getAssetById(payload.ticker);
   if (!asset) {
-    throw new DevPrivyDelegatedUltraError(`${payload.ticker}_asset_missing_decimals`, 500);
+    throw new DevPrivyDelegatedUltraSwapError(`${payload.ticker}_asset_missing_decimals`, 500);
   }
 
   const client = getPrivyClient();
-  const { wallet, delegated } = await resolvePrivyWallet({ client, walletAddress });
+  const resolved = await resolvePrivyWallet({ client, walletAddress });
+  const { context, used } = buildServerAuthorizationContext();
+  const { wallet, delegated } = resolved;
+  if (!wallet || delegated !== true) {
+    throw new DevPrivyDelegatedUltraSwapError('wallet_not_delegated', 409, {
+      walletAddress,
+      delegated,
+      resolveError: resolved.resolveError,
+    });
+  }
   if (wallet.chain_type !== 'solana') {
-    throw new DevPrivyDelegatedUltraError('privy_wallet_not_solana', 400, {
+    throw new DevPrivyDelegatedUltraSwapError('privy_wallet_not_solana', 400, {
       walletId: wallet.id,
       chainType: wallet.chain_type,
     });
   }
 
   const plan = swapPlanForPayload(payload, asset.decimals);
+  const balance = await assertInputBalance({ plan, walletAddress });
   const order = await requestOrder({ plan, taker: walletAddress });
-  const orderTransactionBytes = toBase64Bytes(order.transaction).byteLength;
-  const orderTransactionShape = describeTransaction(order.transaction);
-  const { context, used } = buildAuthorizationContext({
-    authorizationMode: input.authorizationMode,
-    userJwt: input.userJwt,
-  });
+  const transaction = assertUltraOrderTransaction(order);
+  const orderTransactionBytes = toBase64Bytes(transaction).byteLength;
+  const orderTransactionShape = describeTransaction(transaction);
 
-  const base: Omit<DevPrivyDelegatedUltraResult, 'ok'> = {
-    mode: input.mode,
-    authorizationMode: input.authorizationMode,
+  const base: Omit<DevPrivyDelegatedUltraSwapResult, 'ok'> = {
     authorizationUsed: used,
     wallet: {
       address: walletAddress,
@@ -370,6 +491,7 @@ export async function runPrivyDelegatedUltraDevTool(
     },
     trigger: payload,
     plan,
+    balance,
     ultraOrder: {
       requestId: order.requestId,
       inAmount: order.inAmount,
@@ -378,10 +500,10 @@ export async function runPrivyDelegatedUltraDevTool(
       otherAmountThreshold: order.otherAmountThreshold,
       transactionBytes: orderTransactionBytes,
       transactionShape: orderTransactionShape,
+      gasless: typeof order.gasless === 'boolean' ? order.gasless : null,
+      router: order.router ?? null,
     },
   };
-
-  if (input.mode === 'preview') return { ok: true, ...base };
 
   let claimed = false;
   let broadcasted = false;
@@ -391,7 +513,7 @@ export async function runPrivyDelegatedUltraDevTool(
       orderId: payload.orderId,
     });
     if (claim.status === 'conflict') {
-      throw new DevPrivyDelegatedUltraError(`claim_${claim.reason}`, 409);
+      throw new DevPrivyDelegatedUltraSwapError(`claim_${claim.reason}`, 409);
     }
     claimed = true;
 
@@ -399,7 +521,7 @@ export async function runPrivyDelegatedUltraDevTool(
       .wallets()
       .solana()
       .signTransaction(wallet.id, {
-        transaction: order.transaction,
+        transaction,
         authorization_context: context,
         idempotency_key: `dev-ultra-sign:${payload.orderId}:${order.requestId}`,
       });
@@ -412,7 +534,7 @@ export async function runPrivyDelegatedUltraDevTool(
     });
     broadcasted = exec.status === 'Success' && !!exec.signature;
     if (!broadcasted) {
-      throw new DevPrivyDelegatedUltraError(exec.error ?? 'jupiter_ultra_execute_failed', 502, {
+      throw new DevPrivyDelegatedUltraSwapError(exec.error ?? 'jupiter_ultra_execute_failed', 502, {
         status: exec.status,
       });
     }

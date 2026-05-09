@@ -31,6 +31,11 @@ export interface UltraOrderResponse {
   otherAmountThreshold: string;
   priceImpactPct: string;
   swapUsdValue?: string;
+  error?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  gasless?: boolean;
+  router?: string;
   [key: string]: unknown;
 }
 
