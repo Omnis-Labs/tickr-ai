@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { usePortfolio } from '@/lib/hooks/queries';
-import { portfolioPositionsToHoldings } from '@/lib/portfolio/holdings';
+import { derivePortfolioSummary } from '@/lib/portfolio/summary';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 function formatUsdc(value: number): string {
@@ -35,23 +35,8 @@ export default function PortfolioPage() {
   const data = portfolioQuery.data;
   const isLoading = portfolioQuery.isLoading;
 
-  const holdings = useMemo(
-    () => portfolioPositionsToHoldings(data?.positions ?? []),
-    [data?.positions],
-  );
-
-  const realized = data?.pnl.realized ?? 0;
-  const unrealized = data?.pnl.unrealized ?? 0;
-  const totalPnl = realized + unrealized;
-  const dayPnl = unrealized;
-  const cashUsd = data?.cashUsd ?? 0;
+  const summary = useMemo(() => derivePortfolioSummary(data), [data]);
   const solBalance = data?.solBalance ?? 0;
-  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
-  const totalValue = positionsValue + cashUsd;
-  const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
-  const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
-  const dayPnlPositive = dayPnl >= 0;
-  const totalPnlPositive = totalPnl >= 0;
 
   return (
     <>
@@ -88,16 +73,16 @@ export default function PortfolioPage() {
                     <div className="flex flex-col gap-1">
                       <span className="text-label-lg text-on-surface-variant">Total Value</span>
                       <span className="text-number-xl text-primary tracking-tight">
-                        ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${summary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="flex gap-2 mt-3 flex-wrap">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${dayPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
-                        Day {dayPnlPositive ? '+' : ''}${dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dayPnlPositive ? '+' : ''}{(dayPnlPct * 100).toFixed(1)}%)
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${summary.dayPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                        Day {summary.dayPnlPositive ? '+' : ''}${summary.dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({summary.dayPnlPositive ? '+' : ''}{(summary.dayPnlPct * 100).toFixed(1)}%)
                       </span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${totalPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
-                        Total {totalPnlPositive ? '+' : ''}${totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({totalPnlPositive ? '+' : ''}{(totalPnlPct * 100).toFixed(1)}%)
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${summary.totalPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                        Total {summary.totalPnlPositive ? '+' : ''}${summary.totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({summary.totalPnlPositive ? '+' : ''}{(summary.totalPnlPct * 100).toFixed(1)}%)
                       </span>
                     </div>
 
@@ -105,7 +90,7 @@ export default function PortfolioPage() {
                       <div className="flex flex-col gap-0.5">
                         <span className="text-label-md text-on-surface-variant">Cash (USDC)</span>
                         <span className="text-title-lg text-on-surface tabular-nums">
-                          ${cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ${summary.cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
                       <Link
@@ -140,7 +125,7 @@ export default function PortfolioPage() {
                     icon="payments"
                     label="USDC"
                     detail="Available for proposals"
-                    value={`${formatUsdc(cashUsd)} USDC`}
+                    value={`${formatUsdc(summary.cashUsd)} USDC`}
                   />
                   <WalletAssetRow
                     icon="bolt"
@@ -156,7 +141,7 @@ export default function PortfolioPage() {
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-title-lg text-primary">Holdings</h2>
               </div>
-              <HoldingsList holdings={holdings} isLoading={isLoading} />
+              <HoldingsList holdings={summary.holdings} isLoading={isLoading} />
             </section>
 
             <section>

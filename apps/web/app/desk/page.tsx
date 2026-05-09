@@ -11,7 +11,7 @@ import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
 import { PanicCloseAll } from '@/components/desk/panic-close-all';
 import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { usePortfolio } from '@/lib/hooks/queries';
-import { portfolioPositionsToHoldings } from '@/lib/portfolio/holdings';
+import { derivePortfolioSummary } from '@/lib/portfolio/summary';
 
 export default function DeskPage() {
   const portfolioQuery = usePortfolio();
@@ -19,9 +19,9 @@ export default function DeskPage() {
   const isLoading = portfolioQuery.isLoading;
   const portfolioError = portfolioQuery.error;
 
-  const holdings = useMemo(
-    () => portfolioPositionsToHoldings(portfolioQuery.data?.positions ?? []),
-    [portfolioQuery.data?.positions],
+  const summary = useMemo(
+    () => derivePortfolioSummary(portfolioQuery.data),
+    [portfolioQuery.data],
   );
   const panicClosePositions = useMemo(
     () =>
@@ -35,20 +35,7 @@ export default function DeskPage() {
     [portfolioQuery.data?.positions],
   );
 
-  const realized = portfolioQuery.data?.pnl.realized ?? 0;
-  const unrealized = portfolioQuery.data?.pnl.unrealized ?? 0;
-  const totalPnl = realized + unrealized;
-  const dayPnl = unrealized; // 24h delta not tracked separately yet
-  const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
-  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
-  const totalValue = positionsValue + cashUsd;
-  const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
-  const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
-  const dayPnlPositive = dayPnl >= 0;
-  const totalPnlPositive = totalPnl >= 0;
-
-  const hasHoldings = holdings.length > 0;
-  const hasCash = cashUsd > 0;
+  const hasCash = summary.cashUsd > 0;
   const scrollToDeposit = () => {
     document.getElementById('deposit-section')?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -107,16 +94,16 @@ export default function DeskPage() {
                 <div className="flex flex-col gap-1">
                   <span className="text-label-lg text-on-surface-variant">Total Value</span>
                   <span className="text-number-xl text-primary tracking-tight">
-                    ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${summary.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 
                 <div className="flex gap-2 mt-3">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${dayPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
-                    Day {dayPnlPositive ? '+' : ''}${dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({dayPnlPositive ? '+' : ''}{(dayPnlPct * 100).toFixed(1)}%)
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${summary.dayPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                    Day {summary.dayPnlPositive ? '+' : ''}${summary.dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({summary.dayPnlPositive ? '+' : ''}{(summary.dayPnlPct * 100).toFixed(1)}%)
                   </span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${totalPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
-                    Total {totalPnlPositive ? '+' : ''}${totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({totalPnlPositive ? '+' : ''}{(totalPnlPct * 100).toFixed(1)}%)
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-label-sm font-semibold ${summary.totalPnlPositive ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'}`}>
+                    Total {summary.totalPnlPositive ? '+' : ''}${summary.totalPnl.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({summary.totalPnlPositive ? '+' : ''}{(summary.totalPnlPct * 100).toFixed(1)}%)
                   </span>
                 </div>
 
@@ -124,7 +111,7 @@ export default function DeskPage() {
                   <div className="flex flex-col gap-0.5">
                     <span className="text-label-md text-on-surface-variant">Cash (USDC)</span>
                     <span className="text-title-lg text-on-surface">
-                      ${cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${summary.cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -153,8 +140,8 @@ export default function DeskPage() {
         <PortfolioReadiness
           isLoading={isLoading}
           hasCash={hasCash}
-          hasHoldings={hasHoldings}
-          cashUsd={cashUsd}
+          hasHoldings={summary.hasHoldings}
+          cashUsd={summary.cashUsd}
           onDeposit={scrollToDeposit}
         />
 
@@ -174,7 +161,7 @@ export default function DeskPage() {
               ))}
             </div>
           ) : (
-            <HoldingsList holdings={holdings} />
+            <HoldingsList holdings={summary.holdings} />
           )}
         </section>
 
