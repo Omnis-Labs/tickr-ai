@@ -343,10 +343,10 @@ The ws-server runs Socket.IO. Authentication uses Privy access tokens (not raw w
 // Client connects and authenticates
 socket.emit('auth', { privyAccessToken: string });
 
-// Server verifies token, resolves user, joins room user:{userId}
+// Server verifies token, resolves user, joins room user:{walletAddress}
 // Server responds with:
-socket.on('auth:success', { userId: string, walletAddress: string });
-socket.on('auth:error', { message: string });
+socket.on('auth:ok', { room: string });
+socket.on('auth:error', { reason: string });
 ```
 
 ### Client to Server
