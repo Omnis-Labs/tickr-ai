@@ -171,6 +171,9 @@ importers:
       '@hunch-it/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@privy-io/node':
+        specifier: ^0.18.0
+        version: 0.18.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(viem@2.47.12(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.25.76))
       '@privy-io/server-auth':
         specifier: ^1.18.0
         version: 1.32.5(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(viem@2.48.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
