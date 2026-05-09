@@ -28,14 +28,35 @@ The key must be the base64 PKCS8 private key with no PEM headers. Do not commit 
 5. Fund the embedded Solana wallet with enough USDC for a BUY test, or enough token balance for a SELL test.
 6. Generate and accept a dev-tools proposal to create a BUY trigger Order, or pick an existing open TP/SL Order.
 7. In **Privy delegated Ultra swap**, select the exact open Order to execute.
-8. Click **Execute swap**. The server will claim the Order, request a Jupiter Ultra order, ask Privy to sign with the server authorization key, submit `/execute`, and settle the DB lifecycle.
+8. Read **Preflight hypotheses**. It should say **Can attempt** before the real swap path runs.
+9. Click **Execute swap**. The server will first write a `privyDelegatedUltraSwap.preflight` log, then claim the Order, request a Jupiter Ultra order, ask Privy to sign with the server authorization key, submit `/execute`, and settle the DB lifecycle.
+
+## Debug Logs
+
+The `/dev-tools` block now shows the likely failure points before execution:
+
+- **Wallet session**: whether the embedded Solana wallet is connected.
+- **Selected order**: whether the order is open and supported by the delegated experiment.
+- **Order funding**: the input mint and amount the wallet must hold.
+- **Server readiness**: `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`, Privy wallet lookup, and delegation blockers.
+- **Privy delegation**: whether the client and server agree that delegated access is enabled.
+- **Ultra order transaction**: whether Jupiter can return a non-empty signable transaction.
+- **Privy signing**: whether the server key is present and likely able to sign through the delegated policy.
+- **Order settlement**: whether DB settlement may conflict with a concurrently claimed, filled, or cancelled order.
+
+Clicking **Execute swap** is allowed even when preflight is blocked. In that case it records a failed `privyDelegatedUltraSwap.preflight` log with the blockers, but it does not post the swap execution request.
 
 ## Expected Failures
 
 - `missing_privy_authorization_private_key`: add `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.
+- `jupiter_ultra_order_failed`: the server could not fetch a Jupiter Ultra order.
 - `ultra_order_unavailable`: Jupiter did not return a usable unsigned transaction.
+- `ultra_transaction_deserialize_failed`: Jupiter returned transaction bytes that Solana web3.js could not decode.
+- `privy_sign_transaction_failed`: Privy could not sign with the server authorization key.
+- `privy_signed_transaction_invalid`: Privy returned signed bytes that could not be decoded.
 - `jupiter_ultra_execute_failed`: Jupiter rejected the signed transaction.
+- `order_settlement_failed`: swap broadcast may have succeeded, but DB settlement failed.
 
 When debugging, use the `/dev-tools` logs. The delegated access log reports configuration readiness. The delegated Ultra swap log reports wallet delegation, server signer, Ultra relay, signature, and settlement details.
