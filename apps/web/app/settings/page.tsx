@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -10,9 +10,13 @@ import {
   Clipboard,
   LogOut,
   Pencil,
+  RefreshCw,
+  ShieldCheck,
+  ShieldOff,
   SlidersHorizontal,
   TriangleAlert,
   UserRound,
+  Zap,
 } from 'lucide-react';
 import {
   HOLDING_PERIOD_OPTIONS,
@@ -125,6 +129,8 @@ export default function SettingsPage() {
           )}
         </Section>
 
+        <AutoExecuteTriggersCard />
+
         <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
           {isPortfolioLoading ? (
             <SkeletonRows rows={2} />
@@ -228,6 +234,222 @@ export default function SettingsPage() {
         <CloseAllPositionsCard />
       </main>
     </>
+  );
+}
+
+type DelegatedExecutionStatusResponse =
+  | {
+      ok: true;
+      serverKey: { configured: boolean; env: string };
+      serverSigner: { configured: boolean; walletMatched: boolean; env: string[] };
+      wallet: {
+        delegated: boolean | null;
+        privyWalletId: string | null;
+        walletClientType: string | null;
+        resolveError: string | null;
+      };
+      ready: { canExecute: boolean; blockers: string[] };
+    }
+  | { ok: false; error: string };
+
+function AutoExecuteTriggersCard() {
+  const { connected, delegateWallet, revokeDelegatedWallets, refreshWalletUser } = useWallet();
+  const authedFetch = useAuthedFetch();
+  const [status, setStatus] = useState<DelegatedExecutionStatusResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<'enable' | 'disable' | null>(null);
+
+  const refreshStatus = useCallback(async () => {
+    if (!connected) {
+      setStatus(null);
+      return null;
+    }
+    setLoading(true);
+    try {
+      const res = await authedFetch('/api/delegated-execution/status');
+      const body = (await res.json().catch(() => null)) as DelegatedExecutionStatusResponse | null;
+      if (!res.ok || !body) {
+        const error = body && 'error' in body ? body.error : `status ${res.status}`;
+        const next = { ok: false as const, error };
+        setStatus(next);
+        return next;
+      }
+      setStatus(body);
+      return body;
+    } catch (err) {
+      const next = { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+      setStatus(next);
+      return next;
+    } finally {
+      setLoading(false);
+    }
+  }, [authedFetch, connected]);
+
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  const grantActive =
+    status?.ok === true &&
+    (status.wallet.delegated === true || status.serverSigner.walletMatched === true);
+  const ready = status?.ok === true && status.ready.canExecute;
+  const statusLabel = !connected
+    ? 'Signed out'
+    : loading
+      ? 'Checking'
+      : status?.ok === false
+        ? 'Check failed'
+        : ready
+          ? 'On'
+          : grantActive
+            ? 'Needs setup'
+            : 'Off';
+  const statusTone =
+    status?.ok === false
+      ? 'bg-error-container text-error'
+      : ready
+        ? 'bg-positive-container text-primary'
+        : grantActive
+          ? 'bg-tertiary-container text-on-tertiary-container'
+          : 'bg-surface-container-low text-on-surface-variant';
+  const detail = !connected
+    ? 'Sign in to manage delegated trigger execution.'
+    : ready
+      ? 'Hunch can execute accepted BUY, TP, and SL triggers when prices hit.'
+      : status?.ok === false
+        ? 'Could not read delegated wallet status.'
+        : grantActive
+          ? 'Delegation exists, but server readiness is incomplete.'
+          : 'Hunch will keep sending manual Execute prompts when triggers hit.';
+  const blockerLabel =
+    grantActive && status?.ok === true && status.ready.blockers.length > 0
+      ? status.ready.blockers.map((item) => item.replaceAll('_', ' ')).join(', ')
+      : null;
+
+  async function handleEnable() {
+    setBusy('enable');
+    try {
+      await delegateWallet();
+      await refreshWalletUser().catch(() => null);
+      const next = await refreshStatus();
+      if (next?.ok && next.ready.canExecute) {
+        toast.success('Auto-execute triggers enabled.');
+      } else {
+        toast('Delegation granted. Server readiness is still incomplete.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDisable() {
+    setBusy('disable');
+    try {
+      await revokeDelegatedWallets();
+      await refreshWalletUser().catch(() => null);
+      await refreshStatus();
+      toast.success('Auto-execute triggers disabled.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const toggleDisabled = !connected || loading || busy !== null;
+
+  return (
+    <Section icon={<Zap className="h-5 w-5" />} title="Auto-execute triggers">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-2.5 py-1 text-label-sm ${statusTone}`}>
+              {statusLabel}
+            </span>
+            {status?.ok === true && status.wallet.walletClientType && (
+              <span className="rounded-full bg-surface-container-low px-2.5 py-1 text-label-sm text-on-surface-variant">
+                {status.wallet.walletClientType}
+              </span>
+            )}
+          </div>
+          <p className="text-body-sm leading-5 text-on-surface-variant">{detail}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={grantActive}
+          aria-label="Toggle auto-execute triggers"
+          disabled={toggleDisabled}
+          onClick={() => void (grantActive ? handleDisable() : handleEnable())}
+          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+            grantActive ? 'bg-primary' : 'bg-surface-container-highest'
+          } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+        >
+          <span
+            className={`absolute top-1 h-6 w-6 rounded-full bg-surface shadow-micro transition-transform ${
+              grantActive ? 'translate-x-7' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void refreshStatus()}
+          disabled={!connected || loading || busy !== null}
+          className="inline-flex h-10 items-center gap-2 rounded-full bg-surface-container-low px-3 text-label-md text-primary transition-colors hover:bg-surface-container-high disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          Check
+        </button>
+        {grantActive ? (
+          <button
+            type="button"
+            onClick={() => void handleDisable()}
+            disabled={toggleDisabled}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-error-container px-3 text-label-md text-error transition-colors hover:bg-error-container/80 disabled:opacity-50"
+          >
+            {busy === 'disable' ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <ShieldOff className="h-4 w-4" aria-hidden="true" />
+            )}
+            Revoke
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleEnable()}
+            disabled={toggleDisabled}
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-accent px-3 text-label-md text-on-accent transition-colors hover:bg-accent/90 disabled:opacity-50"
+          >
+            {busy === 'enable' ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            )}
+            Enable
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-lg bg-surface-container-low px-4 py-3">
+        <div className="flex items-start gap-2">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <p className="text-body-sm leading-5 text-on-surface-variant">
+            Enabling delegates execution ability to Hunch for trigger fills. Your wallet stays
+            non-custodial, and revoking removes that grant.
+          </p>
+        </div>
+        {status?.ok === false && <p className="mt-2 text-body-sm text-error">{status.error}</p>}
+        {blockerLabel && (
+          <p className="mt-2 text-body-sm text-on-surface-variant">Blocked by {blockerLabel}.</p>
+        )}
+      </div>
+    </Section>
   );
 }
 
