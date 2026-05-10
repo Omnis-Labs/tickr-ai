@@ -35,9 +35,7 @@ export function deriveAutoExecuteSettingsState(input: {
   clientDelegated?: boolean | null;
 }): AutoExecuteSettingsState {
   const serverGrantActive =
-    input.status?.ok === true &&
-    input.status.wallet.walletClientType === 'privy-v2' &&
-    input.status.serverSigner.walletMatched === true;
+    input.status?.ok === true && input.status.serverSigner.walletMatched === true;
   const clientGrantActive = false;
   const grantActive = serverGrantActive || clientGrantActive;
   const ready = input.status?.ok === true && input.status.ready.canExecute;
@@ -101,9 +99,7 @@ export interface DelegatedAccessGrantStatus {
 export function delegatedAccessGrantActive(
   status: DelegatedAccessGrantStatus | null | undefined,
 ): boolean {
-  return (
-    status?.wallet.walletClientType === 'privy-v2' && status.serverSigner.walletMatched === true
-  );
+  return status?.serverSigner.walletMatched === true;
 }
 
 export async function withDelegatedAccessTimeout<T>(

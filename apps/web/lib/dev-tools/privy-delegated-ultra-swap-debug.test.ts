@@ -111,17 +111,18 @@ test('delegated Ultra API diagnostics explain Privy server signing failures', ()
   assert.match(diagnostics[0]?.detail ?? '', /wallet delegation policy/);
 });
 
-test('delegated Ultra API diagnostics explain unsupported Privy wallet versions', () => {
+test('delegated Ultra API diagnostics explain missing Privy signer grants', () => {
   const diagnostics = diagnosticsForDelegatedUltraApiError({
-    message: 'unsupported_privy_wallet_client_type',
+    message: 'wallet_missing_authorization_signer',
     status: 409,
     detail: {
       walletClientType: 'privy',
-      expectedWalletClientType: 'privy-v2',
+      signerConfigured: true,
+      additionalSignerIds: [],
     },
   });
 
-  assert.equal(diagnostics[0]?.hypothesis, 'Privy wallet version');
+  assert.equal(diagnostics[0]?.hypothesis, 'Privy authorization signer');
   assert.equal(diagnostics[0]?.status, 'risk');
-  assert.match(diagnostics[0]?.detail ?? '', /wallet v2 signer wallet/);
+  assert.match(diagnostics[0]?.detail ?? '', /adds the configured authorization signer/);
 });

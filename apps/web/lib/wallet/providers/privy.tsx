@@ -23,6 +23,10 @@ const AUTHORIZATION_POLICY_IDS = (
   .map((item) => item.trim())
   .filter(Boolean);
 
+function isPrivyEmbeddedWalletClientType(value: unknown): boolean {
+  return value === 'privy' || value === 'privy-v2';
+}
+
 /**
  * The only file that imports @privy-io/react-auth. Mounted INSIDE
  * PrivyProvider; bridges Privy's various hooks into our UnifiedWallet
@@ -58,7 +62,7 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
           address === wallet.address &&
           chainType === 'solana' &&
           connectorType === 'embedded' &&
-          (walletClientType === 'privy' || walletClientType === 'privy-v2')
+          isPrivyEmbeddedWalletClientType(walletClientType)
         );
       }) ?? null
     );
@@ -187,13 +191,13 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         ) {
           throw new Error('Only Privy embedded wallets support delegated access here.');
         }
-        if (walletClientType !== 'privy-v2') {
+        if (!isPrivyEmbeddedWalletClientType(walletClientType)) {
           throw new Error(
-            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}. Privy wallet v2 is required.`,
+            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}. Privy embedded wallet signer access is required.`,
           );
         }
         if (!AUTHORIZATION_SIGNER_ID) {
-          throw new Error('Privy wallet v2 signer delegation is not configured.');
+          throw new Error('Privy embedded wallet signer delegation is not configured.');
         }
         await addSigners({
           address: wallet.address,

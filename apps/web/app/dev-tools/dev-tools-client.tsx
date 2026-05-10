@@ -543,7 +543,6 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
     const serverKeyConfigured = readPath(source, ['serverKey', 'configured']);
     const signerConfigured = readPath(source, ['serverSigner', 'configured']);
     const signerMatched = readPath(source, ['serverSigner', 'walletMatched']);
-    const walletClientType = readPath(source, ['wallet', 'walletClientType']);
     const blockers = readPath(source, ['ready', 'blockers']);
     const timeoutCode = readPath(source, ['detail', 'code']);
     if (timeoutCode === 'delegated_access_timeout') {
@@ -575,7 +574,7 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
           hypothesis: 'Privy authorization signer',
           status: 'watch',
           detail:
-            'After restart, Enable should attach the Privy wallet v2 signer from the browser bundle.',
+            'After restart, Enable should attach the configured Privy signer from the browser bundle.',
         },
       ];
     }
@@ -585,10 +584,10 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
         status: signerMatched === true ? 'healthy' : serverDelegated === true ? 'watch' : 'risk',
         detail:
           signerMatched === true
-            ? 'Server can resolve the configured wallet v2 authorization signer for this embedded Solana wallet.'
+            ? 'Server can resolve the configured authorization signer for this embedded Solana wallet.'
             : serverDelegated === true
-              ? 'Legacy delegated wallet metadata is present, but Auto-execute now requires the wallet v2 signer.'
-              : 'The wallet v2 authorization signer is not attached yet.',
+              ? 'Legacy delegated wallet metadata is present, but Auto-execute now requires the configured signer.'
+              : 'The configured authorization signer is not attached yet.',
       },
       {
         hypothesis: 'Server authorization key',
@@ -603,7 +602,7 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
         status:
           signerMatched === true
             ? 'healthy'
-            : walletClientType === 'privy-v2' && signerConfigured !== true
+            : signerConfigured !== true
               ? 'risk'
               : signerConfigured === true
                 ? 'watch'
@@ -611,11 +610,11 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
         detail:
           signerMatched === true
             ? 'Configured signer is attached to this wallet.'
-            : walletClientType === 'privy-v2' && signerConfigured !== true
+            : signerConfigured !== true
               ? 'Add NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID before enabling signer delegation.'
               : signerConfigured === true
                 ? 'Signer ID is configured; wallet has not attached it yet.'
-                : 'Privy wallet v2 signer configuration is missing.',
+                : 'Privy signer configuration is missing.',
       },
       {
         hypothesis: 'Execution readiness',

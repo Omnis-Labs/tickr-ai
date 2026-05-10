@@ -9,7 +9,6 @@ export const DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS = [
 export type DelegatedExecutionReadinessBlocker =
   | 'missing_privy_authorization_private_key'
   | 'privy_wallet_not_delegated'
-  | 'unsupported_privy_wallet_client_type'
   | 'missing_privy_authorization_signer_id'
   | 'wallet_missing_authorization_signer'
   | 'wallet_not_delegated'
@@ -78,12 +77,9 @@ export function delegatedExecutionReadinessStatus(input: {
   const signerMatched = input.authorizationSignerId
     ? input.resolved.additionalSignerIds.includes(input.authorizationSignerId)
     : false;
-  const unsupportedWalletClient =
-    input.resolved.walletId != null && input.resolved.walletClientType !== 'privy-v2';
 
   if (!input.serverKeyConfigured) blockers.push('missing_privy_authorization_private_key');
   if (!input.resolved.walletId) blockers.push('privy_wallet_not_delegated');
-  if (unsupportedWalletClient) blockers.push('unsupported_privy_wallet_client_type');
   if (!signerConfigured) blockers.push('missing_privy_authorization_signer_id');
   if (signerConfigured && !signerMatched) {
     blockers.push('wallet_missing_authorization_signer');

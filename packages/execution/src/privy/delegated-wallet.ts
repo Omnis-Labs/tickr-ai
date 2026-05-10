@@ -130,13 +130,6 @@ function unavailableDetail(input: {
   if (input.blocker === 'missing_privy_authorization_signer_id') {
     return { checkedEnv: AUTHORIZATION_SIGNER_ID_ENV_KEYS };
   }
-  if (input.blocker === 'unsupported_privy_wallet_client_type') {
-    return {
-      walletAddress: input.walletAddress,
-      walletClientType: input.walletClientType,
-      expectedWalletClientType: 'privy-v2',
-    };
-  }
   if (input.blocker === 'wallet_missing_authorization_signer') {
     return {
       walletAddress: input.walletAddress,

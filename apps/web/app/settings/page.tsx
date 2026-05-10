@@ -462,7 +462,7 @@ function AutoExecuteTriggersCard() {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <p className="text-body-sm leading-5 text-on-surface-variant">
-            Enabling attaches a Privy wallet v2 signer for trigger fills. Your wallet stays
+            Enabling attaches the configured Privy signer for trigger fills. Your wallet stays
             non-custodial, and revoking removes that signer access.
           </p>
         </div>
