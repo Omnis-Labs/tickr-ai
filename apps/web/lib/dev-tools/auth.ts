@@ -4,16 +4,15 @@ import { createHash } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export const DEV_TOOLS_COOKIE = 'hunch_dev_tools';
-export const DEV_TOOLS_DEFAULT_PASSWORD = '<choose-a-local-password>';
 
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8;
 
 export function devToolsPassword(): string {
-  return process.env.DEV_TOOLS_PASSWORD || DEV_TOOLS_DEFAULT_PASSWORD;
+  return process.env.DEV_TOOLS_PASSWORD ?? '';
 }
 
 export function devToolsEnabled(): boolean {
-  return process.env.ENABLE_DEV_TOOLS === 'true';
+  return process.env.ENABLE_DEV_TOOLS === 'true' && devToolsPassword().length > 0;
 }
 
 function cookieValue(): string {

@@ -42,8 +42,8 @@ services:
       DATABASE_URL: postgresql://hunch:hunch@postgres:5432/hunchit
       WS_SERVER_PORT: "4000"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      ENABLE_DEV_TOOLS: "${ENABLE_DEV_TOOLS:-true}"
-      DEV_TOOLS_PASSWORD: "${DEV_TOOLS_PASSWORD:-<choose-a-local-password>}"
+      ENABLE_DEV_TOOLS: "${ENABLE_DEV_TOOLS:-false}"
+      DEV_TOOLS_PASSWORD: "${DEV_TOOLS_PASSWORD:-}"
       LLM_ENABLED: "${LLM_ENABLED:-true}"
       LLM_DAILY_USD_CAP: "${LLM_DAILY_USD_CAP:-20}"
       SIGNAL_INTERVAL_SECONDS: "${SIGNAL_INTERVAL_SECONDS:-60}"
@@ -94,8 +94,8 @@ services:
       PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY: ${PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY:-}
       PRIVY_WALLET_AUTHORIZATION_SIGNER_ID: ${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      ENABLE_DEV_TOOLS: "${ENABLE_DEV_TOOLS:-true}"
-      DEV_TOOLS_PASSWORD: "${DEV_TOOLS_PASSWORD:-<choose-a-local-password>}"
+      ENABLE_DEV_TOOLS: "${ENABLE_DEV_TOOLS:-false}"
+      DEV_TOOLS_PASSWORD: "${DEV_TOOLS_PASSWORD:-}"
       WS_SERVER_INTERNAL_URL: http://ws-server:4000
       # Server-side route handlers (e.g. /api/portfolio → readUsdcBalance)
       # read these via process.env at request time. NEXT_PUBLIC_* env

@@ -108,9 +108,9 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Frontend (apps/web)            | GCP VM + Docker           | Next.js container                                       |
 | Signal Engine (apps/ws-server) | GCP VM + Docker           | Long-running Node.js process with WebSocket connections |
 | Database                       | PostgreSQL 15 in Docker   | Single instance on the prod VM; apps connect via the docker-compose network |
-| DNS                            | Cloud DNS                 | <app-domain>                                            |
+| DNS                            | External A records        | Public app and websocket domains route to the reverse proxy |
 
-Both apps/web and ws-server are packaged as Docker images, deployed on the same (or two separate) GCP VMs. Environment variables (API keys, DB credentials) are configured directly in Docker Compose or `.env` on the VM.
+Both apps/web and ws-server are packaged as Docker images and deployed on the same GCP VM. Environment variables (API keys, DB credentials) are configured in `/opt/hunchit/.env` on the VM.
 
 ---
 

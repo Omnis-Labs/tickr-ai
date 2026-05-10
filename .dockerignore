@@ -17,6 +17,7 @@
 
 # Build outputs
 **/dist
+packages/db/generated
 **/.next
 **/.turbo
 **/.cache
@@ -27,9 +28,18 @@
 .env
 .env.local
 .env.*.local
+.env.*
 **/.env
 **/.env.local
 **/.env.*.local
+**/.env.*
+
+# Credentials / private material
+**/*.pem
+**/*.key
+**/*.p8
+**/*credentials*.json
+**/*service-account*.json
 
 # Local DB / data
 **/*.db

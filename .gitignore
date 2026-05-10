@@ -13,6 +13,17 @@ out/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+!**/.env.example
+
+# credentials
+*.pem
+*.key
+*.p8
+*credentials*.json
+*service-account*.json
+service-account*.json
 
 # logs
 npm-debug.log*
@@ -28,6 +39,7 @@ pnpm-debug.log*
 
 # prisma
 apps/web/prisma/migrations/dev.db*
+packages/db/generated/
 
 # local-only planning notes (do not share)
 deploy/

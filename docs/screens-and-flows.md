@@ -338,7 +338,7 @@ Standalone page.
 
 ```mermaid
 flowchart TD
-    A[User opens <app-domain>] --> B{Logged in?}
+    A[User opens app domain] --> B{Logged in?}
     B -- No --> C[Show Landing]
     C --> D[Privy Login]
     D --> E{Success?}
@@ -368,7 +368,7 @@ flowchart TD
 ### Flow: Returning User
 
 ```
-1. Open <app-domain> (Privy session valid)
+1. Open the app domain (Privy session valid)
 2. Home: holdings + P&L + proposals feed
 3. Review proposal → Accept synthetic Order or Skip
 4. Or: tap into Position Detail → adjust TP/SL or Close Position

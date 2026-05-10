@@ -2,7 +2,7 @@
 
 > AI trading signals with synthetic trigger swaps for xStocks and crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute trigger Orders through Jupiter Ultra with tap-to-execute or opt-in Auto-execute triggers, and get automatic exit protection on every position.
 >
-> Domain: <app-domain> | v1.3 | 2026-04-27
+> Domain: app domain | v1.3 | 2026-04-27
 
 ---
 

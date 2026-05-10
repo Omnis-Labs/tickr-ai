@@ -8,7 +8,7 @@ const EnvSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
     .default('false'),
-  DEV_TOOLS_PASSWORD: z.string().default('<choose-a-local-password>'),
+  DEV_TOOLS_PASSWORD: z.string().optional(),
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
   PYTH_HERMES_URL: z.string().url().default('https://hermes.pyth.network'),
@@ -57,5 +57,5 @@ if (!parsed.success) {
 export const env = parsed.data;
 
 export function devToolsEnabled(): boolean {
-  return env.ENABLE_DEV_TOOLS;
+  return env.ENABLE_DEV_TOOLS && Boolean(env.DEV_TOOLS_PASSWORD);
 }
