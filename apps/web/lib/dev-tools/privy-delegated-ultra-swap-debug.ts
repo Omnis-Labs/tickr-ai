@@ -361,17 +361,6 @@ export function diagnosticsForDelegatedUltraApiError(input: {
     ];
   }
 
-  if (message === 'unsupported_privy_wallet_client_type') {
-    return [
-      {
-        hypothesis: 'Privy wallet version',
-        status: 'risk',
-        detail:
-          'Auto-execute requires a Privy wallet v2 signer wallet. Create or reconnect with a wallet v2 embedded Solana wallet.',
-      },
-    ];
-  }
-
   if (message === 'wallet_not_delegated' || message === 'privy_wallet_not_delegated') {
     return [
       {

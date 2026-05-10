@@ -58,7 +58,7 @@ test('Settings exposes readiness blockers when signer access exists but cannot e
   assert.equal(state.blockerLabel, 'missing privy authorization private key');
 });
 
-test('Settings ignores signer metadata on unsupported legacy Privy wallets', () => {
+test('Settings treats signer metadata on Privy embedded wallets as active', () => {
   const status: DelegatedExecutionSettingsStatus = {
     ok: true,
     serverKey: { configured: true, env: 'PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY' },
@@ -78,7 +78,7 @@ test('Settings ignores signer metadata on unsupported legacy Privy wallets', () 
     },
     ready: {
       canExecute: false,
-      blockers: ['unsupported_privy_wallet_client_type'],
+      blockers: ['missing_privy_authorization_private_key'],
     },
   };
 
@@ -89,9 +89,10 @@ test('Settings ignores signer metadata on unsupported legacy Privy wallets', () 
     status,
   });
 
-  assert.equal(state.grantActive, false);
-  assert.equal(state.primaryAction, 'enable');
-  assert.equal(state.statusLabel, 'Manual');
+  assert.equal(state.grantActive, true);
+  assert.equal(state.primaryAction, 'disable');
+  assert.equal(state.statusLabel, 'Needs setup');
+  assert.equal(state.blockerLabel, 'missing privy authorization private key');
 });
 
 test('Settings trusts server status over stale local delegated metadata', () => {
@@ -167,7 +168,7 @@ test('delegated access revoke resolves when status shows the grant is already go
     readStatus: async () => {
       reads += 1;
       return {
-        wallet: { delegated: true, walletClientType: 'privy-v2' },
+        wallet: { delegated: true, walletClientType: 'privy' },
         serverSigner: { walletMatched: reads === 1 },
       };
     },
