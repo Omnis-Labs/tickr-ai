@@ -38,3 +38,5 @@ docs/test-plan.md
 docs/jupiter-api-audit.md
 /.sisyphus
 /.specs
+/.agents
+/.claude
