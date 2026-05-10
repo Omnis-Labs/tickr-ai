@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { getAssetById } from '@hunch-it/shared';
 import { useOpenOrders } from '@/lib/hooks/queries';
 
 /**
@@ -53,35 +54,37 @@ export function OpenOrders() {
             const kindLabel = order.kind === 'TAKE_PROFIT' ? 'TP' : order.kind === 'STOP_LOSS' ? 'SL' : order.kind === 'BUY_TRIGGER' ? 'BUY' : order.kind;
             const kindColor = order.kind === 'TAKE_PROFIT' ? 'text-positive' : order.kind === 'STOP_LOSS' ? 'text-negative' : 'text-on-surface';
             const icon = order.kind === 'BUY_TRIGGER' ? 'shopping_cart' : order.kind === 'TAKE_PROFIT' ? 'trending_up' : order.kind === 'STOP_LOSS' ? 'trending_down' : 'swap_vert';
-            // OrderRow from /api/orders doesn't carry ticker; we show a
-            // short positionId stub. Position Detail page reveals the full
-            // asset metadata when the user clicks through.
-            const ticker = order.positionId.slice(0, 8);
+            const asset = getAssetById(order.ticker);
+            const ticker = asset?.displaySymbol ?? order.ticker;
+            const assetName = asset?.name ?? null;
+            const priceText = `$${order.sizeUsd.toLocaleString()}${
+              order.triggerPriceUsd != null ? ` @ $${order.triggerPriceUsd.toLocaleString()}` : ''
+            }`;
             const editLeg = order.kind === 'TAKE_PROFIT' ? 'tp' : order.kind === 'STOP_LOSS' ? 'sl' : null;
             const isEditable = editLeg != null && order.status === 'OPEN';
             return (
               <div
                 key={order.id}
-                className={`flex justify-between items-center ${i < orders.length - 1 ? 'pb-4 border-b border-divider' : ''}`}
+                className={`flex items-center justify-between gap-3 ${i < orders.length - 1 ? 'pb-4 border-b border-divider' : ''}`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="bg-surface-container-high text-on-surface w-10 h-10 rounded-full flex items-center justify-center">
                     <span className="material-symbols-outlined text-[20px]">{icon}</span>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-label-lg text-on-surface">{ticker}</span>
+                  <div className="min-w-0">
+                    <div className="mb-0.5 flex min-w-0 items-center gap-2">
+                      <span className="truncate text-label-lg text-on-surface">{ticker}</span>
                       <span className={`text-label-md font-bold ${kindColor}`}>
                         {kindLabel}
                       </span>
                     </div>
-                    <div className="text-body-sm text-on-surface-variant">
-                      ${order.sizeUsd.toLocaleString()} {order.triggerPriceUsd ? `@ $${order.triggerPriceUsd.toLocaleString()}` : ''}
+                    <div className="truncate text-body-sm text-on-surface-variant">
+                      {assetName ? `${assetName} - ` : ''}{priceText}
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <div className="bg-surface-container text-on-surface text-label-sm px-2 py-1 rounded-full">
                     {order.status}
                   </div>

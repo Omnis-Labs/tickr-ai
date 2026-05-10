@@ -77,18 +77,22 @@ Approved crypto mints:
 
 ### Synthetic Order
 
-A row in the `Order` table that the server tracks and the user executes by tapping. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
+A row in the `Order` table that the server tracks and later fills through delegated execution or tap-to-execute fallback. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
 
 - `BUY_TRIGGER` — fire when current price is within 0.5 % of `triggerPriceUsd`.
 - `TAKE_PROFIT` — fire when current price ≥ `triggerPriceUsd`.
 - `STOP_LOSS` — fire when current price ≤ `triggerPriceUsd`.
 - `CLOSE_SWAP` — currently unused; reserved for future user-initiated market close.
 
-Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the browser is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
+Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the execution adapter is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
 
 ### Position
 
-A holding in a single asset. Durable states are `BUY_PENDING → ACTIVE → CLOSED`. `ENTERING` and `CLOSING` are short-lived execution-claim states while the browser is signing/submitting a BUY or TP/SL swap.
+A holding in a single asset. Durable states are `BUY_PENDING → ACTIVE → CLOSED`. `ENTERING` and `CLOSING` are short-lived execution-claim states while an execution adapter is signing/submitting a BUY or TP/SL swap.
+
+### Portfolio Summary
+
+The user-visible valuation snapshot shared by Desk and Portfolio. It combines wallet USDC (`cashUsd`) plus open holding mark value into Total Value, reports realized and unrealized P&L separately, and exposes the derived holdings / closable positions that portfolio surfaces need. `apps/web/lib/portfolio/summary.ts` is the Module that owns this calculation; pages should not recompute Total Value locally.
 
 ### Trade
 
@@ -96,11 +100,19 @@ A historical row recording a fill. Always paired with an `Order` and a `Position
 
 ### trigger:hit
 
-The Socket.IO event emitted by `apps/ws-server` when a synthetic Order's price condition matches Pyth. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the user executes or the Order is cancelled.
+The Socket.IO event emitted by `apps/ws-server` when a Synthetic Order's price condition matches Pyth and the user needs tap-to-execute fallback. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the Order is executed or cancelled.
 
 ### tap-to-execute
 
-The user-facing interaction model: ws-server detects a trigger, the frontend shows a sticky toast, the user taps **Execute**, the frontend obtains the user's signature for a Jupiter Ultra transaction, submits the signed bytes to Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` settles the DB. The system is deliberately **not** autonomous.
+The fallback user-facing interaction model: ws-server detects a trigger, the frontend shows a sticky toast, the user taps **Execute**, the frontend obtains the user's signature for a Jupiter Ultra transaction, submits the signed bytes to Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` settles the DB. This remains the default path when the wallet is not delegated, when delegated execution is unavailable, and for manual flows such as Close Position.
+
+### Delegated Execution
+
+The opt-in execution model: after a Synthetic Order trigger hits, Hunch executes the same Jupiter Ultra swap and PositionLifecycle settlement on the user's behalf through Privy wallet v2 signer access, without a manual Execute tap. The UI label is **Auto-execute triggers**, with copy that enabling it delegates execution ability, remains non-custodial, and can be revoked anytime. It applies only to triggered Synthetic Orders (`BUY_TRIGGER`, `TAKE_PROFIT`, `STOP_LOSS`); manual close and SELL proposal confirmation stay user-signed. Privy wallet v2 delegated signer status is the source of truth; Hunch does not keep a separate DB toggle or support legacy Privy wallet delegation in the current dev phase. Turning it off revokes the delegated signer access rather than merely pausing automation. Delegated Execution runs from `apps/ws-server` so it can fill Orders when the user has no browser tab open. If delegated execution is unavailable or fails before `/execute` is attempted, Hunch falls back to tap-to-execute; persistent readiness blockers fall back without retrying delegated execution, while transient Privy/Jupiter runtime errors may use a light cooldown. Once `/execute` is attempted, Hunch keeps the Order claim locked for reconciliation if no signature is returned, because a second swap could double-fill. Successful delegated execution emits `trade:filled` as a status event, not `trigger:hit` as an action prompt. `packages/shared/src/delegated-execution-readiness.ts` owns readiness blocker derivation so Settings, `/dev-tools`, and execution adapters use the same readiness vocabulary.
+
+### Delegated Execution Runtime
+
+The `@hunch-it/execution` package. It owns the production Delegated Execution Module and concrete adapters for Privy wallet v2 signing, Jupiter Ultra `/order` + `/execute`, Solana token balance reads, and PositionLifecycle settlement. `apps/ws-server` calls it from the trigger dispatch path; `/dev-tools` wraps the same Module with diagnostic adapters instead of reimplementing execution order.
 
 ### Jupiter Ultra
 
@@ -110,25 +122,33 @@ The single broker integration. Used for sponsored, client-authorized swaps (BUY 
 
 The current Jupiter Ultra execution policy. The frontend requests an Ultra `/order`, deserializes the returned transaction, asks Privy to sign only the user's/taker's required signature slot, then submits the signed transaction bytes to Jupiter Ultra `/execute`. Direct Privy `signAndSendTransaction` is **not** the sponsored Ultra path because it bypasses Jupiter `/execute` and can fail sponsored multi-signer transactions before program execution.
 
+### Privy Delegated Ultra Swap Experiment
+
+The server-side Ultra execution adapter proven first in `/dev-tools` and now used by Delegated Execution. It requires the user to attach Privy wallet v2 signer access from the browser and requires the server to hold `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`. `/dev-tools` remains the diagnostic harness for owned dev Orders; production trigger fills and the diagnostic harness both call the shared Delegated Execution Runtime.
+
 ### JupiterUltraSwap
 
 The frontend Module that owns Sponsored Ultra Execution. Its Interface accepts a swap intent plus wallet signer/connection adapters; its Implementation handles amount preparation, targeted SELL balance capping, Ultra `/order`, transaction decoding, user signature, Ultra `/execute`, and normalized swap diagnostics. SELL balance lookup scans both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts because whitelisted crypto wrappers are classic SPL while xStocks are Token-2022.
 
 ### TriggerExecution
 
-The frontend Module that owns tap-to-execute execution semantics after a `trigger:hit`. Its Implementation claims the Order, invokes JupiterUltraSwap, settles `/api/orders/[id]/execute`, releases only pre-signature/pre-broadcast failures, and returns typed outcomes for the toast UI to render.
+The frontend Module that owns tap-to-execute fallback semantics after a `trigger:hit`. Its Implementation claims the Order, invokes JupiterUltraSwap, settles `/api/orders/[id]/execute`, releases only pre-signature/pre-broadcast failures, and returns typed outcomes for the toast UI to render.
+
+### TriggerExecutionDispatch
+
+The ws-server Module in `apps/ws-server/src/orders/trigger-execution-dispatch.ts` that owns what happens after a Synthetic Order trigger is detected: try Delegated Execution, emit `trade:filled`, emit fallback `trigger:hit`, suppress already-owned work, or retain the claim for reconciliation. `trigger-monitor.ts` owns price polling and trigger detection, not execution outcome policy.
 
 ### ClientDiagnosticsLog
 
 The in-browser diagnostic bus used by `/dev-tools`. It stores rich events in session storage and renders full payload/error/debug context for future incident analysis. Terminal mirroring is a separate opt-in adapter; the browser log is the source of truth.
 
-### PositionLifecycle (forthcoming)
+### PositionLifecycle
 
-The single owner of `Position`/`Order`/`Trade` state transitions. Lives in `packages/db/src/lifecycle/`. Scheduled to land in commits 14-20 of `refactor/minimal-cohesive-core`. Until then, transitions are scattered across `/api/orders/[id]/execute`, `/api/positions/[id]/close`, and `apps/ws-server` tasks.
+The single owner of `Position`/`Order`/`Trade` state transitions. Lives in `packages/db/src/lifecycle/position-lifecycle.ts`; API routes and execution adapters call this Module instead of writing lifecycle state directly.
 
-### ProtectionOrders (forthcoming)
+### ProtectionOrders
 
-The pair of OPEN exit Orders attached to an ACTIVE `Position`. After C5 lands, the Order rows become the canonical TP/SL source of truth and `Position.currentTpPrice/currentSlPrice` will be deleted or downgraded to a denormalized cache.
+The pair of OPEN exit Orders attached to an ACTIVE `Position`. Order rows are the canonical TP/SL source of truth; `Position.currentTpPrice/currentSlPrice` remain as denormalized cache fields.
 
 ## Architecture vocabulary
 

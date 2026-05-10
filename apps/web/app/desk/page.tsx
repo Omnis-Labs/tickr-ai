@@ -23,19 +23,7 @@ export default function DeskPage() {
     () => derivePortfolioSummary(portfolioQuery.data),
     [portfolioQuery.data],
   );
-  const panicClosePositions = useMemo(
-    () =>
-      (portfolioQuery.data?.positions ?? []).map((p) => ({
-        id: p.id,
-        ticker: p.ticker,
-        tokenAmount: p.tokenAmount,
-        entryPrice: p.avgCost,
-        state: p.state ?? 'ACTIVE',
-      })),
-    [portfolioQuery.data?.positions],
-  );
-
-  const hasCash = summary.cashUsd > 0;
+  const hasCash = summary.hasCash;
   const scrollToDeposit = () => {
     document.getElementById('deposit-section')?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -165,7 +153,7 @@ export default function DeskPage() {
           )}
         </section>
 
-        <PanicCloseAll positions={panicClosePositions} />
+        <PanicCloseAll positions={summary.closablePositions} />
         <ProposalsFeed />
         <OpenOrders />
         <DepositSection />

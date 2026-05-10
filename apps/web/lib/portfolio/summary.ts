@@ -1,3 +1,4 @@
+import { num } from '../utils/fmt';
 import {
   portfolioPositionsToHoldings,
   type Holding,
@@ -7,18 +8,30 @@ import {
 export interface PortfolioSummaryInput {
   positions?: PortfolioPosition[];
   pnl?: {
-    realized?: number;
-    unrealized?: number;
-  };
-  cashUsd?: number;
+    realized?: number | null;
+    unrealized?: number | null;
+  } | null;
+  cashUsd?: number | null;
+}
+
+export interface ClosablePortfolioPosition {
+  id: string;
+  ticker: string;
+  tokenAmount: number;
+  entryPrice: number;
+  state: string;
 }
 
 export interface PortfolioSummary {
   holdings: Holding[];
+  closablePositions: ClosablePortfolioPosition[];
   positionsCount: number;
   hasHoldings: boolean;
+  hasCash: boolean;
   realized: number;
   unrealized: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
   totalPnl: number;
   dayPnl: number;
   cashUsd: number;
@@ -37,25 +50,42 @@ export interface PortfolioSummary {
 export function derivePortfolioSummary(
   data: PortfolioSummaryInput | null | undefined,
 ): PortfolioSummary {
-  const holdings = portfolioPositionsToHoldings(data?.positions ?? []);
-  const realized = data?.pnl?.realized ?? 0;
-  const unrealized = data?.pnl?.unrealized ?? 0;
+  const positions = data?.positions ?? [];
+  const holdings = portfolioPositionsToHoldings(positions);
+  const realized = num(data?.pnl?.realized);
+  const unrealized = num(data?.pnl?.unrealized);
   const totalPnl = realized + unrealized;
   const dayPnl = unrealized;
-  const cashUsd = data?.cashUsd ?? 0;
-  const positionsValue = holdings.reduce((acc, h) => acc + h.value, 0);
+  const cashUsd = num(data?.cashUsd);
+  const positionsValue = holdings.reduce(
+    (acc, h) => acc + (h.isPendingBuy ? 0 : h.value),
+    0,
+  );
   const totalValue = positionsValue + cashUsd;
   const totalPnlPct = totalValue > 0 ? totalPnl / totalValue : 0;
   const dayPnlPct = totalValue > 0 ? dayPnl / totalValue : 0;
   const dayPnlPositive = dayPnl >= 0;
   const totalPnlPositive = totalPnl >= 0;
+  const closablePositions = positions
+    .filter((p) => (p.state ?? 'ACTIVE') === 'ACTIVE' && num(p.tokenAmount) > 0)
+    .map((p) => ({
+      id: p.id,
+      ticker: p.ticker,
+      tokenAmount: num(p.tokenAmount),
+      entryPrice: num(p.avgCost),
+      state: p.state ?? 'ACTIVE',
+    }));
 
   return {
     holdings,
-    positionsCount: holdings.length,
+    closablePositions,
+    positionsCount: positions.filter((p) => num(p.tokenAmount) > 0).length,
     hasHoldings: holdings.length > 0,
+    hasCash: cashUsd > 0,
     realized,
     unrealized,
+    realizedPnl: realized,
+    unrealizedPnl: unrealized,
     totalPnl,
     dayPnl,
     cashUsd,
@@ -66,4 +96,10 @@ export function derivePortfolioSummary(
     dayPnlPositive,
     totalPnlPositive,
   };
+}
+
+export function buildPortfolioSummary(
+  input: PortfolioSummaryInput | null | undefined,
+): PortfolioSummary {
+  return derivePortfolioSummary(input);
 }

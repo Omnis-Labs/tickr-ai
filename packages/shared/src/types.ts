@@ -255,9 +255,8 @@ export const WsServerEvents = {
   ProposalNew: 'proposal:new',
   ProposalExpired: 'proposal:expired',
   TradeFilled: 'trade:filled',
-  // ws-server price monitor → user. Fires when an OPEN synthetic order
-  // matches its condition against Pyth. The web app shows a sticky toast
-  // and lets the user tap-to-execute via Jupiter Ultra.
+  // ws-server price monitor → user. Fires when an OPEN synthetic order matches
+  // its condition against Pyth but needs tap-to-execute fallback.
   TriggerHit: 'trigger:hit',
 } as const;
 
@@ -286,9 +285,9 @@ export const ApprovalDecisionPayloadSchema = z.object({
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
 
 // ws-server → tab. Fired by trigger-monitor when an OPEN synthetic order
-// matches its condition against Pyth. Payload is everything the
-// tap-to-execute UI needs to build the Ultra swap without another
-// round-trip.
+// matches its condition against Pyth and delegated execution is unavailable.
+// Payload is everything the tap-to-execute UI needs to build the Ultra swap
+// without another round-trip.
 export const TriggerHitPayloadSchema = z.object({
   orderId: z.string(),
   positionId: z.string(),
@@ -308,3 +307,19 @@ export const TriggerHitPayloadSchema = z.object({
   tokenAmount: z.number().nullable().optional(),
 });
 export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;
+
+// ws-server → tab. Fired after delegated trigger execution settles through
+// PositionLifecycle. It is a status event, not an action prompt.
+export const TradeFilledPayloadSchema = z.object({
+  orderId: z.string(),
+  positionId: z.string(),
+  ticker: z.string(),
+  kind: OrderKindSchema,
+  side: z.enum(['BUY', 'SELL']),
+  executionMode: z.enum(['delegated', 'manual']),
+  executionPrice: z.number(),
+  tokenAmount: z.number(),
+  usdValue: z.number(),
+  txSignature: z.string(),
+});
+export type TradeFilledPayload = z.infer<typeof TradeFilledPayloadSchema>;

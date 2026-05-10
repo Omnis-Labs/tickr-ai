@@ -16,6 +16,12 @@ export interface UnifiedWallet {
   address: string | null;
   connected: boolean;
   ready: boolean;
+  walletClientType?: string | null;
+  connectorType?: string | null;
+  privyWalletId?: string | null;
+  delegated?: boolean | null;
+  authorizationSignerIdConfigured?: boolean;
+  delegationMode?: 'signers' | null;
   signTransaction: <T extends VersionedTransaction | Transaction>(tx: T) => Promise<T>;
   /** Sign + broadcast in one round-trip. This is for generic wallet sends
    *  only. Sponsored Jupiter Ultra swaps must use signTransaction and hand
@@ -31,6 +37,13 @@ export interface UnifiedWallet {
   /** Privy access token. null when disconnected. Used as the
    *  Authorization: Bearer credential for /api/* + the ws-server socket. */
   getAccessToken: () => Promise<string | null>;
+  /** Dev/advanced: prompt the connected embedded Solana wallet to attach
+   *  the server-side Privy wallet v2 signer. Providers without this capability reject. */
+  delegateWallet: () => Promise<void>;
+  /** Dev/advanced: remove Privy wallet v2 signer access for embedded wallets. */
+  revokeDelegatedWallets: () => Promise<void>;
+  /** Refresh provider user metadata after delegation changes. */
+  refreshWalletUser: () => Promise<void>;
   /** Open the Privy funding modal (fiat on-ramp / external wallet transfer)
    *  for the user's embedded wallet. amountUsdc, when supplied, prefills the
    *  USDC amount on Solana mainnet. Resolves once the modal closes. No-op
@@ -43,6 +56,12 @@ export const STUB_WALLET: UnifiedWallet = {
   address: null,
   connected: false,
   ready: true, // "ready to NOT auth" so the WalletButton renders Connect
+  walletClientType: null,
+  connectorType: null,
+  privyWalletId: null,
+  delegated: null,
+  authorizationSignerIdConfigured: false,
+  delegationMode: null,
   signTransaction: async () => {
     throw new Error('Wallet not connected — call login() first.');
   },
@@ -61,6 +80,13 @@ export const STUB_WALLET: UnifiedWallet = {
   },
   logout: async () => {},
   getAccessToken: async () => null,
+  delegateWallet: async () => {
+    throw new Error('Wallet provider does not support delegated access.');
+  },
+  revokeDelegatedWallets: async () => {
+    throw new Error('Wallet provider does not support delegated access.');
+  },
+  refreshWalletUser: async () => {},
   fundWallet: async () => {},
 };
 

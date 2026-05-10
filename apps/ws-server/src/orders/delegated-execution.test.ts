@@ -1,0 +1,142 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { TriggerHitPayload } from '@hunch-it/shared';
+import {
+  tryExecuteDelegatedTriggerOrder,
+  type DelegatedExecutionDeps,
+} from './delegated-execution.js';
+
+const payload: TriggerHitPayload = {
+  orderId: 'order-1',
+  positionId: 'position-1',
+  ticker: 'AAPLx',
+  mint: 'mint-aapl',
+  kind: 'BUY_TRIGGER',
+  side: 'BUY',
+  triggerPriceUsd: 100,
+  currentPriceUsd: 100,
+  sizeUsd: 25,
+  tokenAmount: null,
+};
+
+function buildDeps(overrides: Partial<DelegatedExecutionDeps> = {}): DelegatedExecutionDeps {
+  return {
+    getAssetById: () => ({ decimals: 6 }) as ReturnType<DelegatedExecutionDeps['getAssetById']>,
+    resolveDelegatedWalletByAddress: async () =>
+      ({
+        wallet: { id: 'wallet-1', chain_type: 'solana' },
+        delegated: false,
+        signerMatched: true,
+        authorizationContext: { authorization_private_keys: ['key-1'] },
+      }) as Awaited<ReturnType<DelegatedExecutionDeps['resolveDelegatedWalletByAddress']>>,
+    prepareInputAmount: async () =>
+      ({
+        inputMint: 'usdc-mint',
+        outputMint: 'mint-aapl',
+        amount: '25000000',
+        side: 'BUY',
+        decimals: 6,
+      }) as Awaited<ReturnType<DelegatedExecutionDeps['prepareInputAmount']>>,
+    claimOrderExecution: async () => ({
+      status: 'success',
+      data: {
+        orderId: 'order-1',
+        positionId: 'position-1',
+        orderStatus: 'PENDING',
+        positionStatus: 'ENTERING',
+      },
+    }),
+    releaseOrderExecutionClaim: async () => ({
+      status: 'success',
+      data: {
+        orderId: 'order-1',
+        positionId: 'position-1',
+        orderStatus: 'OPEN',
+        positionStatus: 'BUY_PENDING',
+      },
+    }),
+    confirmBuyFill: async () => {
+      throw new Error('confirmBuyFill should not be called');
+    },
+    confirmExitFill: async () => {
+      throw new Error('confirmExitFill should not be called');
+    },
+    requestUltraOrder: async () => ({
+      requestId: 'request-1',
+      transaction: 'unsigned-tx',
+      inAmount: '25000000',
+      outAmount: '100000',
+      otherAmountThreshold: '99000',
+      priceImpactPct: '0',
+    }),
+    getUltraOrderProblem: () => null,
+    signDelegatedSolanaTransaction: async () => 'signed-tx',
+    executeUltraOrder: async () => {
+      throw new Error('network failed after submit');
+    },
+    ...overrides,
+  };
+}
+
+test('delegated execution keeps the claim locked when Ultra execute is ambiguous', async () => {
+  let releases = 0;
+  const deps = buildDeps({
+    releaseOrderExecutionClaim: async () => {
+      releases += 1;
+      throw new Error('release should not be called after execute attempt');
+    },
+  });
+
+  const outcome = await tryExecuteDelegatedTriggerOrder(
+    { userId: 'user-1', walletAddress: 'wallet-1', payload },
+    deps,
+  );
+
+  if (outcome.kind !== 'broadcastUnknown') {
+    assert.fail(`expected broadcastUnknown, got ${outcome.kind}`);
+  }
+  assert.equal(outcome.orderId, 'order-1');
+  assert.equal(outcome.reason, 'delegated_execute_signature_unknown');
+  assert.equal(outcome.requestId, 'request-1');
+  assert.equal(releases, 0);
+});
+
+test('delegated execution releases the claim when signing fails before Ultra execute', async () => {
+  let releases = 0;
+  const deps = buildDeps({
+    signDelegatedSolanaTransaction: async () => {
+      throw new Error('privy signer failed');
+    },
+    releaseOrderExecutionClaim: async () => {
+      releases += 1;
+      return {
+        status: 'success',
+        data: {
+          orderId: 'order-1',
+          positionId: 'position-1',
+          orderStatus: 'OPEN',
+          positionStatus: 'BUY_PENDING',
+        },
+      };
+    },
+  });
+
+  const outcome = await tryExecuteDelegatedTriggerOrder(
+    { userId: 'user-1', walletAddress: 'wallet-1', payload },
+    deps,
+  );
+
+  assert.deepEqual(
+    {
+      kind: outcome.kind,
+      reason: outcome.kind === 'preBroadcastFailed' ? outcome.reason : null,
+      released: outcome.kind === 'preBroadcastFailed' ? outcome.released : null,
+    },
+    {
+      kind: 'preBroadcastFailed',
+      reason: 'delegated_order_or_sign_runtime_error',
+      released: true,
+    },
+  );
+  assert.equal(releases, 1);
+});

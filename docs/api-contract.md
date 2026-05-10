@@ -84,7 +84,7 @@ Response `404`: Proposal not found or not owned by user.
 
 **`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. The later `trigger:hit` tap-to-execute flow performs the Jupiter Ultra swap.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy wallet v2 signer access or falls back to `trigger:hit` tap-to-execute.
 
 Request:
 
@@ -231,6 +231,55 @@ Response `409`: Position not in closeable state.
 
 ---
 
+### Delegated Execution
+
+**`GET /api/delegated-execution/status`** — Read live Auto-execute triggers readiness.
+
+This route does not read or write a Hunch DB toggle. Privy wallet v2 signer status is the source of truth, and Settings uses Privy client APIs to attach or remove signer access.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "serverKey": {
+    "configured": true,
+    "env": "PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY"
+  },
+  "serverSigner": {
+    "configured": true,
+    "env": [
+      "PRIVY_WALLET_AUTHORIZATION_SIGNER_ID",
+      "NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID"
+    ],
+    "walletMatched": true
+  },
+  "wallet": {
+    "address": "base58",
+    "privyWalletId": "wallet-id",
+    "delegated": true,
+    "walletClientType": "privy-v2",
+    "connectorType": "embedded",
+    "additionalSignerIds": ["signer-id"],
+    "ownerId": "did:privy:...",
+    "policyIds": [],
+    "authorizationThreshold": null,
+    "resolveError": null
+  },
+  "ready": {
+    "canExecute": true,
+    "blockers": []
+  }
+}
+```
+
+Response `401`: Not authenticated.
+Response `500`: Privy server configuration or lookup failed.
+
+Common readiness blockers include `missing_privy_authorization_private_key`, `missing_privy_authorization_signer_id`, `unsupported_privy_wallet_client_type`, `wallet_missing_authorization_signer`, and `wallet_not_delegated`.
+
+---
+
 ### Portfolio
 
 **`GET /api/portfolio`** — Get portfolio summary.
@@ -296,10 +345,10 @@ The ws-server runs Socket.IO. Authentication uses Privy access tokens (not raw w
 // Client connects and authenticates
 socket.emit('auth', { privyAccessToken: string });
 
-// Server verifies token, resolves user, joins room user:{userId}
+// Server verifies token, resolves user, joins room user:{walletAddress}
 // Server responds with:
-socket.on('auth:success', { userId: string, walletAddress: string });
-socket.on('auth:error', { message: string });
+socket.on('auth:ok', { room: string });
+socket.on('auth:error', { reason: string });
 ```
 
 ### Client to Server
@@ -311,26 +360,28 @@ socket.on('auth:error', { message: string });
 
 ### Server to Client
 
-| Event                  | Payload                                                                      | Description                            |
-| ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------- |
-| `signal:new`           | Legacy Signal object                                                         | Legacy signal modal path               |
-| `proposal:new`         | Full Proposal object                                                         | New BUY or SELL proposal generated for this user |
-| `trigger:hit`          | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }` | Synthetic trigger matched; user can tap Execute |
-| `position:updated`     | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`      | Position state changed                 |
-| `pong`                 | `{ timestamp }`                                                              | Heartbeat response                     |
+| Event              | Payload                                                                                                          | Description                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `signal:new`       | Legacy Signal object                                                                                             | Legacy signal modal path                                    |
+| `proposal:new`     | Full Proposal object                                                                                             | New BUY or SELL proposal generated for this user            |
+| `trigger:hit`      | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`      | Synthetic trigger matched and needs tap-to-execute fallback |
+| `trade:filled`     | `{ orderId, positionId, ticker, kind, side, executionMode, executionPrice, tokenAmount, usdValue, txSignature }` | Trigger filled, usually by delegated execution              |
+| `position:updated` | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`                                          | Position state changed                                      |
+| `pong`             | `{ timestamp }`                                                                                                  | Heartbeat response                                          |
 
 **Frontend behavior on `position:updated`**: Refetch `GET /api/positions/[id]` and `GET /api/portfolio` for complete updated data.
+**Frontend behavior on `trade:filled`**: Dismiss stale trigger prompts, show a fill notification, and refetch orders, positions, the filled position, and portfolio state.
 
 ---
 
 ## Proposal Lifecycle
 
-| From   | Trigger                                     | To       |
-| ------ | ------------------------------------------- | -------- |
+| From   | Trigger                                            | To       |
+| ------ | -------------------------------------------------- | -------- |
 | ACTIVE | BUY acceptance through `POST /api/orders` succeeds | EXECUTED |
-| ACTIVE | `POST /api/skips` succeeds                  | SKIPPED  |
-| ACTIVE | `expiresAt` < now (checked by ws-server)    | EXPIRED  |
-| ACTIVE | Mandate updated                             | EXPIRED  |
+| ACTIVE | `POST /api/skips` succeeds                         | SKIPPED  |
+| ACTIVE | `expiresAt` < now (checked by ws-server)           | EXPIRED  |
+| ACTIVE | Mandate updated                                    | EXPIRED  |
 
 Expired, skipped, and executed proposals are still queryable via `GET /api/proposals?status=...` but removed from the active feed.
 
@@ -338,13 +389,13 @@ Expired, skipped, and executed proposals are still queryable via `GET /api/propo
 
 ## Order State Transitions
 
-| From    | Event                                                      | To        | Side Effects                                                                                                  |
-| ------- | ---------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| OPEN    | `POST /execution-claim` succeeds                           | PENDING   | Claim execution before any wallet signing; BUY moves `BUY_PENDING → ENTERING`, exits move `ACTIVE → CLOSING`. |
-| PENDING | Jupiter Ultra `/execute` returns signature, then DB settles | FILLED    | Set `txSignature`, execution price, token amount. BUY arms TP/SL Orders; TP/SL cancels sibling exit.           |
+| From    | Event                                                       | To        | Side Effects                                                                                                  |
+| ------- | ----------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| OPEN    | `POST /execution-claim` succeeds                            | PENDING   | Claim execution before any wallet signing; BUY moves `BUY_PENDING → ENTERING`, exits move `ACTIVE → CLOSING`. |
+| PENDING | Jupiter Ultra `/execute` returns signature, then DB settles | FILLED    | Set `txSignature`, execution price, token amount. BUY arms TP/SL Orders; TP/SL cancels sibling exit.          |
 | PENDING | Swap fails before Jupiter Ultra returns signature           | OPEN      | `DELETE /execution-claim` releases the claim for retry.                                                       |
-| OPEN    | User cancel succeeds                                       | CANCELLED | Cancel synthetic BUY trigger; close parent `BUY_PENDING` Position.                                            |
-| OPEN    | TP/SL edit succeeds                                        | OPEN      | Replace the matching synthetic exit Order in DB.                                                              |
+| OPEN    | User cancel succeeds                                        | CANCELLED | Cancel synthetic BUY trigger; close parent `BUY_PENDING` Position.                                            |
+| OPEN    | TP/SL edit succeeds                                         | OPEN      | Replace the matching synthetic exit Order in DB.                                                              |
 
 ---
 
@@ -364,7 +415,7 @@ No Jupiter request happens here.
 
 ### Tap-to-Execute Trigger Fill
 
-When the ws-server emits `trigger:hit` and the user taps Execute:
+This is the fallback when Auto-execute triggers is off, Privy wallet v2 signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
 
 1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
 2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -377,8 +428,23 @@ When the ws-server emits `trigger:hit` and the user taps Execute:
 **Failure recovery by phase:**
 
 - Claim fails: another tab/user action already owns or settled the Order; do not start a swap.
-- Ultra `/order`, signing, or `/execute` fails before a signature: release claim and allow retry.
-- Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
+- Ultra `/order` or signing fails before `/execute` is attempted: release claim and allow retry.
+- `/execute` is attempted but no signature is returned, or Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
+
+### Delegated Trigger Fill
+
+When a trigger hits and Privy wallet v2 signer access is live:
+
+1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time using the shared readiness Module.
+2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
+3. ws-server atomically claims the Order.
+4. ws-server requests Jupiter Ultra `/order`.
+5. ws-server asks Privy to sign with the delegated wallet authorization key.
+6. ws-server sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
+7. If Jupiter returns a signature, ws-server settles through the same PositionLifecycle functions used by `POST /api/orders/[id]/execute`.
+8. On success, ws-server emits `trade:filled`.
+
+If delegation, server signing readiness, or balance is unavailable, TriggerExecutionDispatch emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, TriggerExecutionDispatch may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
 
 ### BUY Fill Settlement
 
