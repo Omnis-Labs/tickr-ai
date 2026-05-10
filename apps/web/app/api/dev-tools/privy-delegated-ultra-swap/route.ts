@@ -24,7 +24,7 @@ function compactError(err: unknown): { error: string; detail?: unknown; status: 
   return { error: String(err), status: 500 };
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = devToolsGuard(req);
   if (guard) return guard;
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const guard = devToolsGuard(req);
   if (guard) return guard;
 

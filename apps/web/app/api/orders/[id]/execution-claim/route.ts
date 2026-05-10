@@ -18,7 +18,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
-) {
+): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
@@ -42,7 +42,7 @@ export async function POST(
 export async function DELETE(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
-) {
+): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

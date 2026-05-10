@@ -29,7 +29,32 @@ export interface ProposalGeneratorSummary {
   errors: number;
 }
 
-export function serializeProposalForClient(proposal: Proposal) {
+export interface SerializedProposalForClient {
+  id: string;
+  userId: string;
+  ticker: string;
+  action: string;
+  suggestedSizeUsd: number;
+  suggestedTriggerPrice: number;
+  suggestedTakeProfitPrice: number;
+  suggestedStopLossPrice: number;
+  rationale: string;
+  reasoning: unknown;
+  positionImpact: unknown;
+  confidence: number;
+  priceAtProposal: number;
+  indicators: unknown;
+  thesisTags: unknown;
+  sourceBuyProposalId: string | null;
+  positionId: string | null;
+  triggeringTag: string | null;
+  origin: string;
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export function serializeProposalForClient(proposal: Proposal): SerializedProposalForClient {
   return {
     id: proposal.id,
     userId: proposal.userId,

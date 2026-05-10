@@ -18,7 +18,7 @@ const SkipBodySchema = z.object({
   detail: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const body: unknown = await req.json().catch(() => null);
   const parsed = SkipBodySchema.safeParse(body);
   if (!parsed.success) {

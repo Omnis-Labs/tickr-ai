@@ -9,14 +9,14 @@ import { NextResponse } from 'next/server';
  * synthetic-trigger lifecycle.
  */
 
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   return NextResponse.json(
     { error: 'POST /api/trades is retired; use order execution or position close routes' },
     { status: 501 },
   );
 }
 
-export async function POST() {
+export async function POST(): Promise<NextResponse> {
   return NextResponse.json(
     { error: 'POST /api/trades is retired; use order execution or position close routes' },
     { status: 501 },

@@ -45,7 +45,7 @@ const PersistOrderSchema = z.object({
     .optional(),
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const body: unknown = await req.json().catch(() => null);
   const parsed = PersistOrderSchema.safeParse(body);
   if (!parsed.success) {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, order: decimalsToNumbers(order), positionId });
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const ctx = await requireAuth(req);
   if (!ctx) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

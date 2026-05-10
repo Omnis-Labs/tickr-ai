@@ -23,7 +23,7 @@ const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
  *
  *   GET /api/bars/AAPLx?resolution=5&hours=24
  */
-export async function GET(req: Request, ctx: { params: Promise<{ ticker: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ ticker: string }> }): Promise<NextResponse> {
   const { ticker } = await ctx.params;
   const asset = getAssetById(ticker);
   if (!asset) {

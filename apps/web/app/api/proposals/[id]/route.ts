@@ -7,7 +7,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * GET /api/proposals/[id]
  * Cold-read for shared-link / refresh on /proposals/[id].
  */
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 

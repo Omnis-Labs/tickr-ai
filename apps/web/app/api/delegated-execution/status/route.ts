@@ -4,7 +4,7 @@ import { getDelegatedExecutionStatus } from '@/lib/delegated-execution/status';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
 

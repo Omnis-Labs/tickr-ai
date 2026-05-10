@@ -7,7 +7,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * GET /api/proposals
  * Returns the authed user's ACTIVE proposals (sorted by expiresAt asc).
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

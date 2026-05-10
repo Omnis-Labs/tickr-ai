@@ -10,7 +10,7 @@ import { requireAuth } from '@/lib/auth/context';
  * here to decide whether to send the user to /mandate or /desk; clients
  * can also hydrate settings off the same response.
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

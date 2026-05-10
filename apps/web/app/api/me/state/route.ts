@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 const PRIVY_COOKIE_MAX_AGE_SECONDS = 60 * 60;
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const state = await resolveSession(req);
   const res = NextResponse.json(state, {
     headers: { 'Cache-Control': 'no-store' },

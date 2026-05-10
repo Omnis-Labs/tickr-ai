@@ -16,7 +16,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  *
  * Auth: Privy access token. Order must belong to the authed user.
  */
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 

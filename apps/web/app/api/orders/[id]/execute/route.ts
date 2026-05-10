@@ -24,7 +24,7 @@ const Schema = z.object({
   tokenAmount: z.number().positive(),
 });
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   const body: unknown = await req.json().catch(() => null);
   const parsed = Schema.safeParse(body);

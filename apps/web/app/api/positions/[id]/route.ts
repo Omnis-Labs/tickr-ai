@@ -8,7 +8,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * Live mode: returns the Position (with related orders) — must belong to the
  * authed user.
  */
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 

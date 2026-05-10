@@ -27,7 +27,7 @@ const Schema = z
     message: 'at least one of tpPrice / slPrice required',
   });
 
-export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
 

@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth/context';
 import { devToolsGuard } from '@/lib/dev-tools/auth';
 import { listDevToolsState } from '@/lib/dev-tools/server';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = devToolsGuard(req);
   if (guard) return guard;
 

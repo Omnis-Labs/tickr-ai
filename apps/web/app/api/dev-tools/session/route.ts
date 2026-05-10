@@ -12,14 +12,14 @@ const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!devToolsEnabled()) {
     return NextResponse.json({ error: 'dev tools disabled' }, { status: 404 });
   }
   return NextResponse.json(devToolsStatus(req));
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!devToolsEnabled()) {
     return NextResponse.json({ error: 'dev tools disabled' }, { status: 404 });
   }
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   return createDevToolsLoginResponse();
 }
 
-export async function DELETE() {
+export async function DELETE(): Promise<NextResponse> {
   if (!devToolsEnabled()) {
     return NextResponse.json({ error: 'dev tools disabled' }, { status: 404 });
   }

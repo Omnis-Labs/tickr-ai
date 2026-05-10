@@ -15,7 +15,7 @@ import type { PortfolioResponse } from '@/lib/hooks/queries';
  * legs) and unrealized (sum of (markPrice - entryPrice) * tokenAmount on
  * ACTIVE / ENTERING / BUY_PENDING positions).
  */
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const freshBalances = req.nextUrl.searchParams.get('freshBalances') === '1';

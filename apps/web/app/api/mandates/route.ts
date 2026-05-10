@@ -16,7 +16,7 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * they finish mandate setup), and is reconciled against the verified Privy id.
  */
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   // First-touch users have a valid Privy session but no `User` row yet — the
   // row is upserted lazily on POST below. `requireAuth` would 401 those users
   // (it returns null when the DB lookup misses), and `useAuthedFetch` treats
@@ -95,10 +95,10 @@ async function upsertMandate(
   return NextResponse.json({ mandate: decimalsToNumbers(mandate) });
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   return upsertMandate(req, true); // first-touch may create the user row
 }
 
-export async function PUT(req: NextRequest) {
+export async function PUT(req: NextRequest): Promise<NextResponse> {
   return upsertMandate(req, false); // user must already exist
 }

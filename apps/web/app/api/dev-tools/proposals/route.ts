@@ -13,7 +13,7 @@ const Schema = z.object({
   }),
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const guard = devToolsGuard(req);
   if (guard) return guard;
 

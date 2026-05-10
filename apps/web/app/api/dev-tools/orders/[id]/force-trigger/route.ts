@@ -9,7 +9,7 @@ import {
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
-) {
+): Promise<NextResponse> {
   const guard = devToolsGuard(req);
   if (guard) return guard;
 
