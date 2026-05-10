@@ -84,7 +84,7 @@ Response `404`: Proposal not found or not owned by user.
 
 **`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy wallet v2 signer access or falls back to `trigger:hit` tap-to-execute.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy signer access or falls back to `trigger:hit` tap-to-execute.
 
 Request:
 
@@ -235,7 +235,7 @@ Response `409`: Position not in closeable state.
 
 **`GET /api/delegated-execution/status`** — Read live Auto-execute triggers readiness.
 
-This route does not read or write a Hunch DB toggle. Privy wallet v2 signer status is the source of truth, and Settings uses Privy client APIs to attach or remove signer access.
+This route does not read or write a Hunch DB toggle. Privy signer attachment is the source of truth, and Settings uses Privy client APIs to attach or remove signer access. The linked account `walletClientType` can be `privy` or `privy-v2`; readiness is based on the configured signer ID matching the wallet's `additionalSignerIds`.
 
 Response `200`:
 
@@ -258,7 +258,7 @@ Response `200`:
     "address": "base58",
     "privyWalletId": "wallet-id",
     "delegated": true,
-    "walletClientType": "privy-v2",
+    "walletClientType": "privy",
     "connectorType": "embedded",
     "additionalSignerIds": ["signer-id"],
     "ownerId": "did:privy:...",
@@ -276,7 +276,7 @@ Response `200`:
 Response `401`: Not authenticated.
 Response `500`: Privy server configuration or lookup failed.
 
-Common readiness blockers include `missing_privy_authorization_private_key`, `missing_privy_authorization_signer_id`, `unsupported_privy_wallet_client_type`, `wallet_missing_authorization_signer`, and `wallet_not_delegated`.
+Common readiness blockers include `missing_privy_authorization_private_key`, `missing_privy_authorization_signer_id`, `privy_wallet_not_delegated`, `wallet_missing_authorization_signer`, `wallet_not_delegated`, and `privy_wallet_not_solana`.
 
 ---
 
@@ -415,7 +415,7 @@ No Jupiter request happens here.
 
 ### Tap-to-Execute Trigger Fill
 
-This is the fallback when Auto-execute triggers is off, Privy wallet v2 signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
+This is the fallback when Auto-execute triggers is off, Privy signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
 
 1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
 2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -433,7 +433,7 @@ This is the fallback when Auto-execute triggers is off, Privy wallet v2 signer a
 
 ### Delegated Trigger Fill
 
-When a trigger hits and Privy wallet v2 signer access is live:
+When a trigger hits and Privy signer access is live:
 
 1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time using the shared readiness Module.
 2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.

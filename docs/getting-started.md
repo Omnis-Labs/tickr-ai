@@ -99,7 +99,7 @@ Restart the apps, sign in with Privy, complete a mandate, then open http://local
 
 `/dev-tools` is an adapter into the same `ProposalCreation` Module used by live signal generation. It does not use a market-hours guardrail; it uses the shared Pyth publish-time freshness rule.
 
-For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`, and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy wallet v2 signer access.
+For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`, and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy signer access.
 
 ---
 
@@ -117,9 +117,9 @@ Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app en
 | `NEXT_PUBLIC_PRIVY_APP_ID`                          | Privy app ID for auth and embedded wallet                                                                                   |
 | `PRIVY_APP_ID`                                      | Same Privy app ID, server-side                                                                                              |
 | `PRIVY_APP_SECRET`                                  | Privy server SDK secret (verifies tokens)                                                                                   |
-| `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`            | Privy wallet v2 delegated signer private key for server-side trigger execution                                              |
-| `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`              | Server-readable Privy wallet v2 delegated signer ID                                                                         |
-| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`  | Browser-bundled Privy wallet v2 delegated signer ID for the Settings enable prompt                                          |
+| `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`            | Privy delegated signer private key for server-side trigger execution                                                        |
+| `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`              | Server-readable Privy delegated signer ID                                                                                   |
+| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`  | Browser-bundled Privy delegated signer ID for the Settings enable prompt                                                    |
 | `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS` | Optional comma-separated Privy policy IDs attached by the Settings enable prompt                                            |
 | `NEXT_PUBLIC_JUPITER_API_BASE`                      | Jupiter API base URL                                                                                                        |
 | `PYTH_HERMES_URL`                                   | Live Pyth price endpoint                                                                                                    |
