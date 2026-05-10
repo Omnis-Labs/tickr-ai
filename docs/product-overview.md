@@ -43,7 +43,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **PWA** (single interface with manifest + service worker, no native app)
 - **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
-- **Synthetic trigger execution**: ws-server watches Pyth, then either auto-executes through Privy wallet v2 signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
+- **Synthetic trigger execution**: ws-server watches Pyth, then either auto-executes through Privy signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
 - **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
 - **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to produce Base Market Analysis; shared ProposalCreation turns that into personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering

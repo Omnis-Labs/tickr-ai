@@ -1,17 +1,17 @@
 # Dev Tools Privy Delegated Ultra Swap
 
-This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy wallet v2 signer access and Jupiter Ultra. `/dev-tools` wraps the same `@hunch-it/execution` Delegated Execution Runtime used by production Auto-execute triggers, adding diagnostic capture around the concrete adapters.
+This document covers the `/dev-tools` harness for executing a synthetic Order from the server with Privy signer access and Jupiter Ultra. `/dev-tools` wraps the same `@hunch-it/execution` Delegated Execution Runtime used by production Auto-execute triggers, adding diagnostic capture around the concrete adapters.
 
 ## Scope
 
 - Lives behind `/dev-tools` and `ENABLE_DEV_TOOLS=true`.
 - Executes only owned Orders that came from `DEV_TOOLS` proposals.
-- Uses Privy wallet v2 signer access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-- Exercises the same delegated Ultra Module that production ws-server uses when a trigger hits and the wallet is delegated.
+- Uses Privy signer access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
+- Exercises the same delegated Ultra Module that production ws-server uses when a trigger hits and the configured signer is attached.
 
 ## Privy Setup
 
-1. In the Privy dashboard, enable wallet v2 signers for the app.
+1. In the Privy dashboard, enable server-side wallet access and create the authorization signer for the app.
 2. Enable signed requests.
 3. Copy the generated P-256 signing private key into local `.env` as `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
 4. Copy the key quorum/signer ID into local `.env` as both `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
@@ -21,6 +21,8 @@ This document covers the `/dev-tools` harness for executing a synthetic Order fr
 
 The private key must be the base64 PKCS8 private key with no PEM headers. Do not commit a real value.
 The signer ID is not secret, but it must match the private key's registered key quorum.
+Privy's linked account `walletClientType` may be `privy` or `privy-v2`; Hunch readiness depends on the configured signer appearing in `additional_signers`, not on the exact client label.
+If Privy rejects `addSigners` with an on-device or TEE migration error, migrate the embedded wallet/app to Privy's server-side wallet access path, then click **Enable** again.
 
 ## First Swap Runbook
 
@@ -53,7 +55,6 @@ Clicking **Execute swap** is allowed even when preflight is blocked. In that cas
 
 - `missing_privy_authorization_private_key`: add `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
 - `missing_privy_authorization_signer_id`: add `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID` and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`.
-- `unsupported_privy_wallet_client_type`: use a Privy wallet v2 embedded Solana wallet; legacy Privy wallet delegation is not supported in the current dev phase.
 - `wallet_missing_authorization_signer`: click **Enable** again and approve the Privy signer delegation prompt.
 - `wallet_not_delegated`: click **Enable** in the Delegated access block and approve Privy.
 - `insufficient_funds`: fund the wallet with the input mint for the selected Order.
