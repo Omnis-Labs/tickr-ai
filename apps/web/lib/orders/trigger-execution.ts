@@ -1,4 +1,4 @@
-import { USDC_DECIMALS, type TriggerHitPayload } from '@hunch-it/shared';
+import { settlementAmountsForTrigger, type TriggerHitPayload } from '@hunch-it/shared';
 import {
   compactDiagnosticError,
   decodeSolanaError,
@@ -170,15 +170,12 @@ export async function executeTriggerOrder(
     }
     swapBroadcast = true;
 
-    const tokenAmount =
-      payload.kind === 'BUY_TRIGGER'
-        ? Number(result.outputAmount) / 10 ** decimals
-        : Number(result.inputAmount) / 10 ** decimals;
-    const usdValue =
-      payload.kind === 'BUY_TRIGGER'
-        ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
-        : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
-    const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : payload.currentPriceUsd;
+    const { executionPrice, tokenAmount, usdValue } = settlementAmountsForTrigger({
+      payload,
+      inAmount: result.inputAmount,
+      outAmount: result.outputAmount,
+      decimals,
+    });
 
     const settle = await authedFetch(`/api/orders/${payload.orderId}/execute`, {
       method: 'POST',

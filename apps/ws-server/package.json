@@ -17,7 +17,9 @@
   "dependencies": {
     "@google/genai": "^1.52.0",
     "@hunch-it/db": "workspace:*",
+    "@hunch-it/execution": "workspace:*",
     "@hunch-it/shared": "workspace:*",
+    "@privy-io/node": "^0.18.0",
     "@privy-io/server-auth": "^1.18.0",
     "@pythnetwork/hermes-client": "^2.0.0",
     "@solana/web3.js": "^1.98.0",

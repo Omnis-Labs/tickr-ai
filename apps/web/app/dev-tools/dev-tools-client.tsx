@@ -13,6 +13,7 @@ import {
   Play,
   RefreshCw,
   ShieldCheck,
+  ShieldOff,
   SlidersHorizontal,
   Wand2,
   Zap,
@@ -41,6 +42,12 @@ import {
   type DiagnosticStatus,
   type LogDiagnostic,
 } from '@/lib/dev-tools/client-diagnostics';
+import {
+  buildDelegatedUltraPreflightReport,
+  diagnosticsForDelegatedUltraApiError,
+  type DelegatedUltraPreflightReport,
+} from '@/lib/dev-tools/privy-delegated-ultra-swap-debug';
+import { waitForDelegatedAccessRevocation } from '@/lib/delegated-execution/settings-state';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
 import { executeTriggerOrder } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
@@ -105,6 +112,97 @@ interface SessionState {
   authenticated: boolean;
 }
 
+interface DelegatedUltraStatus {
+  ok: true;
+  serverKey: {
+    configured: boolean;
+    env: string;
+  };
+  serverSigner: {
+    configured: boolean;
+    env: string[];
+    walletMatched: boolean;
+  };
+  wallet: {
+    address: string;
+    privyWalletId: string | null;
+    delegated: boolean | null;
+    walletClientType: string | null;
+    connectorType: string | null;
+    additionalSignerIds: string[];
+    ownerId: string | null;
+    policyIds: string[];
+    authorizationThreshold: number | null;
+    resolveError: string | null;
+  };
+  ready: {
+    canExecute: boolean;
+    blockers: string[];
+  };
+}
+
+interface DelegatedUltraResponse {
+  ok: true;
+  authorizationUsed: {
+    serverKey: boolean;
+    serverKeyConfigured: boolean;
+  };
+  wallet: {
+    address: string;
+    privyWalletId: string;
+    delegated: boolean | null;
+    ownerId: string | null;
+    policyIds: string[];
+    authorizationThreshold: number | null;
+  };
+  trigger: TriggerHitPayload;
+  plan: {
+    inputMint: string;
+    outputMint: string;
+    amount: string;
+    side: 'BUY' | 'SELL';
+    decimals: number;
+  };
+  balance: {
+    inputMint: string;
+    requestedRaw: string;
+    submittedRaw: string;
+    walletRaw: string;
+    tokenProgramIds: string[];
+  };
+  ultraOrder: {
+    requestId: string;
+    inAmount: string;
+    outAmount: string;
+    priceImpactPct: string;
+    otherAmountThreshold: string;
+    transactionBytes: number;
+    gasless: boolean | null;
+    router: string | null;
+    transactionShape: {
+      requiredSignatures: number;
+      zeroSignatureCount: number;
+      signerKeys: string[];
+    };
+  };
+  signedTransaction?: {
+    bytes: number;
+    transactionShape: {
+      zeroSignatureCount: number;
+      signerKeys: string[];
+    };
+  };
+  execution?: {
+    status: 'Success' | 'Failed';
+    signature: string | null;
+    error: string | null;
+    executionPrice: number;
+    tokenAmount: number;
+    usdValue: number;
+    settlement: unknown;
+  };
+}
+
 const emptyLogs: Record<LogSection, LogEntry[]> = {
   auth: [],
   proposal: [],
@@ -130,9 +228,33 @@ const MAX_LOG_ARRAY_ITEMS = 5;
 const MAX_LOG_OBJECT_KEYS = 28;
 const MAX_LOG_DEPTH = 4;
 const MAX_COPY_CHARS = 32_000;
+const DELEGATED_ACCESS_TIMEOUT_MS = 45_000;
+const STALE_SIGNER_ENV_ERROR = 'stale_privy_authorization_signer_client_env';
 
 function requestId(): string {
   return Math.random().toString(36).slice(2, 9);
+}
+
+function timeoutError(message: string, detail: unknown): Error {
+  const err = new Error(message) as Error & { detail?: unknown; status?: number };
+  err.name = 'DevToolsTimeoutError';
+  err.status = 408;
+  err.detail = detail;
+  return err;
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, makeError: () => Error): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(makeError()), ms);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function fmtUsd(v: number | null | undefined): string {
@@ -246,9 +368,12 @@ function logErrorDetail(err: unknown): unknown {
     };
   }
   if (err instanceof Error) {
+    const record = err as Error & { detail?: unknown; status?: number };
     return {
       name: err.name,
       message: truncateText(err.message, 900),
+      status: record.status,
+      detail: sanitizeForLog(record.detail),
       decodedSolanaError: decodeSolanaError(err.message),
     };
   }
@@ -329,8 +454,32 @@ function decodedSolanaErrorFrom(value: unknown): DecodedSolanaError | null {
   return null;
 }
 
+function isLogDiagnosticArray(value: unknown): value is LogDiagnostic[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        typeof (item as LogDiagnostic).hypothesis === 'string' &&
+        typeof (item as LogDiagnostic).status === 'string' &&
+        typeof (item as LogDiagnostic).detail === 'string',
+    )
+  );
+}
+
+function embeddedDiagnosticsFrom(value: unknown): LogDiagnostic[] | null {
+  const direct = readPath(value, ['diagnostics']);
+  if (isLogDiagnosticArray(direct)) return direct;
+  const detail = readPath(value, ['detail', 'diagnostics']);
+  if (isLogDiagnosticArray(detail)) return detail;
+  return null;
+}
+
 function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown): LogDiagnostic[] {
   const source = errorDetail ?? response;
+  const embeddedDiagnostics = embeddedDiagnosticsFrom(source);
+  if (embeddedDiagnostics) return embeddedDiagnostics;
   const debug = swapDebugFrom(source);
   const decoded = decodedSolanaErrorFrom(source);
   if (debug) return diagnosticsFromSwapDebug(debug, decoded);
@@ -340,6 +489,147 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
         hypothesis: 'Solana RPC error',
         status: decoded.code === -32002 ? 'risk' : 'watch',
         detail: `${decoded.classifier}; logs=${decoded.context.logs ?? 'n/a'}, units=${decoded.context.unitsConsumed ?? 'n/a'}.`,
+      },
+    ];
+  }
+  if (step.startsWith('privyDelegatedUltraSwap.')) {
+    const apiDiagnostics = diagnosticsForDelegatedUltraApiError({
+      message: String(readPath(source, ['message']) ?? ''),
+      status:
+        typeof readPath(source, ['status']) === 'number'
+          ? (readPath(source, ['status']) as number)
+          : undefined,
+      detail: readPath(source, ['detail']),
+    });
+    if (apiDiagnostics.length > 0) return apiDiagnostics;
+
+    const delegated = readPath(source, ['wallet', 'delegated']);
+    const serverKeyConfigured = readPath(source, ['authorizationUsed', 'serverKeyConfigured']);
+    const executeStatus = readPath(source, ['execution', 'status']);
+    return [
+      {
+        hypothesis: 'Privy wallet delegation',
+        status: delegated === true ? 'healthy' : delegated === false ? 'risk' : 'watch',
+        detail:
+          delegated === true
+            ? 'Linked embedded Solana wallet reports delegated access.'
+            : delegated === false
+              ? 'Linked embedded Solana wallet is not delegated yet.'
+              : 'Delegation state was not returned for the linked wallet.',
+      },
+      {
+        hypothesis: 'Automation signer',
+        status: serverKeyConfigured === true ? 'healthy' : 'watch',
+        detail:
+          serverKeyConfigured === true
+            ? 'A Privy server authorization key env var is configured.'
+            : 'A Privy server authorization key is required before delegated swaps can execute.',
+      },
+      {
+        hypothesis: 'Ultra relay',
+        status:
+          executeStatus === 'Success' ? 'healthy' : step.endsWith('.execute') ? 'watch' : 'unknown',
+        detail:
+          executeStatus === 'Success'
+            ? 'Jupiter Ultra accepted the signed transaction and returned a signature.'
+            : step.endsWith('.execute')
+              ? 'No successful Ultra execution was recorded.'
+              : 'Delegated swap did not reach a successful Ultra execution.',
+      },
+    ];
+  }
+  if (step.startsWith('delegatedAccess.')) {
+    const serverDelegated = readPath(source, ['wallet', 'delegated']);
+    const serverKeyConfigured = readPath(source, ['serverKey', 'configured']);
+    const signerConfigured = readPath(source, ['serverSigner', 'configured']);
+    const signerMatched = readPath(source, ['serverSigner', 'walletMatched']);
+    const walletClientType = readPath(source, ['wallet', 'walletClientType']);
+    const blockers = readPath(source, ['ready', 'blockers']);
+    const timeoutCode = readPath(source, ['detail', 'code']);
+    if (timeoutCode === 'delegated_access_timeout') {
+      return [
+        {
+          hypothesis: 'Privy consent flow',
+          status: 'risk',
+          detail:
+            'Privy did not resolve or reject the delegated-access prompt before the local timeout.',
+        },
+        {
+          hypothesis: 'Wallet delegation',
+          status: 'watch',
+          detail:
+            'Refresh status after approving any Privy modal; if it remains off, retry delegation.',
+        },
+      ];
+    }
+    const staleClientEnvCode = readPath(source, ['detail', 'code']);
+    if (staleClientEnvCode === STALE_SIGNER_ENV_ERROR) {
+      return [
+        {
+          hypothesis: 'Client env bundle',
+          status: 'risk',
+          detail:
+            'The server can read the signer ID, but the browser bundle cannot. Restart the Next dev server.',
+        },
+        {
+          hypothesis: 'Privy authorization signer',
+          status: 'watch',
+          detail:
+            'After restart, Enable should attach the Privy wallet v2 signer from the browser bundle.',
+        },
+      ];
+    }
+    return [
+      {
+        hypothesis: 'Wallet signer access',
+        status: signerMatched === true ? 'healthy' : serverDelegated === true ? 'watch' : 'risk',
+        detail:
+          signerMatched === true
+            ? 'Server can resolve the configured wallet v2 authorization signer for this embedded Solana wallet.'
+            : serverDelegated === true
+              ? 'Legacy delegated wallet metadata is present, but Auto-execute now requires the wallet v2 signer.'
+              : 'The wallet v2 authorization signer is not attached yet.',
+      },
+      {
+        hypothesis: 'Server authorization key',
+        status: serverKeyConfigured === true ? 'healthy' : 'risk',
+        detail:
+          serverKeyConfigured === true
+            ? 'The server authorization private key is configured.'
+            : 'Add PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY before executing delegated swaps.',
+      },
+      {
+        hypothesis: 'Privy authorization signer',
+        status:
+          signerMatched === true
+            ? 'healthy'
+            : walletClientType === 'privy-v2' && signerConfigured !== true
+              ? 'risk'
+              : signerConfigured === true
+                ? 'watch'
+                : 'unknown',
+        detail:
+          signerMatched === true
+            ? 'Configured signer is attached to this wallet.'
+            : walletClientType === 'privy-v2' && signerConfigured !== true
+              ? 'Add NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID before enabling signer delegation.'
+              : signerConfigured === true
+                ? 'Signer ID is configured; wallet has not attached it yet.'
+                : 'Privy wallet v2 signer configuration is missing.',
+      },
+      {
+        hypothesis: 'Execution readiness',
+        status:
+          Array.isArray(blockers) && blockers.length === 0
+            ? 'healthy'
+            : Array.isArray(blockers)
+              ? 'watch'
+              : 'unknown',
+        detail: Array.isArray(blockers)
+          ? blockers.length
+            ? `Blocked by ${blockers.join(', ')}.`
+            : 'Delegated swap execution prerequisites are satisfied.'
+          : 'Readiness blockers were not returned.',
       },
     ];
   }
@@ -382,7 +672,11 @@ function buildDiagnostics(step: string, response: unknown, errorDetail?: unknown
 function severityFor(error: unknown, diagnostics: LogDiagnostic[], step: string): LogSeverity {
   if (error) return 'error';
   if (diagnostics.some((item) => item.status === 'risk')) return 'warning';
-  if (/generate|accept|forceTrigger|executeSwap|manualClose|protection|login|logout/.test(step)) {
+  if (
+    /generate|accept|forceTrigger|executeSwap|manualClose|protection|login|logout|delegatedAccess\.enable|delegatedAccess\.revoke|privyDelegatedUltraSwap\.execute/.test(
+      step,
+    )
+  ) {
     return 'success';
   }
   return 'info';
@@ -416,6 +710,27 @@ function buildSummary(step: string, payload: unknown, response?: unknown, error?
       return 'Dev-tools session unlocked.';
     case 'session.logout':
       return 'Dev-tools session locked.';
+    case 'delegatedAccess.status': {
+      const ready = readPath(response, ['ready', 'canExecute']);
+      const delegated = readPath(response, ['wallet', 'delegated']);
+      return `Delegated access status: delegated=${String(delegated)}, ready=${String(ready)}.`;
+    }
+    case 'delegatedAccess.enable': {
+      const ready = readPath(response, ['ready', 'canExecute']);
+      return `Delegated access enabled; ready=${String(ready)}.`;
+    }
+    case 'delegatedAccess.revoke':
+      return 'Delegated access revoked.';
+    case 'privyDelegatedUltraSwap.preflight': {
+      const canAttempt = readPath(response, ['canAttempt']);
+      const blockers = readPath(response, ['blockers']);
+      if (Array.isArray(blockers) && blockers.length > 0) {
+        return `Delegated Ultra preflight blocked by ${blockers.join(', ')}.`;
+      }
+      return canAttempt === true
+        ? 'Delegated Ultra preflight passed; server-key execution can be attempted.'
+        : 'Delegated Ultra preflight needs attention.';
+    }
     case 'proposal.generate':
       return `Generated ${String(payloadRecord?.ticker ?? 'ticker')} proposal.`;
     case 'proposal.accept':
@@ -430,6 +745,11 @@ function buildSummary(step: string, payload: unknown, response?: unknown, error?
       const signature = readPath(response, ['swap', 'signature']);
       const price = responseRecord?.executionPrice;
       return `Swap broadcast ${typeof signature === 'string' ? shortAddress(signature) : 'without signature'}; settled at ${typeof price === 'number' ? fmtUsd(price) : 'unknown price'}.`;
+    }
+    case 'privyDelegatedUltraSwap.execute': {
+      const signature = readPath(response, ['execution', 'signature']);
+      const price = readPath(response, ['execution', 'executionPrice']);
+      return `Privy delegated Ultra swap settled ${typeof signature === 'string' ? shortAddress(signature) : 'without signature'} at ${typeof price === 'number' ? fmtUsd(price) : 'unknown price'}.`;
     }
     case 'position.protection':
       return `Updated TP/SL for ${shortAddress(String(payloadRecord?.positionId ?? 'unknown'))}.`;
@@ -506,7 +826,16 @@ function logEntryFromClientDiagnostic(event: ClientDiagnosticEvent): LogEntry {
 
 export function DevToolsClient() {
   const authedFetch = useAuthedFetch();
-  const { connected, login, publicKey } = useWallet();
+  const wallet = useWallet();
+  const {
+    connected,
+    delegated: clientDelegated,
+    delegateWallet,
+    login,
+    publicKey,
+    refreshWalletUser,
+    revokeDelegatedWallets,
+  } = wallet;
   const { swap } = useJupiterSwap();
   const runtime = useRuntime();
   const qc = useQueryClient();
@@ -525,6 +854,13 @@ export function DevToolsClient() {
   const [busy, setBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<LogSection, LogEntry[]>>(emptyLogs);
   const [selectedLogView, setSelectedLogView] = useState<LogView>('all');
+  const [delegatedOrderId, setDelegatedOrderId] = useState<string>('');
+  const [delegatedUltraStatus, setDelegatedUltraStatus] = useState<DelegatedUltraStatus | null>(
+    null,
+  );
+  const [delegatedUltraResult, setDelegatedUltraResult] = useState<DelegatedUltraResponse | null>(
+    null,
+  );
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const walletAddress = publicKey?.toBase58() ?? null;
@@ -543,6 +879,28 @@ export function DevToolsClient() {
   const openOrders = useMemo(
     () => devState.orders.filter((order) => order.status === 'OPEN'),
     [devState.orders],
+  );
+  const delegatedOpenOrders = useMemo(
+    () =>
+      openOrders.filter((order) =>
+        ['BUY_TRIGGER', 'TAKE_PROFIT', 'STOP_LOSS'].includes(order.kind),
+      ),
+    [openOrders],
+  );
+  const selectedDelegatedOrder = useMemo(
+    () => delegatedOpenOrders.find((order) => order.id === delegatedOrderId) ?? null,
+    [delegatedOpenOrders, delegatedOrderId],
+  );
+  const delegatedPreflightPreview = useMemo(
+    () =>
+      buildDelegatedUltraPreflightReport({
+        connected,
+        walletAddress,
+        clientDelegated,
+        status: delegatedUltraStatus,
+        order: selectedDelegatedOrder,
+      }),
+    [clientDelegated, connected, delegatedUltraStatus, selectedDelegatedOrder, walletAddress],
   );
   const activeProposal = useMemo(() => {
     if (proposal && isLiveProposal(proposal, nowMs)) return proposal;
@@ -700,6 +1058,37 @@ export function DevToolsClient() {
     [authedFetch, qc, removeProposal, runLogged, upsertProposal],
   );
 
+  const refreshDelegatedStatus = useCallback(
+    async ({ log = true }: { log?: boolean } = {}) => {
+      const fetchStatus = async () => {
+        const res = await authedFetch('/api/dev-tools/privy-delegated-ultra-swap', {
+          cache: 'no-store',
+        });
+        const json = (await res.json().catch(() => ({}))) as DelegatedUltraStatus & {
+          error?: string;
+          detail?: unknown;
+        };
+        if (!res.ok) {
+          const err = new Error(json.error ?? `${res.status}`) as Error & {
+            detail?: unknown;
+            status?: number;
+          };
+          err.name = 'DevToolsApiError';
+          err.status = res.status;
+          err.detail = json.detail;
+          throw err;
+        }
+        return json;
+      };
+      const next = log
+        ? await runLogged('auth', 'delegatedAccess.status', {}, fetchStatus)
+        : await fetchStatus();
+      setDelegatedUltraStatus(next);
+      return next;
+    },
+    [authedFetch, runLogged],
+  );
+
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
@@ -715,6 +1104,11 @@ export function DevToolsClient() {
   }, [session?.authenticated, connected, refreshDevState]);
 
   useEffect(() => {
+    if (!session?.authenticated || !connected) return;
+    void refreshDelegatedStatus({ log: false }).catch(() => {});
+  }, [session?.authenticated, connected, refreshDelegatedStatus]);
+
+  useEffect(() => {
     if (!proposal || isLiveProposal(proposal, nowMs)) return;
     removeProposal(proposal.id);
     setProposal(null);
@@ -725,6 +1119,15 @@ export function DevToolsClient() {
   useEffect(() => {
     if (!selectedOrderId && openOrders[0]) setSelectedOrderId(openOrders[0].id);
   }, [openOrders, selectedOrderId]);
+
+  useEffect(() => {
+    if (delegatedOrderId && delegatedOpenOrders.some((order) => order.id === delegatedOrderId)) {
+      return;
+    }
+    const preferred =
+      delegatedOpenOrders.find((order) => order.kind === 'BUY_TRIGGER') ?? delegatedOpenOrders[0];
+    setDelegatedOrderId(preferred?.id ?? '');
+  }, [delegatedOpenOrders, delegatedOrderId]);
 
   useEffect(() => {
     if (!selectedPositionId && activePositions[0]) setSelectedPositionId(activePositions[0].id);
@@ -956,6 +1359,177 @@ export function DevToolsClient() {
     }
   }
 
+  async function enableDelegatedAccess() {
+    if (!connected) {
+      login();
+      return;
+    }
+    setBusy('delegated-access:enable');
+    try {
+      const payload = {
+        walletAddress,
+        walletClientType: wallet.walletClientType,
+        connectorType: wallet.connectorType,
+        privyWalletId: wallet.privyWalletId,
+        delegationMode: wallet.delegationMode,
+        authorizationSignerIdConfigured: wallet.authorizationSignerIdConfigured,
+        clientDelegated,
+      };
+      const status = await runLogged('auth', 'delegatedAccess.enable', payload, async () => {
+        const preflight = await refreshDelegatedStatus({ log: false }).catch(() => null);
+        if (preflight?.serverSigner.configured && !wallet.authorizationSignerIdConfigured) {
+          throw timeoutError('Restart the web dev server to expose the Privy signer ID.', {
+            code: STALE_SIGNER_ENV_ERROR,
+            serverSigner: preflight.serverSigner,
+            wallet: payload,
+          });
+        }
+        await withTimeout(delegateWallet(), DELEGATED_ACCESS_TIMEOUT_MS, () =>
+          timeoutError('Privy delegated-access prompt did not complete.', {
+            code: 'delegated_access_timeout',
+            timeoutMs: DELEGATED_ACCESS_TIMEOUT_MS,
+            wallet: payload,
+          }),
+        );
+        await refreshWalletUser().catch(() => {});
+        return refreshDelegatedStatus({ log: false });
+      });
+      setDelegatedUltraStatus(status);
+      toast.success('Delegated access enabled.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+      await refreshDelegatedStatus({ log: false }).catch(() => {});
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function revokeDelegatedAccess() {
+    setBusy('delegated-access:revoke');
+    try {
+      const status = await runLogged(
+        'auth',
+        'delegatedAccess.revoke',
+        {
+          walletAddress,
+          walletClientType: wallet.walletClientType,
+          connectorType: wallet.connectorType,
+          privyWalletId: wallet.privyWalletId,
+          delegationMode: wallet.delegationMode,
+          authorizationSignerIdConfigured: wallet.authorizationSignerIdConfigured,
+          clientDelegated,
+        },
+        async () => {
+          const status = await waitForDelegatedAccessRevocation({
+            revoke: revokeDelegatedWallets,
+            readStatus: () => refreshDelegatedStatus({ log: false }),
+          });
+          void refreshWalletUser().catch(() => {});
+          return status;
+        },
+      );
+      setDelegatedUltraStatus(status);
+      setDelegatedUltraResult(null);
+      toast.success('Delegated access revoked.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+      await refreshDelegatedStatus({ log: false }).catch(() => {});
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function checkDelegatedAccess() {
+    setBusy('delegated-access:status');
+    try {
+      await refreshDelegatedStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runDelegatedUltraSwap() {
+    if (!selectedDelegatedOrder) return;
+    setBusy('delegated-swap:execute');
+    try {
+      await runLogged(
+        'swap',
+        'privyDelegatedUltraSwap.preflight',
+        { orderId: selectedDelegatedOrder.id },
+        async () => {
+          const status = await refreshDelegatedStatus({ log: false });
+          const report = buildDelegatedUltraPreflightReport({
+            connected,
+            walletAddress,
+            clientDelegated,
+            status,
+            order: selectedDelegatedOrder,
+          });
+          if (!report.canAttempt) {
+            const err = new Error(
+              `Delegated Ultra preflight blocked: ${report.blockers.join(', ')}`,
+            ) as Error & {
+              detail?: unknown;
+              status?: number;
+            };
+            err.name = 'DevToolsPreflightError';
+            err.status = 400;
+            err.detail = report;
+            throw err;
+          }
+          return report;
+        },
+      );
+      const result = await runLogged(
+        'swap',
+        'privyDelegatedUltraSwap.execute',
+        {
+          orderId: selectedDelegatedOrder.id,
+        },
+        async () => {
+          const res = await authedFetch('/api/dev-tools/privy-delegated-ultra-swap', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              orderId: selectedDelegatedOrder.id,
+            }),
+          });
+          const json = (await res.json().catch(() => ({}))) as
+            | DelegatedUltraResponse
+            | { error?: string; detail?: unknown };
+          if (!res.ok) {
+            const err = new Error(
+              'error' in json && json.error ? json.error : `${res.status}`,
+            ) as Error & {
+              detail?: unknown;
+              status?: number;
+            };
+            err.name = 'DevToolsApiError';
+            err.status = res.status;
+            err.detail = 'detail' in json ? json.detail : undefined;
+            throw err;
+          }
+          return json as DelegatedUltraResponse;
+        },
+      );
+      setDelegatedUltraResult(result);
+      toast.success('Delegated Ultra swap settled.');
+      await refreshDevState();
+      await refreshDelegatedStatus({ log: false }).catch(() => {});
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.positions() });
+      void qc.invalidateQueries({ queryKey: QK.portfolio() });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+      await refreshDevState().catch(() => {});
+      await refreshDelegatedStatus({ log: false }).catch(() => {});
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function adjustProtection() {
     if (!selectedPosition) return;
     const body = {
@@ -1031,6 +1605,14 @@ export function DevToolsClient() {
   const triggerSwapLogs = useMemo(
     () => logs.swap.filter((entry) => entry.step.startsWith('trigger.')),
     [logs.swap],
+  );
+  const delegatedUltraLogs = useMemo(
+    () => logs.swap.filter((entry) => entry.step.startsWith('privyDelegatedUltraSwap.')),
+    [logs.swap],
+  );
+  const delegatedAccessLogs = useMemo(
+    () => logs.auth.filter((entry) => entry.step.startsWith('delegatedAccess.')),
+    [logs.auth],
   );
 
   if (session && !session.enabled) {
@@ -1276,6 +1858,191 @@ export function DevToolsClient() {
             <LogBlock title="Trigger swap log" entries={triggerSwapLogs} compact />
           </Panel>
 
+          <Panel title="Delegated access" icon={<ShieldCheck className="h-5 w-5" />}>
+            <div className="flex flex-col gap-3">
+              <div className="rounded-md bg-surface-container-low p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-title-md text-primary">
+                      {walletAddress ? shortAddress(walletAddress) : 'No wallet'}
+                    </p>
+                    <p className="text-body-sm text-on-surface-variant">
+                      {delegatedUltraStatus?.ready.canExecute
+                        ? 'Ready for server-key swaps'
+                        : 'Setup required'}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-surface px-3 py-1 text-label-sm text-primary">
+                    {(delegatedUltraStatus?.wallet.delegated ?? clientDelegated)
+                      ? 'Delegated'
+                      : 'Not delegated'}
+                  </span>
+                </div>
+                <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
+                  <Metric
+                    label="Client access"
+                    value={
+                      clientDelegated == null ? 'Unknown' : clientDelegated ? 'Delegated' : 'Off'
+                    }
+                  />
+                  <Metric
+                    label="Server access"
+                    value={
+                      delegatedUltraStatus?.wallet.delegated == null
+                        ? 'Unknown'
+                        : delegatedUltraStatus.wallet.delegated
+                          ? 'Delegated'
+                          : 'Off'
+                    }
+                  />
+                  <Metric
+                    label="Server key"
+                    value={delegatedUltraStatus?.serverKey.configured ? 'Configured' : 'Missing'}
+                  />
+                  <Metric
+                    label="Signer ID"
+                    value={
+                      (delegatedUltraStatus?.serverSigner?.configured ??
+                      wallet.authorizationSignerIdConfigured)
+                        ? 'Configured'
+                        : 'Missing'
+                    }
+                  />
+                  <Metric
+                    label="Privy wallet"
+                    value={
+                      delegatedUltraStatus?.wallet.privyWalletId
+                        ? shortAddress(delegatedUltraStatus.wallet.privyWalletId)
+                        : wallet.privyWalletId
+                          ? shortAddress(wallet.privyWalletId)
+                          : '-'
+                    }
+                  />
+                  <Metric
+                    label="Wallet type"
+                    value={
+                      delegatedUltraStatus?.wallet.walletClientType ??
+                      wallet.walletClientType ??
+                      'Unknown'
+                    }
+                  />
+                  <Metric
+                    label="Connector"
+                    value={
+                      delegatedUltraStatus?.wallet.connectorType ??
+                      wallet.connectorType ??
+                      'Unknown'
+                    }
+                  />
+                  <Metric label="Mode" value={wallet.delegationMode ?? 'Unknown'} />
+                </dl>
+                {delegatedUltraStatus?.ready.blockers.length ? (
+                  <p className="mt-3 text-body-sm text-on-surface-variant">
+                    Blocked by {delegatedUltraStatus.ready.blockers.join(', ')}.
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => void checkDelegatedAccess()}
+                  disabled={!connected || busy === 'delegated-access:status'}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97] disabled:opacity-50"
+                >
+                  <RefreshCw aria-hidden className="h-4 w-4" />
+                  {busy === 'delegated-access:status' ? 'Checking...' : 'Check'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void enableDelegatedAccess()}
+                  disabled={!connected || busy === 'delegated-access:enable'}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-label-lg text-on-primary transition-transform active:scale-[0.97] disabled:opacity-50"
+                >
+                  <ShieldCheck aria-hidden className="h-4 w-4" />
+                  {busy === 'delegated-access:enable' ? 'Enabling...' : 'Enable'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void revokeDelegatedAccess()}
+                  disabled={!connected || busy === 'delegated-access:revoke'}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97] disabled:opacity-50"
+                >
+                  <ShieldOff aria-hidden className="h-4 w-4" />
+                  {busy === 'delegated-access:revoke' ? 'Disabling...' : 'Disable'}
+                </button>
+              </div>
+            </div>
+            <LogBlock title="Delegated access log" entries={delegatedAccessLogs} compact />
+          </Panel>
+
+          <Panel title="Privy delegated Ultra swap" icon={<Play className="h-5 w-5" />}>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <select
+                  value={delegatedOrderId}
+                  onChange={(event) => setDelegatedOrderId(event.target.value)}
+                  className="min-w-0 flex-1 rounded-full bg-surface-container-low px-4 text-label-md text-primary outline-none ring-1 ring-outline-variant"
+                >
+                  <option value="">No order selected</option>
+                  {delegatedOpenOrders.map((order) => (
+                    <option key={order.id} value={order.id}>
+                      {order.kind} {order.ticker} {fmtUsd(order.triggerPriceUsd)}
+                    </option>
+                  ))}
+                </select>
+                <IconButton
+                  title="Refresh"
+                  onClick={() => {
+                    void refreshDevState();
+                    void refreshDelegatedStatus({ log: false });
+                  }}
+                  icon={<RefreshCw className="h-4 w-4" />}
+                />
+              </div>
+              {selectedDelegatedOrder && (
+                <div className="rounded-md bg-surface-container-low p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-title-md text-primary">
+                        {selectedDelegatedOrder.side} {selectedDelegatedOrder.ticker}
+                      </p>
+                      <p className="font-mono text-body-sm text-on-surface-variant">
+                        {shortAddress(selectedDelegatedOrder.id)}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-surface px-3 py-1 text-label-sm text-primary">
+                      {selectedDelegatedOrder.kind}
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
+                    <Metric label="Input" value={fmtUsd(selectedDelegatedOrder.sizeUsd)} />
+                    <Metric
+                      label="Trigger"
+                      value={fmtUsd(selectedDelegatedOrder.triggerPriceUsd)}
+                    />
+                    <Metric
+                      label="Tokens"
+                      value={selectedDelegatedOrder.tokenAmount?.toFixed(6) ?? 'Ultra quote'}
+                    />
+                    <Metric label="Status" value={selectedDelegatedOrder.status} />
+                  </dl>
+                </div>
+              )}
+              <DelegatedPreflightPanel report={delegatedPreflightPreview} />
+              <button
+                type="button"
+                onClick={() => void runDelegatedUltraSwap()}
+                disabled={!selectedDelegatedOrder || busy === 'delegated-swap:execute'}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 text-label-lg text-on-primary transition-transform active:scale-[0.97] disabled:opacity-50"
+              >
+                <Play aria-hidden className="h-4 w-4" />
+                {busy === 'delegated-swap:execute' ? 'Executing...' : 'Execute swap'}
+              </button>
+              {delegatedUltraResult && <DelegatedUltraResult result={delegatedUltraResult} />}
+            </div>
+            <LogBlock title="Delegated Ultra swap log" entries={delegatedUltraLogs} compact />
+          </Panel>
+
           <Panel title="Protection" icon={<SlidersHorizontal className="h-5 w-5" />}>
             <div className="flex flex-col gap-3">
               <select
@@ -1370,6 +2137,116 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-label-sm text-on-surface-variant">{label}</dt>
       <dd className="mt-1 font-mono text-label-md text-primary">{value}</dd>
+    </div>
+  );
+}
+
+function DelegatedPreflightPanel({ report }: { report: DelegatedUltraPreflightReport }) {
+  const riskCount = report.diagnostics.filter((item) => item.status === 'risk').length;
+  const watchCount = report.diagnostics.filter((item) => item.status === 'watch').length;
+  const visibleDiagnostics = report.diagnostics.slice(0, 8);
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-label-md text-primary">Preflight hypotheses</p>
+          <p className="text-body-sm text-on-surface-variant">
+            {riskCount > 0
+              ? `${riskCount} blocker${riskCount === 1 ? '' : 's'} before execution`
+              : `${watchCount} watch item${watchCount === 1 ? '' : 's'} to verify during execution`}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-label-sm ${
+            report.canAttempt
+              ? 'bg-positive-container text-primary'
+              : 'bg-error-container text-on-error-container'
+          }`}
+        >
+          {report.canAttempt ? 'Can attempt' : 'Blocked'}
+        </span>
+      </div>
+      {report.expectedInput && (
+        <p className="mt-3 text-body-sm text-on-surface-variant">
+          Expected input: {report.expectedInput.amount} {report.expectedInput.symbol}.
+        </p>
+      )}
+      <div className="mt-3 flex flex-col gap-1">
+        {visibleDiagnostics.map((item) => (
+          <div key={`${item.hypothesis}-${item.status}`} className="min-w-0">
+            <span
+              className={`inline-flex max-w-full rounded-full px-2 py-1 text-left text-label-sm ${diagnosticStyles(item.status)}`}
+            >
+              <span className="truncate">
+                {item.hypothesis}: {item.detail}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DelegatedUltraResult({ result }: { result: DelegatedUltraResponse }) {
+  const delegated =
+    result.wallet.delegated === true
+      ? 'Delegated'
+      : result.wallet.delegated === false
+        ? 'Not delegated'
+        : 'Unknown';
+  const execution = result.execution;
+
+  return (
+    <div className="rounded-md bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-title-md text-primary">{shortAddress(result.ultraOrder.requestId)}</p>
+          <p className="text-body-sm text-on-surface-variant">{result.plan.side} via server key</p>
+        </div>
+        <span className="rounded-full bg-surface px-3 py-1 text-label-sm text-primary">
+          {execution?.status ?? 'Executed'}
+        </span>
+      </div>
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-body-sm">
+        <Metric label="Wallet" value={shortAddress(result.wallet.address)} />
+        <Metric label="Delegation" value={delegated} />
+        <Metric label="Auth" value={result.authorizationUsed.serverKey ? 'Server key' : 'None'} />
+        <Metric
+          label="Server key"
+          value={result.authorizationUsed.serverKeyConfigured ? 'Configured' : 'Missing'}
+        />
+        <Metric label="Balance raw" value={result.balance.walletRaw} />
+        <Metric label="Requested raw" value={result.balance.requestedRaw} />
+        <Metric label="Submitted raw" value={result.balance.submittedRaw} />
+        <Metric label="Router" value={result.ultraOrder.router ?? '-'} />
+        <Metric
+          label="Gasless"
+          value={result.ultraOrder.gasless == null ? '-' : String(result.ultraOrder.gasless)}
+        />
+        <Metric label="Tx bytes" value={result.ultraOrder.transactionBytes.toString()} />
+        <Metric
+          label="Signers"
+          value={`${result.ultraOrder.transactionShape.requiredSignatures} req / ${result.ultraOrder.transactionShape.zeroSignatureCount} blank`}
+        />
+        {result.signedTransaction && (
+          <Metric
+            label="Signed"
+            value={`${result.signedTransaction.bytes} bytes / ${result.signedTransaction.transactionShape.zeroSignatureCount} blank`}
+          />
+        )}
+        {execution && (
+          <>
+            <Metric label="Price" value={fmtUsd(execution.executionPrice)} />
+            <Metric label="Tokens" value={execution.tokenAmount.toFixed(6)} />
+            <Metric
+              label="Signature"
+              value={execution.signature ? shortAddress(execution.signature) : '-'}
+            />
+          </>
+        )}
+      </dl>
     </div>
   );
 }

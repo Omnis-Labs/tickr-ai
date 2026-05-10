@@ -44,17 +44,17 @@ Multi-select. Users choose verticals (not individual tickers).
 
 **xStock** verticals:
 
-| Vertical              | Tickers                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------- |
+| Vertical              | Tickers                                                                     |
+| --------------------- | --------------------------------------------------------------------------- |
 | Technology / Software | AAPLx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
-| Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, SMHx, ASMLx, GEVx                                 |
-| EV & Clean Energy     | TSLAx                                                                              |
-| Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |
-| Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                                 |
-| Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                            |
-| Energy / Utilities    | XLEx, XOPx, URAx                                                                   |
-| Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                         |
-| Industrials           | CATx, DELLx, BAx                                                                   |
+| Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, SMHx, ASMLx, GEVx                          |
+| EV & Clean Energy     | TSLAx                                                                       |
+| Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                          |
+| Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                          |
+| Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                     |
+| Energy / Utilities    | XLEx, XOPx, URAx                                                            |
+| Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                  |
+| Industrials           | CATx, DELLx, BAx                                                            |
 
 **Tokenized ETFs**: SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx
 
@@ -357,8 +357,12 @@ flowchart TD
     L --> M[ws-server detects cash + mandate → generates BUY proposals]
     M --> N[User reviews proposal → adjusts → Accept]
     N --> O[Synthetic BUY trigger Order → Position BUY_PENDING]
-    O --> P[trigger:hit toast → tap Execute]
-    P --> Q[Jupiter Ultra /execute settles → TP/SL Orders → Position ACTIVE]
+    O --> P[Price trigger]
+    P --> P1{Auto-execute triggers live?}
+    P1 -- Yes --> Q[ws-server executes Ultra → trade:filled]
+    P1 -- No --> R[trigger:hit toast → tap Execute]
+    Q --> S[TP/SL Orders → Position ACTIVE]
+    R --> S
 ```
 
 ### Flow: Returning User
@@ -386,29 +390,35 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[ws-server emits trigger:hit] --> B[User taps Execute]
-    B --> C[Claim Order OPEN → PENDING; Position BUY_PENDING → ENTERING]
-    C --> D[Jupiter Ultra /order]
-    D --> E[Privy signs user/taker slot]
-    E --> F[Jupiter Ultra /execute returns signature]
-    F --> G[/api/orders/id/execute settles BUY]
-    G --> H[Position → ACTIVE; TP + SL synthetic Orders OPEN]
+    A[ws-server detects BUY trigger] --> B{Privy delegated wallet live?}
+    B -- Yes --> C[ws-server claims Order; Position BUY_PENDING → ENTERING]
+    B -- No --> D[Emit trigger:hit; user taps Execute]
+    D --> E[Client claims Order; Position BUY_PENDING → ENTERING]
+    C --> F[Jupiter Ultra /order]
+    E --> F
+    F --> G[Privy signs user/taker slot or delegated server signature]
+    G --> H[Jupiter Ultra /execute returns signature]
+    H --> I[PositionLifecycle settles BUY]
+    I --> J[Position → ACTIVE; TP + SL synthetic Orders OPEN]
 ```
 
 ### Flow: TP/SL Fill (OCO)
 
 ```mermaid
 flowchart TD
-    A[ws-server emits TP/SL trigger:hit] --> B[User taps Execute]
-    B --> C[Claim exit Order; Position ACTIVE → CLOSING]
-    C --> D[Jupiter Ultra /execute returns signature]
-    D --> E{Which exit settled?}
-    E -- TP --> F[Cancel SL Order]
-    E -- SL --> G[Cancel TP Order]
-    F --> H[Calculate realizedPnl]
-    G --> H
-    H --> I[Position → CLOSED]
-    I --> J[Record Trade]
+    A[ws-server detects TP/SL trigger] --> B{Privy delegated wallet live?}
+    B -- Yes --> C[ws-server claims exit Order; Position ACTIVE → CLOSING]
+    B -- No --> D[Emit trigger:hit; user taps Execute]
+    D --> E[Client claims exit Order; Position ACTIVE → CLOSING]
+    C --> F[Jupiter Ultra /execute returns signature]
+    E --> F
+    F --> G{Which exit settled?}
+    G -- TP --> H[Cancel SL Order]
+    G -- SL --> I[Cancel TP Order]
+    H --> J[Calculate realizedPnl]
+    I --> J
+    J --> K[Position → CLOSED]
+    K --> L[Record Trade]
 ```
 
 ### Flow: User Close Position
@@ -466,32 +476,32 @@ BUY_PENDING  →  ENTERING  →  ACTIVE  →  CLOSING  →  CLOSED
                                         ACTIVE → CLOSED (TP/SL fill)
 ```
 
-| State       | Meaning                                      | Available Actions            |
-| ----------- | -------------------------------------------- | ---------------------------- |
+| State       | Meaning                                                           | Available Actions            |
+| ----------- | ----------------------------------------------------------------- | ---------------------------- |
 | BUY_PENDING | Synthetic BUY trigger Order placed, waiting for trigger execution | Cancel order                 |
 | ENTERING    | BUY trigger execution claimed while wallet/Jupiter Ultra finishes | None (wait)                  |
-| ACTIVE      | TP + SL both live, strategy running          | Adjust TP/SL, Close Position |
+| ACTIVE      | TP + SL both live, strategy running                               | Adjust TP/SL, Close Position |
 | CLOSING     | Exit/close execution claimed while wallet/Jupiter Ultra finishes  | None (wait)                  |
-| CLOSED      | Position fully exited                        | View history                 |
+| CLOSED      | Position fully exited                                             | View history                 |
 
 ---
 
 ## Error States
 
-| Scenario                                    | User Sees                                                                                                                                                  |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Insufficient USDC                           | "Not enough USDC. You have $X available."                                                                                                                  |
-| User rejects wallet signature               | "Transaction was not signed. No swap was submitted." The execution claim is released for retry.                                                            |
-| Jupiter Ultra `/execute` fails before signature | "Execute failed..." with Retry. The execution claim is released for retry.                                                                              |
-| Swap returns signature but DB settle fails  | "Swap broadcast, but settle failed..." Refresh/reconcile before retry.                                                                                     |
-| ws-server unreachable                       | "Unable to load proposals. Pull to refresh." Portfolio still works.                                                                                        |
-| PostgreSQL unreachable                      | Fallback to client-side TanStack Query cached data from the current/recent session. Banner: "Some data may be outdated." No server-side cache layer in v1. |
-| Privy session expired                       | Redirect to login (Privy handles this)                                                                                                                     |
-| Zero portfolio + zero USDC                  | Deposit prominently shown. Suggested copy: "Desk is clear."                                                                                                |
-| Pyth API unreachable                        | "Price chart unavailable." Trade execution still works.                                                                                                    |
-| Execution claim stuck                       | Position stays in ENTERING/CLOSING; operator inspects `/dev-tools` diagnostics before retry/reconcile.                                                     |
-| Close Position: cancel fails                | Do NOT proceed to swap. Retry cancellation. Position stays CLOSING.                                                                                        |
-| Close Position: cancel succeeds, swap fails | Position stays CLOSING with no exit orders. Prompt user to retry swap.                                                                                     |
+| Scenario                                        | User Sees                                                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Insufficient USDC                               | "Not enough USDC. You have $X available."                                                                                                                  |
+| User rejects wallet signature                   | "Transaction was not signed. No swap was submitted." The execution claim is released for retry.                                                            |
+| Jupiter Ultra `/execute` fails before signature | "Execute failed..." with Retry. The execution claim is released for retry.                                                                                 |
+| Swap returns signature but DB settle fails      | "Swap broadcast, but settle failed..." Refresh/reconcile before retry.                                                                                     |
+| ws-server unreachable                           | "Unable to load proposals. Pull to refresh." Portfolio still works.                                                                                        |
+| PostgreSQL unreachable                          | Fallback to client-side TanStack Query cached data from the current/recent session. Banner: "Some data may be outdated." No server-side cache layer in v1. |
+| Privy session expired                           | Redirect to login (Privy handles this)                                                                                                                     |
+| Zero portfolio + zero USDC                      | Deposit prominently shown. Suggested copy: "Desk is clear."                                                                                                |
+| Pyth API unreachable                            | "Price chart unavailable." Trade execution still works.                                                                                                    |
+| Execution claim stuck                           | Position stays in ENTERING/CLOSING; operator inspects `/dev-tools` diagnostics before retry/reconcile.                                                     |
+| Close Position: cancel fails                    | Do NOT proceed to swap. Retry cancellation. Position stays CLOSING.                                                                                        |
+| Close Position: cancel succeeds, swap fails     | Position stays CLOSING with no exit orders. Prompt user to retry swap.                                                                                     |
 
 ---
 

@@ -55,6 +55,7 @@ export {
   SignalSchema,
   TradeSchema,
   TradeStatusSchema,
+  TradeFilledPayloadSchema,
   TriggerHitPayloadSchema,
   WsClientEvents,
   WsServerEvents,
@@ -72,6 +73,7 @@ export type {
   SignalAction,
   Trade,
   TradeStatus,
+  TradeFilledPayload,
   TriggerHitPayload,
 } from './types.js';
 
@@ -159,3 +161,36 @@ export type {
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
+
+// ── Synthetic Order execution helpers ───────────────────────────────────
+export {
+  buildTriggerUltraSwapPlan,
+  settlementAmountsForTrigger,
+  submittedInputRawForBalance,
+} from './synthetic-order-execution.js';
+export type {
+  TriggerSettlementAmounts,
+  TriggerUltraSwapPlan,
+  TriggerUltraSwapSide,
+} from './synthetic-order-execution.js';
+
+// ── Jupiter Ultra helpers ───────────────────────────────────────────────
+export { getUltraOrderProblem } from './jupiter-ultra.js';
+export type {
+  JupiterUltraOrderLike,
+  UltraOrderProblem,
+  UltraOrderProblemCode,
+} from './jupiter-ultra.js';
+
+// ── Delegated Execution readiness ──────────────────────────────────────
+export {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
+  delegatedExecutionReadinessStatus,
+  getDelegatedExecutionAuthorizationSignerId,
+} from './delegated-execution-readiness.js';
+export type {
+  DelegatedExecutionReadinessBlocker,
+  DelegatedExecutionReadinessStatus,
+  DelegatedExecutionResolvedWallet,
+} from './delegated-execution-readiness.js';

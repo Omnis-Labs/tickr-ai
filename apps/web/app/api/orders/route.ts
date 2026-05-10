@@ -5,6 +5,7 @@ import { acceptBuyProposal } from '@hunch-it/db';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
+import { serializeOpenOrdersForClient } from '@/lib/orders/open-orders';
 
 /**
  * Order persistence layer.
@@ -139,7 +140,19 @@ export async function GET(req: NextRequest) {
       userId: ctx.userId,
       status: { in: ['OPEN', 'PARTIALLY_FILLED'] },
     },
+    select: {
+      id: true,
+      positionId: true,
+      kind: true,
+      side: true,
+      status: true,
+      jupiterOrderId: true,
+      triggerPriceUsd: true,
+      sizeUsd: true,
+      tokenAmount: true,
+      position: { select: { ticker: true } },
+    },
     orderBy: { createdAt: 'desc' },
   });
-  return NextResponse.json({ orders: decimalsToNumbers(orders) });
+  return NextResponse.json({ orders: serializeOpenOrdersForClient(orders) });
 }

@@ -1,6 +1,7 @@
 # ADR-0001: Frozen synthetic-trigger architecture
 
 - **Status**: Accepted (2026-05-04)
+- **Revised by**: ADR-0003 for users who opt into Privy delegated wallet execution.
 - **Supersedes**: the earlier autonomous external execution model described in older architecture drafts.
 - **Set by**: PR #8 (commit `c2cb153`, 2026-05-02) verified end-to-end on Solana mainnet (BUY tx `5FUrvR…7Rf`, SELL/close tx `5W9GE5…D2KQ`).
 
@@ -10,14 +11,14 @@ The original v1.3 design assumed an external provider would custody assets and e
 
 ## Decision
 
-The product is frozen on the synthetic-trigger model. Its shape:
+The product is frozen on the synthetic-trigger model. ADR-0001's original execution shape was:
 
 1. **Approve** a BUY proposal writes a `Position(BUY_PENDING)` and a single `Order(kind=BUY_TRIGGER, status=OPEN, jupiterOrderId=null)` to Postgres. **No Jupiter call. No signature. No USDC lock.**
 2. **`apps/ws-server`** runs `runTriggerMonitor` every 30 s. It polls Pyth Hermes for every OPEN synthetic order's ticker, checks the trigger condition (BUY: within 0.5 % of trigger; TP: ≥; SL: ≤), and emits `trigger:hit` over Socket.IO to `user:<walletAddress>`. **No DB writes.**
 3. **The user** sees a sticky toast and taps **Execute**. The frontend claims the Order (`OPEN → PENDING`), requests a Jupiter **Ultra** `/order`, has Privy sign the user's/taker's signature slot with `signTransaction`, then submits the signed bytes to Jupiter Ultra `/execute`. Jupiter returns the on-chain signature for the sponsored swap.
 4. **`POST /api/orders/[id]/execute`** settles after the Ultra swap returns a signature: marks the Order `FILLED`, transitions `Position` to `ACTIVE` (BUY) or `CLOSED` (TP/SL), records a `Trade`, arms or OCO-cancels exit Orders.
 
-The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-server detects, user confirms, frontend swaps. Server-side transaction signing is out of scope for this freeze.
+The original freeze was deliberately **not autonomous**: ws-server detects, user confirms, frontend swaps. ADR-0003 revises this for users who opt into Privy delegated wallet execution while keeping synthetic Orders and PositionLifecycle as the core state model.
 
 ## Consequences
 
@@ -32,10 +33,10 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 ### What is now opt-in (env-gated, default off)
 
-| Env flag | Service | Why disabled |
-|---|---|---|
+| Env flag                | Service                         | Why disabled                                                                                |
+| ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
 | `ENABLE_THESIS_MONITOR` | `apps/ws-server` Thesis Monitor | Generates SELL signals that race the OCO close model; not part of the documented exit flow. |
-| `ENABLE_BACK_EVAL` | `apps/ws-server` back-evaluator | Analytics, not user-visible. |
+| `ENABLE_BACK_EVAL`      | `apps/ws-server` back-evaluator | Analytics, not user-visible.                                                                |
 
 ### What is dead and can be deleted
 
@@ -51,8 +52,7 @@ The system is deliberately **not autonomous**. It is **tap-to-execute**: ws-serv
 
 ### What we are NOT doing in v1 of the freeze
 
-- Server-side transaction signing.
-- Truly autonomous execution.
+- Custodial or external-provider execution.
 - Returning to autonomous external execution.
 - Real LLM-driven proposal generation in production.
 - Back-evaluation in default runtime.
