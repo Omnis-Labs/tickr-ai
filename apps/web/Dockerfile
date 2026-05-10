@@ -25,12 +25,13 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/web/package.json apps/web/
 COPY apps/ws-server/package.json apps/ws-server/
 COPY packages/db/package.json packages/db/
+COPY packages/execution/package.json packages/execution/
 COPY packages/shared/package.json packages/shared/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
 # ─── Stage 3: build ─────────────────────────────────────────────────────────
-FROM base AS build
+FROM deps AS build
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Public env baked into the bundle. Defaults work for local docker compose;
@@ -52,17 +53,17 @@ ENV NEXT_PUBLIC_SOLANA_RPC_URLS=$NEXT_PUBLIC_SOLANA_RPC_URLS
 ENV NEXT_PUBLIC_JUPITER_API_BASE=$NEXT_PUBLIC_JUPITER_API_BASE
 ENV NEXT_PUBLIC_DEFAULT_TRADE_USD=$NEXT_PUBLIC_DEFAULT_TRADE_USD
 
-COPY --from=deps /repo/node_modules ./node_modules
-COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
-COPY --from=deps /repo/packages/db/node_modules ./packages/db/node_modules
-COPY --from=deps /repo/packages/shared/node_modules ./packages/shared/node_modules
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
+COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
 COPY packages/db ./packages/db
+COPY packages/execution ./packages/execution
 COPY packages/shared ./packages/shared
 
-# Prisma client is imported by Next route handlers (e.g. /api/portfolio).
-RUN pnpm --filter @hunch-it/db exec prisma generate
+# The repo-root .dockerignore excludes package dist outputs, while production
+# package exports resolve to dist. Build workspace packages before Next compiles.
+RUN pnpm --filter @hunch-it/shared build
+RUN pnpm --filter @hunch-it/db build
+RUN pnpm --filter @hunch-it/execution build
 RUN pnpm --filter @hunch-it/web exec next build
 
 # ─── Stage 4: runner ────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/packages/db/generated/prisma/libquery_engine-linux-musl-openssl-3.0.x.so.node
 
 # Standalone bundle layout:
 #   apps/web/.next/standalone/         <- server.js + minimal node_modules

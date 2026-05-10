@@ -1,4 +1,9 @@
-import { Prisma, type PrismaClient, type Proposal, type ProposalOrigin } from '@prisma/client';
+import {
+  Prisma,
+  type PrismaClient,
+  type Proposal,
+  type ProposalOrigin,
+} from '../../generated/prisma/index.js';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   extractThesisTags,

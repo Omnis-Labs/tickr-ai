@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/index.js';
 import { prisma } from '../client.js';
 
 type Tx = Prisma.TransactionClient;

@@ -46,4 +46,4 @@ export type {
   Position,
   Order,
   Trade,
-} from '@prisma/client';
+} from '../generated/prisma/index.js';

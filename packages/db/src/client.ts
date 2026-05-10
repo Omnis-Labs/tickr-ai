@@ -4,7 +4,7 @@
 // guarantees a single connection pool and a single migration history. Apps
 // import { prisma } from '@hunch-it/db' and that's it.
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/index.js';
 
 declare global {
   // eslint-disable-next-line no-var
