@@ -1,7 +1,6 @@
 'use client';
 
-import type { DemoProposalShape } from '@hunch-it/shared';
-import type { PositionUpdatedPayload } from '@/lib/shared-worker/use-shared-worker';
+import type { Proposal } from '@hunch-it/shared';
 import type { UIEffect } from './effects';
 
 /**
@@ -17,7 +16,7 @@ export interface HandlerCtx {
 }
 
 export const proposalNewHandler = (
-  proposal: DemoProposalShape,
+  proposal: Proposal,
   ctx: HandlerCtx,
 ): UIEffect[] => {
   const verb = proposal.action === 'SELL' ? 'SELL' : 'BUY';
@@ -44,29 +43,6 @@ export const proposalNewHandler = (
       href,
     },
   ];
-};
-
-export const positionUpdatedHandler = (
-  payload: PositionUpdatedPayload,
-): UIEffect[] => {
-  if (payload.action === 'sibling-cancelled') {
-    return [{ kind: 'toast', variant: 'success', message: 'OCO sibling auto-cancelled.' }];
-  }
-  if (payload.action === 'cancel-sibling' && payload.siblingKind) {
-    const kindLabel = payload.siblingKind === 'TAKE_PROFIT' ? 'TP' : 'SL';
-    return [
-      {
-        kind: 'toast',
-        message: `OCO: ${kindLabel} still parked in vault.`,
-        description: 'Open Position Detail to sign the withdrawal.',
-        action: {
-          label: 'Open',
-          onClick: () => navigateTo(`/positions/${payload.positionId}`),
-        },
-      },
-    ];
-  }
-  return [];
 };
 
 // Lightweight router shim so handlers stay pure of React imports. The driver

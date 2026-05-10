@@ -85,12 +85,15 @@ fi
 #    and docker compose picks up the new values.
 # ──────────────────────────────────────────────────────────────────────
 fetch_secret() { gcloud secrets versions access latest --secret="$1"; }
+fetch_optional_secret() { gcloud secrets versions access latest --secret="$1" 2>/dev/null || true; }
 
 DATABASE_URL=$(fetch_secret database-url)
 SOLANA_RPC_URLS=$(fetch_secret solana-rpc-urls)
 PRIVY_APP_SECRET_VAL=$(fetch_secret privy-app-secret)
-ANTHROPIC_KEY=$(fetch_secret anthropic-key)
-WS_CRON_SECRET_VAL=$(fetch_secret ws-cron-secret)
+PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY_VAL=$(fetch_optional_secret privy-wallet-authorization-private-key)
+PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL=$(fetch_optional_secret privy-wallet-authorization-signer-id)
+PRIVY_WALLET_AUTHORIZATION_POLICY_IDS_VAL=$(fetch_optional_secret privy-wallet-authorization-policy-ids)
+GEMINI_KEY=$(fetch_secret gemini-key)
 
 cat > /opt/hunchit/.env <<EOF
 # Hydrated by startup.sh from Secret Manager + VM metadata. Do not edit
@@ -107,8 +110,11 @@ LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
 DATABASE_URL=${DATABASE_URL}
 NEXT_PUBLIC_SOLANA_RPC_URLS=${SOLANA_RPC_URLS}
 PRIVY_APP_SECRET=${PRIVY_APP_SECRET_VAL}
-ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
-WS_CRON_SECRET=${WS_CRON_SECRET_VAL}
+PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY=${PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY_VAL}
+PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL}
+NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID_VAL}
+NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS=${PRIVY_WALLET_AUTHORIZATION_POLICY_IDS_VAL}
+GEMINI_API_KEY=${GEMINI_KEY}
 
 # Static / public — also embedded in the web image at build time, but
 # server-side handlers + ws-server need them at runtime too.
@@ -117,8 +123,7 @@ NEXT_PUBLIC_PRIVY_APP_ID=<privy-app-id>
 NEXT_PUBLIC_APP_URL=https://${DOMAIN_WEB}
 NEXT_PUBLIC_WS_URL=https://${DOMAIN_WS}
 NEXT_PUBLIC_DEFAULT_TRADE_USD=5
-NEXT_PUBLIC_DEMO_MODE=false
-DEMO_MODE=false
+ENABLE_DEV_TOOLS=false
 NEXT_PUBLIC_JUPITER_API_BASE=https://lite-api.jup.ag
 
 # LLM signal engine
@@ -126,7 +131,9 @@ LLM_ENABLED=true
 LLM_DAILY_USD_CAP=20
 SIGNAL_INTERVAL_SECONDS=60
 TICKER_STAGGER_SECONDS=2
-BYPASS_MARKET_HOURS=true
+BASE_ANALYSIS_BAR_CLOSE_SECONDS=300
+BASE_ANALYSIS_MATERIAL_MOVE_PCT=0.3
+BASE_ANALYSIS_FORCE_REFRESH_SECONDS=900
 
 # Pyth price feeds
 PYTH_HERMES_URL=https://hermes.pyth.network

@@ -1,6 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 @import "tailwindcss";
+
+/* Material Symbols loads via <link> in layout.tsx, NOT @import url() here:
+   next/font (Geist) injects @font-face rules ahead of this file in the
+   bundled CSS, which pushes any @import in this file past those rules. Per
+   CSS spec @import must come first, so the browser silently drops it and
+   the icon font never loads. Don't "clean up" the <link> back into here. */
 
 @theme inline {
   --color-background: #F2EFE8;
@@ -171,7 +175,8 @@
   --opacity-muted: 0.62;
   --opacity-overlay: 0.72;
 
-  --font-sans: var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 /* ── Legacy token aliases ────────────────────────────────────────────────
@@ -219,7 +224,7 @@
   html, body {
     background-color: var(--color-background);
     color: var(--color-on-surface);
-    font-family: 'Plus Jakarta Sans', var(--font-sans);
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -312,6 +317,187 @@
   color: var(--color-on-surface-variant);
 }
 
+/* ── Hunch notification toasts ─────────────────────────────────────────────
+   Sonner owns the motion and ARIA wiring. This layer swaps its default theme
+   for the warm, rounded Hunch It product system from DESIGN.md. */
+[data-sonner-toaster].hunch-toaster {
+  --width: min(420px, calc(100vw - 32px));
+  font-family: var(--font-sans);
+}
+
+.hunch-toast[data-sonner-toast] {
+  --hunch-toast-bg: color-mix(in srgb, var(--color-accent-container) 38%, var(--color-surface));
+  --hunch-toast-border: color-mix(in srgb, var(--color-accent) 28%, var(--color-outline-variant));
+  --hunch-toast-icon-bg: var(--color-accent-container);
+  --hunch-toast-icon: var(--color-on-accent-container);
+}
+
+.hunch-toast-success[data-sonner-toast] {
+  --hunch-toast-bg: color-mix(in srgb, var(--color-positive-container) 54%, var(--color-surface));
+  --hunch-toast-border: color-mix(in srgb, var(--color-positive) 28%, var(--color-outline-variant));
+  --hunch-toast-icon-bg: var(--color-positive-container);
+  --hunch-toast-icon: color-mix(in srgb, var(--color-positive) 78%, var(--color-primary));
+}
+
+.hunch-toast-error[data-sonner-toast] {
+  --hunch-toast-bg: color-mix(in srgb, var(--color-error-container) 62%, var(--color-surface));
+  --hunch-toast-border: color-mix(in srgb, var(--color-error) 28%, var(--color-outline-variant));
+  --hunch-toast-icon-bg: var(--color-error-container);
+  --hunch-toast-icon: var(--color-on-error-container);
+}
+
+.hunch-toast-info[data-sonner-toast],
+.hunch-toast-loading[data-sonner-toast] {
+  --hunch-toast-bg: color-mix(in srgb, var(--color-secondary-container) 58%, var(--color-surface));
+  --hunch-toast-border: color-mix(in srgb, var(--color-secondary-bar) 36%, var(--color-outline-variant));
+  --hunch-toast-icon-bg: var(--color-secondary-container);
+  --hunch-toast-icon: var(--color-on-secondary-container);
+}
+
+.hunch-toast-warning[data-sonner-toast] {
+  --hunch-toast-bg: color-mix(in srgb, var(--color-tertiary-container) 58%, var(--color-surface));
+  --hunch-toast-border: color-mix(in srgb, var(--color-tertiary) 38%, var(--color-outline-variant));
+  --hunch-toast-icon-bg: var(--color-tertiary-container);
+  --hunch-toast-icon: var(--color-on-tertiary-container);
+}
+
+.hunch-toast[data-sonner-toast][data-styled="true"] {
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 68px;
+  padding: 16px;
+  overflow: visible;
+  border: 1px solid var(--hunch-toast-border);
+  border-radius: var(--radius-lg);
+  background: var(--hunch-toast-bg);
+  color: var(--color-on-surface);
+  box-shadow: var(--shadow-floating);
+}
+
+.hunch-toast[data-sonner-toast] .hunch-toast-content,
+.hunch-toast[data-sonner-toast] [data-content] {
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.hunch-toast[data-sonner-toast] .hunch-toast-title,
+.hunch-toast[data-sonner-toast] [data-title] {
+  color: var(--color-on-surface);
+  font-size: var(--text-title-md);
+  font-weight: var(--text-title-md--font-weight);
+  line-height: var(--text-title-md--line-height);
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.hunch-toast[data-sonner-toast] .hunch-toast-description,
+.hunch-toast[data-sonner-toast] [data-description] {
+  max-width: 34ch;
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-body-sm);
+  font-weight: var(--text-body-sm--font-weight);
+  line-height: var(--text-body-sm--line-height);
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.hunch-toast[data-sonner-toast] .hunch-toast-icon,
+.hunch-toast[data-sonner-toast] [data-icon] {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  margin: 1px 0 0;
+  border-radius: var(--radius-full);
+  background: var(--hunch-toast-icon-bg);
+  color: var(--hunch-toast-icon);
+}
+
+.hunch-toast[data-sonner-toast] [data-icon] svg {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  stroke-width: 2.25;
+}
+
+.hunch-toast[data-sonner-toast] [data-button],
+.hunch-toast[data-sonner-toast] .hunch-toast-action {
+  min-height: 36px;
+  align-self: center;
+  margin-left: 8px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--color-accent-bright) 70%, var(--color-primary));
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: var(--shadow-hairline);
+  font-size: var(--text-label-md);
+  font-weight: var(--text-label-md--font-weight);
+  line-height: var(--text-label-md--line-height);
+  letter-spacing: 0;
+  transition:
+    transform var(--duration-fast) var(--ease-soft),
+    background-color var(--duration-fast) var(--ease-soft),
+    border-color var(--duration-fast) var(--ease-soft);
+}
+
+.hunch-toast[data-sonner-toast] [data-button]:hover,
+.hunch-toast[data-sonner-toast] .hunch-toast-action:hover {
+  background: var(--color-accent-bright);
+}
+
+.hunch-toast[data-sonner-toast] [data-button]:active,
+.hunch-toast[data-sonner-toast] .hunch-toast-action:active {
+  transform: scale(0.97);
+}
+
+.hunch-toast[data-sonner-toast] [data-cancel],
+.hunch-toast[data-sonner-toast] .hunch-toast-cancel {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.hunch-toast[data-sonner-toast] [data-close-button],
+.hunch-toast[data-sonner-toast] .hunch-toast-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-micro);
+}
+
+.hunch-toast[data-sonner-toast] [data-close-button]:hover,
+.hunch-toast[data-sonner-toast] .hunch-toast-close:hover {
+  background: var(--color-surface-container-low);
+  border-color: var(--color-outline);
+}
+
+.hunch-toast[data-sonner-toast]:focus-visible {
+  box-shadow: var(--shadow-floating), 0 0 0 2px var(--color-primary);
+}
+
+@media (max-width: 600px) {
+  [data-sonner-toaster].hunch-toaster {
+    --width: calc(100vw - 32px);
+  }
+
+  .hunch-toast[data-sonner-toast][data-styled="true"] {
+    min-height: 64px;
+    padding: 14px;
+  }
+
+  .hunch-toast[data-sonner-toast] [data-button],
+  .hunch-toast[data-sonner-toast] .hunch-toast-action {
+    min-height: 34px;
+    margin-left: 4px;
+    padding: 0 12px;
+  }
+}
+
 @layer utilities {
   .bg-hatch {
     background-image: repeating-linear-gradient(
@@ -326,5 +512,19 @@
 
   .animate-spin-slow {
     animation: spin 20s linear infinite;
+  }
+
+  @keyframes marquee-x {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
+  }
+  .animate-marquee {
+    animation: marquee-x 60s linear infinite;
+    will-change: transform;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee {
+      animation: none;
+    }
   }
 }

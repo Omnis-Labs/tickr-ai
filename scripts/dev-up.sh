@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # scripts/dev-up.sh
 #
-# Local-dev preflight: ensure docker postgres is up and the Prisma client is
-# generated before `pnpm dev` boots web + ws-server.
+# Local-dev preflight: ensure docker postgres is up, schema migrations are
+# applied, and the Prisma client is generated before `pnpm dev` boots web +
+# ws-server.
 #
 # Behaviour:
 #   1. If Docker daemon is unreachable, try to start a container runtime.
@@ -11,7 +12,9 @@
 #      installed. On other platforms we just expect `docker` to be reachable.
 #   2. If `hunch-postgres` is missing → `docker compose up -d postgres`.
 #   3. Wait until the container reports `healthy` (max 60s).
-#   4. Run `prisma generate` so the client matches schema.prisma. Idempotent
+#   4. Run `prisma migrate deploy` so the database matches checked-in
+#      migrations.
+#   5. Run `prisma generate` so the client matches schema.prisma. Idempotent
 #      and cheap (~1s on a warm cache).
 #
 # Exit codes:
@@ -92,7 +95,11 @@ if [[ "$state" != "healthy" ]]; then
   fi
 fi
 
-# ── 4. Prisma client (idempotent) ───────────────────────────────────────────
+# ── 4. Prisma migrations (idempotent) ───────────────────────────────────────
+log "applying prisma migrations..."
+pnpm --filter @hunch-it/db exec prisma migrate deploy >/dev/null
+
+# ── 5. Prisma client (idempotent) ───────────────────────────────────────────
 log "generating prisma client..."
 pnpm --filter @hunch-it/db exec prisma generate >/dev/null
 ok "ready — handing off to dev servers"

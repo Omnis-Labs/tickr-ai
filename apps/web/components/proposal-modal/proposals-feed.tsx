@@ -2,11 +2,11 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { XSTOCKS, xStockToBare, type DemoProposalShape, type XStockTicker } from '@hunch-it/shared';
-import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
+import { getAssetById, type Proposal } from '@hunch-it/shared';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { useProposals } from '@/lib/hooks/queries';
+import { isLiveProposal } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { num } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 
@@ -23,10 +23,6 @@ function fmtTtl(expiresAt: string): string {
 }
 
 export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
-  const { address } = useWallet();
-  const demo = isDemo();
-  const wallet = demo ? 'demo-wallet' : address;
-
   // Pull seed proposals via the centralised hook so cache invalidation from
   // mutations (skip / execute) updates this feed without local plumbing.
   const { data, isLoading } = useProposals();
@@ -38,26 +34,26 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   const order = useProposalsStore((s) => s.order);
   const proposalsById = useProposalsStore((s) => s.proposalsById);
   const live = useMemo(
-    () => order.map((id) => proposalsById[id]),
+    () => order.map((id) => normalizeProposalForClient(proposalsById[id])),
     [order, proposalsById],
   );
 
   // Merge: in-memory first, then API seed (de-duped by id), sorted by expiry.
   const merged = useMemo(() => {
     const seen = new Set<string>();
-    const out: DemoProposalShape[] = [];
+    const out: Proposal[] = [];
+    const nowMs = Date.now();
     for (const p of live) {
-      if (!p || seen.has(p.id)) continue;
+      if (!p || seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
     for (const p of data?.proposals ?? []) {
-      if (seen.has(p.id)) continue;
+      if (seen.has(p.id) || !isLiveProposal(p, nowMs)) continue;
       out.push(p);
       seen.add(p.id);
     }
     return out
-      .filter((p) => new Date(p.expiresAt).getTime() > Date.now())
       .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime())
       .slice(0, limit);
   }, [live, data, limit]);
@@ -81,7 +77,7 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {merged.map((p, i) => {
-        const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+        const meta = getAssetById(p.ticker);
         return (
           <motion.div
             key={p.id}
@@ -104,9 +100,7 @@ export function ProposalsFeed({ limit = 8 }: ProposalsFeedProps) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700 }}>
                   {p.ticker}{' '}
-                  <span
-                    style={{ color: 'var(--color-fg-muted)', fontWeight: 400, fontSize: 13 }}
-                  >
+                  <span style={{ color: 'var(--color-fg-muted)', fontWeight: 400, fontSize: 13 }}>
                     · {meta?.name ?? '—'}
                   </span>
                 </div>

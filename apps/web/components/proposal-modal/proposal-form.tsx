@@ -20,7 +20,7 @@ interface ProposalFormProps {
  */
 export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, onSl }: ProposalFormProps) {
   const sizeWarning =
-    size > 500 ? `Above your $500 max trade size — proceed with caution.` : null;
+    size > 500 ? 'Above your $500 max trade size. Proceed with caution.' : null;
   const tpPctRaw = trigger > 0 ? ((tp - trigger) / trigger) * 100 : 0;
   const slPctRaw = trigger > 0 ? ((sl - trigger) / trigger) * 100 : 0;
   const tpPct = Number.isFinite(tpPctRaw) ? tpPctRaw : 0;
@@ -29,18 +29,33 @@ export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, o
 
   return (
     <>
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <NumField label="Size (USDC)" value={size} onChange={onSize} warning={sizeWarning} step={10} />
-        <NumField label="Trigger price" value={trigger} onChange={onTrigger} step={0.5} />
+      <div className="grid grid-cols-1 gap-3">
         <NumField
-          label={`Take profit ${tp > trigger ? `(+${tpPct.toFixed(1)}%)` : ''}`}
+          label="Size"
+          hint="USDC committed"
+          value={size}
+          onChange={onSize}
+          warning={sizeWarning}
+          step={10}
+        />
+        <NumField
+          label="Trigger"
+          hint="Entry price"
+          value={trigger}
+          onChange={onTrigger}
+          step={0.5}
+        />
+        <NumField
+          label="Take profit"
+          hint={tp > trigger ? `+${tpPct.toFixed(1)}% from trigger` : 'Target exit'}
           value={tp}
           onChange={onTp}
           step={0.5}
           tone="positive"
         />
         <NumField
-          label={`Stop loss ${sl > 0 && trigger > sl ? `(${slPct.toFixed(1)}%)` : ''}`}
+          label="Stop loss"
+          hint={sl > 0 && trigger > sl ? `${slPct.toFixed(1)}% from trigger` : 'Risk limit'}
           value={sl}
           onChange={onSl}
           step={0.5}
@@ -48,7 +63,7 @@ export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, o
         />
       </div>
       {rr != null && (
-        <div className="mb-4 text-xs text-on-surface-variant">
+        <div className="mt-4 rounded-full bg-surface-container px-4 py-2 text-body-sm text-on-surface-variant">
           Risk / reward ratio: <strong>{rr.toFixed(2)}x</strong> (reward / risk)
         </div>
       )}
@@ -58,6 +73,7 @@ export function ProposalForm({ size, trigger, tp, sl, onSize, onTrigger, onTp, o
 
 function NumField({
   label,
+  hint,
   value,
   onChange,
   warning,
@@ -65,6 +81,7 @@ function NumField({
   tone,
 }: {
   label: string;
+  hint?: string;
   value: number;
   onChange: (v: number) => void;
   warning?: string | null;
@@ -72,25 +89,28 @@ function NumField({
   tone?: 'positive' | 'negative';
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span
-        className={cn(
-          'text-xs',
-          tone === 'positive' && 'text-positive',
-          tone === 'negative' && 'text-negative',
-          !tone && 'text-on-surface-variant',
-        )}
-      >
-        {label}
+    <label className="grid grid-cols-[1fr_minmax(128px,150px)] items-center gap-3 rounded-lg border border-outline-variant px-4 py-3">
+      <span className="min-w-0">
+        <span
+          className={cn(
+            'block text-label-lg',
+            tone === 'positive' && 'text-positive',
+            tone === 'negative' && 'text-negative',
+            !tone && 'text-on-surface',
+          )}
+        >
+          {label}
+        </span>
+        {hint && <span className="mt-0.5 block text-body-sm text-on-surface-variant">{hint}</span>}
+        {warning && <span className="mt-1 block text-body-sm text-tertiary">{warning}</span>}
       </span>
       <Input
         type="number"
         value={Number.isFinite(value) ? value : 0}
         step={step ?? 1}
         onChange={(e) => onChange(Number(e.target.value))}
-        className={warning ? 'border-tertiary' : undefined}
+        className={cn('text-right font-mono', warning && 'border-tertiary')}
       />
-      {warning && <span className="text-[11px] text-tertiary">{warning}</span>}
     </label>
   );
 }

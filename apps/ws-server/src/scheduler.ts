@@ -1,7 +1,7 @@
 // Scheduler — single source of truth for the ws-server's recurring loops.
 //
-// Every cron-style task (Pyth scan, evaluator, order tracker, thesis monitor,
-// signal generator) shares the same shape:
+// Every cron-style task (trigger monitor, evaluator, thesis monitor, signal
+// generator) shares the same shape:
 //   - first kickoff some seconds after boot
 //   - run on a fixed interval afterwards
 //   - skip the next tick if the previous one is still busy
@@ -17,8 +17,8 @@ export interface ScheduledTask {
   intervalMs: number;
   /** First-run delay after boot. Defaults to intervalMs/4 if omitted. */
   kickoffMs?: number;
-  /** When true, the task is registered but not started. Used to gate by
-   *  DEMO_MODE without scattering `if` checks in the call sites. */
+  /** When false, the task is registered but not started. Used to keep
+   *  optional loops gated without scattering checks in the call sites. */
   enabled?: boolean;
   /** Per-tick body. Throwing is fine — the scheduler logs and continues. */
   handler: () => Promise<void>;

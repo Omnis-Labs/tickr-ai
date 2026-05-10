@@ -4,15 +4,14 @@ import { BroadcastChannel } from 'broadcast-channel';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import {
-  DEMO_MANDATE,
   WsClientEvents,
   WsServerEvents,
   type ApprovalDecisionPayload,
-  type DemoProposalShape,
+  type Proposal,
   type Signal,
+  type TradeFilledPayload,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
-import { isDemo } from '@/lib/demo/flag';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 export const BROADCAST_CHANNEL = 'hunch-it';
@@ -21,37 +20,18 @@ type WorkerToTab =
   | { type: 'connected' }
   | { type: 'disconnected'; reason: string }
   | { type: 'signal:new'; signal: Signal }
-  | { type: 'proposal:new'; proposal: DemoProposalShape };
+  | { type: 'proposal:new'; proposal: Proposal }
+  | { type: 'trade:filled'; trade: TradeFilledPayload };
 
 type TabToWorker =
   | { type: 'hello' }
   | { type: 'approval'; payload: ApprovalDecisionPayload };
 
-export interface PositionUpdatedPayload {
-  positionId: string;
-  state: 'BUY_PENDING' | 'ENTERING' | 'ACTIVE' | 'CLOSING' | 'CLOSED';
-  /**
-   * - "cancel-sibling": TP/SL filled, OCO sibling still parked in vault and
-   *   needs the user to sign a withdrawal.
-   * - "sibling-cancelled": delegated server signer already cancelled the
-   *   sibling — frontend just shows confirmation + refresh.
-   */
-  action?: 'cancel-sibling' | 'sibling-cancelled';
-  siblingOrderId?: string;
-  siblingKind?: 'TAKE_PROFIT' | 'STOP_LOSS';
-}
-
 interface UseSharedWorkerOptions {
   onSignal?: (signal: Signal) => void;
-  onProposal?: (proposal: DemoProposalShape) => void;
-  onPositionUpdated?: (payload: PositionUpdatedPayload) => void;
+  onProposal?: (proposal: Proposal) => void;
   onTriggerHit?: (payload: TriggerHitPayload) => void;
-  /**
-   * Wallet to bind this socket to. The hook emits an `auth` event with this
-   * walletAddress on connect so the ws-server can route per-user proposals.
-   * In demo mode, defaults to the demo wallet.
-   */
-  walletAddress?: string;
+  onTradeFilled?: (payload: TradeFilledPayload) => void;
 }
 
 interface UseSharedWorkerReturn {
@@ -66,24 +46,20 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   const portRef = useRef<MessagePort | null>(null);
   const directSocketRef = useRef<Socket | null>(null);
   const onSignalRef = useRef<((s: Signal) => void) | undefined>(opts.onSignal);
-  const onProposalRef = useRef<((p: DemoProposalShape) => void) | undefined>(opts.onProposal);
-  const onPositionUpdatedRef = useRef<((p: PositionUpdatedPayload) => void) | undefined>(
-    opts.onPositionUpdated,
-  );
+  const onProposalRef = useRef<((p: Proposal) => void) | undefined>(opts.onProposal);
   const onTriggerHitRef = useRef<((p: TriggerHitPayload) => void) | undefined>(
     opts.onTriggerHit,
   );
+  const onTradeFilledRef = useRef<((p: TradeFilledPayload) => void) | undefined>(
+    opts.onTradeFilled,
+  );
   onSignalRef.current = opts.onSignal;
   onProposalRef.current = opts.onProposal;
-  onPositionUpdatedRef.current = opts.onPositionUpdated;
   onTriggerHitRef.current = opts.onTriggerHit;
+  onTradeFilledRef.current = opts.onTradeFilled;
 
-  // The wallet address we'll auth as. Demo defaults to the demo userId so
-  // demo-mode proposals (emitted to `user:demo-user`) reach the tab.
-  const wallet = opts.walletAddress ?? (isDemo() ? DEMO_MANDATE.userId : undefined);
-
-  // In live mode, send a Privy access token instead — the server verifies it
-  // and resolves the wallet from our DB.
+  // Send a Privy access token; the server verifies it and resolves the
+  // wallet from our DB.
   const { ready, connected: walletConnected, getAccessToken } = useWallet();
 
   useEffect(() => {
@@ -95,6 +71,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       else if (msg.type === 'disconnected') setConnected(false);
       else if (msg.type === 'signal:new') onSignalRef.current?.(msg.signal);
       else if (msg.type === 'proposal:new') onProposalRef.current?.(msg.proposal);
+      else if (msg.type === 'trade:filled') onTradeFilledRef.current?.(msg.trade);
     }
 
     const channel = new BroadcastChannel<WorkerToTab>(BROADCAST_CHANNEL);
@@ -111,12 +88,6 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on('connect', async () => {
       console.info('[ws] direct socket connected', socket.id);
       setConnected(true);
-      if (isDemo()) {
-        socket.emit(WsClientEvents.Auth, { walletAddress: wallet ?? DEMO_MANDATE.userId });
-        return;
-      }
-      // Live: forward a Privy access token. The server verifies + maps to
-      // the user's walletAddress before joining the room.
       if (!ready || !walletConnected) return;
       const token = await getAccessToken();
       if (!token) {
@@ -132,14 +103,14 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on(WsServerEvents.SignalNew, (signal: Signal) => {
       onSignalRef.current?.(signal);
     });
-    socket.on(WsServerEvents.ProposalNew, (proposal: DemoProposalShape) => {
+    socket.on(WsServerEvents.ProposalNew, (proposal: Proposal) => {
       onProposalRef.current?.(proposal);
-    });
-    socket.on(WsServerEvents.PositionUpdated, (payload: PositionUpdatedPayload) => {
-      onPositionUpdatedRef.current?.(payload);
     });
     socket.on(WsServerEvents.TriggerHit, (payload: TriggerHitPayload) => {
       onTriggerHitRef.current?.(payload);
+    });
+    socket.on(WsServerEvents.TradeFilled, (payload: TradeFilledPayload) => {
+      onTradeFilledRef.current?.(payload);
     });
 
     return () => {
@@ -151,8 +122,7 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       }
       portRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet, ready, walletConnected]);
+  }, [ready, walletConnected]);
 
   function sendApproval(payload: ApprovalDecisionPayload) {
     const port = portRef.current;

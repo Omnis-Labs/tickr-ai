@@ -4,17 +4,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
-/**
- * Deposit panel on /desk. Two paths converge on the same embedded wallet:
- *   - "Fund" button → Privy on-ramp modal (card / Coinbase / external).
- *   - Address copy → user sends USDC themselves from another wallet/CEX.
- * Both target the user's connected Solana embedded wallet, which is the
- * source of truth read by readUsdcBalance() into /api/portfolio.cashUsd.
- */
 export function DepositSection() {
-  const { address, connected, fundWallet } = useWallet();
+  const { address } = useWallet();
   const [copied, setCopied] = useState(false);
-  const [funding, setFunding] = useState(false);
 
   const truncateAddress = (addr: string) =>
     `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -24,18 +16,6 @@ export function DepositSection() {
     navigator.clipboard.writeText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleFund = async () => {
-    if (!connected) return;
-    setFunding(true);
-    try {
-      await fundWallet();
-    } catch (err) {
-      console.warn('[deposit] fundWallet rejected/failed', err);
-    } finally {
-      setFunding(false);
-    }
   };
 
   return (
@@ -54,33 +34,40 @@ export function DepositSection() {
         </div>
 
         <p className="text-body-md text-on-surface-variant mb-6">
-          Fund with a card or copy your address and send USDC from any Solana wallet or exchange.
+          Copy your Solana wallet address. Only send Solana USDC or SOL to this address.
         </p>
 
-        <button
-          type="button"
-          onClick={handleFund}
-          disabled={!connected || funding}
-          className="w-full mb-4 flex items-center justify-center gap-2 bg-accent text-on-accent rounded-full h-12 text-label-lg shadow-soft transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
-        >
-          <span className="material-symbols-outlined text-[20px]">credit_card</span>
-          {funding ? 'Opening…' : 'Fund with card'}
-        </button>
-
         {address ? (
-          <div className="w-full flex items-center justify-between bg-surface-container-low rounded-full p-2 pl-4 border border-outline-variant">
-            <span className="text-label-lg text-on-surface font-mono">
-              {truncateAddress(address)}
-            </span>
-            <button
-              onClick={handleCopy}
-              className="flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full px-4 py-2 text-label-md hover:opacity-90 transition-opacity"
-            >
-              <span className="material-symbols-outlined text-[16px]">
-                {copied ? 'check' : 'content_copy'}
+          <div className="w-full flex flex-col gap-3">
+            <div className="flex items-center justify-between bg-surface-container-low rounded-full p-2 pl-4 border border-outline-variant">
+              <span className="text-label-lg text-on-surface font-mono">
+                {truncateAddress(address)}
               </span>
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="flex items-center justify-center gap-2 bg-primary text-on-primary rounded-full px-4 py-2 text-label-md hover:opacity-90 transition-opacity"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {copied ? 'check' : 'content_copy'}
+                </span>
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <div className="w-full border-t border-divider pt-3 text-left flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">payments</span>
+                <p className="text-body-sm text-on-surface-variant">
+                  <span className="text-label-md text-on-surface">USDC</span> funds trades and withdrawals.
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">bolt</span>
+                <p className="text-body-sm text-on-surface-variant">
+                  <span className="text-label-md text-on-surface">SOL</span> is required for fees and withdrawals.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="w-full flex items-center justify-center bg-surface-container-low rounded-full px-4 py-3 border border-outline-variant text-body-sm text-on-surface-variant">

@@ -1,21 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { SkipReasonSchema } from '@hunch-it/shared';
-import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
+import { expireActiveProposals, prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
 
 /**
  * POST /api/skips
- * body: { proposalId, reason, detail? }
+ * body: { proposalId, reason?, detail? }
  *
- * Records a skip + marks the proposal as SKIPPED. The user identity comes
- * from the verified Privy access token; the body no longer carries
- * walletAddress.
+ * Marks the proposal as SKIPPED and records feedback when a reason is provided.
+ * The user identity comes from the verified Privy access token; the body no
+ * longer carries walletAddress.
  */
 const SkipBodySchema = z.object({
   proposalId: z.string().min(1),
-  reason: SkipReasonSchema,
+  reason: SkipReasonSchema.optional(),
   detail: z.string().optional(),
 });
 
@@ -30,12 +29,11 @@ export async function POST(req: NextRequest) {
   }
   const { proposalId, reason, detail } = parsed.data;
 
-  if (isDemoServer()) {
-    return NextResponse.json({ ok: true, demo: true });
-  }
-
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  const now = new Date();
+  await expireActiveProposals(prisma, { userId: auth.userId, now });
 
   // Best-effort: skip the proposal rather than insert into Skip table if the
   // proposal row doesn't exist (e.g. ws-server hasn't persisted it yet).
@@ -44,12 +42,17 @@ export async function POST(req: NextRequest) {
   if (proposal.userId !== auth.userId) {
     return NextResponse.json({ error: 'not found' }, { status: 404 });
   }
+  if (proposal.status === 'EXPIRED' || proposal.expiresAt.getTime() <= now.getTime()) {
+    return NextResponse.json({ ok: true, expired: true });
+  }
 
-  await prisma.skip.upsert({
-    where: { userId_proposalId: { userId: auth.userId, proposalId } },
-    update: { reason, detail: detail ?? null },
-    create: { userId: auth.userId, proposalId, reason, detail: detail ?? null },
-  });
+  if (reason) {
+    await prisma.skip.upsert({
+      where: { userId_proposalId: { userId: auth.userId, proposalId } },
+      update: { reason, detail: detail ?? null },
+      create: { userId: auth.userId, proposalId, reason, detail: detail ?? null },
+    });
+  }
 
   await prisma.proposal.update({
     where: { id: proposalId },

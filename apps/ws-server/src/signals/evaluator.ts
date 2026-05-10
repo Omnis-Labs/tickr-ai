@@ -10,7 +10,7 @@
 // BUY proposals so a price increase = WIN.
 
 import type { PrismaClient } from '@hunch-it/db';
-import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { getBarsRange } from '../pyth/benchmarks.js';
 
 export interface EvaluationSummary {
@@ -43,12 +43,12 @@ function classify(
  * has no data (weekend / holiday / pre-market).
  */
 async function priceAtTime(
-  ticker: BareTicker,
+  assetId: string,
   targetUnix: number,
 ): Promise<number | null> {
   const windowSec = 15 * 60;
   const bars = await getBarsRange(
-    ticker,
+    assetId,
     '5',
     targetUnix - windowSec,
     targetUnix + windowSec,
@@ -84,9 +84,8 @@ export async function evaluatePendingSignals(
 
   for (const p of pending) {
     try {
-      const bare = (p.ticker.endsWith('x') ? p.ticker.slice(0, -1) : p.ticker) as BareTicker;
-      if (!BARE_TICKERS.includes(bare)) {
-        // Unknown ticker — mark NEUTRAL with no price data so we don't keep
+      if (!getAssetById(p.ticker)) {
+        // Unknown asset — mark NEUTRAL with no price data so we don't keep
         // re-querying it every tick.
         await prisma.proposal.update({
           where: { id: p.id },
@@ -100,12 +99,12 @@ export async function evaluatePendingSignals(
       }
 
       const targetUnix = Math.floor(p.createdAt.getTime() / 1000) + 3600;
-      const priceAfter = await priceAtTime(bare, targetUnix);
+      const priceAfter = await priceAtTime(p.ticker, targetUnix);
       if (priceAfter == null) {
         // Pyth gave us no bar near the target — most likely the proposal
-        // landed outside US market hours. Mark NEUTRAL so the leaderboard
-        // doesn't stall, but flag with no priceAfter so we know it's a
-        // closed-market evaluation.
+        // landed during a data outage. Mark NEUTRAL so the leaderboard
+        // doesn't stall, but flag with no priceAfter so we know it was a
+        // market-data gap.
         await prisma.proposal.update({
           where: { id: p.id },
           data: {

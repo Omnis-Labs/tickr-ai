@@ -13,10 +13,8 @@ import {
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { ensureNotificationPermission } from '@/lib/notifications/permission';
-import { markOnboarded } from '@/lib/onboarding/state';
 
 /**
  * Mandate setup / edit. Four cards: holding period, max drawdown, max
@@ -27,7 +25,6 @@ import { markOnboarded } from '@/lib/onboarding/state';
 export default function MandatePage() {
   const router = useRouter();
   const { address, connected } = useWallet();
-  const demo = isDemo();
   const authedFetch = useAuthedFetch();
 
   const [loading, setLoading] = useState(false);
@@ -39,8 +36,7 @@ export default function MandatePage() {
   const [marketFocus, setMarketFocus] = useState<string[]>(['no_preference']);
 
   useEffect(() => {
-    const wallet = demo ? 'demo-wallet' : address;
-    if (!wallet) return;
+    if (!address) return;
     authedFetch(`/api/mandates`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
@@ -53,7 +49,7 @@ export default function MandatePage() {
         setSubmitted(true);
       })
       .catch(() => {});
-  }, [address, demo, authedFetch]);
+  }, [address, authedFetch]);
 
   const noPreference = marketFocus.includes('no_preference');
   const tradeSize = Number(maxTradeSize);
@@ -74,13 +70,13 @@ export default function MandatePage() {
       !isNaN(tradeSize) &&
       tradeSize >= 10 &&
       marketFocus.length > 0 &&
-      (connected || demo) &&
+      connected &&
       !loading
     );
-  }, [tradeSize, marketFocus, connected, demo, loading]);
+  }, [tradeSize, marketFocus, connected, loading]);
 
   async function submit() {
-    const wallet = demo ? `demo-${'wallet'.padEnd(40, '0')}` : address;
+    const wallet = address;
     if (!wallet) {
       toast.error('Connect a wallet first.');
       return;
@@ -105,8 +101,7 @@ export default function MandatePage() {
       }
       toast.success('Mandate saved.');
       setSubmitted(true);
-      markOnboarded(demo ? 'demo-wallet' : address);
-      void ensureNotificationPermission();
+      await ensureNotificationPermission();
       router.push('/');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -233,7 +228,7 @@ export default function MandatePage() {
             {loading ? 'Saving…' : submitted ? 'Save changes' : 'Start Desk'}
             <span className="material-symbols-outlined">arrow_forward</span>
           </button>
-          {!connected && !demo && (
+          {!connected && (
             <p className="mt-2 text-center text-body-sm text-on-surface-variant">Connect a wallet to save.</p>
           )}
         </div>

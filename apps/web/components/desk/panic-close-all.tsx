@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
-import { XSTOCKS, xStockToBare, type XStockTicker } from '@hunch-it/shared';
+import { getAssetById } from '@hunch-it/shared';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { QK } from '@/lib/hooks/queries';
 
@@ -26,10 +26,10 @@ interface Props {
  * sells exactly the position size — not the wallet's full balance for
  * that mint, which would sweep dust or sibling holdings.
  *
- * Sequential, not parallel: Privy's signAndSendTransaction broadcasts
- * via a shared RPC, and parallel fires would race the same blockhash
- * window + thrash the wallet's tx queue. One position at a time keeps
- * each fill cleanly attributable in the DB.
+ * Sequential, not parallel: each close requests a Jupiter Ultra order,
+ * obtains the user's signature, and submits through Ultra /execute. One
+ * position at a time keeps wallet prompts orderly and each fill cleanly
+ * attributable in the DB.
  *
  * BUY_PENDING / ENTERING positions are not closed here — they have no
  * tokens to sell. Filter happens at the caller; we only render when
@@ -56,7 +56,7 @@ export function PanicCloseAll({ positions }: Props) {
 
     for (let i = 0; i < closable.length; i++) {
       const p = closable[i]!;
-      const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+      const meta = getAssetById(p.ticker);
       if (!meta?.mint) {
         failures.push(`${p.ticker} (mint missing)`);
         continue;

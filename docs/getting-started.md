@@ -1,6 +1,6 @@
 # Getting Started with Hunch It
 
-This guide walks you from a fresh clone to a running local instance. If you only want to see the product flow without wiring real services, follow [Demo Mode](#demo-mode); when you're ready to use real wallets and live data, switch to [Live Mode](#live-mode).
+This guide walks you from a fresh clone to a running local instance. Local testing uses the password-gated `/dev-tools` page, which exercises the real database, Pyth, Socket.IO, and Jupiter Ultra paths.
 
 ---
 
@@ -15,7 +15,7 @@ This guide walks you from a fresh clone to a running local instance. If you only
 
 `pnpm dev` will start the daemon for you on macOS — `orb start` if OrbStack is installed, otherwise `open -a Docker`. On Linux it expects the docker daemon to already be running. If neither is reachable, it prints a hint and exits.
 
-For live trading flows you also need a Solana RPC URL, Privy app, Anthropic key, and enough USDC/SOL to test safely. The local PostgreSQL is provided by `docker-compose.yml`; you do not have to install Postgres on the host.
+For trading flows you also need a Solana RPC URL, Privy app, Gemini key for LLM proposals, and enough USDC/SOL to test safely. The local PostgreSQL is provided by `docker-compose.yml`; you do not have to install Postgres on the host.
 
 ---
 
@@ -27,21 +27,19 @@ cd hunch-it
 corepack enable          # so pnpm resolves to the version pinned in package.json
 pnpm install
 cp .env.example .env
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
 pnpm db:push             # push the Prisma schema to the (still-empty) postgres volume
 ```
 
-`pnpm db:push` brings up the docker postgres on demand, so this is also the moment your container runtime needs to be installed and reachable. After this, your repo is wired and you can pick how you want to run the apps.
+Edit only the root `.env`; `pnpm dev` and `pnpm start` sync it into `apps/web/.env` and `apps/ws-server/.env` before booting. `pnpm db:push` brings up the docker postgres on demand, so this is also the moment your container runtime needs to be installed and reachable. After this, your repo is wired and you can pick how you want to run the apps.
 
 ---
 
 ## Two Ways to Run It
 
-| Mode                                       | When to use                                            | Hot reload | First start |
-| ------------------------------------------ | ------------------------------------------------------ | ---------- | ----------- |
-| **A. Full Docker** (`docker compose up`)   | Smoke test the whole stack end-to-end                  | No         | Slow (image build, ~10–15 min cold) |
-| **B. Hybrid** (`pnpm dev`)                 | Day-to-day coding                                      | Yes        | Fast (~30s + Next cold compile) |
+| Mode                                     | When to use                           | Hot reload | First start                         |
+| ---------------------------------------- | ------------------------------------- | ---------- | ----------------------------------- |
+| **A. Full Docker** (`docker compose up`) | Smoke test the whole stack end-to-end | No         | Slow (image build, ~10–15 min cold) |
+| **B. Hybrid** (`pnpm dev`)               | Day-to-day coding                     | Yes        | Fast (~30s + Next cold compile)     |
 
 Both modes use the same `docker-compose.yml`, so the `hunch-pgdata` volume is shared — switching does not wipe your data.
 
@@ -65,7 +63,7 @@ pnpm dev
 pnpm db:down
 ```
 
-`pnpm dev` runs `scripts/dev-up.sh` first, which:
+`pnpm dev` syncs the root `.env` into both app env files, then runs `scripts/dev-up.sh`, which:
 
 1. Verifies the docker daemon is reachable. If it isn't, on macOS it tries `orb start` (OrbStack) first and falls back to launching Docker Desktop.
 2. Starts the `hunch-postgres` container if it isn't already running.
@@ -85,29 +83,23 @@ Local URLs (both modes):
 
 ---
 
-## Demo Mode
+## Dev Tools
 
-Demo mode lets you click through the product without external credentials or real funds. It uses fake signals, bypasses wallet auth, and never places real trades.
+`/dev-tools` is the local testing surface. It is disabled in deployed production and requires `ENABLE_DEV_TOOLS=true` plus the HTTP-only password cookie. The full-Docker images are production-built, but local `docker-compose.yml` still enables this flag by default.
 
-In `.env` (and your two copies in `apps/web/.env.local`, `apps/ws-server/.env`), set:
+In the root `.env`, set:
 
 ```bash
-DEMO_MODE=true
-NEXT_PUBLIC_DEMO_MODE=true
+ENABLE_DEV_TOOLS=true
+DEV_TOOLS_PASSWORD=<choose-a-local-password>
+GEMINI_API_KEY=<optional-for-LLM-proposals>
 ```
 
-Restart the apps (`docker compose down && docker compose up -d` for Method A, or `Ctrl+C` then `pnpm dev` again for Method B). Open http://localhost:3000.
+Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from fresh live Pyth bars, accept them into real `Position` and `Order` rows, force fallback `trigger:hit` events for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, exercise delegated Ultra diagnostics, adjust TP/SL, and copy the full structured browser diagnostics from the `/dev-tools` log.
 
-Walkthrough:
+`/dev-tools` is an adapter into the same `ProposalCreation` Module used by live signal generation. It does not use a market-hours guardrail; it uses the shared Pyth publish-time freshness rule.
 
-1. Open the app.
-2. Complete or bypass login according to the current demo configuration.
-3. Create an investment mandate: holding period, max drawdown, max trade size, and market focus.
-4. Review a demo BUY proposal.
-5. Adjust size, trigger price, TP, or SL if needed.
-6. Place the demo order and inspect the resulting order / position state.
-
-Demo mode shows the product shape (mandate setup, proposal review, portfolio state, order states, automatic TP/SL behavior). It is not evidence of live execution.
+For delegated execution diagnostics, also configure `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`, `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`, and `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`. The dev-tools delegated Ultra block exercises the same server-side Jupiter Ultra shape that production Auto-execute triggers uses after the user grants Privy signer access.
 
 ---
 
@@ -117,23 +109,31 @@ Live mode connects the app to real services. **Use small amounts first.**
 
 ### Configure live env vars
 
-Fill in the root `.env` file, then re-copy it to both apps (`cp .env apps/web/.env.local && cp .env apps/ws-server/.env`). The variables that matter for live mode:
+Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app env files automatically. The variables that matter for live mode:
 
-| Variable                       | Purpose                                              |
-| ------------------------------ | ---------------------------------------------------- |
-| `NEXT_PUBLIC_SOLANA_RPC_URLS`  | Solana RPC endpoints (comma-separated for failover)  |
-| `NEXT_PUBLIC_PRIVY_APP_ID`     | Privy app ID for auth and embedded wallet            |
-| `PRIVY_APP_ID`                 | Same Privy app ID, server-side                       |
-| `PRIVY_APP_SECRET`             | Privy server SDK secret (verifies tokens)            |
-| `NEXT_PUBLIC_JUPITER_API_BASE` | Jupiter API base URL                                 |
-| `PYTH_HERMES_URL`              | Live Pyth price endpoint                             |
-| `PYTH_BENCHMARKS_URL`          | Historical candle endpoint                           |
-| `ANTHROPIC_API_KEY`            | LLM analysis for the Signal Engine                   |
-| `LLM_DAILY_USD_CAP`            | Daily LLM spend guardrail                            |
-| `DATABASE_URL`                 | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
-| `NEXT_PUBLIC_WS_URL`           | Public ws-server URL for the browser, usually `http://localhost:4000` |
+| Variable                                            | Purpose                                                                                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SOLANA_RPC_URLS`                       | Solana RPC endpoints (comma-separated for failover)                                                                         |
+| `NEXT_PUBLIC_PRIVY_APP_ID`                          | Privy app ID for auth and embedded wallet                                                                                   |
+| `PRIVY_APP_ID`                                      | Same Privy app ID, server-side                                                                                              |
+| `PRIVY_APP_SECRET`                                  | Privy server SDK secret (verifies tokens)                                                                                   |
+| `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`            | Privy delegated signer private key for server-side trigger execution                                                        |
+| `PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`              | Server-readable Privy delegated signer ID                                                                                   |
+| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID`  | Browser-bundled Privy delegated signer ID for the Settings enable prompt                                                    |
+| `NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS` | Optional comma-separated Privy policy IDs attached by the Settings enable prompt                                            |
+| `NEXT_PUBLIC_JUPITER_API_BASE`                      | Jupiter API base URL                                                                                                        |
+| `PYTH_HERMES_URL`                                   | Live Pyth price endpoint                                                                                                    |
+| `PYTH_BENCHMARKS_URL`                               | Historical candle endpoint                                                                                                  |
+| `GEMINI_API_KEY`                                    | LLM analysis for the Signal Engine and `/dev-tools`                                                                         |
+| `LLM_DAILY_USD_CAP`                                 | Daily LLM spend guardrail                                                                                                   |
+| `SIGNAL_INTERVAL_SECONDS`                           | Cheap asset price scan interval                                                                                             |
+| `BASE_ANALYSIS_BAR_CLOSE_SECONDS`                   | Candle bucket that can trigger a fresh Base Market Analysis                                                                 |
+| `BASE_ANALYSIS_MATERIAL_MOVE_PCT`                   | Price move threshold that can trigger early LLM analysis                                                                    |
+| `BASE_ANALYSIS_FORCE_REFRESH_SECONDS`               | Maximum age before refreshing an otherwise quiet asset analysis                                                             |
+| `DATABASE_URL`                                      | PostgreSQL connection string (defaults to the docker-compose postgres at `postgresql://hunch:hunch@localhost:5432/hunchit`) |
+| `NEXT_PUBLIC_WS_URL`                                | Public ws-server URL for the browser, usually `http://localhost:4000`                                                       |
 
-Make sure `DEMO_MODE` and `NEXT_PUBLIC_DEMO_MODE` are **not** set to `true`.
+Leave `ENABLE_DEV_TOOLS=false` outside local development.
 
 ### Run
 
@@ -147,32 +147,32 @@ pnpm dev          # or `docker compose up --build -d` if you prefer Method A
 2. Confirm the embedded Solana wallet address.
 3. Create your mandate.
 4. Deposit USDC and a small amount of SOL for transaction fees.
-5. Wait for the Signal Engine to generate a BUY proposal.
-6. Review the proposal and place a Jupiter Trigger Order.
+5. Wait for the Signal Engine to generate a BUY proposal, or use `/dev-tools` locally.
+6. Review the proposal and place a synthetic BUY trigger Order.
 7. When the BUY fills, verify TP/SL orders appear and the position becomes active.
 
 ---
 
 ## Useful Commands
 
-| Command                                   | What it does                                                            |
-| ----------------------------------------- | ----------------------------------------------------------------------- |
-| `pnpm dev`                                | Auto-start docker postgres + run web and ws-server in parallel          |
-| `pnpm dev:no-db`                          | Run web + ws-server without the postgres preflight                      |
-| `pnpm dev:web`                            | Run the frontend only                                                   |
-| `pnpm dev:ws`                             | Run the ws-server only                                                  |
-| `pnpm build`                              | Build all workspaces                                                    |
-| `pnpm typecheck`                          | Run TypeScript checks in all workspaces                                 |
-| `pnpm db:up`                              | Start the docker postgres container and wait for healthy                |
-| `pnpm db:down`                            | `docker compose down` — stop postgres (and any other compose services)  |
-| `pnpm db:generate`                        | Generate Prisma client                                                  |
-| `pnpm db:push`                            | Push Prisma schema to the database (no migration history)               |
-| `pnpm db:migrate`                         | `prisma migrate dev` — interactive, creates a new migration             |
-| `pnpm db:migrate:deploy`                  | `prisma migrate deploy` — apply existing migrations                     |
-| `pnpm db:studio`                          | Open Prisma Studio                                                      |
-| `docker compose up --build -d`            | Full Docker stack: postgres + ws-server + web                           |
-| `docker compose down`                     | Stop all compose services                                               |
-| `pnpm --filter @hunch-it/ws-server smoke` | Run the ws-server smoke probe                                           |
+| Command                                   | What it does                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`                                | Sync root `.env`, auto-start docker postgres, run web and ws-server in parallel |
+| `pnpm dev:no-db`                          | Run web + ws-server without the postgres preflight                              |
+| `pnpm dev:web`                            | Run the frontend only                                                           |
+| `pnpm dev:ws`                             | Run the ws-server only                                                          |
+| `pnpm build`                              | Build all workspaces                                                            |
+| `pnpm typecheck`                          | Run TypeScript checks in all workspaces                                         |
+| `pnpm db:up`                              | Start the docker postgres container and wait for healthy                        |
+| `pnpm db:down`                            | `docker compose down` — stop postgres (and any other compose services)          |
+| `pnpm db:generate`                        | Generate Prisma client                                                          |
+| `pnpm db:push`                            | Push Prisma schema to the database (no migration history)                       |
+| `pnpm db:migrate`                         | `prisma migrate dev` — interactive, creates a new migration                     |
+| `pnpm db:migrate:deploy`                  | `prisma migrate deploy` — apply existing migrations                             |
+| `pnpm db:studio`                          | Open Prisma Studio                                                              |
+| `docker compose up --build -d`            | Full Docker stack: postgres + ws-server + web                                   |
+| `docker compose down`                     | Stop all compose services                                                       |
+| `pnpm --filter @hunch-it/ws-server smoke` | Run the ws-server smoke probe                                                   |
 
 ---
 

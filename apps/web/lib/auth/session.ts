@@ -1,0 +1,95 @@
+import 'server-only';
+import { cookies } from 'next/headers';
+import type { PrivyClient } from '@privy-io/server-auth';
+import { prisma } from '@/lib/db';
+
+export type SessionStage = 'SIGNED_OUT' | 'NEEDS_MANDATE' | 'READY';
+
+export interface SessionState {
+  stage: SessionStage;
+  userId: string | null;
+  walletAddress: string | null;
+  hasMandate: boolean;
+  nextPath: '/login' | '/mandate' | '/desk' | null;
+}
+
+export const PRIVY_ACCESS_TOKEN_COOKIE = 'privy-token';
+
+let cachedClient: PrivyClient | null = null;
+async function getPrivy(): Promise<PrivyClient | null> {
+  if (cachedClient) return cachedClient;
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  const secret = process.env.PRIVY_APP_SECRET;
+  if (!appId || !secret) return null;
+  try {
+    const mod = await import('@privy-io/server-auth');
+    cachedClient = new mod.PrivyClient(appId, secret);
+    return cachedClient;
+  } catch {
+    return null;
+  }
+}
+
+async function privyUserIdForToken(token: string): Promise<string | null> {
+  const client = await getPrivy();
+  if (!client) return null;
+  try {
+    const v = await client.verifyAuthToken(token);
+    return v?.userId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function signedOut(): SessionState {
+  return {
+    stage: 'SIGNED_OUT',
+    userId: null,
+    walletAddress: null,
+    hasMandate: false,
+    nextPath: '/login',
+  };
+}
+
+async function stateForPrivyUserId(privyUserId: string | null): Promise<SessionState> {
+  if (!privyUserId) return signedOut();
+  const user = await prisma.user.findUnique({
+    where: { privyUserId },
+    select: { id: true, walletAddress: true, mandate: { select: { id: true } } },
+  });
+  if (!user) {
+    return {
+      stage: 'NEEDS_MANDATE',
+      userId: null,
+      walletAddress: null,
+      hasMandate: false,
+      nextPath: '/mandate',
+    };
+  }
+  const hasMandate = !!user.mandate;
+  return {
+    stage: hasMandate ? 'READY' : 'NEEDS_MANDATE',
+    userId: user.id,
+    walletAddress: user.walletAddress,
+    hasMandate,
+    nextPath: hasMandate ? '/desk' : '/mandate',
+  };
+}
+
+export async function resolveSession(req: Request): Promise<SessionState> {
+  const token = privyAccessTokenFromAuthorization(req);
+  const privyUserId = token ? await privyUserIdForToken(token) : null;
+  return stateForPrivyUserId(privyUserId);
+}
+
+export function privyAccessTokenFromAuthorization(req: Request): string | null {
+  const h = req.headers.get('authorization') ?? '';
+  return h.toLowerCase().startsWith('bearer ') ? h.slice(7).trim() : null;
+}
+
+export async function resolveSessionFromCookies(): Promise<SessionState> {
+  const jar = await cookies();
+  const token = jar.get(PRIVY_ACCESS_TOKEN_COOKIE)?.value ?? null;
+  const privyUserId = token ? await privyUserIdForToken(token) : null;
+  return stateForPrivyUserId(privyUserId);
+}

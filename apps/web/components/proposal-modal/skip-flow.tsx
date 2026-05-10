@@ -1,61 +1,69 @@
 'use client';
 
 import { SKIP_REASON_LABELS, type SkipReason } from '@hunch-it/shared';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface SkipFlowProps {
-  reason: SkipReason;
+  reason: SkipReason | null;
   detail: string;
-  onReason: (r: SkipReason) => void;
+  onReason: (r: SkipReason | null) => void;
   onDetail: (s: string) => void;
-  onBack: () => void;
-  onSubmit: () => void;
 }
 
 /**
- * Skip-with-reason picker. Shown in place of the primary action row when
- * the user opens the skip flow. Reasons come from the shared SKIP_REASON
+ * Optional skip feedback picker. Reasons come from the shared SKIP_REASON
  * enum so the server-side Skip table uses the same vocabulary.
  */
-export function SkipFlow({ reason, detail, onReason, onDetail, onBack, onSubmit }: SkipFlowProps) {
+export function SkipFlow({ reason, detail, onReason, onDetail }: SkipFlowProps) {
+  const needsOtherDetail = reason === 'OTHER' && detail.trim().length === 0;
+
   return (
-    <div className="rounded-2xl border border-outline-variant p-4">
-      <div className="mb-2.5 font-semibold">Why are you skipping?</div>
-      <div className="grid grid-cols-2 gap-2">
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-title-md text-on-surface">Skip this proposal?</h2>
+          <p className="mt-1 text-body-sm text-on-surface-variant">
+            Feedback is optional. Select one reason if you want to help tune future proposals.
+          </p>
+        </div>
+        <span className="material-symbols-outlined text-[22px] text-icon-muted">feedback</span>
+      </div>
+      <div className="mb-3 rounded-full bg-surface-container px-3 py-1.5 text-label-md text-on-surface-variant">
+        {reason ? 'Feedback selected' : 'No feedback selected'}
+      </div>
+      <div className="grid grid-cols-1 gap-2">
         {(Object.keys(SKIP_REASON_LABELS) as SkipReason[]).map((r) => (
           <button
+            type="button"
             key={r}
-            onClick={() => onReason(r)}
+            onClick={() => onReason(reason === r ? null : r)}
             className={cn(
-              'rounded-md border px-2.5 py-2 text-left text-sm transition-colors',
+              'flex min-h-11 items-center justify-between rounded-full border px-4 py-2 text-left text-body-sm transition-colors',
               reason === r
-                ? 'border-primary bg-accent-soft text-on-surface'
+                ? 'border-primary bg-accent-soft text-on-surface shadow-micro'
                 : 'border-outline-variant bg-surface-container text-on-surface hover:bg-surface-container-high',
             )}
           >
-            {SKIP_REASON_LABELS[r]}
+            <span>{SKIP_REASON_LABELS[r]}</span>
+            {reason === r && (
+              <span className="material-symbols-outlined text-[18px]">check_circle</span>
+            )}
           </button>
         ))}
       </div>
       {reason === 'OTHER' && (
         <Input
           type="text"
-          placeholder="Tell us why…"
+          placeholder="Tell us why"
           value={detail}
           onChange={(e) => onDetail(e.target.value)}
-          className="mt-2.5"
+          className="mt-3"
         />
       )}
-      <div className="mt-3 flex gap-3">
-        <Button variant="ghost" className="flex-1" onClick={onBack}>
-          Back
-        </Button>
-        <Button className="flex-1" onClick={onSubmit}>
-          Submit skip
-        </Button>
-      </div>
+      {needsOtherDetail && (
+        <p className="mt-2 text-body-sm text-negative">Add a short reason to save Other.</p>
+      )}
     </div>
   );
 }

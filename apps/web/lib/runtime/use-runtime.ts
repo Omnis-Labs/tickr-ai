@@ -1,11 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
-import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import type {
   Runtime,
   RuntimeCloseResult,
@@ -14,48 +12,16 @@ import type {
 } from './types';
 
 /**
- * Single hook every page goes through to perform live-or-demo I/O.
- * Returns a Runtime whose strategy is selected by isDemo() once and
- * memoised across renders. Page handlers don't see the demo / live fork.
+ * Runtime façade for the synthetic-trigger product path. A password-gated
+ * dev-tools surface now exercises this same database and swap flow.
  */
 export function useRuntime(): Runtime {
-  const demo = isDemo();
   const authedFetch = useAuthedFetch();
   const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
   const { swap } = useJupiterSwap();
-  const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
-  const demoPositions = useDemoPositionsStore((s) => s.positions);
 
-  return useMemo<Runtime>(() => {
-    if (demo) {
-      return {
-        isDemo: true,
-        cancelExits: async (): Promise<RuntimeExitSnapshot> => {
-          // Demo store inlines TP/SL on Position itself, so cancel is a
-          // no-op. Caller still updates local store via dismissCancelSibling().
-          return { tpPriceUsd: null, slPriceUsd: null };
-        },
-        placeOcoExit: async () => ({ id: `demo-${Date.now()}` }),
-        replaceExits: async () => {
-          /* demo store has no separate exit orders; Position Detail
-           *  also calls adjustTpSl() in the demo branch directly */
-        },
-        closePosition: async ({ positionId, fallbackMarkPrice }): Promise<RuntimeCloseResult> => {
-          await new Promise((r) => setTimeout(r, 600));
-          const pos = demoPositions.find((p) => p.id === positionId);
-          const tokenAmount = pos?.tokenAmount ?? 0;
-          closeDemoPosition(positionId, 'USER_CLOSE', fallbackMarkPrice);
-          return {
-            executionPrice: fallbackMarkPrice,
-            tokenAmount,
-            txSignature: null,
-          };
-        },
-      };
-    }
-
-    return {
-      isDemo: false,
+  return useMemo<Runtime>(
+    () => ({
       cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> =>
         cancelExits(positionId),
       placeOcoExit: async ({
@@ -76,8 +42,7 @@ export function useRuntime(): Runtime {
         });
         return { id: r.id };
       },
-      replaceExits: ({ positionId, walletAddress, ticker, tokenAmount, next }) =>
-        replaceExits({ positionId, walletAddress, ticker, tokenAmount, next }),
+      replaceExits: ({ positionId, next }) => replaceExits({ positionId, next }),
       closePosition: async ({
         positionId,
         meta,
@@ -87,14 +52,12 @@ export function useRuntime(): Runtime {
         positionId: string;
         meta: RuntimeMeta;
         fallbackMarkPrice: number;
-        /** Position.tokenAmount — sell exactly this so we don't sweep
-         *  dust or a separate position in the same mint. Nullable so
-         *  legacy panic-close-everything callers can still pass null
-         *  to fall back to sellAll. */
         tokenAmount?: number | null;
         sellProposalId?: string;
       }): Promise<RuntimeCloseResult> => {
-        await cancelExits(positionId);
+        if (sellProposalId) {
+          await cancelExits(positionId);
+        }
         const sell =
           tokenAmount && tokenAmount > 0
             ? await swap({
@@ -118,7 +81,7 @@ export function useRuntime(): Runtime {
           ? `/api/proposals/${sellProposalId}/sell-confirm`
           : `/api/positions/${positionId}/close`;
 
-        await authedFetch(persistUrl, {
+        const res = await authedFetch(persistUrl, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
@@ -126,12 +89,17 @@ export function useRuntime(): Runtime {
             tokenAmount: tokenAmt,
             txSignature,
           }),
-        }).catch(() => {});
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `close persist ${res.status}`);
+        }
 
         return { executionPrice, tokenAmount: tokenAmt, txSignature };
       },
-    };
-  }, [demo, authedFetch, cancelExits, placeOcoExit, replaceExits, swap, closeDemoPosition, demoPositions]);
+    }),
+    [authedFetch, cancelExits, placeOcoExit, replaceExits, swap],
+  );
 }
 
 export type { Runtime, RuntimeExitSnapshot, RuntimeMeta, RuntimeCloseResult };

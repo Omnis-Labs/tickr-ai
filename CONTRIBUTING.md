@@ -16,13 +16,11 @@ git clone https://github.com/Omnis-Labs/hunch-it.git
 cd hunch-it
 pnpm install
 cp .env.example .env
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
 pnpm db:push        # push the Prisma schema to the docker postgres volume
 pnpm dev            # auto-starts your container runtime, postgres, and the apps
 ```
 
-For a no-credentials run, set `DEMO_MODE=true` and `NEXT_PUBLIC_DEMO_MODE=true` in `.env` (and re-copy to both app env files) before `pnpm dev`.
+`pnpm dev` and `pnpm start` sync the root `.env` into `apps/web/.env` and `apps/ws-server/.env` before booting. For deterministic local testing, set `ENABLE_DEV_TOOLS=true` in the root `.env`, then use `/dev-tools` after signing in.
 
 See [docs/getting-started.md](docs/getting-started.md) for the full walkthrough including the alternative full-Docker flow (`docker compose up --build -d`).
 

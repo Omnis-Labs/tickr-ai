@@ -1,12 +1,11 @@
 'use client';
 
 import { create } from 'zustand';
-import type { DemoProposalShape } from '@hunch-it/shared';
+import type { Proposal } from '@hunch-it/shared';
+import { isLiveProposal } from '@/lib/proposals/expiration';
+import { normalizeProposalForClient, normalizeProposalsForClient } from '@/lib/proposals/normalize';
 
-// We use the demo shape as the in-memory contract because it covers all the
-// fields the UI needs (incl. reasoning + positionImpact). Live proposals from
-// Prisma have the same shape via /api/proposals.
-export type ProposalUI = DemoProposalShape;
+export type ProposalUI = Proposal;
 
 interface ProposalsState {
   proposalsById: Record<string, ProposalUI>;
@@ -22,12 +21,20 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
   order: [],
   upsertProposal: (p) =>
     set((state) => {
-      if (state.proposalsById[p.id]) {
-        return { ...state, proposalsById: { ...state.proposalsById, [p.id]: p } };
+      const proposal = normalizeProposalForClient(p);
+      if (!proposal) return state;
+      if (!isLiveProposal(proposal)) {
+        if (!state.proposalsById[proposal.id]) return state;
+        const next = { ...state.proposalsById };
+        delete next[proposal.id];
+        return { proposalsById: next, order: state.order.filter((x) => x !== proposal.id) };
+      }
+      if (state.proposalsById[proposal.id]) {
+        return { ...state, proposalsById: { ...state.proposalsById, [proposal.id]: proposal } };
       }
       return {
-        proposalsById: { ...state.proposalsById, [p.id]: p },
-        order: [p.id, ...state.order].slice(0, 100),
+        proposalsById: { ...state.proposalsById, [proposal.id]: proposal },
+        order: [proposal.id, ...state.order].slice(0, 100),
       };
     }),
   removeProposal: (id) =>
@@ -45,7 +52,7 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
       for (const id of state.order) {
         const p = state.proposalsById[id];
         if (!p) continue;
-        if (new Date(p.expiresAt).getTime() > now) {
+        if (isLiveProposal(p, now)) {
           next[id] = p;
           order.push(id);
         }
@@ -56,7 +63,8 @@ export const useProposalsStore = create<ProposalsState>((set) => ({
     set(() => {
       const proposalsById: Record<string, ProposalUI> = {};
       const order: string[] = [];
-      for (const p of list) {
+      for (const p of normalizeProposalsForClient(list)) {
+        if (!isLiveProposal(p)) continue;
         proposalsById[p.id] = p;
         order.push(p.id);
       }

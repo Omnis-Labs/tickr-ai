@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, type ReactNode } from 'react';
-import { PublicKey, type Transaction, type VersionedTransaction } from '@solana/web3.js';
-import { useDelegatedActions, usePrivy } from '@privy-io/react-auth';
+import { PublicKey, Transaction, VersionedTransaction } from '@solana/web3.js';
+import { usePrivy, useSigners, useUser } from '@privy-io/react-auth';
 import {
   useWallets,
   useSignTransaction,
@@ -14,27 +14,72 @@ import {
 import bs58 from 'bs58';
 import { STUB_WALLET, WalletContext, type UnifiedWallet } from '../types';
 
+const AUTHORIZATION_SIGNER_ID =
+  process.env.NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID?.trim() ?? '';
+const AUTHORIZATION_POLICY_IDS = (
+  process.env.NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS ?? ''
+)
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean);
+
+function isPrivyEmbeddedWalletClientType(value: unknown): boolean {
+  return value === 'privy' || value === 'privy-v2';
+}
+
 /**
  * The only file that imports @privy-io/react-auth. Mounted INSIDE
  * PrivyProvider; bridges Privy's various hooks into our UnifiedWallet
  * context so consumers stay vendor-agnostic.
  *
- * Future providers (DemoBridge, PhantomBridge, …) implement the same
+ * Future providers (PhantomBridge, …) implement the same
  * shape and replace this in components/wallet/wallet-provider.tsx.
  */
 export function PrivyWalletBridge({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout, getAccessToken, user } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { user, refreshUser } = useUser();
+  const { addSigners, removeSigners } = useSigners();
   const { wallets } = useWallets() as { wallets: Array<{ address: string; type?: string }> };
   const { signTransaction: privySign } = useSignTransaction();
   const { signAndSendTransaction: privySignAndSend } = useSignAndSendTransaction();
   const { signMessage: privySignMessage } = useSignMessage();
-  const { delegateWallet, revokeWallets } = useDelegatedActions();
   // Register Solana funding capabilities so useFundWallet has providers wired.
   useSolanaFundingPlugin();
   const { fundWallet: privyFund } = useFundWallet();
 
   const wallet = wallets[0];
+  const linkedWallet = useMemo(() => {
+    if (!wallet?.address) return null;
+    return (
+      user?.linkedAccounts.find((account) => {
+        if (account.type !== 'wallet') return false;
+        const record = account as unknown as Record<string, unknown>;
+        const address = record.address;
+        const chainType = record.chainType ?? record.chain_type;
+        const connectorType = record.connectorType ?? record.connector_type;
+        const walletClientType = record.walletClientType ?? record.wallet_client;
+        return (
+          address === wallet.address &&
+          chainType === 'solana' &&
+          connectorType === 'embedded' &&
+          isPrivyEmbeddedWalletClientType(walletClientType)
+        );
+      }) ?? null
+    );
+  }, [user?.linkedAccounts, wallet?.address]);
   const value = useMemo<UnifiedWallet>(() => {
+    const linkedRecord = linkedWallet as unknown as Record<string, unknown> | null;
+    const delegated = typeof linkedRecord?.delegated === 'boolean' ? linkedRecord.delegated : null;
+    const privyWalletId =
+      typeof linkedRecord?.id === 'string' && linkedRecord.id.length > 0 ? linkedRecord.id : null;
+    const walletClientType =
+      typeof (linkedRecord?.walletClientType ?? linkedRecord?.wallet_client) === 'string'
+        ? String(linkedRecord?.walletClientType ?? linkedRecord?.wallet_client)
+        : null;
+    const connectorType =
+      typeof (linkedRecord?.connectorType ?? linkedRecord?.connector_type) === 'string'
+        ? String(linkedRecord?.connectorType ?? linkedRecord?.connector_type)
+        : null;
     const publicKey = (() => {
       if (!wallet?.address) return null;
       try {
@@ -44,67 +89,60 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Match the embedded Privy wallet to the connected wallet's address so
-    // we read the right `id` (server wallet ID, populated post-delegation).
-    const privyEmbedded = user?.linkedAccounts?.find(
-      (acct) =>
-        acct.type === 'wallet' &&
-        (acct as { address?: string }).address === wallet?.address,
-    ) as { id?: string | null; delegated?: boolean } | undefined;
-
     return {
       publicKey,
       address: wallet?.address ?? null,
-      walletId: privyEmbedded?.id ?? user?.wallet?.id ?? null,
-      delegated: !!privyEmbedded?.delegated || !!user?.wallet?.delegated,
       connected: ready && authenticated && !!wallet,
       ready,
+      walletClientType,
+      connectorType,
+      privyWalletId,
+      delegated,
+      authorizationSignerIdConfigured: AUTHORIZATION_SIGNER_ID.length > 0,
+      delegationMode: AUTHORIZATION_SIGNER_ID ? 'signers' : null,
       signTransaction: wallet
         ? async <T extends VersionedTransaction | Transaction>(tx: T): Promise<T> => {
+            const isVersioned = tx instanceof VersionedTransaction;
+            const txBytes = isVersioned
+              ? tx.serialize()
+              : tx.serialize({
+                  requireAllSignatures: false,
+                  verifySignatures: false,
+                });
             const result = (await privySign({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               wallet: wallet as any,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              transaction: tx as any,
+              transaction: txBytes,
               chain: 'solana:mainnet',
-            })) as unknown as { signedTransaction: T };
-            return result.signedTransaction;
+              options: {
+                uiOptions: { showWalletUIs: false },
+              },
+            })) as unknown as { signedTransaction: Uint8Array };
+            return (
+              isVersioned
+                ? VersionedTransaction.deserialize(result.signedTransaction)
+                : Transaction.from(result.signedTransaction)
+            ) as T;
           }
         : STUB_WALLET.signTransaction,
-      // useSignAndSendTransaction signs + broadcasts in one call and
-      // accepts options.uiOptions.showWalletUIs=false, which
-      // useSignTransaction does NOT honour. The Jupiter Ultra route tx
-      // tickles a borsh decoder bug in Privy's preview modal
-      // ("t.slice is not a function") that disables Approve and traps
-      // the user. Going through signAndSendTransaction skips that modal
-      // entirely. Tradeoff: we lose Jupiter Ultra's MEV-aware bundled
-      // relay (we don't feed signed bytes back to /execute — Privy
-      // broadcasts via its own RPC), but for the BUY trigger →
-      // tap-to-execute flow that's an acceptable hackathon-stage call.
-      //
-      // Note Privy's hook expects `transaction: Uint8Array` (raw
-      // serialized bytes), not a VersionedTransaction object — so we
-      // serialize here. That alone is what dodges the introspection
-      // bug, since Privy can't decode an opaque byte buffer.
+      // Generic wallet send escape hatch. Keep sponsored Jupiter Ultra
+      // swaps off this Interface: Ultra orders need Privy signTransaction
+      // for the taker signature slot, then Jupiter `/execute` with the
+      // signed bytes and requestId. Direct Privy broadcast bypasses the
+      // sponsored Ultra relay and can fail multi-signer sponsored txs before
+      // program execution.
       signAndSendTransaction: wallet
         ? async (tx: VersionedTransaction | Transaction) => {
             const txBytes =
-              'serialize' in tx
-                ? // VersionedTransaction.serialize() returns Uint8Array
-                  // already; legacy Transaction.serialize() returns
-                  // Buffer (a Node Uint8Array subclass) — both fine here.
-                  (tx as VersionedTransaction).serialize()
-                : new Uint8Array((tx as Transaction).serialize());
-            // skipPreflight: true is intentional. The Ultra-quoted tx
-            // carries a recentBlockhash that's only valid ~150 slots
-            // (~60s); the node-side preflight `simulateTransaction` is
-            // strict about that window and was returning -32002
-            // (RPC_TRANSACTION_PRECHECK_FAILED, all fields null,
-            // unitsConsumed=0) when Privy's broadcast RPC saw the
-            // blockhash as stale even though the tx itself is fine on a
-            // current leader. Skipping preflight lets the actual leader
-            // accept it; `maxRetries` keeps the leader retrying briefly
-            // if the first send raced a slot boundary.
+              tx instanceof VersionedTransaction
+                ? tx.serialize()
+                : tx.serialize({
+                    requireAllSignatures: false,
+                    verifySignatures: false,
+                  });
+            // skipPreflight only applies to generic wallet sends through
+            // Privy's RPC path. It is not the Jupiter Ultra sponsored swap
+            // path, which must return signed bytes to `/execute`.
             const result = await privySignAndSend({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               wallet: wallet as any,
@@ -136,12 +174,61 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
         if (!ready || !authenticated) return null;
         return getAccessToken().catch(() => null);
       },
-      delegateSolanaWallet: async () => {
+      delegateWallet: async () => {
         if (!wallet?.address) throw new Error('No Solana wallet to delegate.');
-        await delegateWallet({ address: wallet.address, chainType: 'solana' });
+        if (!linkedRecord) {
+          throw new Error('Connected wallet is not a Privy embedded Solana wallet.');
+        }
+        if (
+          linkedRecord.chainType !== 'solana' &&
+          (linkedRecord as Record<string, unknown>).chain_type !== 'solana'
+        ) {
+          throw new Error('Only Solana embedded wallets can be delegated here.');
+        }
+        if (
+          linkedRecord.connectorType !== 'embedded' &&
+          (linkedRecord as Record<string, unknown>).connector_type !== 'embedded'
+        ) {
+          throw new Error('Only Privy embedded wallets support delegated access here.');
+        }
+        if (!isPrivyEmbeddedWalletClientType(walletClientType)) {
+          throw new Error(
+            `Unsupported Privy wallet client type: ${walletClientType ?? 'unknown'}. Privy embedded wallet signer access is required.`,
+          );
+        }
+        if (!AUTHORIZATION_SIGNER_ID) {
+          throw new Error('Privy embedded wallet signer delegation is not configured.');
+        }
+        await addSigners({
+          address: wallet.address,
+          signers: [
+            {
+              signerId: AUTHORIZATION_SIGNER_ID,
+              ...(AUTHORIZATION_POLICY_IDS.length > 0
+                ? { policyIds: AUTHORIZATION_POLICY_IDS }
+                : {}),
+            },
+          ],
+        });
+        await refreshUser().catch(() => null);
       },
-      revokeDelegations: async () => {
-        await revokeWallets();
+      revokeDelegatedWallets: async () => {
+        const errors: unknown[] = [];
+        if (wallet?.address) {
+          try {
+            await removeSigners({ address: wallet.address });
+          } catch (err) {
+            errors.push(err);
+          }
+        }
+        await refreshUser().catch(() => null);
+        if (errors.length > 0) {
+          const first = errors[0];
+          throw first instanceof Error ? first : new Error(String(first));
+        }
+      },
+      refreshWalletUser: async () => {
+        await refreshUser();
       },
       fundWallet: async (amountUsdc?: number) => {
         if (!wallet?.address) throw new Error('No Solana wallet to fund.');
@@ -157,17 +244,18 @@ export function PrivyWalletBridge({ children }: { children: ReactNode }) {
     };
   }, [
     wallet,
-    user,
+    linkedWallet,
     ready,
     authenticated,
     login,
     logout,
+    addSigners,
+    removeSigners,
+    refreshUser,
     privySign,
     privySignAndSend,
     privySignMessage,
     getAccessToken,
-    delegateWallet,
-    revokeWallets,
     privyFund,
   ]);
 

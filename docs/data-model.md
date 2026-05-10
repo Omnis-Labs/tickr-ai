@@ -1,474 +1,205 @@
 # Hunch — Data Model
 
-> Prisma schema, enum definitions, JSON field interfaces, asset registry structure, and data synchronization logic.
+> Prisma schema, canonical asset ids, JSON field shapes, and data synchronization notes.
+>
+> Source of truth: `packages/db/prisma/schema.prisma`, `packages/shared/src/types.ts`,
+> `packages/shared/src/constants.ts`, and `packages/shared/src/assets.ts`.
 
 ---
 
-## Prisma Schema
+## Current Model Summary
 
-```prisma
-generator client {
-  provider = "prisma-client-js"
-}
+The database keeps the older column name `ticker` for migration safety, but the value space is now canonical `AssetId`. Treat every `Proposal.ticker`, `Position.ticker`, `Order.position.ticker`, and `Trade.ticker` as an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`.
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+Do not store or pass bare US equity symbols.
 
-// ─── Users ────────────────────────────────────────────────
+### User
 
-model User {
-  id            String     @id @default(cuid())
-  privyUserId   String     @unique
-  walletAddress String     @unique
-  createdAt     DateTime   @default(now())
-  mandate       Mandate?
-  proposals     Proposal[]
-  skips         Skip[]
-  trades        Trade[]
-  positions     Position[]
-  orders        Order[]
-}
+`User` is keyed by Privy identity and wallet address. It owns one optional `Mandate`, plus `Proposal`, `Position`, `Order`, `Trade`, and `Skip` rows.
 
-// User creation: On the first authenticated API request after Privy login,
-// upsert User by privyUserId, store/update walletAddress. If no mandate
-// exists, route to Mandate Setup.
+### Mandate
 
-// ─── Mandate ──────────────────────────────────────────────
+`Mandate` stores the four setup constraints:
 
-model Mandate {
-  id              String        @id @default(cuid())
-  userId          String        @unique
-  holdingPeriod   HoldingPeriod
-  maxDrawdown     Decimal?      @db.Decimal(5, 4)  // 0.03 | 0.05 | 0.08 | null (no limit)
-  maxTradeSize    Decimal       @db.Decimal(20, 2)  // USD
-  marketFocus     Json          // MarketFocusOption[] (see JSON Interfaces below)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  user            User          @relation(fields: [userId], references: [id])
-}
+| Field           | Current value shape                                           |
+| --------------- | ------------------------------------------------------------- |
+| `holdingPeriod` | `"1-3 days"`, `"1-2 weeks"`, `"1-3 months"`, or `"6+ months"` |
+| `maxDrawdown`   | `0.0300`, `0.0500`, `0.0800`, or `null`                       |
+| `maxTradeSize`  | USD decimal                                                   |
+| `marketFocus`   | JSON array of lowercase ids from `MarketFocusVerticalSchema`  |
 
-// ─── Proposals ────────────────────────────────────────────
-
-model Proposal {
-  id                       String          @id @default(cuid())
-  userId                   String
-  assetId                  String          // Canonical asset identifier, e.g. "AAPLx", "SOL", "cbBTC"
-  action                   ProposalAction  // BUY only in v1
-  suggestedSizeUsd         Decimal         @db.Decimal(20, 2)
-  suggestedTriggerPrice    Decimal         @db.Decimal(20, 8)  // AI-suggested entry price
-  suggestedTakeProfitPrice Decimal         @db.Decimal(20, 8)  // Mandate-adjusted TP price
-  suggestedStopLossPrice   Decimal         @db.Decimal(20, 8)  // Mandate-adjusted SL price
-  rationale                String          @db.Text             // One-sentence quantitative summary
-  reasoning                Json            // ProposalReasoning (see JSON Interfaces)
-  positionImpact           Json            // PositionImpact (see JSON Interfaces)
-  confidence               Decimal         @db.Decimal(3, 2)   // 0.00-1.00
-  priceAtProposal          Decimal         @db.Decimal(20, 8)
-  indicators               Json            // TechnicalIndicators (see JSON Interfaces)
-  status                   ProposalStatus  @default(ACTIVE)
-  expiresAt                DateTime
-  createdAt                DateTime        @default(now())
-
-  // Back-evaluation (populated 1h after creation)
-  evaluatedAt              DateTime?
-  priceAfter               Decimal?        @db.Decimal(20, 8)
-  pctChange                Decimal?        @db.Decimal(8, 4)
-  outcome                  ProposalOutcome?
-
-  user                     User            @relation(fields: [userId], references: [id])
-  skips                    Skip[]
-  trades                   Trade[]
-
-  @@index([userId, status, createdAt])
-  @@index([evaluatedAt])
-}
-
-// Proposal Lifecycle:
-//   ACTIVE -> EXECUTED    (after BUY order successfully created via POST /api/proposals/[id]/execute)
-//   ACTIVE -> SKIPPED     (after POST /api/skips succeeds)
-//   ACTIVE -> EXPIRED     (expiresAt < now, OR mandate updated triggering invalidation)
-
-// ─── Skips ────────────────────────────────────────────────
-
-model Skip {
-  id          String     @id @default(cuid())
-  userId      String
-  proposalId  String
-  reason      SkipReason
-  detail      String?
-  createdAt   DateTime   @default(now())
-  user        User       @relation(fields: [userId], references: [id])
-  proposal    Proposal   @relation(fields: [proposalId], references: [id])
-
-  @@unique([userId, proposalId])
-}
-
-// ─── Positions ────────────────────────────────────────────
-// A user can have multiple independent positions in the same asset.
-
-model Position {
-  id             String        @id @default(cuid())
-  userId         String
-  assetId        String        // Canonical asset identifier (matches Proposal.assetId)
-  mint           String        // SPL token mint address
-  tokenAmount    Decimal?      @db.Decimal(20, 8)  // Null until BUY fills
-  entryPrice     Decimal?      @db.Decimal(20, 8)  // Null until BUY fills (weighted avg)
-  totalCost      Decimal?      @db.Decimal(20, 2)  // Null until BUY fills
-  currentTpPrice Decimal?      @db.Decimal(20, 8)  // Active TP price (may differ from original)
-  currentSlPrice Decimal?      @db.Decimal(20, 8)  // Active SL price (may differ from original)
-  state          PositionState @default(BUY_PENDING)
-  firstEntryAt   DateTime?                          // Null until BUY fills
-  closedAt       DateTime?
-  closedReason   ClosedReason?
-  realizedPnl    Decimal?      @db.Decimal(20, 2)
-  updatedAt      DateTime      @updatedAt
-  user           User          @relation(fields: [userId], references: [id])
-  orders         Order[]
-  trades         Trade[]
-
-  @@index([userId, state])
-  @@index([userId, assetId])
-}
-
-// Required-by-state rules:
-//   BUY_PENDING: tokenAmount, entryPrice, totalCost, firstEntryAt = null
-//   ENTERING:    fill fields required (set by Order Tracker on BUY fill)
-//   ACTIVE:      fill fields + currentTpPrice + currentSlPrice required
-//   CLOSING:     same as ACTIVE
-//   CLOSED:      fill fields + closedAt + closedReason required; realizedPnl required for SELL exits
-
-// ─── Orders ───────────────────────────────────────────────
-// One record per Jupiter trigger order or swap execution.
-
-model Order {
-  id              String      @id @default(cuid())
-  userId          String
-  positionId      String
-  kind            OrderKind   // BUY_TRIGGER | TAKE_PROFIT | STOP_LOSS | CLOSE_SWAP
-  side            TradeSide   // BUY | SELL
-  triggerPriceUsd Decimal?    @db.Decimal(20, 8)  // Present for trigger orders; null for swaps
-  sizeUsd         Decimal     @db.Decimal(20, 2)  // See sizeUsd semantics below
-  tokenAmount     Decimal?    @db.Decimal(20, 8)
-  status          OrderStatus @default(PENDING)
-  jupiterOrderId  String?     @unique
-  txSignature     String?
-  executionPrice  Decimal?    @db.Decimal(20, 8)
-  filledAmount    Decimal?    @db.Decimal(20, 8)
-  filledAt        DateTime?
-  slippageBps     Int?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  user            User        @relation(fields: [userId], references: [id])
-  position        Position    @relation(fields: [positionId], references: [id])
-
-  @@index([userId, status])
-  @@index([positionId])
-}
-
-// sizeUsd semantics by order kind:
-//   BUY_TRIGGER:  USDC amount deposited into vault (exact)
-//   TAKE_PROFIT:  Estimated notional at trigger price (tokenAmount * triggerPriceUsd)
-//   STOP_LOSS:    Estimated notional at trigger price (tokenAmount * triggerPriceUsd)
-//   CLOSE_SWAP:   Estimated pre-swap value; updated to actual output on fill
-
-// ─── Trades ───────────────────────────────────────────────
-// Records the dual-layer information: what the proposal suggested vs. what the user actually executed.
-
-model Trade {
-  id                    String      @id @default(cuid())
-  userId                String
-  positionId            String
-  proposalId            String?     // BUY = required; TP/SL fill = points to original BUY proposal; user close = null
-  assetId               String
-  side                  TradeSide   // BUY | SELL
-  source                TradeSource // BUY_APPROVAL | TP_FILL | SL_FILL | USER_CLOSE
-
-  // Proposal suggestion (immutable snapshot)
-  suggestedSizeUsd      Decimal?    @db.Decimal(20, 2)
-  suggestedTriggerPrice Decimal?    @db.Decimal(20, 8)
-  suggestedTpPrice      Decimal?    @db.Decimal(20, 8)
-  suggestedSlPrice      Decimal?    @db.Decimal(20, 8)
-
-  // User's actual execution
-  actualSizeUsd         Decimal     @db.Decimal(20, 2)
-  actualTriggerPrice    Decimal?    @db.Decimal(20, 8)
-  actualTpPrice         Decimal?    @db.Decimal(20, 8)
-  actualSlPrice         Decimal?    @db.Decimal(20, 8)
-  executionPrice        Decimal?    @db.Decimal(20, 8)  // Fill price
-  filledAmount          Decimal?    @db.Decimal(20, 8)  // Fill quantity
-  realizedPnl           Decimal?    @db.Decimal(20, 2)  // Calculated on SELL
-
-  createdAt             DateTime    @default(now())
-  user                  User        @relation(fields: [userId], references: [id])
-  position              Position    @relation(fields: [positionId], references: [id])
-  proposal              Proposal?   @relation(fields: [proposalId], references: [id])
-
-  @@index([userId, createdAt])
-  @@index([positionId])
-}
-
-// ─── LLM Usage Tracking ──────────────────────────────────
-
-model LlmUsageDaily {
-  date         DateTime @id @db.Date
-  spendUsd     Decimal  @db.Decimal(10, 4)
-  requestCount Int      @default(0)
-  updatedAt    DateTime @updatedAt
-}
-
-// Atomic upsert: INSERT ... ON CONFLICT (date) DO UPDATE SET spendUsd = spendUsd + $delta, requestCount = requestCount + 1
-```
-
----
-
-## Enum Definitions
-
-```prisma
-enum HoldingPeriod {
-  SHORT_TERM    // UI label: "1-3 days"
-  SWING         // UI label: "1-2 weeks"
-  MEDIUM_TERM   // UI label: "1-3 months"
-  LONG_TERM     // UI label: "6+ months"
-}
-
-enum ProposalAction {
-  BUY           // v1 only supports BUY
-}
-
-enum ProposalStatus {
-  ACTIVE
-  EXPIRED       // Also used for mandate-change invalidation
-  SKIPPED
-  EXECUTED
-}
-
-enum ProposalOutcome {
-  WIN
-  LOSS
-  NEUTRAL
-}
-
-enum SkipReason {
-  TOO_RISKY
-  DISAGREE_THESIS
-  BAD_TIMING
-  ENOUGH_EXPOSURE
-  PRICE_NOT_ATTRACTIVE
-  TOO_MANY_PROPOSALS
-  OTHER
-}
-
-enum PositionState {
-  BUY_PENDING     // BUY trigger order placed, waiting for fill
-  ENTERING        // BUY filled, TP/SL being placed automatically
-  ACTIVE          // TP + SL both live, strategy running
-  CLOSING         // User-initiated close in progress
-  CLOSED          // Position fully exited
-}
-
-enum ClosedReason {
-  TP_FILLED       // Take-profit order filled
-  SL_FILLED       // Stop-loss order filled
-  USER_CLOSE      // User manually closed
-  BUY_CANCELLED   // User cancelled unfilled BUY order
-  BUY_EXPIRED     // BUY order expired without fill
-}
-
-enum OrderKind {
-  BUY_TRIGGER
-  TAKE_PROFIT
-  STOP_LOSS
-  CLOSE_SWAP
-}
-
-enum OrderStatus {
-  PENDING           // Being prepared / awaiting signature
-  OPEN              // Submitted to Jupiter
-  FILLED            // Fully executed
-  CANCELLED
-  EXPIRED
-  FAILED
-}
-
-// Note: PARTIALLY_FILLED is removed for v1. Jupiter Trigger Orders fill fully or not at all.
-// If partial fills become relevant in v2, reintroduce with defined handling rules.
-
-enum TradeSide {
-  BUY
-  SELL
-}
-
-enum TradeSource {
-  BUY_APPROVAL    // User approved a BUY proposal
-  TP_FILL         // Take-profit order filled
-  SL_FILL         // Stop-loss order filled
-  USER_CLOSE      // User manually closed the position
-}
-```
-
----
-
-## JSON Field Interfaces
-
-These TypeScript interfaces define the shape of all JSON columns. Stored as JSON in PostgreSQL, validated by Zod schemas in `packages/shared`.
-
-### MarketFocusOption
+Market focus ids include:
 
 ```typescript
-// Stored in Mandate.marketFocus as MarketFocusOption[]
-type MarketFocusOption =
-  | 'TECH_SOFTWARE'
-  | 'SEMICONDUCTORS'
-  | 'EV_CLEAN_ENERGY'
-  | 'FINANCIALS_FINTECH'
-  | 'HEALTHCARE_PHARMA'
-  | 'CONSUMER_RETAIL'
-  | 'ENERGY_UTILITIES'
-  | 'CRYPTO_MINING'
-  | 'INDUSTRIALS'
-  | 'TOKENIZED_ETFS'
-  | 'BLUECHIP_CRYPTO'
-  | 'NO_PREFERENCE'; // Matches all assets
+type MarketFocusVertical =
+  | 'no_preference'
+  | 'technology_software'
+  | 'semiconductors'
+  | 'ev_clean_energy'
+  | 'financials_fintech'
+  | 'healthcare_pharma'
+  | 'consumer_retail'
+  | 'energy_utilities'
+  | 'crypto_mining'
+  | 'industrials'
+  | 'tokenized_etfs'
+  | 'crypto';
 ```
 
-### ProposalReasoning
+### Proposal
 
-```typescript
-// Stored in Proposal.reasoning
-interface ProposalReasoning {
-  whatChanged: string; // Market event that triggered this proposal
-  whyThisTrade: string; // Argument connecting the event to the trade thesis
-  whyFitsMandate: string[]; // List of mandate-mapping sentences, e.g.:
-  //   "Fits your 1-2 week holding period"
-  //   "Position size $400 is within your $500 max trade size"
-  //   "Adds semiconductor exposure, which your mandate targets"
-}
+`Proposal` is the personalized recommendation row.
+
+Important fields:
+
+| Field                                                 | Notes                                                                       |
+| ----------------------------------------------------- | --------------------------------------------------------------------------- |
+| `ticker`                                              | Canonical `AssetId`; column name is legacy.                                 |
+| `action`                                              | `BUY` for entry proposals; `SELL` for thesis-invalidation exit proposals.   |
+| `suggestedSizeUsd`                                    | Suggested USDC notional.                                                    |
+| `suggestedTriggerPrice`                               | Synthetic trigger price watched by ws-server.                               |
+| `suggestedTakeProfitPrice` / `suggestedStopLossPrice` | Initial exit protection prices.                                             |
+| `reasoning`                                           | `{ what_changed, why_this_trade, why_fits_mandate }`.                       |
+| `positionImpact`                                      | `{ weight_before, weight_after, cash_after, sector_before, sector_after }`. |
+| `thesisTags`                                          | BUY-time structured thesis tags used by the env-gated thesis monitor.       |
+| `origin`                                              | `SIGNAL_ENGINE` or `DEV_TOOLS`.                                             |
+
+Lifecycle:
+
+| From     | Trigger                                   | To         |
+| -------- | ----------------------------------------- | ---------- |
+| `ACTIVE` | BUY acceptance through `POST /api/orders` | `EXECUTED` |
+| `ACTIVE` | `POST /api/skips`                         | `SKIPPED`  |
+| `ACTIVE` | `expiresAt` passes or mandate changes     | `EXPIRED`  |
+
+### Position
+
+`Position` is one independent holding in one asset. The same user can have multiple independent positions in the same asset.
+
+Durable states:
+
+```text
+BUY_PENDING -> ACTIVE -> CLOSED
 ```
 
-### PositionImpact
+`ENTERING` and `CLOSING` are short-lived execution-claim states while the active execution path is signing/submitting a Jupiter Ultra swap.
 
-```typescript
-// Stored in Proposal.positionImpact
-interface PositionImpact {
-  assetWeightBefore: number; // 0-1, e.g. 0 means no current exposure
-  assetWeightAfter: number; // 0-1, projected after trade
-  cashBeforeUsd: number; // Available USDC before trade
-  cashAfterUsd: number; // Available USDC after trade
-  sector: string; // Sector name, e.g. "Semiconductors"
-  sectorWeightBefore: number; // 0-1, aggregate sector exposure before
-  sectorWeightAfter: number; // 0-1, aggregate sector exposure after
-}
-```
+### Order
 
-### TechnicalIndicators
+`Order` is a synthetic trigger or close intent. Synthetic orders have `jupiterOrderId = null`; ws-server watches Pyth and either auto-executes through Privy signer access or emits `trigger:hit` fallback when conditions match.
 
-```typescript
-// Stored in Proposal.indicators
-interface TechnicalIndicators {
-  rsi14: number;
-  macd: {
-    macd: number;
-    signal: number;
-    histogram: number;
-  };
-  ma20: number;
-  ma50: number;
-}
-```
+Kinds:
 
----
+| Kind          | Meaning                                                      |
+| ------------- | ------------------------------------------------------------ |
+| `BUY_TRIGGER` | Fire when current price is within 0.5% of `triggerPriceUsd`. |
+| `TAKE_PROFIT` | Fire when current price is at or above `triggerPriceUsd`.    |
+| `STOP_LOSS`   | Fire when current price is at or below `triggerPriceUsd`.    |
+| `CLOSE_SWAP`  | Reserved for explicit close flows.                           |
 
-## Relationship Model
+Statuses used in the frozen synthetic path:
 
-A BUY proposal becomes a position through the `BUY_APPROVAL` Trade:
+| Status      | Meaning                                                        |
+| ----------- | -------------------------------------------------------------- |
+| `OPEN`      | Waiting for ws-server trigger monitor.                         |
+| `PENDING`   | An execution path claimed the order and is signing/submitting. |
+| `FILLED`    | On-chain swap settled and DB lifecycle wrote the fill.         |
+| `CANCELLED` | User/lifecycle cancelled the synthetic order.                  |
 
-```
-Proposal.id
-  -> Trade.proposalId  (BUY_APPROVAL trade created on execution)
-  -> Trade.positionId
-  -> Position.id
-  -> Order.positionId  (BUY_TRIGGER + TAKE_PROFIT + STOP_LOSS orders)
-```
+`PARTIALLY_FILLED`, `EXPIRED`, and `FAILED` remain enum values but are residual in the frozen synthetic-trigger path.
 
-- TP/SL fill Trades keep `proposalId` pointing to the original BUY proposal.
-- `USER_CLOSE` Trades use `proposalId = null`.
-- Each Position may have 1 BUY_TRIGGER order + 1 TAKE_PROFIT order + 1 STOP_LOSS order (and optionally 1 CLOSE_SWAP order).
+### Trade
+
+`Trade` records a fill after a Jupiter Ultra execution has returned a signature and `/api/orders/[id]/execute` has settled it.
+
+Sources:
+
+| Source         | Meaning                                    |
+| -------------- | ------------------------------------------ |
+| `BUY_APPROVAL` | BUY trigger fill activated the Position.   |
+| `TP_FILL`      | Take-profit exit fill closed the Position. |
+| `SL_FILL`      | Stop-loss exit fill closed the Position.   |
+| `USER_CLOSE`   | User manually closed the Position.         |
 
 ---
 
 ## Asset Registry
 
-Static TypeScript file at `packages/shared/src/constants.ts`. Manually maintained. New xStocks are added when they become available on Jupiter.
-
-### Asset Structure
+Canonical asset metadata lives in the Asset Universe at `packages/shared/src/assets.ts`, backed by xStock constants in `packages/shared/src/constants.ts`. It is a static whitelist, not a runtime provider-verification loop.
 
 ```typescript
-interface AssetMeta {
-  assetId: string; // Canonical ID used across all DB fields. e.g. "AAPLx", "SOL", "cbBTC"
-  underlyingTicker: string; // Bare ticker for display context. e.g. "AAPL", "SOL"
-  name: string; // "Apple", "Solana"
-  mint: string; // SPL Token-2022 mint address
+interface Asset {
+  assetId: string;
+  displaySymbol: string;
+  name: string;
+  kind: 'XSTOCK' | 'CRYPTO';
+  mint: string;
   decimals: number;
-  pythFeedId: string; // 0x-prefixed 32-byte hex
-  sector: string; // "Technology / Software"
-  marketFocusTags: MarketFocusOption[]; // e.g. ["TECH_SOFTWARE"] or ["TOKENIZED_ETFS"]
-  liquidityTier: 1 | 2 | 3 | 4;
-  maxSuggestedTradeUsd: number; // Derived from liquidity. Tier 4 assets cap at ~$1K.
-  logoUrl: string;
-  description: string; // Company description, displayed on Position Detail
+  pythFeedId: string;
+  pythSymbol: string;
 }
 ```
 
-### Sector Taxonomy
+Supported signal assets:
 
-Canonical asset metadata (including sector assignment and `marketFocusTags`) lives in the Asset Registry. Screen docs reference this taxonomy for display purposes only.
+| Kind                | Assets                                                       |
+| ------------------- | ------------------------------------------------------------ |
+| xStock / ETF xStock | `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx` |
+| Crypto              | `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`                  |
 
-| MarketFocusOption  | Display Label         | Example Assets                                                                     |
-| ------------------ | --------------------- | ---------------------------------------------------------------------------------- |
-| TECH_SOFTWARE      | Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
-| SEMICONDUCTORS     | Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, ASMLx, GEVx                                       |
-| EV_CLEAN_ENERGY    | EV & Clean Energy     | TSLAx                                                                              |
-| FINANCIALS_FINTECH | Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |
-| HEALTHCARE_PHARMA  | Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                                 |
-| CONSUMER_RETAIL    | Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                            |
-| ENERGY_UTILITIES   | Energy / Utilities    | XLEx, XOPx, URAx                                                                   |
-| CRYPTO_MINING      | Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                         |
-| INDUSTRIALS        | Industrials           | CATx, DELLx, BAx                                                                   |
-| TOKENIZED_ETFS     | Tokenized ETFs        | SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx                       |
-| BLUECHIP_CRYPTO    | Bluechip Crypto       | SOL, cbBTC, wETH                                                                   |
+`SOL` is wallet fee balance only. It is not a Position recommendation asset. `MSFTx` is not in the supported universe until xStock-native Pyth signal data exists.
 
-Assets like SMHx and URAx may have multiple tags (e.g., SMHx: `["SEMICONDUCTORS", "TOKENIZED_ETFS"]`).
+Market-focus verticals live in `MARKET_FOCUS_VERTICALS`. The `crypto` vertical maps to `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`.
+
+Asset Universe helpers derive signal eligibility and mandate matching from this whitelist:
+
+```typescript
+getSignalAssets();
+getMarketFocusVerticalsForAsset(assetId);
+getSignalAssetIdsForVerticals(verticalIds);
+```
 
 ---
 
-## Data Synchronization
+## Signal Data
 
-### Portfolio State Assembly
+Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.
 
-The frontend assembles portfolio state client-side:
+- Latest prices come from Pyth Hermes using `Asset.pythFeedId`.
+- Historical bars come from Pyth Benchmarks using `Asset.pythSymbol`.
+- xStock feeds use `Crypto.<XSTOCK>/USD` symbols such as `Crypto.AAPLX/USD`.
+- Freshness is the shared `evaluateSignalDataFreshness` publish-time rule, currently max 15 minutes old.
+- There is no underlying-equity fallback and no US market-hours guardrail.
 
-1. **Token balances**: Frontend calls Solana RPC (`getParsedTokenAccountsByOwner`) to read wallet token accounts
-2. **Current prices**: Frontend calls Pyth Hermes REST API directly
-3. **Entry prices and position metadata**: Read from PostgreSQL via REST API
-4. **Assembly**: Client combines on-chain balances, live prices, and DB records into the portfolio view
+---
 
-### Portfolio Sync (On-chain / DB Reconciliation)
+## Proposal Creation
 
-The Proposal Generator depends on accurate Position data in PostgreSQL. To keep the DB in sync with on-chain state:
+`packages/db/src/lifecycle/proposal-creation.ts` owns BUY Proposal row construction for live signal generation and `/dev-tools`.
 
-1. **Frontend sync**: Every time the portfolio loads, the frontend compares Solana RPC balances against DB Positions. On detecting a mismatch, it calls `POST /api/portfolio/sync` to update the DB.
+Inputs:
 
-2. **Order fill sync**: The ws-server Order Tracker polls Jupiter every 30 seconds for all OPEN orders, detecting fills, expirations, and cancellations.
+- Base Market Analysis: asset id, price at analysis, confidence, rationale, optional target prices, and indicators.
+- Mandate numbers: holding period, max trade size, and max drawdown.
+- Position-impact context: total USD, cash USD, same-asset exposure, and same-vertical exposure.
 
-3. **External transfer detection**: If the frontend discovers a token in the wallet that has no corresponding DB Position, it creates a new Position using the current market price as the cost basis.
+Owned outputs:
 
-### Entry Price Tracking
+- `suggestedSizeUsd`
+- `suggestedTriggerPrice`
+- `suggestedTakeProfitPrice`
+- `suggestedStopLossPrice`
+- `reasoning`
+- `positionImpact`
+- `thesisTags`
+- `expiresAt`
 
-All entry prices are stored in PostgreSQL (Position table).
+`/dev-tools` uses the same wallet-aware sizing Module as live signal generation so local test proposals stay close to real execution. Proposal Lab may display the computed size in its LLM prompt, but `ProposalCreation` remains the owner of `suggestedSizeUsd`.
 
-| Scenario                                           | Entry Price Source                                       |
-| -------------------------------------------------- | -------------------------------------------------------- |
-| Trade via app                                      | Fill price from the BUY trigger order                    |
-| Pre-existing holdings (tokens in wallet at signup) | Market price at the time the app first loads             |
-| External transfer in                               | Market price at the time the app detects the new balance |
+---
+
+## Data Sync
+
+The Proposal Generator reads wallet balances on-chain to calculate portfolio context. The synthetic trigger monitor reads Pyth every poll cycle for open synthetic Orders. If Auto-execute triggers is live, ws-server executes the Jupiter Ultra swap through Privy signer access and settles with PositionLifecycle. Otherwise it emits `trigger:hit`; the browser executes the Jupiter Ultra swap and then settles DB state through `/api/orders/[id]/execute`.
+
+Back-evaluation is env-gated and writes `evaluatedAt`, `priceAfter`, `pctChange`, and `outcome` after the 1-hour mark when benchmark data is available.

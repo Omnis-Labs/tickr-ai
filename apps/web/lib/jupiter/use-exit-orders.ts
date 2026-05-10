@@ -1,22 +1,22 @@
 'use client';
 
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { QK } from '@/lib/hooks/queries';
 
 /**
  * Single source of truth for the open-exit-order lifecycle attached to
  * a Position: cancel + place + replace.
  *
- * Synthetic-trigger architecture (post-pivot away from Jupiter Trigger
- * v2 for xStocks): TP/SL legs are plain DB rows with
+ * Synthetic-trigger architecture: TP/SL legs are plain DB rows with
  * `jupiterOrderId IS NULL`; the ws-server price monitor watches them
- * against Pyth and emits `trigger:hit` when the user needs to sign an
- * Ultra swap to actually exit. So all "place" / "cancel" operations on
+ * against Pyth and either auto-executes delegated triggers or emits
+ * `trigger:hit` when the user needs to sign an Ultra swap to actually exit.
+ * So all "place" / "cancel" operations on
  * exit Orders here are pure DB persistence — no off-chain escrow to
- * lock or release. cancelExits still also handles legacy Jupiter-routed
- * Orders via `/api/orders/[id]/cancel`, which itself dispatches to the
- * Jupiter trigger cancel under the hood when jupiterOrderId is set.
+ * lock or release.
  *
  * Call sites:
  *   - Position Detail: handleConfirmExit (ENTERING → place OCO)
@@ -49,6 +49,7 @@ export interface PlaceOcoExitArgs {
 
 export function useExitOrders() {
   const authedFetch = useAuthedFetch();
+  const qc = useQueryClient();
 
   /**
    * Cancel every open TP / SL exit order attached to the given Position.
@@ -64,14 +65,11 @@ export function useExitOrders() {
           id: string;
           positionId: string;
           kind: string;
-          jupiterOrderId: string | null;
           triggerPriceUsd: number | null;
         }>;
       };
       const exits = (j.orders ?? []).filter(
-        (o) =>
-          o.positionId === positionId &&
-          (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS'),
+        (o) => o.positionId === positionId && (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS'),
       );
 
       let tpPriceUsd: number | null = null;
@@ -81,21 +79,20 @@ export function useExitOrders() {
         if (o.kind === 'STOP_LOSS' && o.triggerPriceUsd != null) slPriceUsd = o.triggerPriceUsd;
       }
 
-      // /api/orders/[id]/cancel handles both flavours: synthetic rows
-      // just flip status=CANCELLED; legacy Jupiter-routed rows
-      // additionally fire the v2 trigger cancel before persisting.
+      // /api/orders/[id]/cancel flips synthetic rows to CANCELLED.
       for (const o of exits) {
         await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
       }
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(positionId) });
       return { tpPriceUsd, slPriceUsd };
     },
-    [authedFetch],
+    [authedFetch, qc],
   );
 
   /**
    * Place TP + SL synthetic exit Orders. Two POST /api/orders calls,
-   * one per leg, both with `jupiterOrderId: null` so the ws-server
-   * trigger-monitor picks them up. The `tokenAmount` carries through
+   * one per leg. The `tokenAmount` carries through
    * to TriggerHitPayload at fire time so the eventual Ultra sell
    * sells exactly the position size (not the wallet's full balance).
    */
@@ -123,7 +120,6 @@ export function useExitOrders() {
             triggerPriceUsd: leg.triggerPriceUsd,
             sizeUsd: leg.triggerPriceUsd * args.tokenAmount,
             tokenAmount: args.tokenAmount,
-            jupiterOrderId: null,
           }),
         });
         if (!r.ok) {
@@ -136,9 +132,12 @@ export function useExitOrders() {
 
       // Caller treats this id opaquely (used for "OCO …8 placed" toast).
       // Returning the TP id is fine — both legs share the same Position.
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(args.positionId) });
+      void qc.invalidateQueries({ queryKey: QK.positions() });
       return { id: orderIds[0] ?? args.positionId };
     },
-    [authedFetch],
+    [authedFetch, qc],
   );
 
   /**
@@ -168,38 +167,38 @@ export function useExitOrders() {
   );
 
   /**
-   * One-shot Adjust: cancel existing exits, place new ones, rollback
-   * on failure.
+   * One-shot Adjust: PUT /api/positions/[id]/protection. The server's
+   * replaceProtectionOrders lifecycle cancels OPEN TP/SL exit Orders
+   * and creates new ones in one prisma.\$transaction, so this replaces
+   * the old client-driven cancel-then-place dance (which left a window
+   * where trigger-monitor could fire on a cancelled-but-not-replaced
+   * leg). At least one of tpPriceUsd / slPriceUsd must be non-null;
+   * the other leg is left as-is.
    */
   const replaceExits = useCallback(
-    async (
-      args: Omit<PlaceOcoExitArgs, 'tpPriceUsd' | 'slPriceUsd'> & {
-        next: { tpPriceUsd: number | null; slPriceUsd: number | null };
-      },
-    ): Promise<void> => {
-      const snapshot = await cancelExits(args.positionId);
-      if (args.next.tpPriceUsd == null || args.next.slPriceUsd == null) return;
-      try {
-        await placeOcoExit({
-          positionId: args.positionId,
-          walletAddress: args.walletAddress,
-          ticker: args.ticker,
-          tokenAmount: args.tokenAmount,
-          tpPriceUsd: args.next.tpPriceUsd,
-          slPriceUsd: args.next.slPriceUsd,
-        });
-      } catch (err) {
-        toast.error('Re-place failed; restoring previous TP/SL…');
-        await rePlaceExits(snapshot, {
-          positionId: args.positionId,
-          walletAddress: args.walletAddress,
-          ticker: args.ticker,
-          tokenAmount: args.tokenAmount,
-        });
-        throw err;
+    async (args: {
+      positionId: string;
+      next: { tpPriceUsd: number | null; slPriceUsd: number | null };
+    }): Promise<void> => {
+      const body: Record<string, number> = {};
+      if (args.next.tpPriceUsd != null) body.tpPrice = args.next.tpPriceUsd;
+      if (args.next.slPriceUsd != null) body.slPrice = args.next.slPriceUsd;
+      if (Object.keys(body).length === 0) return;
+
+      const r = await authedFetch(`/api/positions/${args.positionId}/protection`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `protection update ${r.status}`);
       }
+      void qc.invalidateQueries({ queryKey: QK.orders() });
+      void qc.invalidateQueries({ queryKey: QK.position(args.positionId) });
+      void qc.invalidateQueries({ queryKey: QK.positions() });
     },
-    [cancelExits, placeOcoExit, rePlaceExits],
+    [authedFetch, qc],
   );
 
   return {

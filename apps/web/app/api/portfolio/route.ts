@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { demoInitialPositions, demoInitialTrades } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
-import { readUsdcBalance } from '@/lib/solana/usdc-balance';
+import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
+import { getCurrentPrices } from '@/lib/pyth';
+import { applyMarkPricesToPortfolioPositions } from '@/lib/portfolio/holdings';
+import type { PortfolioResponse } from '@/lib/hooks/queries';
 
 /**
  * GET /api/portfolio
@@ -12,34 +13,31 @@ import { readUsdcBalance } from '@/lib/solana/usdc-balance';
  * Live: aggregates positions (open + closed) + recent trades for the authed
  * user. PnL is split into realized (sum of Trade.realizedPnl on closed
  * legs) and unrealized (sum of (markPrice - entryPrice) * tokenAmount on
- * ACTIVE / ENTERING / BUY_PENDING positions). Mark price is the position's
- * stored `entryPrice` until the frontend joins live Pyth quotes — good
- * enough for portfolio screen seed.
- *
- * Demo: returns the in-memory fixtures.
+ * ACTIVE / ENTERING / BUY_PENDING positions).
  */
 export async function GET(req: NextRequest) {
-  if (isDemoServer()) {
-    const positions = demoInitialPositions();
-    const trades = demoInitialTrades();
-    const realized = trades
-      .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
-      .reduce((acc, t) => acc + t.realizedPnl, 0);
-    const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-    return NextResponse.json({
-      positions,
-      trades,
-      pnl: { realized, unrealized },
-      cashUsd: 1234.56, // demo placeholder
-    });
-  }
-
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const freshBalances = req.nextUrl.searchParams.get('freshBalances') === '1';
+  const balanceReadOptions = {
+    forceFresh: freshBalances,
+    throwOnFailure: freshBalances,
+  };
 
-  const [openPositions, recentTrades, cashUsd] = await Promise.all([
+  const [openPositions, recentTrades, cashUsd, solBalance] = await Promise.all([
     prisma.position.findMany({
       where: { userId: auth.userId, state: { not: 'CLOSED' } },
+      include: {
+        orders: {
+          where: {
+            kind: 'BUY_TRIGGER',
+            status: { in: ['OPEN', 'PENDING'] },
+          },
+          select: { sizeUsd: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: { firstEntryAt: 'desc' },
     }),
     prisma.trade.findMany({
@@ -50,7 +48,8 @@ export async function GET(req: NextRequest) {
     // RPC read of the user's embedded-wallet USDC balance. Cached 60s
     // per wallet inside the helper so the desk page's 15s portfolio
     // refetch doesn't pound the RPC. Returns 0 on failure.
-    readUsdcBalance(auth.walletAddress),
+    readUsdcBalance(auth.walletAddress, balanceReadOptions),
+    readSolBalance(auth.walletAddress, balanceReadOptions),
   ]);
 
   // Realized PnL = sum of all SELL-side Trade.realizedPnl (BUY trades have
@@ -60,21 +59,31 @@ export async function GET(req: NextRequest) {
     return acc + v;
   }, 0);
 
-  // Unrealized = sum over open positions of (entryPrice * tokenAmount) snapshot.
-  // The frontend overlays live Pyth marks; we just hand back tokenAmount + entry
-  // so it has everything it needs.
-  const positions = openPositions.map((p) => {
+  const basePositions: PortfolioResponse['positions'] = openPositions.map((p) => {
     const tokenAmount = p.tokenAmount.toNumber();
     const entryPrice = p.entryPrice.toNumber();
+    const pendingSizeUsd = p.orders[0]?.sizeUsd.toNumber();
     return {
+      id: p.id,
       ticker: p.ticker,
       tokenAmount,
       avgCost: entryPrice,
-      markPrice: entryPrice, // overlaid client-side
-      pnl: 0, // computed client-side once marks arrive
+      markPrice: entryPrice,
+      pnl: 0,
+      pendingSizeUsd,
+      state: p.state,
     };
   });
-  const unrealized = 0;
+
+  const assetIds = Array.from(new Set(basePositions.map((p) => p.ticker)));
+  const markPrices =
+    assetIds.length > 0
+      ? await getCurrentPrices(assetIds).catch(() => new Map<string, number>())
+      : new Map<string, number>();
+  const { positions, unrealized } = applyMarkPricesToPortfolioPositions(
+    basePositions,
+    markPrices,
+  );
 
   const trades = recentTrades.map((t) => ({
     id: t.id,
@@ -94,5 +103,6 @@ export async function GET(req: NextRequest) {
     trades,
     pnl: { realized, unrealized },
     cashUsd,
+    solBalance,
   });
 }

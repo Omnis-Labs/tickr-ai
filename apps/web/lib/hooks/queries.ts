@@ -1,18 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { DemoProposalShape, Mandate } from '@hunch-it/shared';
+import type { Mandate, Proposal } from '@hunch-it/shared';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import { isDemo } from '@/lib/demo/flag';
-import { demoInitialPositions, demoInitialTrades, DEMO_MANDATE } from '@hunch-it/shared';
+import type { PortfolioPosition } from '@/lib/portfolio/holdings';
+import { normalizeProposalForClient, normalizeProposalsForClient } from '@/lib/proposals/normalize';
 
 /**
  * Centralised TanStack Query reads. Pages just call these — they don't have
  * to remember to thread `useAuthedFetch`, manage their own loading/error
  * state, or coordinate cache keys for invalidation across mutations.
  *
- * Demo mode short-circuits to in-memory fixtures so the zero-cred UX path
- * keeps rendering populated screens without hitting the backend.
  */
 
 // ── Cache key conventions ───────────────────────────────────────────────
@@ -29,12 +27,13 @@ export const QK = {
 // ── Proposals ───────────────────────────────────────────────────────────
 export function useProposals() {
   const authedFetch = useAuthedFetch();
-  return useQuery<{ proposals: DemoProposalShape[] }>({
+  return useQuery<{ proposals: Proposal[] }>({
     queryKey: QK.proposals(),
     queryFn: async () => {
       const r = await authedFetch('/api/proposals');
       if (!r.ok) return { proposals: [] };
-      return r.json();
+      const json = (await r.json()) as { proposals?: unknown[] };
+      return { proposals: normalizeProposalsForClient(json.proposals ?? []) };
     },
     refetchInterval: 30_000,
     enabled: true,
@@ -43,13 +42,14 @@ export function useProposals() {
 
 export function useProposal(id: string | null | undefined) {
   const authedFetch = useAuthedFetch();
-  return useQuery<{ proposal: DemoProposalShape | null }>({
+  return useQuery<{ proposal: Proposal | null }>({
     queryKey: id ? QK.proposal(id) : ['proposal', 'null'],
     queryFn: async () => {
       if (!id) return { proposal: null };
       const r = await authedFetch(`/api/proposals/${id}`);
       if (!r.ok) return { proposal: null };
-      return r.json();
+      const json = (await r.json()) as { proposal?: unknown };
+      return { proposal: normalizeProposalForClient(json.proposal) };
     },
     enabled: !!id,
   });
@@ -72,11 +72,6 @@ export function usePositions() {
   return useQuery<{ positions: PositionRow[] }>({
     queryKey: QK.positions(),
     queryFn: async () => {
-      if (isDemo()) {
-        // Demo fixtures live in the client store; the API returns empty
-        // arrays and the consuming page reads from useDemoPositionsStore.
-        return { positions: [] };
-      }
       const r = await authedFetch('/api/positions');
       if (!r.ok) return { positions: [] };
       return r.json();
@@ -111,15 +106,14 @@ interface PositionDetailRow {
 }
 
 /**
- * Single-position detail. Detail page falls back to demo-positions store
- * in demo mode; in live mode this drives it. 404 / unauthorized return
- * null so the page can show "Position not found" without throwing.
+ * Single-position detail. 404 / unauthorized return null so the page can
+ * show "Position not found" without throwing.
  */
 export function usePosition(id: string | undefined) {
   const authedFetch = useAuthedFetch();
   return useQuery<PositionDetailRow | null>({
     queryKey: id ? QK.position(id) : ['position', 'null'],
-    enabled: !!id && !isDemo(),
+    enabled: !!id,
     queryFn: async () => {
       if (!id) return null;
       const r = await authedFetch(`/api/positions/${id}`);
@@ -135,6 +129,7 @@ export function usePosition(id: string | undefined) {
 interface OrderRow {
   id: string;
   positionId: string;
+  ticker: string;
   kind: string;
   side: string;
   status: string;
@@ -172,13 +167,7 @@ export function useMandate() {
 
 // ── Portfolio ───────────────────────────────────────────────────────────
 export interface PortfolioResponse {
-  positions: Array<{
-    ticker: string;
-    tokenAmount: number;
-    avgCost: number;
-    markPrice?: number;
-    pnl?: number;
-  }>;
+  positions: PortfolioPosition[];
   trades: Array<{
     id: string;
     ticker: string;
@@ -192,6 +181,7 @@ export interface PortfolioResponse {
   }>;
   pnl: { realized: number; unrealized: number };
   cashUsd?: number;
+  solBalance?: number;
 }
 
 export function usePortfolio() {
@@ -199,15 +189,6 @@ export function usePortfolio() {
   return useQuery<PortfolioResponse>({
     queryKey: QK.portfolio(),
     queryFn: async () => {
-      if (isDemo()) {
-        const positions = demoInitialPositions();
-        const trades = demoInitialTrades();
-        const realized = trades
-          .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
-          .reduce((acc, t) => acc + t.realizedPnl, 0);
-        const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
-        return { positions, trades, pnl: { realized, unrealized }, cashUsd: 1234.56 };
-      }
       const r = await authedFetch('/api/portfolio');
       if (!r.ok) {
         return {
@@ -220,11 +201,4 @@ export function usePortfolio() {
     },
     refetchInterval: 15_000,
   });
-}
-
-// ── Demo mandate fallback (used by Settings + Mandate Setup) ────────────
-// DEMO_MANDATE comes from shared as a typed fixture but its `marketFocus`
-// is widened to string[] for JSON-friendliness — cast on read here.
-export function demoMandate(): Mandate {
-  return DEMO_MANDATE as unknown as Mandate;
 }

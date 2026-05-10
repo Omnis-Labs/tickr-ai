@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Reframed the product around investment mandates, personalized BUY proposals, Jupiter Trigger Orders, and automatic TP/SL protection.
+- Reframed the product around investment mandates, personalized BUY proposals, synthetic Orders, and automatic TP/SL protection.
 - Updated documentation to match the current v1 scope and remove older references to manual BUY/SELL signals, gas-sponsored Ultra swaps, and leaderboard-first behavior.
 
 ## [0.1.0] - 2026-04-26
@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Early Hunch It prototype for AI-assisted trading signals on Solana.
 - Realtime browser experience using Socket.IO, Shared Worker, BroadcastChannel, browser notifications, and audio alerts.
 - Portfolio tracking with position and P&L views.
-- Demo mode for exploring the local UX without real trades.
+- Password-gated `/dev-tools` for exercising real proposal, order, trigger, and swap paths locally.
 - Initial onboarding, documentation, and AGPL-3.0 license.
 
 ### Changed

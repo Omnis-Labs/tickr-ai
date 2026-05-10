@@ -4,7 +4,7 @@
 >
 > **Read with**: product-overview.md (product context), api-contract.md (endpoint contracts + WebSocket events), data-model.md (schema + enums)
 >
-> Canonical supported asset metadata (sectors, tickers, liquidity tiers) lives in the Asset Registry (see data-model.md). Sector/ticker lists in this doc are display guidance only.
+> Canonical supported asset metadata lives in the Asset Registry (see data-model.md). Sector/asset lists in this doc are display guidance only.
 
 ---
 
@@ -42,23 +42,23 @@ USD amount input field. The UI simultaneously displays what percentage this repr
 
 Multi-select. Users choose verticals (not individual tickers).
 
-**Tokenized Stocks** verticals:
+**xStock** verticals:
 
-| Vertical              | Tickers                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------- |
-| Technology / Software | AAPLx, MSFTx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
-| Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, SMHx, ASMLx, GEVx                                 |
-| EV & Clean Energy     | TSLAx                                                                              |
-| Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                                 |
-| Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                                 |
-| Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                            |
-| Energy / Utilities    | XLEx, XOPx, URAx                                                                   |
-| Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                         |
-| Industrials           | CATx, DELLx, BAx                                                                   |
+| Vertical              | Tickers                                                                     |
+| --------------------- | --------------------------------------------------------------------------- |
+| Technology / Software | AAPLx, GOOGLx, METAx, AMZNx, CRMx, ORCLx, PLTRx, AVGOx, CRCLx, ADBEx, SHOPx |
+| Semiconductors        | NVDAx, TSMx, AMDx, INTCx, AMATx, SMHx, ASMLx, GEVx                          |
+| EV & Clean Energy     | TSLAx                                                                       |
+| Financials / Fintech  | JPMx, GSx, HOODx, COINx, BACx, MAx, Vx, PYPLx, SQx                          |
+| Healthcare / Pharma   | LLYx, UNHx, ABTx, JNJx, MRKx, PFEx                                          |
+| Consumer / Retail     | MCDx, WMTx, NKEx, SBUXx                                                     |
+| Energy / Utilities    | XLEx, XOPx, URAx                                                            |
+| Crypto Mining         | MSTRx, RIOTx, MARAx, CLSKx                                                  |
+| Industrials           | CATx, DELLx, BAx                                                            |
 
 **Tokenized ETFs**: SPYx, QQQx, IWMx, VTIx, IEMGx, VGKx, SMHx, URAx, SGOVx, XLEx
 
-**Bluechip Crypto**: SOL, BTC, ETH
+**Crypto**: wBTC, ETH, BNB, wXRP, TRX, HYPE
 
 Selecting "No preference" means all assets can generate proposals.
 
@@ -68,7 +68,7 @@ Selecting "No preference" means all assets can generate proposals.
 
 The mandate can be edited later from the Settings page. Editing the mandate invalidates all active proposals and triggers regeneration.
 
-**Note on enum values**: The UI displays human-readable labels ("1-3 days"), but stores canonical enum values (`SHORT_TERM`). See data-model.md for the `HoldingPeriod` enum and `MarketFocusOption` type.
+**Note on values**: The UI stores the same holding-period strings it displays (`"1-3 days"`, `"1-2 weeks"`, `"1-3 months"`, `"6+ months"`). Market focus stores lowercase ids such as `semiconductors`, `tokenized_etfs`, `crypto`, and `no_preference`.
 
 ---
 
@@ -109,7 +109,7 @@ Multiple positions in the same asset are listed separately, each showing its own
 
 ### Proposals Feed
 
-Cards sorted by expiry (most urgent first). BUY proposals only.
+Cards sorted by expiry (most urgent first). The main feed is BUY-first; env-gated thesis monitoring can also emit SELL proposals for existing positions.
 
 Each card:
 
@@ -233,11 +233,16 @@ Slippage uses a safe default value, not exposed to the user.
 | Button          | Behavior                                                                                      |
 | --------------- | --------------------------------------------------------------------------------------------- |
 | **Place Order** | Place BUY trigger order → Create Position (BUY_PENDING) → After BUY fills, auto-place TP + SL |
-| **Skip**        | Expand skip feedback → remove proposal                                                        |
+| **Skip**        | Open skip confirmation with optional feedback                                                 |
 
 ### Skip Feedback
 
-Inline expansion. **"Why are you skipping?"**
+Dedicated confirmation state. **"Skip this proposal?"**
+
+Feedback is optional. Selecting a reason changes the final action from
+**Skip** to **Save & skip**. Selecting the same reason again clears feedback.
+After confirmation, return to Desk and remove the proposal without a success
+toast.
 
 | Option                      |
 | --------------------------- |
@@ -248,6 +253,14 @@ Inline expansion. **"Why are you skipping?"**
 | Price not attractive        |
 | Too many proposals          |
 | Other (free text)           |
+
+**Buttons:**
+
+| State                     | Buttons                       |
+| ------------------------- | ----------------------------- |
+| No feedback selected      | Cancel / Skip                 |
+| Feedback selected         | Cancel / Save & skip          |
+| Other selected, no detail | Cancel / disabled Save & skip |
 
 ---
 
@@ -285,14 +298,14 @@ Pyth Benchmarks + Lightweight Charts. Same time ranges as Proposal Detail.
 
 Short static company/asset description, hardcoded in the asset registry. One paragraph.
 
-> "NVIDIA designs GPUs and AI accelerators. Dominant in data center AI training chips with ~80% market share. Trades on NASDAQ as NVDA; NVDAx is the tokenized version on Solana."
+> "NVIDIA xStock gives Solana exposure to the tokenized NVIDIA asset. It is an xStock position, not a direct native US share trade."
 
 ### Adjust TP/SL
 
 Inline form (no page navigation). Only available when `state = ACTIVE`.
 
-- **TP Price**: current value, editable → modifies the live TP trigger order via Jupiter in-place edit API
-- **SL Price**: current value, editable → modifies the live SL trigger order
+- **TP Price**: current value, editable → replaces the OPEN synthetic TP Order
+- **SL Price**: current value, editable → replaces the OPEN synthetic SL Order
 - **Update** button → submit changes
 
 ### Close Position
@@ -301,8 +314,8 @@ Bottom button. Only available when `state = ACTIVE`.
 
 **"Close Position"** → Confirmation dialog: "Cancel all exit orders and sell your full position at market price?" → On confirm:
 
-1. Cancel TP + SL trigger orders
-2. Jupiter Swap API market price full sell
+1. Cancel TP + SL synthetic Orders
+2. Jupiter Ultra market sell
 3. Position state → CLOSING → CLOSED
 
 ---
@@ -342,9 +355,14 @@ flowchart TD
     J --> K[User deposits USDC + SOL from external source]
     K --> L[Portfolio updates with USDC balance]
     L --> M[ws-server detects cash + mandate → generates BUY proposals]
-    M --> N[User reviews proposal → adjusts → Place Order]
-    N --> O[BUY trigger order placed → Position BUY_PENDING]
-    O --> P[BUY fills → auto TP/SL → Position ACTIVE]
+    M --> N[User reviews proposal → adjusts → Accept]
+    N --> O[Synthetic BUY trigger Order → Position BUY_PENDING]
+    O --> P[Price trigger]
+    P --> P1{Auto-execute triggers live?}
+    P1 -- Yes --> Q[ws-server executes Ultra → trade:filled]
+    P1 -- No --> R[trigger:hit toast → tap Execute]
+    Q --> S[TP/SL Orders → Position ACTIVE]
+    R --> S
 ```
 
 ### Flow: Returning User
@@ -352,7 +370,7 @@ flowchart TD
 ```
 1. Open <app-domain> (Privy session valid)
 2. Home: holdings + P&L + proposals feed
-3. Review proposal → Place Order or Skip
+3. Review proposal → Accept synthetic Order or Skip
 4. Or: tap into Position Detail → adjust TP/SL or Close Position
 ```
 
@@ -363,38 +381,44 @@ flowchart TD
     A[Market Scanner detects opportunity] --> B[Proposal Generator creates per-user BUY proposal]
     B --> C[Proposal pushed to feed, sorted by urgency]
     C --> D{User action}
-    D -- Review → Place Order --> E[Execute, remove from feed]
+    D -- Review → Accept --> E[Create BUY_PENDING Position + OPEN synthetic Order]
     D -- Review → Skip --> F[Skip feedback recorded, remove from feed]
     D -- Ignore --> G[Remains until natural expiry, then fades out]
 ```
 
-### Flow: BUY Fill → Auto TP/SL
+### Flow: BUY Trigger Execution → TP/SL
 
 ```mermaid
 flowchart TD
-    A[Order Tracker detects BUY fill] --> B[Update Position: entryPrice, tokenAmount → ENTERING]
-    B --> C[Place TP trigger order]
-    C --> D{TP placed?}
-    D -- No --> D1[Retry]
-    D1 --> C
-    D -- Yes --> E[Place SL trigger order]
-    E --> F{SL placed?}
-    F -- No --> F1[Retry]
-    F1 --> E
-    F -- Yes --> G[Position → ACTIVE]
+    A[ws-server detects BUY trigger] --> B{Privy delegated wallet live?}
+    B -- Yes --> C[ws-server claims Order; Position BUY_PENDING → ENTERING]
+    B -- No --> D[Emit trigger:hit; user taps Execute]
+    D --> E[Client claims Order; Position BUY_PENDING → ENTERING]
+    C --> F[Jupiter Ultra /order]
+    E --> F
+    F --> G[Privy signs user/taker slot or delegated server signature]
+    G --> H[Jupiter Ultra /execute returns signature]
+    H --> I[PositionLifecycle settles BUY]
+    I --> J[Position → ACTIVE; TP + SL synthetic Orders OPEN]
 ```
 
 ### Flow: TP/SL Fill (OCO)
 
 ```mermaid
 flowchart TD
-    A[Order Tracker detects TP or SL fill] --> B{Which filled?}
-    B -- TP --> C[Cancel SL order]
-    B -- SL --> D[Cancel TP order]
-    C --> E[Calculate realizedPnl]
-    D --> E
-    E --> F[Position → CLOSED]
-    F --> G[Record Trade, push notification]
+    A[ws-server detects TP/SL trigger] --> B{Privy delegated wallet live?}
+    B -- Yes --> C[ws-server claims exit Order; Position ACTIVE → CLOSING]
+    B -- No --> D[Emit trigger:hit; user taps Execute]
+    D --> E[Client claims exit Order; Position ACTIVE → CLOSING]
+    C --> F[Jupiter Ultra /execute returns signature]
+    E --> F
+    F --> G{Which exit settled?}
+    G -- TP --> H[Cancel SL Order]
+    G -- SL --> I[Cancel TP Order]
+    H --> J[Calculate realizedPnl]
+    I --> J
+    J --> K[Position → CLOSED]
+    K --> L[Record Trade]
 ```
 
 ### Flow: User Close Position
@@ -404,7 +428,7 @@ flowchart TD
     A[User taps Close Position → confirms] --> B[Position → CLOSING]
     B --> C[Cancel TP trigger order]
     C --> D[Cancel SL trigger order]
-    D --> E[Jupiter Swap: market price full sell]
+    D --> E[Jupiter Ultra /order + sign + /execute: market sell]
     E --> F{Swap success?}
     F -- No --> F1[Show error, retry swap]
     F -- Yes --> G[Position → CLOSED, record Trade]
@@ -414,13 +438,10 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[User taps Cancel on Open Orders] --> B[Initiate Jupiter cancel]
-    B --> C[Build withdrawal tx]
-    C --> D[Privy wallet signs]
-    D --> E{Cancel success?}
-    E -- No --> E1[Show error, retry]
-    E -- Yes --> F[Funds return to wallet]
-    F --> G[Order → CANCELLED, Position → CLOSED]
+    A[User taps Cancel on Open Orders] --> B[Server cancels synthetic BUY Order]
+    B --> C{Cancel success?}
+    C -- No --> C1[Show error, retry]
+    C -- Yes --> D[Order → CANCELLED, Position → CLOSED]
 ```
 
 ### Flow: Mandate Change
@@ -439,10 +460,9 @@ flowchart TD
 
 ```
 1. User modifies TP or SL price on Position Detail
-2. Call Jupiter in-place edit API to update the trigger order
-3. Update Position's currentTpPrice / currentSlPrice
-4. Update Order record
-5. Chart annotations move to reflect new values
+2. Call `/api/positions/[id]/protection`
+3. Server cancels the matching synthetic exit Order and creates a replacement
+4. Chart annotations move to reflect the OPEN exit Orders
 ```
 
 ---
@@ -456,34 +476,32 @@ BUY_PENDING  →  ENTERING  →  ACTIVE  →  CLOSING  →  CLOSED
                                         ACTIVE → CLOSED (TP/SL fill)
 ```
 
-| State       | Meaning                                      | Available Actions            |
-| ----------- | -------------------------------------------- | ---------------------------- |
-| BUY_PENDING | BUY trigger order placed, waiting for fill   | Cancel order                 |
-| ENTERING    | BUY filled, TP/SL being placed automatically | None (wait)                  |
-| ACTIVE      | TP + SL both live, strategy running          | Adjust TP/SL, Close Position |
-| CLOSING     | User-initiated close in progress             | None (wait)                  |
-| CLOSED      | Position fully exited                        | View history                 |
+| State       | Meaning                                                           | Available Actions            |
+| ----------- | ----------------------------------------------------------------- | ---------------------------- |
+| BUY_PENDING | Synthetic BUY trigger Order placed, waiting for trigger execution | Cancel order                 |
+| ENTERING    | BUY trigger execution claimed while wallet/Jupiter Ultra finishes | None (wait)                  |
+| ACTIVE      | TP + SL both live, strategy running                               | Adjust TP/SL, Close Position |
+| CLOSING     | Exit/close execution claimed while wallet/Jupiter Ultra finishes  | None (wait)                  |
+| CLOSED      | Position fully exited                                             | View history                 |
 
 ---
 
 ## Error States
 
-| Scenario                                    | User Sees                                                                                                                                                  |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Wallet has no SOL                           | "You need SOL for transaction fees."                                                                                                                       |
-| Insufficient USDC                           | "Not enough USDC. You have $X available."                                                                                                                  |
-| User rejects wallet signature               | "Transaction was not signed. No order was placed." No funds moved, no DB records created.                                                                  |
-| Deposit confirmed but order creation failed | "Deposit confirmed but order creation failed. Your funds are in the Jupiter vault." Offer: retry order creation, or withdraw funds.                        |
-| Trigger order creation failed               | "Order failed. Please try again." + retry                                                                                                                  |
-| Trigger order expired unfilled              | Open Orders shows "Expired", prompt to reclaim vault funds via withdraw flow                                                                               |
-| ws-server unreachable                       | "Unable to load proposals. Pull to refresh." Portfolio still works.                                                                                        |
-| PostgreSQL unreachable                      | Fallback to client-side TanStack Query cached data from the current/recent session. Banner: "Some data may be outdated." No server-side cache layer in v1. |
-| Privy session expired                       | Redirect to login (Privy handles this)                                                                                                                     |
-| Zero portfolio + zero USDC                  | Deposit prominently shown. Suggested copy: "Desk is clear."                                                                                                |
-| Pyth API unreachable                        | "Price chart unavailable." Trade execution still works.                                                                                                    |
-| TP/SL auto-placement failed                 | Position stays in ENTERING, retries. User sees: Suggested copy: "Setting up exit orders..."                                                                |
-| Close Position: cancel fails                | Do NOT proceed to swap. Retry cancellation. Position stays CLOSING.                                                                                        |
-| Close Position: cancel succeeds, swap fails | Position stays CLOSING with no exit orders. Prompt user to retry swap.                                                                                     |
+| Scenario                                        | User Sees                                                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Insufficient USDC                               | "Not enough USDC. You have $X available."                                                                                                                  |
+| User rejects wallet signature                   | "Transaction was not signed. No swap was submitted." The execution claim is released for retry.                                                            |
+| Jupiter Ultra `/execute` fails before signature | "Execute failed..." with Retry. The execution claim is released for retry.                                                                                 |
+| Swap returns signature but DB settle fails      | "Swap broadcast, but settle failed..." Refresh/reconcile before retry.                                                                                     |
+| ws-server unreachable                           | "Unable to load proposals. Pull to refresh." Portfolio still works.                                                                                        |
+| PostgreSQL unreachable                          | Fallback to client-side TanStack Query cached data from the current/recent session. Banner: "Some data may be outdated." No server-side cache layer in v1. |
+| Privy session expired                           | Redirect to login (Privy handles this)                                                                                                                     |
+| Zero portfolio + zero USDC                      | Deposit prominently shown. Suggested copy: "Desk is clear."                                                                                                |
+| Pyth API unreachable                            | "Price chart unavailable." Trade execution still works.                                                                                                    |
+| Execution claim stuck                           | Position stays in ENTERING/CLOSING; operator inspects `/dev-tools` diagnostics before retry/reconcile.                                                     |
+| Close Position: cancel fails                    | Do NOT proceed to swap. Retry cancellation. Position stays CLOSING.                                                                                        |
+| Close Position: cancel succeeds, swap fails     | Position stays CLOSING with no exit orders. Prompt user to retry swap.                                                                                     |
 
 ---
 

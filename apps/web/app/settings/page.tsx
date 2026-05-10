@@ -1,60 +1,88 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import {
+  BriefcaseBusiness,
+  Check,
+  Clipboard,
+  LogOut,
+  Pencil,
+  RefreshCw,
+  ShieldCheck,
+  ShieldOff,
+  SlidersHorizontal,
+  TriangleAlert,
+  UserRound,
+  Zap,
+} from 'lucide-react';
 import {
   HOLDING_PERIOD_OPTIONS,
   MARKET_FOCUS_VERTICALS,
   MAX_DRAWDOWN_OPTIONS,
-  XSTOCKS,
-  xStockToBare,
-  type XStockTicker,
+  getAssetById,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
+import {
+  STALE_SIGNER_ENV_ERROR,
+  delegatedAccessError,
+  deriveAutoExecuteSettingsState,
+  waitForDelegatedAccessRevocation,
+  withDelegatedAccessTimeout,
+  type DelegatedExecutionSettingsStatus,
+} from '@/lib/delegated-execution/settings-state';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { isDemo } from '@/lib/demo';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useMandate, usePortfolio } from '@/lib/hooks/queries';
+import { derivePortfolioSummary } from '@/lib/portfolio/summary';
+import { cn } from '@/lib/utils';
 
 function shorten(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 export default function SettingsPage() {
-  const demo = isDemo();
   const { address, connected, logout } = useWallet();
-  const wallet = demo ? 'demo-wallet' : address;
 
   const mandateQuery = useMandate();
   const portfolioQuery = usePortfolio();
 
   const mandate = mandateQuery.data?.mandate;
   const isLoading = mandateQuery.isLoading;
+  const isPortfolioLoading = portfolioQuery.isLoading;
 
   const verticalLabels = (mandate?.marketFocus ?? []).map(
     (id) => MARKET_FOCUS_VERTICALS.find((v) => v.id === id)?.label ?? id,
   );
 
-  const positionsCount = useMemo(
-    () => (portfolioQuery.data?.positions ?? []).filter((p) => p.tokenAmount > 0).length,
-    [portfolioQuery.data?.positions],
+  const portfolioSummary = useMemo(
+    () => derivePortfolioSummary(portfolioQuery.data),
+    [portfolioQuery.data],
   );
-  const positionsValue = useMemo(() => {
-    const positions = portfolioQuery.data?.positions ?? [];
-    return positions.reduce((acc, p) => acc + p.tokenAmount * (p.markPrice ?? p.avgCost), 0);
-  }, [portfolioQuery.data?.positions]);
 
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    };
+  }, []);
+
+  const handleCopy = async () => {
     if (!address) return;
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopyStatus('copied');
+      if (copyResetRef.current) clearTimeout(copyResetRef.current);
+      copyResetRef.current = setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch {
+      setCopyStatus('error');
+      toast.error('Could not copy wallet address.');
+    }
   };
 
   return (
@@ -62,39 +90,44 @@ export default function SettingsPage() {
       <TopAppBar title="Settings" />
 
       <main className="px-5 py-6 pb-24 max-w-md mx-auto flex flex-col gap-6">
-        <Section icon="person" title="Account">
-          {!connected && !demo ? (
+        <Section icon={<UserRound className="h-5 w-5" />} title="Account">
+          {!connected ? (
             <p className="text-body-md text-on-surface-variant">Not signed in.</p>
           ) : (
             <div className="flex flex-col gap-4">
-              <Row label="Mode">{demo ? 'Demo' : 'Live'}</Row>
               <div className="flex flex-col gap-1">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Wallet</span>
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                  Wallet
+                </span>
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-mono text-body-md text-on-surface truncate">
-                    {address ? shorten(address) : 'demo-wallet'}
+                    {address ? shorten(address) : 'Not connected'}
                   </span>
                   {address && (
                     <button
                       type="button"
-                      onClick={handleCopy}
-                      aria-label="Copy wallet address"
-                      className="w-9 h-9 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform"
+                      onClick={() => void handleCopy()}
+                      aria-label={
+                        copyStatus === 'copied' ? 'Wallet address copied' : 'Copy wallet address'
+                      }
+                      className="w-11 h-11 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform hover:bg-surface-container-high"
                     >
-                      <span className="material-symbols-outlined text-[18px]">
-                        {copied ? 'check' : 'content_copy'}
-                      </span>
+                      {copyStatus === 'copied' ? (
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Clipboard className="h-4 w-4" aria-hidden="true" />
+                      )}
                     </button>
                   )}
                 </div>
               </div>
-              {!demo && connected && (
+              {connected && (
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="self-start flex items-center gap-2 text-label-md text-negative hover:underline"
+                  className="self-start flex h-11 items-center gap-2 rounded-full px-3 text-label-md text-error transition-colors hover:bg-error-container"
                 >
-                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                  <LogOut className="h-4 w-4" aria-hidden="true" />
                   Sign out
                 </button>
               )}
@@ -102,34 +135,57 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        <Section icon="briefcase" title="Positions Overview">
-          <Row label="Active positions">
-            <span className="tabular-nums">{positionsCount}</span>
-          </Row>
-          <div className="h-px bg-divider my-3" />
-          <Row label="Total value">
-            <span className="text-primary tabular-nums">
-              ${positionsValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </Row>
+        <AutoExecuteTriggersCard />
+
+        <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
+          {isPortfolioLoading ? (
+            <SkeletonRows rows={2} />
+          ) : portfolioQuery.isError ? (
+            <InlineError
+              message="Could not load positions."
+              onRetry={() => void portfolioQuery.refetch()}
+            />
+          ) : (
+            <>
+              <Row label="Active positions">
+                <span className="tabular-nums">{portfolioSummary.positionsCount}</span>
+              </Row>
+              <div className="h-px bg-divider my-3" />
+              <Row label="Total value">
+                <span className="text-primary tabular-nums">
+                  $
+                  {portfolioSummary.positionsValue.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </Row>
+            </>
+          )}
         </Section>
 
         <Section
-          icon="tune"
+          icon={<SlidersHorizontal className="h-5 w-5" />}
           title="Your Mandate"
           right={
             mandate ? (
               <Link
                 href="/mandate"
-                className="text-label-md text-primary hover:underline"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary shadow-micro transition-colors active:scale-[0.97] hover:bg-surface-container-high"
               >
-                Edit
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                Edit mandate
               </Link>
             ) : null
           }
         >
           {isLoading ? (
-            <p className="text-body-md text-on-surface-variant">Loading…</p>
+            <SkeletonRows rows={4} />
+          ) : mandateQuery.isError ? (
+            <InlineError
+              message="Could not load your mandate."
+              onRetry={() => void mandateQuery.refetch()}
+            />
           ) : !mandate ? (
             <div>
               <p className="text-body-md text-on-surface-variant mb-3">
@@ -149,15 +205,20 @@ export default function SettingsPage() {
                   mandate.holdingPeriod}
               </Row>
               <Row label="Max drawdown">
-                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ?? 'Custom'}
+                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ??
+                  'Custom'}
               </Row>
               <Row label="Max trade size">
                 <span className="tabular-nums">${mandate.maxTradeSize.toFixed(2)}</span>
               </Row>
               <div className="flex flex-col gap-2">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Market focus</span>
+                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                  Market focus
+                </span>
                 <div className="flex flex-wrap gap-2">
-                  {verticalLabels.length === 0 && <span className="text-body-sm text-on-surface-variant">—</span>}
+                  {verticalLabels.length === 0 && (
+                    <span className="text-body-sm text-on-surface-variant">—</span>
+                  )}
                   {verticalLabels.map((tag) => (
                     <span
                       key={tag}
@@ -169,162 +230,246 @@ export default function SettingsPage() {
                 </div>
               </div>
               <p className="text-body-sm text-on-surface-variant pt-3 mt-1 border-t border-divider">
-                Editing the mandate marks every active proposal as expired and the engine regenerates against the new parameters on its next cycle.
+                Editing the mandate marks every active proposal as expired and the engine
+                regenerates against the new parameters on its next cycle.
               </p>
             </div>
           )}
         </Section>
 
-        <DelegationCard wallet={wallet ?? null} />
         <CloseAllPositionsCard />
       </main>
     </>
   );
 }
 
-/**
- * Phase F — Delegated signing toggle. Hydrates `active` from /api/users/
- * delegation on mount, and PATCHes the Privy server wallet id (which only
- * appears post-grant) back to the server via a follow-up effect once it's
- * available — that way the ws-server's `tryDelegatedCancel` has the id it
- * needs even though the frontend grant call resolves before Privy
- * re-publishes the user state.
- */
-function DelegationCard({ wallet }: { wallet: string | null }) {
-  const demo = isDemo();
-  const [active, setActive] = useState<boolean>(false);
-  const [persistedWalletId, setPersistedWalletId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+function AutoExecuteTriggersCard() {
+  const {
+    connected,
+    address,
+    delegateWallet,
+    revokeDelegatedWallets,
+    refreshWalletUser,
+    delegated: clientDelegated,
+    authorizationSignerIdConfigured,
+    delegationMode,
+    walletClientType,
+    connectorType,
+    privyWalletId,
+  } = useWallet();
   const authedFetch = useAuthedFetch();
-  const { delegateSolanaWallet, revokeDelegations, walletId } = useWallet();
+  const [status, setStatus] = useState<DelegatedExecutionSettingsStatus | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<'enable' | 'disable' | null>(null);
 
-  useEffect(() => {
-    if (demo || !wallet) return;
-    let cancelled = false;
-    authedFetch('/api/users/delegation')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (cancelled || !j) return;
-        const data = j as { delegationActive?: boolean; privyWalletId?: string | null };
-        setActive(!!data.delegationActive);
-        setPersistedWalletId(data.privyWalletId ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [wallet, demo, authedFetch]);
-
-  // Privy populates `walletId` after the user has delegated. If the user
-  // toggled on but we PATCHed without an id (because Privy hadn't re-
-  // published the user state yet), backfill it as soon as it appears.
-  useEffect(() => {
-    if (demo || !wallet || !active || !walletId) return;
-    if (walletId === persistedWalletId) return;
-    void authedFetch('/api/users/delegation', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress: wallet,
-        privyWalletId: walletId,
-        delegationActive: true,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j && (j as { privyWalletId?: string }).privyWalletId) {
-          setPersistedWalletId((j as { privyWalletId: string }).privyWalletId);
-        }
-      })
-      .catch(() => {});
-  }, [demo, wallet, active, walletId, persistedWalletId, authedFetch]);
-
-  async function toggle(next: boolean) {
-    if (!wallet) {
-      toast.error('Connect a wallet first.');
-      return;
+  const refreshStatus = useCallback(async () => {
+    if (!connected) {
+      setStatus(null);
+      return null;
     }
-    setBusy(true);
+    setLoading(true);
     try {
-      if (!demo) {
-        try {
-          if (next) await delegateSolanaWallet();
-          else await revokeDelegations();
-        } catch (err) {
-          console.warn('[delegation] grant/revoke failed', err);
-          toast.error(
-            `Privy delegation ${next ? 'grant' : 'revoke'} failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
+      const res = await authedFetch('/api/delegated-execution/status');
+      const body = (await res.json().catch(() => null)) as DelegatedExecutionSettingsStatus | null;
+      if (!res.ok || !body) {
+        const error = body && 'error' in body ? body.error : `status ${res.status}`;
+        const next = { ok: false as const, error };
+        setStatus(next);
+        return next;
       }
+      setStatus(body);
+      return body;
+    } catch (err) {
+      const next = { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+      setStatus(next);
+      return next;
+    } finally {
+      setLoading(false);
+    }
+  }, [authedFetch, connected]);
 
-      const res = await authedFetch('/api/users/delegation', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: wallet,
-          delegationActive: next,
-          ...(next && walletId ? { privyWalletId: walletId } : {}),
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error((j as { error?: string }).error ?? `${res.status}`);
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  const { grantActive, statusLabel, statusTone, detail, blockerLabel, primaryAction } =
+    deriveAutoExecuteSettingsState({
+      connected,
+      loading,
+      status,
+      clientDelegated,
+    });
+  const statusToneClass = {
+    error: 'bg-error-container text-on-error-container',
+    ready: 'bg-accent text-on-accent',
+    setup: 'bg-tertiary-container text-on-tertiary-container',
+    off: 'bg-surface-container-low text-on-surface-variant',
+  }[statusTone];
+
+  async function handleEnable() {
+    if (!connected) return;
+    setBusy('enable');
+    try {
+      const preflight = await refreshStatus();
+      if (preflight?.ok && preflight.serverSigner.configured && !authorizationSignerIdConfigured) {
+        throw delegatedAccessError('Restart the web dev server to expose the Privy signer ID.', {
+          code: STALE_SIGNER_ENV_ERROR,
+          serverSigner: preflight.serverSigner,
+          wallet: {
+            address,
+            clientDelegated,
+            connectorType,
+            delegationMode,
+            privyWalletId,
+            walletClientType,
+          },
+        });
       }
-      const j = (await res.json().catch(() => ({}))) as { privyWalletId?: string | null };
-      setPersistedWalletId(j.privyWalletId ?? null);
-      setActive(next);
-      toast.success(next ? 'Auto-exit signing enabled.' : 'Auto-exit signing disabled.');
+      await withDelegatedAccessTimeout(delegateWallet());
+      await refreshWalletUser().catch(() => null);
+      const next = await refreshStatus();
+      if (next?.ok && next.ready.canExecute) {
+        toast.success('Auto-execute triggers enabled.');
+      } else {
+        toast('Signer access granted. Server readiness is still incomplete.');
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
+  async function handleDisable() {
+    setBusy('disable');
+    try {
+      await waitForDelegatedAccessRevocation({
+        revoke: revokeDelegatedWallets,
+        readStatus: async () => {
+          const next = await refreshStatus();
+          if (!next?.ok) {
+            throw delegatedAccessError(next?.error ?? 'Could not read wallet signer status.', {
+              code: 'delegated_status_unavailable',
+              status: next,
+            });
+          }
+          return next;
+        },
+      });
+      void refreshWalletUser().catch(() => null);
+      toast.success('Auto-execute triggers disabled.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
-  // Privy populates walletId only after the embedded wallet is delegated;
-  // if the toggle is on but walletId is still null after a few seconds,
-  // the most common cause is the Privy app being on the Free plan (server
-  // signers require Pro). Surface that explicitly so users don't think
-  // their assets are protected when they aren't.
-  const delegationStuck = !demo && active && !walletId && !busy;
+  const toggleDisabled = !connected || loading || busy !== null;
 
   return (
-    <Section icon="bolt" title="Auto-exit signing">
-      <p className="text-body-sm text-on-surface-variant mb-3">
-        Allow the Hunch server to cancel a paired exit order automatically when its sibling fills (OCO behaviour), and to place TP / SL after a BUY fills, without prompting you to sign each time.
-      </p>
-      <ul className="text-body-sm text-on-surface-variant list-disc pl-5 mb-4 space-y-1">
-        <li>Scope is constrained to Jupiter trigger orders for positions you opened.</li>
-        <li>You can revoke it any time below.</li>
-        <li>Every server-signed transaction is recorded against your account.</li>
-      </ul>
-      {delegationStuck && (
-        <div className="mb-4 rounded-lg border border-tertiary/40 bg-tertiary/10 px-3 py-2.5 flex items-start gap-2">
-          <span className="material-symbols-outlined text-tertiary text-[18px] mt-0.5">warning</span>
-          <div className="flex-1 min-w-0 text-body-sm text-on-surface">
-            <p className="font-semibold mb-0.5">Auto-exit may not fire</p>
-            <p className="text-on-surface-variant">
-              Privy server signers require the Pro plan. Toggle is recorded but TP / SL won't actually auto-place until the upstream app upgrades. You'll still get the manual prompt on Position Detail.
-            </p>
+    <Section icon={<Zap className="h-5 w-5" />} title="Auto-execute triggers">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className={cn('rounded-full px-2.5 py-1 text-label-sm', statusToneClass)}>
+              {statusLabel}
+            </span>
+            {status?.ok === true && status.wallet.walletClientType && (
+              <span className="rounded-full bg-surface-container-low px-2.5 py-1 text-label-sm text-on-surface-variant">
+                {status.wallet.walletClientType}
+              </span>
+            )}
           </div>
+          <p className="text-body-sm leading-5 text-on-surface-variant">{detail}</p>
         </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => void toggle(!active)}
-          disabled={busy}
-          className={`flex items-center justify-center h-11 px-5 rounded-full text-label-lg transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100 ${
-            active ? 'bg-accent text-on-accent shadow-soft' : 'bg-primary text-on-primary'
-          }`}
+          role="switch"
+          aria-checked={grantActive}
+          aria-label={
+            grantActive ? 'Disable auto-execute triggers' : 'Enable auto-execute triggers'
+          }
+          aria-busy={busy !== null}
+          disabled={toggleDisabled}
+          onClick={() => void (grantActive ? handleDisable() : handleEnable())}
+          className={cn(
+            'relative h-12 w-20 shrink-0 rounded-full p-1 ring-1 transition-colors duration-fast ease-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-[0.38]',
+            grantActive
+              ? 'bg-primary ring-primary'
+              : 'bg-surface-container-low ring-outline-variant hover:bg-surface-container-high',
+          )}
         >
-          {busy ? 'Saving…' : active ? 'Disable auto-exit' : 'Enable auto-exit'}
+          <span
+            className={cn(
+              'grid h-10 w-10 place-items-center rounded-full bg-surface text-primary shadow-micro transition-transform duration-fast ease-soft',
+              grantActive ? 'translate-x-8' : 'translate-x-0',
+            )}
+          >
+            {busy ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : grantActive ? (
+              <Check className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Zap className="h-4 w-4 text-icon-muted" aria-hidden="true" />
+            )}
+          </span>
         </button>
-        <span className={`text-label-md ${active ? 'text-positive' : 'text-on-surface-variant'}`}>
-          {active ? '✓ Auto-exit active' : 'Manual confirmation required'}
-        </span>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void refreshStatus()}
+          disabled={!connected || loading || busy !== null}
+          className="inline-flex h-11 items-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary ring-1 ring-outline-variant transition-colors hover:bg-surface-container-high disabled:opacity-[0.38]"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          Check
+        </button>
+        {primaryAction === 'disable' ? (
+          <button
+            type="button"
+            onClick={() => void handleDisable()}
+            disabled={toggleDisabled}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-error-container px-4 text-label-md text-error transition-colors hover:bg-error-container/80 disabled:opacity-[0.38]"
+          >
+            {busy === 'disable' ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <ShieldOff className="h-4 w-4" aria-hidden="true" />
+            )}
+            Revoke
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleEnable()}
+            disabled={toggleDisabled}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-4 text-label-md text-on-accent shadow-micro transition-colors hover:bg-accent-bright disabled:opacity-[0.38]"
+          >
+            {busy === 'enable' ? (
+              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            )}
+            Enable
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-md bg-surface-container px-4 py-3">
+        <div className="flex items-start gap-2">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <p className="text-body-sm leading-5 text-on-surface-variant">
+            Enabling attaches the configured Privy signer for trigger fills. Your wallet stays
+            non-custodial, and revoking removes that signer access.
+          </p>
+        </div>
+        {status?.ok === false && <p className="mt-2 text-body-sm text-error">{status.error}</p>}
+        {blockerLabel && (
+          <p className="mt-2 text-body-sm text-on-surface-variant">Blocked by {blockerLabel}.</p>
+        )}
       </div>
     </Section>
   );
@@ -332,21 +477,15 @@ function DelegationCard({ wallet }: { wallet: string | null }) {
 
 /**
  * Manual "panic close". Each live position needs at least one wallet sig
- * (cancel) plus one swap sig — sequential by design so Privy modals don't
- * stack.
+ * per swap, sequential by design so Privy modals don't stack.
  */
 function CloseAllPositionsCard() {
-  const demo = isDemo();
   const router = useRouter();
-  const positions = useDemoPositionsStore((s) => s.positions);
-  const closeDemoPosition = useDemoPositionsStore((s) => s.closePosition);
   const runtime = useRuntime();
   const authedFetch = useAuthedFetch();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-
-  const openCount = demo ? positions.filter((p) => p.state !== 'CLOSED').length : null;
 
   async function closeOne(p: {
     id: string;
@@ -354,41 +493,32 @@ function CloseAllPositionsCard() {
     tokenAmount: number;
     markPrice: number;
   }): Promise<void> {
-    const meta = XSTOCKS[xStockToBare(p.ticker as XStockTicker)];
+    const meta = getAssetById(p.ticker);
     if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
     await runtime.closePosition({
       positionId: p.id,
       meta: { mint: meta.mint, decimals: meta.decimals },
       fallbackMarkPrice: p.markPrice,
+      tokenAmount: p.tokenAmount,
     });
-    if (demo) closeDemoPosition(p.id, 'USER_CLOSE', p.markPrice);
   }
 
   async function handleCloseAll() {
     setBusy(true);
     try {
-      let targets: Array<{ id: string; ticker: string; tokenAmount: number; markPrice: number }>;
-      if (demo) {
-        targets = positions
-          .filter((p) => p.state !== 'CLOSED')
-          .map((p) => ({
-            id: p.id,
-            ticker: p.ticker,
-            tokenAmount: p.tokenAmount,
-            markPrice: p.markPrice,
-          }));
-      } else {
-        const r = await authedFetch('/api/positions');
-        const j = (await r.json().catch(() => ({ positions: [] }))) as {
-          positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
-        };
-        targets = (j.positions ?? []).map((p) => ({
+      const r = await authedFetch('/api/positions');
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? `${r.status}`);
+      const j = (await r.json().catch(() => ({ positions: [] }))) as {
+        positions: Array<{ id: string; ticker: string; tokenAmount: number; entryPrice: number }>;
+      };
+      const targets = (j.positions ?? [])
+        .filter((p) => p.tokenAmount > 0)
+        .map((p) => ({
           id: p.id,
           ticker: p.ticker,
           tokenAmount: p.tokenAmount,
           markPrice: p.entryPrice,
         }));
-      }
 
       if (targets.length === 0) {
         toast('No open positions.');
@@ -397,9 +527,11 @@ function CloseAllPositionsCard() {
       }
 
       setProgress({ done: 0, total: targets.length });
+      let closed = 0;
       for (let i = 0; i < targets.length; i++) {
         try {
           await closeOne(targets[i]!);
+          closed += 1;
         } catch (err) {
           toast.error(
             `Close ${targets[i]!.ticker} failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -407,8 +539,17 @@ function CloseAllPositionsCard() {
         }
         setProgress({ done: i + 1, total: targets.length });
       }
-      toast.success(`Closed ${targets.length} position${targets.length === 1 ? '' : 's'}.`);
-      router.replace('/');
+
+      if (closed === targets.length) {
+        toast.success(`Closed ${closed} position${closed === 1 ? '' : 's'}.`);
+        router.replace('/');
+      } else if (closed > 0) {
+        toast(`Closed ${closed}/${targets.length} positions. Review the failed swaps.`);
+      } else {
+        toast.error('No positions closed. Review the failed swaps and try again.');
+      }
+    } catch (err) {
+      toast.error(`Panic close failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
       setProgress(null);
@@ -417,21 +558,18 @@ function CloseAllPositionsCard() {
   }
 
   return (
-    <Section icon="warning" title="Panic close">
+    <Section icon={<TriangleAlert className="h-5 w-5" />} title="Panic close">
       <p className="text-body-sm text-on-surface-variant mb-3">
-        Cancel every open TP / SL trigger order and market-sell every position you currently hold. Each position needs one wallet signature (cancel) plus one swap signature in live mode.
-        {demo && openCount != null && (
-          <>
-            {' '}Demo store has <strong>{openCount}</strong> open position{openCount === 1 ? '' : 's'}.
-          </>
-        )}
+        Cancel every open TP / SL synthetic order and market-sell every position you currently hold.
+        Each position needs a wallet signature for the swap.
       </p>
       {!confirm ? (
         <button
           type="button"
           onClick={() => setConfirm(true)}
           disabled={busy}
-          className="flex items-center justify-center h-11 px-5 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
+          aria-busy={busy}
+          className="flex items-center justify-center h-11 px-5 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
         >
           Close all positions
         </button>
@@ -449,13 +587,16 @@ function CloseAllPositionsCard() {
             type="button"
             onClick={() => void handleCloseAll()}
             disabled={busy}
-            className="flex-[2] h-11 rounded-full bg-negative text-on-negative text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50"
+            aria-busy={busy}
+            className="flex-[2] h-11 rounded-full bg-error text-on-error text-label-lg active:scale-[0.97] transition-transform disabled:opacity-50 hover:bg-error/90"
           >
-            {busy
-              ? progress
-                ? `Closing ${progress.done}/${progress.total}…`
-                : 'Closing…'
-              : 'Confirm close all'}
+            <span aria-live="polite">
+              {busy
+                ? progress
+                  ? `Closing ${progress.done}/${progress.total}...`
+                  : 'Closing...'
+                : 'Confirm close all'}
+            </span>
           </button>
         </div>
       )}
@@ -469,27 +610,57 @@ function Section({
   right,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   right?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="bg-surface rounded-lg p-5 shadow-soft"
-    >
+    <section className="bg-surface rounded-lg p-5 shadow-micro">
       <header className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-icon-muted text-[20px]">{icon}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container text-primary"
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
           <h2 className="text-title-md text-primary">{title}</h2>
         </div>
-        {right}
+        {right && <div className="shrink-0">{right}</div>}
       </header>
       {children}
-    </motion.section>
+    </section>
+  );
+}
+
+function SkeletonRows({ rows }: { rows: number }) {
+  return (
+    <div className="flex flex-col gap-3" aria-hidden="true">
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className={`h-5 rounded-full bg-surface-container-high animate-pulse ${
+            index % 2 === 0 ? 'w-3/4' : 'w-1/2'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg bg-error-container px-4 py-3 text-on-error-container">
+      <p className="text-body-sm">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="shrink-0 rounded-full px-3 py-1 text-label-md text-error transition-colors hover:bg-surface/50"
+      >
+        Retry
+      </button>
+    </div>
   );
 }
 

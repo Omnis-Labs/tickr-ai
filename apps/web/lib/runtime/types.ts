@@ -1,15 +1,11 @@
-// Runtime adapter — the demo/live strategy boundary.
-//
-// Goal: replace `if (isDemo()) … else …` scattered across page handlers
-// with a single dispatch on a typed Runtime. Live and demo each implement
-// the same interface; pages call methods without knowing which one is
-// active.
+// Runtime facade for the real synthetic-trigger product path.
 //
 // Synthetic-trigger architecture: TP/SL legs are DB-only synthetic
-// Orders (jupiterOrderId NULL); the ws-server price monitor watches
-// them against Pyth and emits trigger:hit when the user needs to sign
-// an Ultra swap. placeOcoExit / cancelExits / replaceExits operate on
-// those DB rows directly, no Jupiter Trigger v2 escrow involved.
+// Orders. The ws-server price monitor watches them against Pyth and either
+// auto-executes delegated triggers or emits trigger:hit fallback when the
+// user needs to sign an Ultra swap.
+// placeOcoExit / cancelExits / replaceExits operate on those DB rows
+// directly.
 
 export interface RuntimeExitSnapshot {
   tpPriceUsd: number | null;
@@ -49,13 +45,12 @@ export interface Runtime {
     slPriceUsd: number;
   }): Promise<{ id: string }>;
 
-  /** Cancel current exits, then place new ones; rollback on failure. */
+  /** Atomic Adjust TP/SL via PUT /api/positions/[id]/protection. The
+   *  server cancels the matching OPEN exit Orders and creates new ones
+   *  in one transaction. At least one of next.tpPriceUsd /
+   *  next.slPriceUsd must be non-null; the other leg is left as-is. */
   replaceExits(args: {
     positionId: string;
-    walletAddress: string;
-    ticker: string;
-    meta: RuntimeMeta;
-    tokenAmount: number;
     next: { tpPriceUsd: number | null; slPriceUsd: number | null };
   }): Promise<void>;
 
@@ -63,8 +58,8 @@ export interface Runtime {
   closePosition(args: {
     positionId: string;
     meta: RuntimeMeta;
-    /** Mark price for the local PnL fallback when the swap output
-     *  doesn't return an executionPrice (demo mode). */
+    /** Mark price retained for callers that need a fallback when the swap
+     *  output cannot produce an execution price. */
     fallbackMarkPrice: number;
     /** Sell exactly this many tokens. When set (recommended for the
      *  CloseButton flow), avoids sweeping unrelated dust or a separate
@@ -76,7 +71,4 @@ export interface Runtime {
      *  status=EXECUTED and the Trade row carries the proposal id. */
     sellProposalId?: string;
   }): Promise<RuntimeCloseResult>;
-
-  /** True if this runtime simulates state in memory. */
-  readonly isDemo: boolean;
 }

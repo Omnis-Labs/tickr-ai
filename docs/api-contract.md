@@ -24,10 +24,10 @@ Response `200`:
 ```json
 {
   "id": "cuid",
-  "holdingPeriod": "SHORT_TERM",
+  "holdingPeriod": "1-3 days",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
-  "marketFocus": ["SEMICONDUCTORS", "BLUECHIP_CRYPTO"],
+  "marketFocus": ["semiconductors", "crypto"],
   "createdAt": "ISO8601",
   "updatedAt": "ISO8601"
 }
@@ -43,10 +43,10 @@ Request:
 
 ```json
 {
-  "holdingPeriod": "SHORT_TERM | SWING | MEDIUM_TERM | LONG_TERM",
+  "holdingPeriod": "1-3 days | 1-2 weeks | 1-3 months | 6+ months",
   "maxDrawdown": 0.05,
   "maxTradeSize": 500.0,
-  "marketFocus": ["SEMICONDUCTORS", "BLUECHIP_CRYPTO"]
+  "marketFocus": ["semiconductors", "crypto"]
 }
 ```
 
@@ -82,20 +82,30 @@ Response `404`: Proposal not found or not owned by user.
 
 ---
 
-**`POST /api/proposals/[id]/execute`** — Execute a proposal (approve BUY, create Position + Trade + Order).
+**`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Place Order" endpoint. Called after the frontend completes the Jupiter 4-step flow.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy signer access or falls back to `trigger:hit` tap-to-execute.
 
 Request:
 
 ```json
 {
-  "actualSizeUsd": 400.0,
-  "actualTriggerPrice": 174.5,
-  "actualTpPrice": 195.0,
-  "actualSlPrice": 168.0,
-  "jupiterOrderId": "jupiter-order-id-string",
-  "txSignature": "solana-tx-signature"
+  "walletAddress": "base58",
+  "proposalId": "cuid",
+  "ticker": "AAPLx",
+  "kind": "BUY_TRIGGER",
+  "side": "BUY",
+  "triggerPriceUsd": 174.5,
+  "sizeUsd": 400.0,
+  "jupiterOrderId": null,
+  "txSignature": null,
+  "slippageBps": 50,
+  "createPosition": {
+    "mint": "xstock-or-crypto-mint",
+    "entryPriceEstimate": 174.5,
+    "tpPrice": 195.0,
+    "slPrice": 168.0
+  }
 }
 ```
 
@@ -103,18 +113,18 @@ Response `201`:
 
 ```json
 {
-  "proposal": { "id": "...", "status": "EXECUTED" },
-  "position": { "id": "...", "state": "BUY_PENDING" },
-  "trade": { "id": "...", "source": "BUY_APPROVAL" },
-  "order": { "id": "...", "kind": "BUY_TRIGGER", "status": "OPEN" }
+  "ok": true,
+  "duplicate": false,
+  "order": { "id": "...", "kind": "BUY_TRIGGER", "status": "OPEN" },
+  "positionId": "..."
 }
 ```
 
-Response `400`: Validation error (insufficient balance, invalid prices).
+Response `400`: Validation error (missing proposal data, invalid prices).
 Response `404`: Proposal not found.
 Response `409`: Proposal already executed, skipped, or expired.
 
-**Atomicity**: Proposal status update, Position creation, Trade creation, and Order creation happen in a single DB transaction. If any step fails, all are rolled back.
+**Atomicity**: Proposal status update, Position creation, and BUY trigger Order creation happen in a single DB transaction. The Trade row is written later when `/api/orders/[id]/execute` settles the on-chain fill.
 
 ---
 
@@ -151,45 +161,12 @@ Response `200`: Array of Order objects.
 
 **`POST /api/orders/[id]/cancel`** — Cancel a trigger order.
 
-Allowed only for:
+Allowed for `BUY_TRIGGER`, `TAKE_PROFIT`, and `STOP_LOSS` synthetic Orders in `OPEN` state. There is no vault withdrawal and no signature in the cancel path.
 
-- `kind = BUY_TRIGGER` with `status = OPEN`
-- Expired orders needing vault fund withdrawal (use `/withdraw` instead for clarity)
-
-The cancel flow is two steps: initiate cancellation, then client signs withdrawal tx, then confirm.
-
-Request (step 1, initiate):
-
-```json
-{ "action": "initiate" }
-```
-
-Response `200`:
-
-```json
-{ "withdrawalTx": "base64-encoded-unsigned-tx" }
-```
-
-Request (step 2, confirm):
-
-```json
-{
-  "action": "confirm",
-  "signedTx": "base64-encoded-signed-tx"
-}
-```
+Request: empty JSON body.
 
 Response `200`: Updated Order with `status = CANCELLED`.
-Response `403`: Cannot cancel TP/SL orders directly (use Close Position or Edit instead).
 Response `409`: Order not in cancellable state.
-
----
-
-**`POST /api/orders/[id]/withdraw`** — Withdraw funds from an expired order's vault.
-
-Same two-step flow as cancel. Used when a BUY order expires without filling.
-
-Response `200`: Funds returned, Order status remains `EXPIRED`.
 
 ---
 
@@ -251,6 +228,55 @@ Response `200`:
 Response `409`: Position not in closeable state.
 
 **Persistence**: Before executing the Jupiter Swap, create an `Order(kind = CLOSE_SWAP, side = SELL, status = PENDING)`. On swap success, set `status = FILLED` with `txSignature`, `executionPrice`, `filledAmount`. On failure, set `status = FAILED`.
+
+---
+
+### Delegated Execution
+
+**`GET /api/delegated-execution/status`** — Read live Auto-execute triggers readiness.
+
+This route does not read or write a Hunch DB toggle. Privy signer attachment is the source of truth, and Settings uses Privy client APIs to attach or remove signer access. The linked account `walletClientType` can be `privy` or `privy-v2`; readiness is based on the configured signer ID matching the wallet's `additionalSignerIds`.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "serverKey": {
+    "configured": true,
+    "env": "PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY"
+  },
+  "serverSigner": {
+    "configured": true,
+    "env": [
+      "PRIVY_WALLET_AUTHORIZATION_SIGNER_ID",
+      "NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID"
+    ],
+    "walletMatched": true
+  },
+  "wallet": {
+    "address": "base58",
+    "privyWalletId": "wallet-id",
+    "delegated": true,
+    "walletClientType": "privy",
+    "connectorType": "embedded",
+    "additionalSignerIds": ["signer-id"],
+    "ownerId": "did:privy:...",
+    "policyIds": [],
+    "authorizationThreshold": null,
+    "resolveError": null
+  },
+  "ready": {
+    "canExecute": true,
+    "blockers": []
+  }
+}
+```
+
+Response `401`: Not authenticated.
+Response `500`: Privy server configuration or lookup failed.
+
+Common readiness blockers include `missing_privy_authorization_private_key`, `missing_privy_authorization_signer_id`, `privy_wallet_not_delegated`, `wallet_missing_authorization_signer`, `wallet_not_delegated`, and `privy_wallet_not_solana`.
 
 ---
 
@@ -319,10 +345,10 @@ The ws-server runs Socket.IO. Authentication uses Privy access tokens (not raw w
 // Client connects and authenticates
 socket.emit('auth', { privyAccessToken: string });
 
-// Server verifies token, resolves user, joins room user:{userId}
+// Server verifies token, resolves user, joins room user:{walletAddress}
 // Server responds with:
-socket.on('auth:success', { userId: string, walletAddress: string });
-socket.on('auth:error', { message: string });
+socket.on('auth:ok', { room: string });
+socket.on('auth:error', { reason: string });
 ```
 
 ### Client to Server
@@ -334,27 +360,28 @@ socket.on('auth:error', { message: string });
 
 ### Server to Client
 
-| Event                  | Payload                                                                      | Description                            |
-| ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------- |
-| `proposal:new`         | Full Proposal object                                                         | New proposal generated for this user   |
-| `proposal:invalidated` | `{ proposalIds: string[], reason: "MANDATE_CHANGED" }`                       | Proposals invalidated (mandate update) |
-| `order:filled`         | `{ orderId, positionId, kind, assetId, side, executionPrice, filledAmount }` | Order filled (BUY/TP/SL)               |
-| `order:expired`        | `{ orderId, positionId, kind, assetId }`                                     | Order expired                          |
-| `position:updated`     | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`      | Position state changed                 |
-| `pong`                 | `{ timestamp }`                                                              | Heartbeat response                     |
+| Event              | Payload                                                                                                          | Description                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `signal:new`       | Legacy Signal object                                                                                             | Legacy signal modal path                                    |
+| `proposal:new`     | Full Proposal object                                                                                             | New BUY or SELL proposal generated for this user            |
+| `trigger:hit`      | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`      | Synthetic trigger matched and needs tap-to-execute fallback |
+| `trade:filled`     | `{ orderId, positionId, ticker, kind, side, executionMode, executionPrice, tokenAmount, usdValue, txSignature }` | Trigger filled, usually by delegated execution              |
+| `position:updated` | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`                                          | Position state changed                                      |
+| `pong`             | `{ timestamp }`                                                                                                  | Heartbeat response                                          |
 
 **Frontend behavior on `position:updated`**: Refetch `GET /api/positions/[id]` and `GET /api/portfolio` for complete updated data.
+**Frontend behavior on `trade:filled`**: Dismiss stale trigger prompts, show a fill notification, and refetch orders, positions, the filled position, and portfolio state.
 
 ---
 
 ## Proposal Lifecycle
 
-| From   | Trigger                                     | To       |
-| ------ | ------------------------------------------- | -------- |
-| ACTIVE | `POST /api/proposals/[id]/execute` succeeds | EXECUTED |
-| ACTIVE | `POST /api/skips` succeeds                  | SKIPPED  |
-| ACTIVE | `expiresAt` < now (checked by ws-server)    | EXPIRED  |
-| ACTIVE | Mandate updated                             | EXPIRED  |
+| From   | Trigger                                            | To       |
+| ------ | -------------------------------------------------- | -------- |
+| ACTIVE | BUY acceptance through `POST /api/orders` succeeds | EXECUTED |
+| ACTIVE | `POST /api/skips` succeeds                         | SKIPPED  |
+| ACTIVE | `expiresAt` < now (checked by ws-server)           | EXPIRED  |
+| ACTIVE | Mandate updated                                    | EXPIRED  |
 
 Expired, skipped, and executed proposals are still queryable via `GET /api/proposals?status=...` but removed from the active feed.
 
@@ -362,65 +389,78 @@ Expired, skipped, and executed proposals are still queryable via `GET /api/propo
 
 ## Order State Transitions
 
-| From    | Event                           | To        | Side Effects                                                                              |
-| ------- | ------------------------------- | --------- | ----------------------------------------------------------------------------------------- |
-| PENDING | Jupiter submit succeeds         | OPEN      | Store `jupiterOrderId`, `txSignature`                                                     |
-| PENDING | Submit fails                    | FAILED    | Show retry option                                                                         |
-| OPEN    | Fill detected (Order Tracker)   | FILLED    | Set `executionPrice`, `filledAmount`, `filledAt`. Trigger downstream (Auto TP/SL or OCO). |
-| OPEN    | Expiry detected (Order Tracker) | EXPIRED   | Prompt vault fund reclaim                                                                 |
-| OPEN    | User cancel succeeds            | CANCELLED | Return vault funds                                                                        |
-| OPEN    | Jupiter in-place edit succeeds  | OPEN      | Update `triggerPriceUsd`                                                                  |
+| From    | Event                                                       | To        | Side Effects                                                                                                  |
+| ------- | ----------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| OPEN    | `POST /execution-claim` succeeds                            | PENDING   | Claim execution before any wallet signing; BUY moves `BUY_PENDING → ENTERING`, exits move `ACTIVE → CLOSING`. |
+| PENDING | Jupiter Ultra `/execute` returns signature, then DB settles | FILLED    | Set `txSignature`, execution price, token amount. BUY arms TP/SL Orders; TP/SL cancels sibling exit.          |
+| PENDING | Swap fails before Jupiter Ultra returns signature           | OPEN      | `DELETE /execution-claim` releases the claim for retry.                                                       |
+| OPEN    | User cancel succeeds                                        | CANCELLED | Cancel synthetic BUY trigger; close parent `BUY_PENDING` Position.                                            |
+| OPEN    | TP/SL edit succeeds                                         | OPEN      | Replace the matching synthetic exit Order in DB.                                                              |
 
 ---
 
-## Jupiter Trigger Order v2 — Execution Flow
+## Synthetic Trigger + Jupiter Ultra Execution Flow
 
-### BUY Order Placement (4-step flow)
+### BUY Proposal Acceptance
 
-When a user approves a proposal and taps "Place Order":
+When a user approves a proposal:
 
 ```
-Step 1: GET  /trigger/v2/vault
-        -> Get or register the user's Jupiter vault address
-
-Step 2: POST /trigger/v2/deposit/craft
-        -> Build a deposit transaction (wallet -> vault)
-        -> Returns unsigned transaction
-
-Step 3: Privy embedded wallet signs the deposit transaction
-
-Step 4: POST /trigger/v2/orders/price
-        -> Submit signed deposit tx + order parameters
-        -> Returns { id, txSignature }
+POST /api/orders
+  -> Position(BUY_PENDING)
+  -> Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)
 ```
 
-**Failure recovery by step:**
+No Jupiter request happens here.
 
-- Step 1-2 fail: No funds moved. Show error, retry.
-- Step 3 (user rejects signature): No funds moved. Show "Transaction was not signed. No order was placed."
-- Step 3 succeeds, Step 4 fails: Deposit may be confirmed but order not created. Funds are in Jupiter vault. Show "Deposit confirmed but order creation failed." Offer retry order creation or fund withdrawal.
-- Step 4 succeeds: Call `POST /api/proposals/[id]/execute` to persist all records atomically.
+### Tap-to-Execute Trigger Fill
 
-**Record creation timing**: DB records (Position, Trade, Order) are created ONLY after Step 4 succeeds, via the `/execute` endpoint. No records are created before the Jupiter order is confirmed.
+This is the fallback when Auto-execute triggers is off, Privy signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
 
-### Auto TP/SL Placement (after BUY fills)
+1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
+2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
+3. Browser requests Jupiter Ultra `/order`.
+4. Browser asks Privy `signTransaction` to sign the user/taker signature slot.
+5. Browser sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
+6. If Jupiter returns a signature, browser posts `{ txSignature, executionPrice, tokenAmount }` to `POST /api/orders/[id]/execute`.
+7. If the swap fails before Jupiter returns a signature, browser releases the claim with `DELETE /api/orders/[id]/execution-claim`.
 
-When the Order Tracker detects a BUY fill:
+**Failure recovery by phase:**
 
-1. Update BUY Order: `status = FILLED`, set `executionPrice`, `filledAmount`, `filledAt`
-2. Update Position: set `entryPrice`, `tokenAmount`, `totalCost`, `firstEntryAt`, `state = ENTERING`
-3. Create Order `(kind = TAKE_PROFIT, side = SELL, status = PENDING)`, place via Jupiter, set `status = OPEN`, store `jupiterOrderId`
-4. Create Order `(kind = STOP_LOSS, side = SELL, status = PENDING)`, place via Jupiter, set `status = OPEN`, store `jupiterOrderId`
-5. Update Position: set `currentTpPrice`, `currentSlPrice`, `state = ACTIVE`
-6. If either placement fails, retry. Position stays `ENTERING` until both succeed.
-7. Emit `position:updated` to user
+- Claim fails: another tab/user action already owns or settled the Order; do not start a swap.
+- Ultra `/order` or signing fails before `/execute` is attempted: release claim and allow retry.
+- `/execute` is attempted but no signature is returned, or Jupiter returns a signature but DB settle fails: do not release the claim automatically; refresh/reconcile before retry.
+
+### Delegated Trigger Fill
+
+When a trigger hits and Privy signer access is live:
+
+1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time using the shared readiness Module.
+2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
+3. ws-server atomically claims the Order.
+4. ws-server requests Jupiter Ultra `/order`.
+5. ws-server asks Privy to sign with the delegated wallet authorization key.
+6. ws-server sends `{ requestId, signedTransaction }` to Jupiter Ultra `/execute`.
+7. If Jupiter returns a signature, ws-server settles through the same PositionLifecycle functions used by `POST /api/orders/[id]/execute`.
+8. On success, ws-server emits `trade:filled`.
+
+If delegation, server signing readiness, or balance is unavailable, TriggerExecutionDispatch emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, TriggerExecutionDispatch may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
+
+### BUY Fill Settlement
+
+When `POST /api/orders/[id]/execute` settles a BUY:
+
+1. `Order.status` moves `PENDING` (or legacy `OPEN`) to `FILLED`.
+2. `Position.state` moves `ENTERING` (or legacy `BUY_PENDING`) to `ACTIVE`.
+3. Trade row records `source=BUY_APPROVAL`.
+4. Two synthetic exit Orders are created: `TAKE_PROFIT(OPEN)` and `STOP_LOSS(OPEN)`.
 
 ### OCO Behavior (One-Cancels-Other)
 
-When the Order Tracker detects a TP or SL fill:
+When a TP or SL synthetic Order is executed and settled:
 
-1. Update filled Order: `status = FILLED`
-2. Cancel the other exit order, update: `status = CANCELLED`
+1. Filled exit Order moves `PENDING` (or legacy `OPEN`) to `FILLED`.
+2. Sibling exit Order moves `OPEN` to `CANCELLED`.
 3. Calculate `realizedPnl` on the Position
 4. Update Position: `state = CLOSED`, set `closedAt`, `closedReason` (TP_FILLED or SL_FILLED)
 5. Record a Trade with `source = TP_FILL` or `SL_FILL`, `proposalId` pointing to original BUY proposal
@@ -442,13 +482,9 @@ If swap fails after both cancels succeed: Position stays `CLOSING` with no exit 
 
 ### Cancel BUY Pending Order
 
-1. Initiate cancellation via `POST /api/orders/[id]/cancel`
-2. Build withdrawal transaction (vault to wallet)
-3. Privy wallet signs the withdrawal
-4. Confirm the withdrawal
-5. Funds return from Jupiter vault to wallet
-6. Update Order: `status = CANCELLED`
-7. Update Position: `state = CLOSED`, `closedReason = BUY_CANCELLED`
+1. Cancel via `POST /api/orders/[id]/cancel`
+2. Server atomically updates Order: `status = CANCELLED`
+3. Server closes the parent `BUY_PENDING` Position with `closedReason = BUY_CANCELLED`
 
 ### Open Orders — Allowed Actions
 

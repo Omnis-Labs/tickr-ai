@@ -8,9 +8,9 @@ import type { PrivyClient } from '@privy-io/server-auth';
  *   if (!claims) return 401;
  *   // claims.userId is the canonical Privy user id
  *
- * Lazy-imports the SDK so a missing PRIVY_APP_SECRET (e.g. local dev without
- * Privy creds) doesn't crash module load — every API route falls back to the
- * demo path via isDemoServer().
+ * Lazy-imports the SDK so a missing PRIVY_APP_SECRET doesn't crash module
+ * load; protected routes simply return unauthorized when verification cannot
+ * run.
  */
 
 interface PrivyAuthClaims {

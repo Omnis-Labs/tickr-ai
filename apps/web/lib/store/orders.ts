@@ -4,10 +4,9 @@ import { create } from 'zustand';
 
 /**
  * Per-domain store for live socket events that affect the open-orders list
- * (e.g. trade:filled, trade:expired). The HTTP-shaped order list itself
- * lives in TanStack Query (useOpenOrders); this store only carries
- * push-driven UI hints that benefit from instant render before the next
- * refetch tick.
+ * (e.g. trigger:hit, trade:filled). The HTTP-shaped order list itself lives
+ * in TanStack Query (useOpenOrders); this store only carries push-driven UI
+ * hints that benefit from instant render before the next refetch tick.
  *
  * Keeping it intentionally small: most order state belongs to the server.
  */

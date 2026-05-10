@@ -8,6 +8,7 @@ export {
   MandateInputSchema,
   MandateSchema,
   ProposalActionSchema,
+  ProposalOriginSchema,
   ProposalStatusSchema,
   ProposalOutcomeSchema,
   ProposalReasoningSchema,
@@ -26,6 +27,7 @@ export type {
   MandateInput,
   Mandate,
   ProposalAction,
+  ProposalOrigin,
   ProposalStatus,
   ProposalOutcome,
   ProposalReasoning,
@@ -39,7 +41,7 @@ export type {
   SkipInput,
 } from './types.js';
 
-// ── legacy v1.2 types still used by demo signal loop ─────────────────────
+// ── legacy v1.2 signal types ─────────────────────────────────────────────
 export {
   ApprovalDecisionPayloadSchema,
   ApprovalSchema,
@@ -53,6 +55,7 @@ export {
   SignalSchema,
   TradeSchema,
   TradeStatusSchema,
+  TradeFilledPayloadSchema,
   TriggerHitPayloadSchema,
   WsClientEvents,
   WsServerEvents,
@@ -70,20 +73,13 @@ export type {
   SignalAction,
   Trade,
   TradeStatus,
+  TradeFilledPayload,
   TriggerHitPayload,
 } from './types.js';
 
 // ── constants ────────────────────────────────────────────────────────────
 export {
-  BARE_TICKERS,
   HOLDING_PERIOD_OPTIONS,
-  JUPITER_TRIGGER_CANCEL_CONFIRM,
-  JUPITER_TRIGGER_CANCEL_INITIATE,
-  JUPITER_TRIGGER_DEPOSIT_CRAFT,
-  JUPITER_TRIGGER_EDIT,
-  JUPITER_TRIGGER_ORDERS_HISTORY,
-  JUPITER_TRIGGER_ORDERS_PRICE,
-  JUPITER_TRIGGER_VAULT,
   JUPITER_ULTRA_EXECUTE,
   JUPITER_ULTRA_ORDER,
   MARKET_FOCUS_VERTICALS,
@@ -102,14 +98,11 @@ export {
   XSTOCK_MINTS,
   XSTOCK_TICKERS,
   XSTOCKS,
-  bareToXStock,
   requireMint,
   requirePythFeedId,
   solscanTokenUrl,
-  xStockToBare,
 } from './constants.js';
 export type {
-  BareTicker,
   DrawdownOption,
   HoldingPeriodOption,
   MarketFocusVerticalDef,
@@ -118,18 +111,40 @@ export type {
 } from './constants.js';
 
 // ── Asset registry (preferred lookup for new code) ───────────────────────
-// Existing callsites still use XSTOCKS[xStockToBare(...)] and that's fine —
-// see assets.ts for why we didn't mass-rename.
 export {
   ASSET_REGISTRY,
-  assetToUnderlyingTicker,
+  getCryptoAssets,
+  getMarketFocusVerticalsForAsset,
   getAssetById,
+  getSignalAssetIdsForMarketFocus,
+  getSignalAssetIdsForVerticals,
+  getSignalAssets,
   getXStockAssets,
   isCrypto,
+  isSignalAsset,
   isXStock,
   requireAsset,
 } from './assets.js';
-export type { Asset, AssetId, AssetKind } from './assets.js';
+export type { Asset, AssetId, AssetKind, CryptoAssetId } from './assets.js';
+
+// ── Signal data freshness ────────────────────────────────────────────────
+export {
+  SIGNAL_DATA_MAX_AGE_SECONDS,
+  evaluateSignalDataFreshness,
+} from './signal-data.js';
+export type { SignalDataFreshnessVerdict } from './signal-data.js';
+
+// ── Signal Engine boundary ──────────────────────────────────────────────
+export {
+  baseMarketIndicatorsToSnapshot,
+  buildBaseMarketAnalysis,
+  snapshotToBaseMarketIndicators,
+} from './signal-engine.js';
+export type {
+  BaseMarketAnalysis,
+  BaseMarketIndicators,
+  BuildBaseMarketAnalysisInput,
+} from './signal-engine.js';
 
 // ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
 export {
@@ -147,20 +162,35 @@ export type {
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
 
-// ── demo fixtures ────────────────────────────────────────────────────────
+// ── Synthetic Order execution helpers ───────────────────────────────────
 export {
-  DEMO_FAKE_MINT,
-  DEMO_LEADERBOARD,
-  DEMO_MANDATE,
-  demoInitialPositions,
-  demoInitialProposals,
-  demoInitialTrades,
-  makeDemoBars,
-  makeDemoProposal,
-  makeDemoSignal,
-} from './demo.js';
+  buildTriggerUltraSwapPlan,
+  settlementAmountsForTrigger,
+  submittedInputRawForBalance,
+} from './synthetic-order-execution.js';
 export type {
-  DemoPortfolioPosition,
-  DemoPortfolioTrade,
-  DemoProposalShape,
-} from './demo.js';
+  TriggerSettlementAmounts,
+  TriggerUltraSwapPlan,
+  TriggerUltraSwapSide,
+} from './synthetic-order-execution.js';
+
+// ── Jupiter Ultra helpers ───────────────────────────────────────────────
+export { getUltraOrderProblem } from './jupiter-ultra.js';
+export type {
+  JupiterUltraOrderLike,
+  UltraOrderProblem,
+  UltraOrderProblemCode,
+} from './jupiter-ultra.js';
+
+// ── Delegated Execution readiness ──────────────────────────────────────
+export {
+  DELEGATED_EXECUTION_AUTHORIZATION_PRIVATE_KEY_ENV,
+  DELEGATED_EXECUTION_AUTHORIZATION_SIGNER_ID_ENVS,
+  delegatedExecutionReadinessStatus,
+  getDelegatedExecutionAuthorizationSignerId,
+} from './delegated-execution-readiness.js';
+export type {
+  DelegatedExecutionReadinessBlocker,
+  DelegatedExecutionReadinessStatus,
+  DelegatedExecutionResolvedWallet,
+} from './delegated-execution-readiness.js';

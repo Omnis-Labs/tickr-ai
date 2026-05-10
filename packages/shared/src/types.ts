@@ -24,7 +24,7 @@ export const MarketFocusVerticalSchema = z.enum([
   'crypto_mining',
   'industrials',
   'tokenized_etfs',
-  'bluechip_crypto',
+  'crypto',
 ]);
 export type MarketFocusVertical = z.infer<typeof MarketFocusVerticalSchema>;
 
@@ -52,6 +52,9 @@ export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
 
 export const ProposalOutcomeSchema = z.enum(['WIN', 'LOSS', 'NEUTRAL']);
 export type ProposalOutcome = z.infer<typeof ProposalOutcomeSchema>;
+
+export const ProposalOriginSchema = z.enum(['SIGNAL_ENGINE', 'DEV_TOOLS']);
+export type ProposalOrigin = z.infer<typeof ProposalOriginSchema>;
 
 export const SkipReasonSchema = z.enum([
   'TOO_RISKY',
@@ -126,6 +129,11 @@ export const ProposalSchema = z.object({
   confidence: z.number().min(0).max(1),
   priceAtProposal: z.number(),
   indicators: z.unknown(),
+  thesisTags: z.unknown().nullable().optional(),
+  sourceBuyProposalId: z.string().nullable().optional(),
+  positionId: z.string().nullable().optional(),
+  triggeringTag: z.string().nullable().optional(),
+  origin: ProposalOriginSchema.default('SIGNAL_ENGINE'),
   status: ProposalStatusSchema,
   expiresAt: z.string(),
   createdAt: z.string(),
@@ -134,14 +142,14 @@ export type Proposal = z.infer<typeof ProposalSchema>;
 
 export const SkipInputSchema = z.object({
   proposalId: z.string(),
-  reason: SkipReasonSchema,
+  reason: SkipReasonSchema.optional(),
   detail: z.string().optional(),
 });
 export type SkipInput = z.infer<typeof SkipInputSchema>;
 
 // ────────────────────────────────────────────────────────────────────────
-// Legacy (v1.2) shapes — still emitted by the demo signal loop and the
-// existing SignalModal until Proposal Generator + ProposalModal land.
+// Legacy (v1.2) shapes — still emitted by the SignalModal path until
+// Proposal Generator + ProposalModal fully replace it.
 // ────────────────────────────────────────────────────────────────────────
 
 export const SignalActionSchema = z.enum(['BUY', 'SELL', 'HOLD']);
@@ -247,12 +255,8 @@ export const WsServerEvents = {
   ProposalNew: 'proposal:new',
   ProposalExpired: 'proposal:expired',
   TradeFilled: 'trade:filled',
-  TradeExpired: 'trade:expired',
-  PositionUpdated: 'position:updated',
-  // ws-server price monitor → user. Fires when an OPEN synthetic order
-  // (xStock, no Jupiter Trigger v2 routing) matches its trigger
-  // condition against Pyth. The web app shows a sticky toast and lets
-  // the user 1-tap-execute via Jupiter Ultra.
+  // ws-server price monitor → user. Fires when an OPEN synthetic order matches
+  // its condition against Pyth but needs tap-to-execute fallback.
   TriggerHit: 'trigger:hit',
 } as const;
 
@@ -265,9 +269,9 @@ export const WsClientEvents = {
 } as const;
 
 export const AuthPayloadSchema = z.object({
-  /** Demo / dev only — live mode requires privyAccessToken. */
+  /** Deprecated wallet hint; ws-server auth requires privyAccessToken. */
   walletAddress: z.string().min(1).optional(),
-  /** Privy access token (live mode). The server verifies it and looks up the
+  /** Privy access token. The server verifies it and looks up the
    * walletAddress from the User row, ignoring any wallet hint above. */
   privyAccessToken: z.string().min(1).optional(),
 });
@@ -281,9 +285,9 @@ export const ApprovalDecisionPayloadSchema = z.object({
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
 
 // ws-server → tab. Fired by trigger-monitor when an OPEN synthetic order
-// (xStock, no Jupiter Trigger v2 routing) matches its condition against
-// Pyth. Payload is everything the tap-to-execute UI needs to build the
-// Ultra swap without another round-trip.
+// matches its condition against Pyth and delegated execution is unavailable.
+// Payload is everything the tap-to-execute UI needs to build the Ultra swap
+// without another round-trip.
 export const TriggerHitPayloadSchema = z.object({
   orderId: z.string(),
   positionId: z.string(),
@@ -303,3 +307,19 @@ export const TriggerHitPayloadSchema = z.object({
   tokenAmount: z.number().nullable().optional(),
 });
 export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;
+
+// ws-server → tab. Fired after delegated trigger execution settles through
+// PositionLifecycle. It is a status event, not an action prompt.
+export const TradeFilledPayloadSchema = z.object({
+  orderId: z.string(),
+  positionId: z.string(),
+  ticker: z.string(),
+  kind: OrderKindSchema,
+  side: z.enum(['BUY', 'SELL']),
+  executionMode: z.enum(['delegated', 'manual']),
+  executionPrice: z.number(),
+  tokenAmount: z.number(),
+  usdValue: z.number(),
+  txSignature: z.string(),
+});
+export type TradeFilledPayload = z.infer<typeof TradeFilledPayloadSchema>;

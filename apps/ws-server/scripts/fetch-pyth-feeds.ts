@@ -1,7 +1,7 @@
 /**
- * Pulls the Pyth Hermes feed registry, filters for our 8 US equity tickers,
+ * Pulls the Pyth Hermes feed registry, filters for configured asset symbols,
  * and writes the result to `data/pyth-feeds.json` plus a TS snippet to paste
- * into `packages/shared/src/constants.ts`.
+ * into the shared asset registry.
  *
  * Run:
  *   pnpm --filter @hunch-it/ws-server fetch:pyth-feeds
@@ -10,7 +10,7 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
+import { ASSET_REGISTRY } from '@hunch-it/shared';
 import { env } from '../src/env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ interface HermesFeed {
 }
 
 async function main() {
-  const url = `${env.PYTH_HERMES_URL}/v2/price_feeds?asset_type=equity`;
+  const url = `${env.PYTH_HERMES_URL}/v2/price_feeds?query=Crypto`;
   console.log(`[pyth] fetching ${url}`);
   const res = await fetch(url, { headers: { accept: 'application/json' } });
   if (!res.ok) {
@@ -38,30 +38,24 @@ async function main() {
   }
   const all = (await res.json()) as HermesFeed[];
 
-  const wanted = new Set<BareTicker>(BARE_TICKERS);
-  const matched = new Map<BareTicker, HermesFeed>();
+  const wanted = ASSET_REGISTRY.filter((asset) => asset.pythSymbol.length > 0);
+  const bySymbol = new Map<string, HermesFeed>();
 
   for (const feed of all) {
     const sym = feed.attributes.symbol ?? feed.attributes.display_symbol ?? '';
-    // Pyth equity symbols look like "Equity.US.AAPL/USD".
-    const m = sym.match(/^Equity\.US\.([A-Z]+)\/USD$/);
-    if (!m) continue;
-    const ticker = m[1] as BareTicker;
-    if (!wanted.has(ticker)) continue;
-    if (matched.has(ticker)) continue; // first wins
-    matched.set(ticker, feed);
+    if (!sym || bySymbol.has(sym)) continue;
+    bySymbol.set(sym, feed);
   }
 
-  const result: Record<BareTicker, { id: string; symbol: string; description: string }> =
-    {} as Record<BareTicker, { id: string; symbol: string; description: string }>;
-  for (const ticker of BARE_TICKERS) {
-    const feed = matched.get(ticker);
+  const result: Record<string, { id: string; symbol: string; description: string }> = {};
+  for (const asset of wanted) {
+    const feed = bySymbol.get(asset.pythSymbol);
     if (!feed) {
-      console.warn(`⚠ no feed found for ${ticker}`);
+      console.warn(`! no feed found for ${asset.assetId} (${asset.pythSymbol})`);
       continue;
     }
     const id = feed.id.startsWith('0x') ? feed.id : `0x${feed.id}`;
-    result[ticker] = {
+    result[asset.assetId] = {
       id,
       symbol: feed.attributes.symbol ?? '',
       description: feed.attributes.description ?? '',
@@ -69,13 +63,13 @@ async function main() {
   }
 
   writeFileSync(OUTPUT_PATH, JSON.stringify(result, null, 2));
-  console.log(`\nWrote ${Object.keys(result).length}/${BARE_TICKERS.length} feeds to ${OUTPUT_PATH}\n`);
+  console.log(`\nWrote ${Object.keys(result).length}/${wanted.length} feeds to ${OUTPUT_PATH}\n`);
 
-  console.log('Paste into packages/shared/src/constants.ts (XSTOCKS):\n');
-  for (const ticker of BARE_TICKERS) {
-    const r = result[ticker];
+  console.log('Feed ids by asset id:\n');
+  for (const asset of wanted) {
+    const r = result[asset.assetId];
     if (!r) continue;
-    console.log(`  ${ticker}: { ...XSTOCKS.${ticker}, pythFeedId: '${r.id}' },  // ${r.symbol}`);
+    console.log(`  ${asset.assetId}: ${r.id}  // ${r.symbol}`);
   }
 }
 

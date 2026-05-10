@@ -25,6 +25,8 @@ export DOMAIN_WS=<websocket-domain>
 export LETSENCRYPT_EMAIL=<your-email-for-LE-renewal-warnings>
 export GIT_REPO_URL=https://github.com/Omnis-Labs/hunch-it.git
 export GIT_BRANCH=main
+export PRIVY_WALLET_AUTHORIZATION_SIGNER_ID=<paste-Privy-wallet-v2-signer-id>
+export PRIVY_WALLET_AUTHORIZATION_POLICY_IDS=
 ```
 
 ```bash
@@ -124,9 +126,10 @@ cd /path/to/local/checkout
 docker buildx build \
   --platform linux/amd64 \
   --build-arg NEXT_PUBLIC_PRIVY_APP_ID=<privy-app-id> \
+  --build-arg NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_SIGNER_ID="${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID}" \
+  --build-arg NEXT_PUBLIC_PRIVY_WALLET_AUTHORIZATION_POLICY_IDS="${PRIVY_WALLET_AUTHORIZATION_POLICY_IDS}" \
   --build-arg NEXT_PUBLIC_APP_URL=https://${DOMAIN_WEB} \
   --build-arg NEXT_PUBLIC_WS_URL=https://${DOMAIN_WS} \
-  --build-arg NEXT_PUBLIC_DEMO_MODE=false \
   --build-arg "NEXT_PUBLIC_SOLANA_RPC_URLS=https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>,https://solana-rpc.publicnode.com/" \
   --build-arg NEXT_PUBLIC_DEFAULT_TRADE_USD=5 \
   --build-arg NEXT_PUBLIC_JUPITER_API_BASE=https://lite-api.jup.ag \
@@ -159,15 +162,27 @@ echo -n "https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>,https://so
 echo -n "<paste-PRIVY_APP_SECRET-from-.env.local>" | \
   gcloud secrets create privy-app-secret --data-file=-
 
-# Anthropic key (from your local .env.local)
-echo -n "<paste-ANTHROPIC_API_KEY-from-.env.local>" | \
-  gcloud secrets create anthropic-key --data-file=-
+# Privy wallet v2 delegated signer private key + signer ID.
+echo -n "<paste-PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY>" | \
+  gcloud secrets create privy-wallet-authorization-private-key --data-file=-
 
-# WS cron secret (fresh)
-openssl rand -hex 32 | gcloud secrets create ws-cron-secret --data-file=-
+echo -n "${PRIVY_WALLET_AUTHORIZATION_SIGNER_ID}" | \
+  gcloud secrets create privy-wallet-authorization-signer-id --data-file=-
+
+# Optional comma-separated Privy policy IDs. Skip this secret if unused;
+# startup.sh treats it as optional.
+if [ -n "${PRIVY_WALLET_AUTHORIZATION_POLICY_IDS}" ]; then
+  echo -n "${PRIVY_WALLET_AUTHORIZATION_POLICY_IDS}" | \
+    gcloud secrets create privy-wallet-authorization-policy-ids --data-file=-
+fi
+
+# Gemini key (from your local .env.local)
+echo -n "<paste-GEMINI_API_KEY-from-.env.local>" | \
+  gcloud secrets create gemini-key --data-file=-
+
 ```
 
-Verify all 5 are there:
+Verify the required secrets are there:
 
 ```bash
 gcloud secrets list
@@ -222,10 +237,10 @@ echo "VM_IP=$VM_IP  # ← point your DNS at this"
 Go to your `it.com` domain control panel (or wherever you registered
 `<app-domain>`) and add two A records:
 
-| Type | Name | Value     | TTL |
-| ---- | ---- | --------- | --- |
-| A    | @    | `$VM_IP`  | 300 |
-| A    | ws   | `$VM_IP`  | 300 |
+| Type | Name | Value    | TTL |
+| ---- | ---- | -------- | --- |
+| A    | @    | `$VM_IP` | 300 |
+| A    | ws   | `$VM_IP` | 300 |
 
 If using Cloudflare, set both to **DNS only (grey cloud)** — the orange
 proxy mode interferes with Caddy's own ACME challenge and adds latency to
@@ -251,7 +266,7 @@ You should see in order:
 1. `[startup] BEGIN`
 2. `installing docker`
 3. `cloning repo`
-4. `.env written (~30 lines)`
+4. `.env written (~34 lines)`
 5. Docker pulls all 4 images
 6. Caddy logs `serving https://<app-domain> on :443`
 7. `[startup] DONE`
@@ -295,14 +310,14 @@ curl -s -X POST "https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>" \
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| `caddy` keeps restarting, no cert | DNS not propagated, or A records on wrong domain | `dig +short <app-domain>` should match `$VM_IP`; reset VM after fix |
-| `web` exits with `prisma client init` error | DATABASE_URL secret malformed | re-add the secret with the exact format `postgresql://hunch:<pw>@db:5432/hunchit` |
-| `ws-server` can't reach Pyth | egress firewall (rare on default VPC) | check VPC firewall outbound rules |
-| Privy modal says "invalid origin" | dashboard origin not added | revisit step 11, save, hard reload page |
-| `Total Value $0` in /desk | Helius RPC rate-limited or key wrong | hit `https://mainnet.helius-rpc.com/?api-key=<key>` directly with `getHealth` |
-| Image pull `permission denied` | service account missing `artifactregistry.reader` | re-run step 7 IAM bindings |
+| Symptom                                     | Likely cause                                      | Fix                                                                               |
+| ------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `caddy` keeps restarting, no cert           | DNS not propagated, or A records on wrong domain  | `dig +short <app-domain>` should match `$VM_IP`; reset VM after fix               |
+| `web` exits with `prisma client init` error | DATABASE_URL secret malformed                     | re-add the secret with the exact format `postgresql://hunch:<pw>@db:5432/hunchit` |
+| `ws-server` can't reach Pyth                | egress firewall (rare on default VPC)             | check VPC firewall outbound rules                                                 |
+| Privy modal says "invalid origin"           | dashboard origin not added                        | revisit step 11, save, hard reload page                                           |
+| `Total Value $0` in /desk                   | Helius RPC rate-limited or key wrong              | hit `https://mainnet.helius-rpc.com/?api-key=<key>` directly with `getHealth`     |
+| Image pull `permission denied`              | service account missing `artifactregistry.reader` | re-run step 7 IAM bindings                                                        |
 
 ## Teardown (in case you need to nuke)
 
@@ -310,7 +325,7 @@ curl -s -X POST "https://mainnet.helius-rpc.com/?api-key=<solana-rpc-api-key>" \
 gcloud compute instances delete "$VM_NAME" --zone="$ZONE" --quiet
 gcloud sql instances delete "$SQL_INSTANCE" --quiet
 gcloud artifacts repositories delete "$AR_REPO" --location="$REGION" --quiet
-for s in database-url solana-rpc-urls privy-app-secret anthropic-key ws-cron-secret; do
+for s in database-url solana-rpc-urls privy-app-secret gemini-key; do
   gcloud secrets delete "$s" --quiet
 done
 ```

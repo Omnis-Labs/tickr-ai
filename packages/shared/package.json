@@ -31,15 +31,15 @@
       "development": "./src/thesis.ts",
       "default": "./dist/thesis.js"
     },
-    "./demo": {
-      "types": "./dist/demo.d.ts",
-      "development": "./src/demo.ts",
-      "default": "./dist/demo.js"
-    },
     "./rpc": {
       "types": "./dist/rpc.d.ts",
       "development": "./src/rpc.ts",
       "default": "./dist/rpc.js"
+    },
+    "./signal-engine": {
+      "types": "./dist/signal-engine.d.ts",
+      "development": "./src/signal-engine.ts",
+      "default": "./dist/signal-engine.js"
     }
   },
   "scripts": {

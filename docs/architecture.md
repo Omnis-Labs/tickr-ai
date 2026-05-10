@@ -18,7 +18,7 @@ hunch-it/
 
 **apps/web**: Next.js PWA frontend. Handles all user-facing UI and exposes REST API routes under `/api/*`.
 
-**apps/ws-server**: Standalone Node.js backend. Responsible for market monitoring, proposal generation, WebSocket realtime push, back-evaluation, order tracking, and automatic TP/SL placement.
+**apps/ws-server**: Standalone Node.js backend. Responsible for Base Market Analysis, proposal fan-out, WebSocket realtime push, back-evaluation, and synthetic trigger monitoring.
 
 **packages/shared**: Zod schemas, asset registry (static TypeScript), and type definitions shared between both apps.
 
@@ -43,27 +43,27 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 └──────┬──────────┬──────────┬──────────┬─────────────────────┘
        │          │          │          │
   Socket.IO   Jupiter     Privy     Solana     Pyth
-  (realtime)  Trigger    (auth +    RPC     Benchmarks
-       │    Order v2   wallet)  (balances)  (charts)
-       │    + Swap
+  (realtime)  Ultra      (auth +    RPC     Benchmarks
+       │      /order    wallet)  (balances)  (charts)
+       │      + /execute
        │
 ┌──────┴──────────────────────────────────────────────────┐
 │                ws-server (apps/ws-server)                 │
 │                Signal Engine                             │
 │                                                          │
 │  ┌──────────────┐  ┌────────────────┐  ┌──────────────┐ │
-│  │   Market     │  │   Proposal     │  │   Order      │ │
-│  │   Scanner    │→ │   Generator    │  │   Tracker    │ │
-│  │ (per ticker) │  │  (per user)    │  │ (cron 30s)   │ │
+│  │   Market     │  │   Proposal     │  │  Trigger     │ │
+│  │   Scanner    │→ │   Generator    │  │  Monitor     │ │
+│  │ (per asset)  │  │  (per user)    │  │ (cron 30s)   │ │
 │  └──────────────┘  └────────────────┘  └──────────────┘ │
 │         │                  │                   │         │
-│    Pyth Hermes      Claude Sonnet/Opus    Jupiter API    │
-│   (live prices)    (LLM analysis)       (order status)   │
+│    Pyth Hermes          Gemini          Pyth Hermes      │
+│   (live prices)    (LLM analysis)     (trigger marks)    │
 │                                                          │
 │  ┌──────────────┐  ┌────────────────┐                   │
-│  │   Auto       │  │    Back-       │                   │
-│  │   TP/SL      │  │   Evaluator    │                   │
-│  │   Placer     │  │  (every 5min)  │                   │
+│  │   Thesis     │  │    Back-       │                   │
+│  │   Monitor    │  │   Evaluator    │                   │
+│  │  (opt-in)    │  │  (opt-in)      │                   │
 │  └──────────────┘  └────────────────┘                   │
 └─────────────────────────┬───────────────────────────────┘
                           │
@@ -86,17 +86,17 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
 | State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
 | Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
-| Order Execution        | Jupiter Trigger Order API v2 (BUY, TP, SL) + Jupiter Swap API (Close Position)                                       |
+| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra sponsored swaps: user signs the taker slot, Jupiter `/execute` relays     |
 | Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
 | Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |
 | On-chain Data          | Solana RPC (@solana/web3.js)                                                                                         |
 | Realtime Communication | Socket.IO (server) + Shared Worker + BroadcastChannel (client)                                                       |
-| Signal Engine LLM      | Claude Sonnet or Opus (@anthropic-ai/sdk)                                                                            |
+| Signal Engine LLM      | Gemini via `@google/genai`                                                                                           |
 | Technical Indicators   | technicalindicators library                                                                                          |
 | Database               | PostgreSQL 15 (self-managed, in Docker on the prod VM)                                                               |
 | ORM                    | Prisma                                                                                                               |
 | Schema Validation      | Zod                                                                                                                  |
-| Asset Registry         | Static TypeScript (packages/shared/src/constants.ts)                                                                 |
+| Asset Universe         | Static TypeScript whitelist (`packages/shared/src/assets.ts`) with derived signal eligibility and mandate matching    |
 | PWA                    | manifest.json + Service Worker (offline fallback page only; all trading, pricing, and auth features require network) |
 
 ---
@@ -131,15 +131,16 @@ The frontend uses a **Shared Worker** to manage the Socket.IO connection:
 
 For ws-server implementation, read alongside:
 
-1. **signal-engine.md** — Signal pipeline, Order Tracker, Back-Evaluator
+1. **signal-engine.md** — Signal pipeline, ProposalCreation seam, Trigger Monitor, Back-Evaluator
 2. **data-model.md** — Prisma schema, enums, JSON field interfaces
 3. **api-contract.md** — WebSocket events, order state transitions
+4. **adr/0002-canonical-asset-signal-data.md** — Asset id and signal freshness rules
 
 For frontend implementation, read alongside:
 
 1. **screens-and-flows.md** — Screen specs, user flows, error states
 2. **api-contract.md** — REST endpoints with request/response contracts
-3. **data-model.md** — Data model, Asset Registry structure
+3. **data-model.md** — Data model, Asset Universe and ProposalCreation structure
 
 ---
 
@@ -157,4 +158,4 @@ pnpm db:push
 pnpm dev   # Runs web + ws-server concurrently
 ```
 
-**Demo Mode**: Set `DEMO_MODE=true` to run the full UX without any external API keys. The ws-server generates fake signals. By default, demo trades are persisted to PostgreSQL like real trades. Set `DEMO_IN_MEMORY=true` to skip DB persistence entirely.
+**Dev Tools**: Set `ENABLE_DEV_TOOLS=true` locally and open `/dev-tools` to create real `[DEV_TOOLS]` proposals through the same ProposalCreation Module used by live signal generation, persist real DB orders, force owned synthetic triggers, and execute the same Jupiter Ultra swap path used by production. The in-browser log is intentionally content-rich and is the source of truth for swap diagnostics; client diagnostic events stay in the browser. Deployed production runtimes block this surface.

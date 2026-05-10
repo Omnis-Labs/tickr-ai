@@ -1,10 +1,11 @@
 // Thin Jupiter Ultra client.
 // Docs: https://dev.jup.ag/docs/ultra-api
 //
-// Ultra's advantage vs v6 `/quote` + `/swap`: the backend builds, signs with
-// a relayer, and submits the transaction. Gas is sponsored. We fetch an order,
-// sign the returned unsigned transaction with the user's wallet, and then post
-// to `/execute` with the signed transaction + requestId.
+// Ultra's advantage vs v6 `/quote` + `/swap`: Jupiter builds a sponsored
+// transaction for a requestId, the user signs their/taker signature slot, and
+// `/execute` relays/completes the sponsored swap. Do not direct-broadcast
+// sponsored Ultra transactions through the wallet RPC path; that bypasses
+// Jupiter `/execute`.
 
 import {
   JUPITER_ULTRA_EXECUTE,
@@ -30,6 +31,11 @@ export interface UltraOrderResponse {
   otherAmountThreshold: string;
   priceImpactPct: string;
   swapUsdValue?: string;
+  error?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  gasless?: boolean;
+  router?: string;
   [key: string]: unknown;
 }
 

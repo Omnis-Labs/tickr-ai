@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { isDemoServer } from '@/lib/demo/flag';
 import { requireAuth } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 
@@ -14,8 +13,6 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
  * /api/positions/[id]/close — but here we also flip the SELL Proposal to
  * EXECUTED so leaderboard / outcome tracking can attribute the close to
  * the SELL signal.
- *
- * Demo: returns ok with no DB writes (the demo store mutates positions).
  */
 const Body = z.object({
   executionPrice: z.number().positive().nullable().optional(),
@@ -26,7 +23,6 @@ const Body = z.object({
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
-  if (isDemoServer()) return NextResponse.json({ ok: true, demo: true });
 
   const auth = await requireAuth(req);
   if (!auth) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
