@@ -29,6 +29,12 @@ export interface DeskGrowthCelebrationDetail {
   id: string;
   label: string;
   kind: 'analyst-recruited' | 'analyst-leveled' | 'decoration-bought';
+  origin: DeskGrowthCelebrationOrigin;
+}
+
+export interface DeskGrowthCelebrationOrigin {
+  x: number;
+  y: number;
 }
 
 function readDeskGrowthState(): DeskGrowthState {
@@ -60,12 +66,31 @@ function emitDeskGrowthFeedback(feedback: DeskGrowthFeedback) {
   });
 }
 
-function emitDeskGrowthCelebration(detail: Omit<DeskGrowthCelebrationDetail, 'id'>) {
+function fallbackCelebrationOrigin(): DeskGrowthCelebrationOrigin {
+  return {
+    x: window.innerWidth / 2,
+    y: window.innerHeight * 0.72,
+  };
+}
+
+function normalizeCelebrationOrigin(
+  origin: DeskGrowthCelebrationOrigin | undefined,
+): DeskGrowthCelebrationOrigin {
+  if (origin && Number.isFinite(origin.x) && Number.isFinite(origin.y)) return origin;
+  return fallbackCelebrationOrigin();
+}
+
+function emitDeskGrowthCelebration(
+  detail: Omit<DeskGrowthCelebrationDetail, 'id' | 'origin'> & {
+    origin?: DeskGrowthCelebrationOrigin;
+  },
+) {
   window.dispatchEvent(
     new CustomEvent<DeskGrowthCelebrationDetail>(DESK_GROWTH_CELEBRATION_EVENT, {
       detail: {
         ...detail,
         id: `${detail.kind}:${Date.now()}`,
+        origin: normalizeCelebrationOrigin(detail.origin),
       },
     }),
   );
@@ -150,20 +175,24 @@ export function useDeskGrowth() {
     [update],
   );
 
-  const recruitQuant = useCallback(() => {
-    const result = recruitQuantAnalyst(readDeskGrowthState());
-    if (result.recruited) {
-      update(result.state);
-      emitDeskGrowthCelebration({
-        kind: 'analyst-recruited',
-        label: `${analystLabels.quant} recruited`,
-      });
-    }
-    return result.recruited;
-  }, [update]);
+  const recruitQuant = useCallback(
+    (origin?: DeskGrowthCelebrationOrigin) => {
+      const result = recruitQuantAnalyst(readDeskGrowthState());
+      if (result.recruited) {
+        update(result.state);
+        emitDeskGrowthCelebration({
+          kind: 'analyst-recruited',
+          label: `${analystLabels.quant} recruited`,
+          origin,
+        });
+      }
+      return result.recruited;
+    },
+    [update],
+  );
 
   const levelUp = useCallback(
-    (analystId: AnalystId) => {
+    (analystId: AnalystId, origin?: DeskGrowthCelebrationOrigin) => {
       const currentState = readDeskGrowthState();
       const result = levelUpAnalyst(currentState, analystId);
       if (result.leveled) {
@@ -172,6 +201,7 @@ export function useDeskGrowth() {
         emitDeskGrowthCelebration({
           kind: 'analyst-leveled',
           label: `${analystLabels[analystId]} reached Lv ${nextLevel}`,
+          origin,
         });
       }
       return result.leveled;
@@ -180,7 +210,7 @@ export function useDeskGrowth() {
   );
 
   const buyDecoration = useCallback(
-    (decorationId: DecorationId) => {
+    (decorationId: DecorationId, origin?: DeskGrowthCelebrationOrigin) => {
       const result = buyDeskDecoration(readDeskGrowthState(), decorationId);
       if (result.bought) {
         const decoration = DESK_DECORATION_ITEMS[decorationId];
@@ -188,6 +218,7 @@ export function useDeskGrowth() {
         emitDeskGrowthCelebration({
           kind: 'decoration-bought',
           label: `${decoration.name} installed`,
+          origin,
         });
       }
       return result.bought;
