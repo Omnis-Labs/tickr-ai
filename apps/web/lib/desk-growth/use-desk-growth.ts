@@ -7,17 +7,19 @@ import {
   createInitialDeskGrowthState,
   DESK_DECORATION_ITEMS,
   levelUpAnalyst,
-  normalizeDeskGrowthState,
   recruitQuantAnalyst,
   type AnalystId,
   type DecorationId,
   type DeskGrowthState,
 } from './state';
+import {
+  DESK_GROWTH_STORAGE_EVENT,
+  readDeskGrowthState,
+  writeDeskGrowthState,
+} from './client-store';
 import { runEffects } from '@/lib/notifications/effects';
 import { deskGrowthFeedbackHandler, type DeskGrowthFeedback } from '@/lib/notifications/registry';
 
-const STORAGE_KEY = 'hunch:desk-growth:v1';
-const STORAGE_EVENT = 'hunch:desk-growth:update';
 export const DESK_GROWTH_CELEBRATION_EVENT = 'hunch:desk-growth:celebration';
 const deskGrowthFeedbackNotifications = new Map<string, Notification>();
 const analystLabels: Record<AnalystId, string> = {
@@ -35,22 +37,6 @@ export interface DeskGrowthCelebrationDetail {
 export interface DeskGrowthCelebrationOrigin {
   x: number;
   y: number;
-}
-
-function readDeskGrowthState(): DeskGrowthState {
-  if (typeof window === 'undefined') return createInitialDeskGrowthState();
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return normalizeDeskGrowthState(raw ? JSON.parse(raw) : null);
-  } catch {
-    return createInitialDeskGrowthState();
-  }
-}
-
-function writeDeskGrowthState(state: DeskGrowthState) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  window.dispatchEvent(new Event(STORAGE_EVENT));
 }
 
 function eventId(kind: string, id: string): string {
@@ -106,10 +92,10 @@ export function useDeskGrowth() {
 
     const handleStorage = () => setState(readDeskGrowthState());
     window.addEventListener('storage', handleStorage);
-    window.addEventListener(STORAGE_EVENT, handleStorage);
+    window.addEventListener(DESK_GROWTH_STORAGE_EVENT, handleStorage);
     return () => {
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener(STORAGE_EVENT, handleStorage);
+      window.removeEventListener(DESK_GROWTH_STORAGE_EVENT, handleStorage);
     };
   }, []);
 

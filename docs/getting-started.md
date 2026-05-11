@@ -95,7 +95,7 @@ DEV_TOOLS_PASSWORD=<choose-a-local-password>
 GEMINI_API_KEY=<optional-for-LLM-proposals>
 ```
 
-Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from fresh live Pyth bars, accept them into real `Position` and `Order` rows, force fallback `trigger:hit` events for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, exercise delegated Ultra diagnostics, adjust TP/SL, and copy the full structured browser diagnostics from the `/dev-tools` log.
+Restart the apps, sign in with Privy, complete a mandate, then open http://localhost:3000/dev-tools. The page can create real `[DEV_TOOLS]` BUY proposals from fresh live Pyth bars, accept them into real `Position` and `Order` rows, force fallback `trigger:hit` events for owned dev orders, execute the real Jupiter Ultra `/order` + user-signature + `/execute` path, exercise delegated Ultra diagnostics, adjust TP/SL, reset or fund the local AI Trading Room, test the Desk EXP toast, and copy the full structured browser diagnostics from the `/dev-tools` log.
 
 `/dev-tools` is an adapter into the same `ProposalCreation` Module used by live signal generation. It does not use a market-hours guardrail; it uses the shared Pyth publish-time freshness rule.
 

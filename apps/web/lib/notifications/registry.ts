@@ -44,7 +44,12 @@ export const proposalNewHandler = (proposal: Proposal, ctx: HandlerCtx): UIEffec
 export interface DeskGrowthFeedback {
   kind: 'xp-awarded';
   xp: number;
-  reason: 'proposal-review' | 'proposal-skip' | 'proposal-skip-feedback' | 'proposal-accept';
+  reason:
+    | 'proposal-review'
+    | 'proposal-skip'
+    | 'proposal-skip-feedback'
+    | 'proposal-accept'
+    | 'dev-tools';
 }
 
 const xpAwardDescriptions: Record<DeskGrowthFeedback['reason'], string> = {
@@ -52,6 +57,7 @@ const xpAwardDescriptions: Record<DeskGrowthFeedback['reason'], string> = {
   'proposal-skip': 'Proposal skipped. Discipline counts.',
   'proposal-skip-feedback': 'Feedback logged. Your desk learned from the pass.',
   'proposal-accept': 'Order staged. Your desk got stronger.',
+  'dev-tools': 'Dev tools awarded Desk EXP for room testing.',
 };
 
 export function deskGrowthFeedbackHandler(feedback: DeskGrowthFeedback): UIEffect[] {

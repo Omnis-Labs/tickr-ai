@@ -7,14 +7,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Clipboard,
+  Bell,
   ExternalLink,
   KeyRound,
   LogOut,
   Play,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   ShieldOff,
   SlidersHorizontal,
+  Sparkles,
   Wand2,
   Zap,
 } from 'lucide-react';
@@ -47,8 +50,21 @@ import {
   diagnosticsForDelegatedUltraApiError,
   type DelegatedUltraPreflightReport,
 } from '@/lib/dev-tools/privy-delegated-ultra-swap-debug';
+import {
+  ROOM_DEV_TOOLS_XP_GRANT,
+  addDeskGrowthDevToolsXp,
+  createDeskGrowthDevToolsXpFeedback,
+  resetDeskGrowthDevToolsState,
+} from '@/lib/desk-growth/dev-tools';
+import {
+  DESK_GROWTH_STORAGE_EVENT,
+  readDeskGrowthState,
+  writeDeskGrowthState,
+} from '@/lib/desk-growth/client-store';
 import { waitForDelegatedAccessRevocation } from '@/lib/delegated-execution/settings-state';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
+import { runEffects } from '@/lib/notifications/effects';
+import { deskGrowthFeedbackHandler } from '@/lib/notifications/registry';
 import { executeTriggerOrder } from '@/lib/orders/trigger-execution';
 import { isLiveProposal } from '@/lib/proposals/expiration';
 import { useRuntime } from '@/lib/runtime/use-runtime';
@@ -140,6 +156,8 @@ interface DelegatedUltraStatus {
     blockers: string[];
   };
 }
+
+const deskGrowthDevToolsNotifications = new Map<string, Notification>();
 
 interface DelegatedUltraResponse {
   ok: true;
@@ -860,6 +878,7 @@ export function DevToolsClient() {
   const [delegatedUltraResult, setDelegatedUltraResult] = useState<DelegatedUltraResponse | null>(
     null,
   );
+  const [roomGrowthState, setRoomGrowthState] = useState(() => resetDeskGrowthDevToolsState());
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const walletAddress = publicKey?.toBase58() ?? null;
@@ -905,6 +924,10 @@ export function DevToolsClient() {
     if (proposal && isLiveProposal(proposal, nowMs)) return proposal;
     return stagedDevProposal(devState.proposals, nowMs);
   }, [devState.proposals, nowMs, proposal]);
+  const roomDecorationCount = useMemo(
+    () => Object.values(roomGrowthState.decorations).filter(Boolean).length,
+    [roomGrowthState.decorations],
+  );
 
   const appendLog = useCallback((section: LogSection, entry: LogEntry) => {
     setLogs((prev) => ({
@@ -916,6 +939,10 @@ export function DevToolsClient() {
     }));
   }, []);
 
+  const refreshRoomGrowthState = useCallback(() => {
+    setRoomGrowthState(readDeskGrowthState());
+  }, []);
+
   useEffect(() => {
     for (const event of getDevDiagnostics()) {
       appendLog(event.section, logEntryFromClientDiagnostic(event));
@@ -924,6 +951,16 @@ export function DevToolsClient() {
       appendLog(event.section, logEntryFromClientDiagnostic(event));
     });
   }, [appendLog]);
+
+  useEffect(() => {
+    refreshRoomGrowthState();
+    window.addEventListener('storage', refreshRoomGrowthState);
+    window.addEventListener(DESK_GROWTH_STORAGE_EVENT, refreshRoomGrowthState);
+    return () => {
+      window.removeEventListener('storage', refreshRoomGrowthState);
+      window.removeEventListener(DESK_GROWTH_STORAGE_EVENT, refreshRoomGrowthState);
+    };
+  }, [refreshRoomGrowthState]);
 
   const runLogged = useCallback(
     async <T,>(
@@ -1166,6 +1203,29 @@ export function DevToolsClient() {
       return res.json();
     });
     setSession({ enabled: true, authenticated: false });
+  }
+
+  function resetRoomGrowth() {
+    const nextState = resetDeskGrowthDevToolsState();
+    writeDeskGrowthState(nextState);
+    setRoomGrowthState(nextState);
+    toast.success('Room reset.');
+  }
+
+  function addRoomGrowthXp() {
+    const nextState = addDeskGrowthDevToolsXp(readDeskGrowthState());
+    writeDeskGrowthState(nextState);
+    setRoomGrowthState(nextState);
+    toast.success(`Added ${ROOM_DEV_TOOLS_XP_GRANT} Desk EXP.`);
+  }
+
+  function testRoomGrowthXpNotification() {
+    runEffects(deskGrowthFeedbackHandler(createDeskGrowthDevToolsXpFeedback()), {
+      navigate: (href) => {
+        window.location.href = href;
+      },
+      activeNotifs: deskGrowthDevToolsNotifications,
+    });
   }
 
   async function generateProposal() {
@@ -1727,6 +1787,43 @@ export function DevToolsClient() {
             </button>
           </section>
         )}
+
+        <Panel title="AI Trading Room" icon={<Sparkles className="h-5 w-5" />}>
+          <dl className="grid grid-cols-3 gap-3 rounded-md bg-surface-container-low p-4 text-body-sm">
+            <Metric label="Desk EXP" value={roomGrowthState.xpBalance.toString()} />
+            <Metric
+              label="Quant"
+              value={roomGrowthState.analysts.quant.owned ? 'Recruited' : 'Locked'}
+            />
+            <Metric label="Upgrades" value={`${roomDecorationCount}/4`} />
+          </dl>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={resetRoomGrowth}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97]"
+            >
+              <RotateCcw aria-hidden className="h-4 w-4" />
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={addRoomGrowthXp}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-4 text-label-lg text-on-accent transition-transform active:scale-[0.97]"
+            >
+              <Zap aria-hidden className="h-4 w-4" />
+              Add {ROOM_DEV_TOOLS_XP_GRANT} XP
+            </button>
+            <button
+              type="button"
+              onClick={testRoomGrowthXpNotification}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface px-4 text-label-lg text-primary ring-1 ring-outline-variant transition-transform active:scale-[0.97]"
+            >
+              <Bell aria-hidden className="h-4 w-4" />
+              Test XP notification
+            </button>
+          </div>
+        </Panel>
 
         <section className="grid gap-5 lg:grid-cols-2">
           <Panel title="Proposal lab" icon={<Wand2 className="h-5 w-5" />}>
