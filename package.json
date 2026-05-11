@@ -14,7 +14,7 @@
     "start:ws": "pnpm --filter @hunch-it/ws-server start",
     "db:up": "scripts/dev-up.sh",
     "db:down": "docker compose down",
-    "build": "pnpm -r run build",
+    "build": "scripts/sync-env.sh && pnpm -r run build",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "db:push": "pnpm --filter @hunch-it/db exec prisma db push",
