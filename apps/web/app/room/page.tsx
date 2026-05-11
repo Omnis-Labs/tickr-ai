@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { Button } from '@/components/ui/button';
+import { sprayDeskGrowthConfetti } from '@/lib/desk-growth/confetti';
 import {
   getRoomScene,
   ROOM_SCENE_SIZE,
@@ -25,48 +26,6 @@ import {
   type DeskGrowthCelebrationDetail,
   type DeskGrowthCelebrationOrigin,
 } from '@/lib/desk-growth/use-desk-growth';
-
-type ConfettiStyle = CSSProperties & {
-  '--room-confetti-launch-x': string;
-  '--room-confetti-launch-y': string;
-  '--room-confetti-settle-x': string;
-  '--room-confetti-settle-y': string;
-  '--room-confetti-end-x': string;
-  '--room-confetti-end-y': string;
-  '--room-confetti-rotation': string;
-  '--room-confetti-mid-rotation': string;
-  '--room-confetti-end-rotation': string;
-};
-
-const CONFETTI_COLORS = ['#D0E906', '#BDEDF4', '#F5C896', '#20BFC6', '#FF745D'] as const;
-
-const CONFETTI_PIECES = Array.from({ length: 96 }, (_, index) => {
-  const direction = index % 2 === 0 ? 1 : -1;
-  const rotation = (index * 43) % 360;
-  const isDot = index % 11 === 0;
-  const isRibbon = index % 7 === 0;
-
-  return {
-    id: index,
-    startX: ((index * 7) % 13) - 6,
-    startY: ((index * 11) % 9) - 4,
-    launchX: direction * (18 + ((index * 17) % 126)),
-    launchY: -(48 + ((index * 19) % 118)),
-    settleX: direction * (28 + ((index * 31) % 156)),
-    settleY: -(14 + ((index * 13) % 58)),
-    endX: direction * (24 + ((index * 29) % 190)),
-    endY: 80 + ((index * 23) % 160),
-    delayMs: (index % 14) * 16,
-    durationMs: 1_640 + ((index * 47) % 620),
-    width: isDot ? 7 : isRibbon ? 5 : 7 + (index % 4),
-    height: isDot ? 7 : isRibbon ? 22 : 12 + (index % 5) * 2,
-    rotation,
-    midRotation: rotation + direction * (220 + ((index * 37) % 180)),
-    endRotation: rotation + direction * (680 + ((index * 41) % 360)),
-    color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
-    radius: isDot ? '9999px' : isRibbon ? '9999px' : '2px',
-  };
-});
 
 function getCelebrationOrigin(element: HTMLElement): DeskGrowthCelebrationOrigin {
   const rect = element.getBoundingClientRect();
@@ -162,129 +121,38 @@ export default function RoomPage() {
 }
 
 function DeskGrowthCelebration() {
-  const [celebrations, setCelebrations] = useState<DeskGrowthCelebrationDetail[]>([]);
+  const [latestCelebration, setLatestCelebration] = useState<DeskGrowthCelebrationDetail | null>(
+    null,
+  );
 
   useEffect(() => {
-    const cleanupTimers = new Set<number>();
+    let cleanupTimer: number | null = null;
 
     function handleCelebration(event: Event) {
       const detail = (event as CustomEvent<DeskGrowthCelebrationDetail>).detail;
       if (!detail) return;
 
-      setCelebrations((current) => [...current, detail].slice(-3));
-      const cleanupTimer = window.setTimeout(() => {
-        setCelebrations((current) => current.filter((item) => item.id !== detail.id));
-        cleanupTimers.delete(cleanupTimer);
+      setLatestCelebration(detail);
+      sprayDeskGrowthConfetti(detail.origin);
+
+      if (cleanupTimer != null) window.clearTimeout(cleanupTimer);
+      cleanupTimer = window.setTimeout(() => {
+        setLatestCelebration(null);
+        cleanupTimer = null;
       }, 3_000);
-      cleanupTimers.add(cleanupTimer);
     }
 
     window.addEventListener(DESK_GROWTH_CELEBRATION_EVENT, handleCelebration);
     return () => {
       window.removeEventListener(DESK_GROWTH_CELEBRATION_EVENT, handleCelebration);
-      cleanupTimers.forEach((cleanupTimer) => window.clearTimeout(cleanupTimer));
+      if (cleanupTimer != null) window.clearTimeout(cleanupTimer);
     };
   }, []);
 
-  const latestCelebration = celebrations.at(-1);
-
   return (
-    <>
-      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {latestCelebration?.label ?? ''}
-      </div>
-      {celebrations.length > 0 && (
-        <div
-          className="pointer-events-none fixed inset-0 z-[80] overflow-hidden"
-          aria-hidden="true"
-        >
-          {celebrations.map((celebration, burstIndex) =>
-            CONFETTI_PIECES.map((piece) => {
-              const style: ConfettiStyle = {
-                left: `${celebration.origin.x + piece.startX}px`,
-                top: `${celebration.origin.y + piece.startY}px`,
-                width: `${piece.width}px`,
-                height: `${piece.height}px`,
-                borderRadius: piece.radius,
-                backgroundColor: piece.color,
-                animationDelay: `${piece.delayMs + burstIndex * 80}ms`,
-                animationDuration: `${piece.durationMs}ms`,
-                '--room-confetti-launch-x': `${piece.launchX}px`,
-                '--room-confetti-launch-y': `${piece.launchY}px`,
-                '--room-confetti-settle-x': `${piece.settleX}px`,
-                '--room-confetti-settle-y': `${piece.settleY}px`,
-                '--room-confetti-end-x': `${piece.endX}px`,
-                '--room-confetti-end-y': `${piece.endY}px`,
-                '--room-confetti-rotation': `${piece.rotation}deg`,
-                '--room-confetti-mid-rotation': `${piece.midRotation}deg`,
-                '--room-confetti-end-rotation': `${piece.endRotation}deg`,
-              };
-
-              return (
-                <span
-                  key={`${celebration.id}:${piece.id}`}
-                  className="room-confetti-piece"
-                  style={style}
-                />
-              );
-            }),
-          )}
-        </div>
-      )}
-      <style jsx>{`
-        .room-confetti-piece {
-          position: absolute;
-          opacity: 0;
-          transform: translate(-50%, -50%) translate3d(0, 0, 0)
-            rotate(var(--room-confetti-rotation)) scale(0.52);
-          transform-origin: 50% 50%;
-          animation-name: room-confetti-burst;
-          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-          animation-fill-mode: forwards;
-          will-change: transform, opacity;
-        }
-
-        @keyframes room-confetti-burst {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -50%) translate3d(0, 0, 0)
-              rotate(var(--room-confetti-rotation)) scale(0.52);
-          }
-
-          9% {
-            opacity: 1;
-          }
-
-          34% {
-            opacity: 1;
-            transform: translate(-50%, -50%)
-              translate3d(var(--room-confetti-launch-x), var(--room-confetti-launch-y), 0)
-              rotate(var(--room-confetti-mid-rotation)) scale(1);
-          }
-
-          68% {
-            opacity: 0.96;
-            transform: translate(-50%, -50%)
-              translate3d(var(--room-confetti-settle-x), var(--room-confetti-settle-y), 0)
-              rotate(calc(var(--room-confetti-mid-rotation) - 130deg)) scale(0.96);
-          }
-
-          100% {
-            opacity: 0;
-            transform: translate(-50%, -50%)
-              translate3d(var(--room-confetti-end-x), var(--room-confetti-end-y), 0)
-              rotate(var(--room-confetti-end-rotation)) scale(0.86);
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .room-confetti-piece {
-            animation: none;
-            opacity: 0;
-          }
-        }
-      `}</style>
-    </>
+    <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {latestCelebration?.label ?? ''}
+    </div>
   );
 }
 
