@@ -4,10 +4,9 @@ import type { Proposal } from '@hunch-it/shared';
 import type { UIEffect } from './effects';
 
 /**
- * Notification handlers — one per socket event type. Handlers take the
- * incoming payload + a small ambient context and return a flat list of
- * UIEffects (toast / attention) to run. Adding a new event = one new entry
- * here; the driver doesn't change.
+ * Notification handlers take an event payload + small ambient context and
+ * return a flat list of UIEffects (toast / attention) to run. Adding a new
+ * notification source = one new handler entry; the driver doesn't change.
  */
 
 export interface HandlerCtx {
@@ -15,10 +14,7 @@ export interface HandlerCtx {
   isHidden: boolean;
 }
 
-export const proposalNewHandler = (
-  proposal: Proposal,
-  ctx: HandlerCtx,
-): UIEffect[] => {
+export const proposalNewHandler = (proposal: Proposal, ctx: HandlerCtx): UIEffect[] => {
   const verb = proposal.action === 'SELL' ? 'SELL' : 'BUY';
   const href = `/proposals/${proposal.id}`;
 
@@ -44,6 +40,32 @@ export const proposalNewHandler = (
     },
   ];
 };
+
+export interface DeskGrowthFeedback {
+  kind: 'xp-awarded';
+  xp: number;
+  reason: 'proposal-review' | 'proposal-skip' | 'proposal-skip-feedback' | 'proposal-accept';
+}
+
+const xpAwardDescriptions: Record<DeskGrowthFeedback['reason'], string> = {
+  'proposal-review': 'Proposal reviewed. Keep the desk sharp.',
+  'proposal-skip': 'Proposal skipped. Discipline counts.',
+  'proposal-skip-feedback': 'Feedback logged. Your desk learned from the pass.',
+  'proposal-accept': 'Order staged. Your desk got stronger.',
+};
+
+export function deskGrowthFeedbackHandler(feedback: DeskGrowthFeedback): UIEffect[] {
+  return [
+    {
+      kind: 'toast',
+      variant: 'success',
+      message: `+${feedback.xp} Desk EXP`,
+      description: xpAwardDescriptions[feedback.reason],
+      action: { label: 'Open room', onClick: () => navigateTo('/room') },
+      durationMs: 6_000,
+    },
+  ];
+}
 
 // Lightweight router shim so handlers stay pure of React imports. The driver
 // patches `_navigateTo` once on mount via setNavigator(); handlers call

@@ -16,6 +16,7 @@ interface NavItem {
 // home for a logged-in user; / is just the auth gate.
 const navItems: NavItem[] = [
   { name: 'Home', href: '/desk', icon: 'home' },
+  { name: 'Room', href: '/room', icon: 'meeting_room' },
   { name: 'Portfolio', href: '/portfolio', icon: 'account_balance_wallet' },
   { name: 'Settings', href: '/settings', icon: 'settings' },
 ];

@@ -66,6 +66,34 @@ The rule for when price movement or candle progression is meaningful enough to r
 
 The `packages/db/src/lifecycle/proposal-creation.ts` Module that turns Base Market Analysis plus a Mandate and position-impact context into a persisted BUY Proposal. It owns sizing defaults, trigger / TP / SL derivation, expiry, reasoning, thesis tags, and Proposal row creation. Live signal generation and `/dev-tools` are adapters into this Module.
 
+### Trading Desk Growth
+
+The user-facing progression layer where reviewing Proposals, giving feedback, and managing Orders makes the user's AI trading desk feel more capable without changing execution semantics or replacing ProposalCreation.
+
+### AI Trading Room
+
+The signed-in surface for Trading Desk Growth, showing the user's pixel-art analyst room, recruit state, analyst levels, Desk EXP, and Desk Decorations.
+
+### Junior Analyst
+
+The default Trading Desk Growth team member in the MVP; without a recruited Quant Analyst, the Proposal Detail view withholds the market-move read to show that the desk is still developing.
+
+### Quant Analyst
+
+The first recruitable Trading Desk Growth team member in the MVP; recruiting this analyst unlocks the market-move read and a more premium Proposal Detail presentation without changing the underlying Proposal or Signal Engine output.
+
+### Analyst Level
+
+The local progression rank of a Trading Desk Growth team member; in the MVP it can be increased for presentation value but does not change ProposalCreation, Proposal Detail content, or Signal Engine behavior.
+
+### Desk Decoration
+
+A local Trading Desk Growth purchase that changes the pixel trading room's appearance without affecting Proposals, Orders, Positions, execution, or analyst capability.
+
+### Desk EXP
+
+The flat progression credit awarded for disciplined desk operation, such as reviewing or skipping Proposals, accepting a Proposal into a Synthetic Order, executing or auto-filling an Order, and closing a Position profitably; the local MVP awards only future Proposal review, Proposal skip, and Proposal accept events, previews future signal-engine-connected desk growth, and does not yet change ProposalCreation, execution behavior, trade sizing, trade frequency, or P&L. Desk EXP gains can create local in-app feedback, and Desk EXP spends can create local page-level celebration in the AI Trading Room, but neither creates Notification Center items or implies browser or remote push notifications.
+
 ### Crypto
 
 The supported crypto Proposal universe, selected by the `crypto` market focus: `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`. `SOL` is excluded because Hunch treats it as wallet fee balance, not a recommended Position.

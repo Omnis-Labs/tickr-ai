@@ -15,6 +15,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { usePortfolio } from '@/lib/hooks/queries';
+import { useDeskGrowth } from '@/lib/desk-growth/use-desk-growth';
 import { fmtPct, fmtUsd, num } from '@/lib/utils/fmt';
 import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
@@ -49,6 +50,12 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const persistOrder = usePersistOrder();
   const skipProposal = useSkipProposal();
   const portfolioQuery = usePortfolio();
+  const {
+    state: deskGrowthState,
+    awardProposalReview,
+    awardProposalSkip,
+    awardProposalAccept,
+  } = useDeskGrowth();
   const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [executing, setExecuting] = useState(false);
@@ -69,6 +76,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
 
   useEffect(() => {
     if (!proposal) return;
+    awardProposalReview(proposal.id);
     setSize(proposal.suggestedSizeUsd);
     setTrigger(proposal.suggestedTriggerPrice);
     setTp(proposal.suggestedTakeProfitPrice);
@@ -86,7 +94,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     return () => {
       cancelled = true;
     };
-  }, [proposal?.id, proposal?.ticker]);
+  }, [awardProposalReview, proposal?.id, proposal?.ticker]);
 
   const remainMs = useMemo(() => {
     if (!proposal) return null;
@@ -149,6 +157,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const insufficient = portfolioReady && sizeNum > cashNum;
   const isExpired = remainMs != null && remainMs <= 0;
   const isReadOnly = proposal.status !== 'ACTIVE' || isExpired;
+  const quantOwned = deskGrowthState.analysts.quant.owned;
   const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;
   const orderDisabled = executing || isReadOnly || sizeNum <= 0 || insufficient;
   const skipConfirmDisabled = executing || isReadOnly || skipProposal.isPending || skipNeedsDetail;
@@ -158,14 +167,15 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
       ? 'Save & skip'
       : 'Skip';
 
-  const thesisItems: ThesisItem[] = [
-    {
-      icon: 'trending_up',
-      eyebrow: 'Market move',
-      title: 'What moved',
-      body: proposal.reasoning.what_changed,
-      tone: 'accent',
-    },
+  const marketMoveItem: ThesisItem = {
+    icon: 'trending_up',
+    eyebrow: 'Market move',
+    title: 'What moved',
+    body: proposal.reasoning.what_changed,
+    tone: 'accent',
+  };
+
+  const supportingThesisItems: ThesisItem[] = [
     {
       icon: 'route',
       eyebrow: 'Trade logic',
@@ -229,6 +239,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
             : undefined,
         },
       );
+      awardProposalAccept(proposal!.id);
       onDecision('placed');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -251,6 +262,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     }
     try {
       await skipProposal.mutateAsync(skipArgs);
+      awardProposalSkip(proposal!.id, Boolean(skipReason));
       onDecision('skipped');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -274,26 +286,67 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
           </div>
         )}
 
-        <section className="overflow-hidden rounded-lg bg-accent p-5 text-on-accent shadow-soft">
+        <section
+          className={`overflow-hidden rounded-lg p-5 shadow-soft ${
+            quantOwned ? 'bg-primary text-on-primary' : 'bg-accent text-on-accent'
+          }`}
+        >
           <div className="mb-5 flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="mb-2 flex items-center gap-2">
-                <Badge variant="default" className="border-transparent bg-primary text-on-primary">
+                <Badge
+                  variant="default"
+                  className={`border-transparent ${
+                    quantOwned ? 'bg-accent text-on-accent' : 'bg-primary text-on-primary'
+                  }`}
+                >
                   {proposal.action}
                 </Badge>
-                <span className="text-label-md text-primary/75">
+                <span
+                  className={
+                    quantOwned
+                      ? 'text-label-md text-on-primary/75'
+                      : 'text-label-md text-primary/75'
+                  }
+                >
                   {fmtPct(num(proposal.confidence), { digits: 0 })} confidence
                 </span>
               </div>
-              <h1 className="break-words text-number-xl text-primary">{proposal.ticker}</h1>
-              <p className="mt-1 text-body-md text-primary/75">{meta?.name ?? 'Unknown asset'}</p>
+              <h1
+                className={
+                  quantOwned
+                    ? 'break-words text-number-xl text-on-primary'
+                    : 'break-words text-number-xl text-primary'
+                }
+              >
+                {proposal.ticker}
+              </h1>
+              <p
+                className={
+                  quantOwned
+                    ? 'mt-1 text-body-md text-on-primary/75'
+                    : 'mt-1 text-body-md text-primary/75'
+                }
+              >
+                {meta?.name ?? 'Unknown asset'}
+              </p>
             </div>
-            <div className="shrink-0 rounded-full bg-surface/70 px-3 py-2 text-right text-primary">
+            <div
+              className={`shrink-0 rounded-full px-3 py-2 text-right ${
+                quantOwned ? 'bg-surface/10 text-on-primary' : 'bg-surface/70 text-primary'
+              }`}
+            >
               <div className="text-label-sm">Expires</div>
               <div className="font-mono text-title-md">{exitTtl ?? 'Unknown'}</div>
             </div>
           </div>
-          <p className="max-w-[68ch] text-body-md font-medium leading-6 text-primary">
+          <p
+            className={
+              quantOwned
+                ? 'max-w-[68ch] text-body-md font-medium leading-6 text-on-primary'
+                : 'max-w-[68ch] text-body-md font-medium leading-6 text-primary'
+            }
+          >
             {proposal.rationale}
           </p>
         </section>
@@ -319,13 +372,22 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
           </section>
         )}
 
-        <section className="rounded-lg bg-surface p-5 shadow-soft">
+        <section
+          className={
+            quantOwned
+              ? 'rounded-lg bg-surface-bright p-5 shadow-card ring-1 ring-primary/10'
+              : 'rounded-lg bg-surface p-5 shadow-soft'
+          }
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-title-md text-on-surface">Read the trade</h2>
-            <span className="text-label-sm text-on-surface-variant">3 checks</span>
+            <span className="text-label-sm text-on-surface-variant">
+              {quantOwned ? '3 checks' : '2 checks'}
+            </span>
           </div>
           <div className="flex flex-col gap-4">
-            {thesisItems.map((item) => (
+            {quantOwned ? <ThesisRow item={marketMoveItem} /> : <LockedMarketMoveRow />}
+            {supportingThesisItems.map((item) => (
               <ThesisRow key={item.title} item={item} />
             ))}
           </div>
@@ -492,6 +554,23 @@ function ThesisRow({ item }: { item: ThesisItem }) {
         <div className="text-label-sm text-on-surface-variant">{item.eyebrow}</div>
         <h3 className="mt-0.5 text-title-md text-on-surface">{item.title}</h3>
         <p className="mt-1 text-body-md leading-6 text-on-surface-variant">{item.body}</p>
+      </div>
+    </article>
+  );
+}
+
+function LockedMarketMoveRow() {
+  return (
+    <article className="flex gap-3 rounded-lg bg-surface-container p-3">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface text-primary">
+        <span className="material-symbols-outlined text-[20px]">lock</span>
+      </div>
+      <div className="min-w-0">
+        <div className="text-label-sm text-on-surface-variant">Market move</div>
+        <h3 className="mt-0.5 text-title-md text-on-surface">What moved</h3>
+        <p className="mt-1 text-body-md leading-6 text-on-surface-variant">
+          Recruit Quant Analyst to unlock market-move read.
+        </p>
       </div>
     </article>
   );

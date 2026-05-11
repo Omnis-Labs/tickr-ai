@@ -156,6 +156,63 @@ Prominently displayed when the user's wallet balance is zero. Accessible via a s
 
 ---
 
+## Screen: AI Trading Room
+
+Opened from the signed-in bottom navigation. The AI Trading Room is always available after mandate setup and stores its MVP state in browser localStorage.
+
+### Pixel Room
+
+Shows the user's current Trading Desk Growth state:
+
+| State                   | Visual result                       |
+| ----------------------- | ----------------------------------- |
+| Starter                 | Junior Analyst, desk, monitor       |
+| Quant Analyst recruited | Second analyst appears              |
+| Vending Machine bought  | Vending machine appears in the room |
+| Second Screen bought    | Additional monitor appears          |
+| Wall Chart bought       | Wall chart appears                  |
+| Desk Dog bought         | Dog appears in the room             |
+
+### Desk EXP
+
+MVP awards only future local interactions:
+
+| Event                                  | XP    |
+| -------------------------------------- | ----- |
+| Review Proposal Detail                 | 10 XP |
+| Skip Proposal without feedback         | 10 XP |
+| Skip Proposal with feedback            | 20 XP |
+| Accept Proposal into a Synthetic Order | 30 XP |
+
+Execution fills and profitable closed Positions are future Desk EXP events, not implemented in the local MVP.
+
+Desk EXP gains show in-app success toasts with an Open room action. Desk EXP spends create a page-level confetti celebration in the AI Trading Room. Both are local Desk Growth feedback only; they do not create Notification Center items, browser notifications, title flashing, favicon alerts, or remote push notifications.
+
+### Team
+
+Junior Analyst is owned by default and starts at Level 1. Quant Analyst costs 20 XP to recruit and starts at Level 1. Analyst levels are local presentation state only and cap at Level 4.
+
+Level-up cost is `20 XP × current level`:
+
+| Upgrade | Cost  |
+| ------- | ----- |
+| 1 → 2   | 20 XP |
+| 2 → 3   | 40 XP |
+| 3 → 4   | 60 XP |
+
+### Room Shop
+
+Decorations are visual-only local purchases:
+
+| Decoration      | Cost  |
+| --------------- | ----- |
+| Vending Machine | 10 XP |
+| Second Screen   | 15 XP |
+| Wall Chart      | 25 XP |
+| Desk Dog        | 35 XP |
+
+---
+
 ## Screen: Proposal Detail
 
 Opened by tapping "Review" on a proposal card.
@@ -177,6 +234,8 @@ Opened by tapping "Review" on a proposal card.
 | Ticker + Name    | TSMx · Taiwan Semiconductor |
 | Expiry countdown | Expires in 2h 15m           |
 
+When the Quant Analyst is recruited, Proposal Detail uses a more premium visual presentation while keeping the same underlying Proposal data and action flow.
+
 ### Price Chart
 
 Pyth Benchmarks + Lightweight Charts. Time ranges: 1D | 5D | 1M | 3M.
@@ -194,6 +253,8 @@ Three sections, each concise and specific.
 
 **What Changed**
 The market event or data point that triggered this proposal.
+
+In the Trading Desk Growth MVP, this section is locked until the user recruits the Quant Analyst. The locked row copy is: "Recruit Quant Analyst to unlock market-move read."
 
 **Why This Trade**
 The argument connecting the event to the buy thesis.

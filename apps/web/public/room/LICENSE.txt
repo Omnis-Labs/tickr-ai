@@ -1,0 +1,9 @@
+The AI Trading Room uses curated images from two pixel-art asset packs:
+
+- Pixel Life - Desk Essentials by Chris Perich
+  License: Creative Commons Attribution 4.0 International
+  https://creativecommons.org/licenses/by/4.0/
+
+- Pixel Office Asset Pack by 2dPig
+  License: Creative Commons CC0 1.0 Universal
+  https://creativecommons.org/publicdomain/zero/1.0/

@@ -42,10 +42,11 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 
 - **PWA** (single interface with manifest + service worker, no native app)
 - **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
-- **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
+- **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus AI Trading Room, Landing/Login, and Settings
 - **Synthetic trigger execution**: ws-server watches Pyth, then either auto-executes through Privy signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
 - **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
 - **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to produce Base Market Analysis; shared ProposalCreation turns that into personalized BUY proposals per user mandate
+- **Trading Desk Growth MVP**: local Desk EXP, Junior Analyst, recruitable Quant Analyst, analyst levels, and visual room decorations stored in browser localStorage
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
 - **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
 - **Supported assets**: Jupiter-listed xStocks/tokenized ETFs + crypto (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`)
@@ -67,6 +68,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 | Multi-language                         | English only                                                                                                                                                        |
 | Leaderboard                            | v2                                                                                                                                                                  |
 | External cache layer                   | PostgreSQL plus in-process runtime state only                                                                                                                       |
+| Desk Growth signal-engine effects      | MVP Trading Desk Growth previews the future mechanism but does not change ProposalCreation, proposal quality, trade sizing, execution behavior, or P&L.             |
 
 ---
 
