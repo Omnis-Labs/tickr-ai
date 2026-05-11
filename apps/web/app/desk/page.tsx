@@ -30,18 +30,13 @@ export default function DeskPage() {
 
   return (
     <>
-      <TopAppBar 
-        title="Desk" 
+      <TopAppBar
+        title="Desk"
         leftAction={
           <div className="w-9 h-9 rounded-full bg-surface-container-high overflow-hidden" />
         }
-        rightAction={
-          <button aria-label="Notifications" className="w-11 h-11 rounded-full bg-surface flex items-center justify-center text-primary shadow-sm">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
-        }
       />
-      
+
       <main className="px-5 py-6 pb-24 max-w-md mx-auto">
         {portfolioError && (
           <div className="bg-negative-container text-negative p-3 rounded-md mb-4 text-sm flex items-center gap-2">

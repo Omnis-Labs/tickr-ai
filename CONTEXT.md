@@ -26,6 +26,10 @@ Two entrypoints: `resolveSession(req)` for API routes (Bearer token), `resolveSe
 
 A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning; expiry follows the mandate-based lifetime and is not shortened by exchange close.
 
+### Signal
+
+A legacy v1.2 user-facing product object that Hunch is removing during current development. Signals are not reviewable, executable, persisted, or emitted as a browser event; users review Proposals instead. Keep "Signal" terminology only for internal market-data language such as Signal Engine and Signal Data Freshness.
+
 ### Tradable Asset
 
 The canonical asset a user can trade through Hunch, identified by an asset id such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`; equity names without the `x` suffix are not valid Hunch asset identifiers.
@@ -97,6 +101,10 @@ The user-visible valuation snapshot shared by Desk and Portfolio. It combines wa
 ### Trade
 
 A historical row recording a fill. Always paired with an `Order` and a `Position`. `source` is one of `BUY_APPROVAL | TP_FILL | SL_FILL | USER_CLOSE`.
+
+### Notification Center
+
+The durable in-app inbox for a User's production Hunch events, shown from every signed-in surface; it stores read/unread state but does not imply remote push delivery.
 
 ### trigger:hit
 
