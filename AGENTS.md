@@ -33,6 +33,7 @@ Keep agent work simple, explicit, and reviewable. These rules bias toward cautio
 - For bugs, reproduce the failure or identify the expected behavior before fixing.
 - For risky changes, state a short plan with the check for each step.
 - Run the relevant checks, and report any checks you could not run.
+- Dev servers are for verification only. Unless the user explicitly asks to keep one running, stop any dev server you start before finishing the turn.
 
 ### Keep commits focused
 
