@@ -78,10 +78,10 @@ docker compose up --build -d
 docker compose down            # to stop
 ```
 
-**B. `pnpm dev` with hot reload** _(recommended for coding)_ — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, and runs `prisma generate` for you.
+**B. `pnpm dev` with hot reload** _(recommended for coding)_ — postgres runs in Docker, apps run on the host with hot reload. `pnpm dev` boots your container runtime, brings postgres up, applies existing migrations, and runs `prisma generate` for you.
 
 ```bash
-pnpm dev                       # syncs .env → auto-starts OrbStack/Docker → postgres → prisma generate → web + ws-server
+pnpm dev                       # syncs .env → auto-starts OrbStack/Docker → postgres → migrations → prisma generate → web + ws-server
 # Stop: Ctrl+C, then `pnpm db:down` if you also want to stop postgres
 ```
 
@@ -110,13 +110,13 @@ hunch-it/
 
 | Command                  | Description                                                                               |
 | ------------------------ | ----------------------------------------------------------------------------------------- |
-| `pnpm dev`               | Sync root `.env`, auto-start docker postgres, generate Prisma client, run web + ws-server |
+| `pnpm dev`               | Sync root `.env`, auto-start docker postgres, apply migrations, generate Prisma client, run web + ws-server |
 | `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)                   |
 | `pnpm dev:web`           | Run the Next.js app only                                                                  |
 | `pnpm dev:ws`            | Run the ws-server only                                                                    |
 | `pnpm build`             | Build all workspaces                                                                      |
 | `pnpm typecheck`         | Type-check all workspaces                                                                 |
-| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy)                           |
+| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy, apply migrations, generate Prisma client) |
 | `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)                       |
 | `pnpm db:generate`       | Generate the Prisma client                                                                |
 | `pnpm db:push`           | Push the Prisma schema to the database                                                    |

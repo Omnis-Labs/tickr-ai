@@ -36,6 +36,14 @@ warn() { printf '%s[dev-up]%s %s%s%s\n' "$DIM" "$RESET" "$YELLOW" "$*" "$RESET";
 fail() { printf '%s[dev-up]%s %s%s%s\n' "$DIM" "$RESET" "$RED" "$*" "$RESET" >&2; }
 
 CONTAINER=hunch-postgres
+ROOT_ENV=".env"
+
+if [[ -f "$ROOT_ENV" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ROOT_ENV"
+  set +a
+fi
 
 # ── 1. Docker reachable? ────────────────────────────────────────────────────
 if ! docker info >/dev/null 2>&1; then
