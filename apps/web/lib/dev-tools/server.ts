@@ -18,7 +18,7 @@ import { getCurrentPriceSnapshots, getCurrentPrices } from '@/lib/pyth';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { devToolsPassword } from './auth';
 
-export const GEMINI_DEV_TOOLS_MODEL = 'gemini-3.1-flash-lite-preview';
+export const GEMINI_DEV_TOOLS_MODEL = 'gemini-3.1-flash-lite';
 
 export class ActiveDevToolsProposalError extends Error {
   constructor(public proposalId: string) {

@@ -7,9 +7,9 @@ import {
 import { env } from '../env.js';
 import type { IndicatorResult } from './indicators.js';
 
-export const GEMINI_SIGNAL_MODEL = 'gemini-3.1-flash-lite-preview';
+export const GEMINI_SIGNAL_MODEL = 'gemini-3.1-flash-lite';
 
-// Keep the cost guard conservative. Gemini preview prices can move, but
+// Keep the cost guard conservative. Gemini prices can move, but
 // this estimate is good enough for a daily cap and is surfaced in logs.
 const GEMINI_INPUT_PER_MTOK = 0.25;
 const GEMINI_OUTPUT_PER_MTOK = 1.5;
