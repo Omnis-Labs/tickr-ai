@@ -1,19 +1,6 @@
 # Fundamental Analysis Agent
 
 Browser Agent · SEC 10-K Extractor · Fundamentals-driven Strategy Lab.
-Implemented, deployed, and live.
-
-| Live URL | Purpose |
-|---|---|
-| **https://whaleforce-llm-test.vercel.app/task1** | Task 1 — Browser Agent (submit any NL task, watch the state machine run) |
-| **https://whaleforce-llm-test.vercel.app/task2** | Task 2 — SEC 10-K Item Extractor (paste an EDGAR URL, **or** a ticker, **or** a free-text query like `"微軟 年報"`) |
-| **https://whaleforce-llm-test.vercel.app/dashboard** | Eval pass rates, cost ledger, capability matrices for both tasks |
-| **https://whaleforce-llm-test.vercel.app/jobs/{job_id}** | Failure inspector — screenshots, DOM snapshots, step trace, eval metadata |
-| **https://whaleforce-llm-test-production.up.railway.app/task1/health** | Backend health probe |
-
-> The deployed frontends accept arbitrary input — submit anything you like
-> to any of the forms.
-
 ---
 
 ## 📖 Documents worth reading first
