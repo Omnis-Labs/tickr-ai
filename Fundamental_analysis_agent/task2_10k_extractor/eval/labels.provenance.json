@@ -1,0 +1,6 @@
+{
+  "source": "synthetic (auto-bootstrapped from eval baseline)",
+  "generator": "task2_10k_extractor.eval.bootstrap_calibration",
+  "generated_at": "2026-05-23T22:09:53.676666+00:00",
+  "caveat": "NOT HUMAN-LABELLED. Replace with hand-graded data before using calibrated confidence as a probability in production decisions."
+}

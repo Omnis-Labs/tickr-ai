@@ -1,0 +1,901 @@
+{
+  "summary": {
+    "n_total": 25,
+    "n_resolve_error": 0,
+    "n_pipeline_error": 0,
+    "n_ok": 25,
+    "n_pass": 0,
+    "n_quarantined": 8,
+    "pass_rate": 0.0,
+    "quarantine_rate": 0.32,
+    "required_missing_counts": {
+      "3": 1,
+      "7": 1,
+      "15": 1
+    },
+    "required_short_counts": {
+      "2": 14,
+      "9": 25,
+      "10": 14,
+      "11": 25,
+      "12": 23,
+      "13": 25,
+      "14": 23,
+      "3": 12,
+      "5": 6,
+      "8": 7,
+      "7A": 10,
+      "1": 2,
+      "15": 5,
+      "9A": 6,
+      "1A": 1,
+      "7": 2
+    },
+    "mean_overall_conf_ok": 0.525,
+    "total_cost_usd": 0.7188,
+    "passed_tickers": [],
+    "quarantined_tickers": [
+      "C",
+      "CVX",
+      "DIS",
+      "INTC",
+      "JPM",
+      "PFE",
+      "WFC",
+      "XOM"
+    ],
+    "failed_tickers": []
+  },
+  "results": [
+    {
+      "ticker": "AAPL",
+      "status": "ok",
+      "error": null,
+      "cik": 320193,
+      "fiscal_year": 2025,
+      "accession": "0000320193-25-000079",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0184,
+      "duration_ms": 21078,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "MSFT",
+      "status": "ok",
+      "error": null,
+      "cik": 789019,
+      "fiscal_year": 2025,
+      "accession": "0000950170-25-100235",
+      "items_found": 23,
+      "overall_confidence": 0.944,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0,
+      "duration_ms": 3857,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "9",
+        "11",
+        "12",
+        "13"
+      ]
+    },
+    {
+      "ticker": "GOOGL",
+      "status": "ok",
+      "error": null,
+      "cik": 1652044,
+      "fiscal_year": 2025,
+      "accession": "0001652044-26-000018",
+      "items_found": 23,
+      "overall_confidence": 0.503,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0198,
+      "duration_ms": 23418,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "3",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "AMZN",
+      "status": "ok",
+      "error": null,
+      "cik": 1018724,
+      "fiscal_year": 2025,
+      "accession": "0001018724-26-000004",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0239,
+      "duration_ms": 23068,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "5",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "META",
+      "status": "ok",
+      "error": null,
+      "cik": 1326801,
+      "fiscal_year": 2025,
+      "accession": "0001628280-26-003942",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0349,
+      "duration_ms": 47668,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "NVDA",
+      "status": "ok",
+      "error": null,
+      "cik": 1045810,
+      "fiscal_year": 2026,
+      "accession": "0001045810-26-000021",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0198,
+      "duration_ms": 20194,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "3",
+        "8",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "TSLA",
+      "status": "ok",
+      "error": null,
+      "cik": 1318605,
+      "fiscal_year": 2025,
+      "accession": "0001628280-26-003952",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0203,
+      "duration_ms": 19871,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "7A",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "INTC",
+      "status": "ok",
+      "error": null,
+      "cik": 50863,
+      "fiscal_year": 2025,
+      "accession": "0000050863-26-000011",
+      "items_found": 23,
+      "overall_confidence": 0.495,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0634,
+      "duration_ms": 75967,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "4 item(s) out of canonical order",
+        "2 required item(s) below expected min length",
+        "core item 1 (Business) truncated \u2014 221 < 2000 chars",
+        "core item 8 (Financial Statements) truncated \u2014 73 < 2000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "1",
+        "5",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ]
+    },
+    {
+      "ticker": "C",
+      "status": "ok",
+      "error": null,
+      "cik": 831001,
+      "fiscal_year": 2025,
+      "accession": "0000831001-26-000011",
+      "items_found": 19,
+      "overall_confidence": 0.474,
+      "quarantined": true,
+      "coverage_ratio": 0.812,
+      "cost_usd": 0.0602,
+      "duration_ms": 80660,
+      "method_summary": {
+        "L1": 18,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order",
+        "1 required item(s) below expected min length",
+        "core item 1 (Business) truncated \u2014 81 < 2000 chars",
+        "core item 7 (MD&A) missing"
+      ],
+      "required_missing": [
+        "3",
+        "7",
+        "15"
+      ],
+      "required_short": [
+        "1",
+        "2",
+        "5",
+        "7A",
+        "9",
+        "9A",
+        "10",
+        "11",
+        "12",
+        "13"
+      ]
+    },
+    {
+      "ticker": "JPM",
+      "status": "ok",
+      "error": null,
+      "cik": 19617,
+      "fiscal_year": 2025,
+      "accession": "0001628280-26-008131",
+      "items_found": 22,
+      "overall_confidence": 0.513,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0246,
+      "duration_ms": 29523,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order",
+        "2 required item(s) below expected min length",
+        "core item 7 (MD&A) truncated \u2014 1147 < 5000 chars",
+        "core item 8 (Financial Statements) truncated \u2014 59 < 2000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "7A",
+        "8",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "BAC",
+      "status": "ok",
+      "error": null,
+      "cik": 70858,
+      "fiscal_year": 2025,
+      "accession": "0000070858-26-000157",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0249,
+      "duration_ms": 29839,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "3",
+        "7A",
+        "9",
+        "9A",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "WFC",
+      "status": "ok",
+      "error": null,
+      "cik": 72971,
+      "fiscal_year": 2025,
+      "accession": "0000072971-26-000133",
+      "items_found": 23,
+      "overall_confidence": 0.518,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0323,
+      "duration_ms": 40968,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "3 required item(s) below expected min length",
+        "core item 1A (Risk Factors) truncated \u2014 255 < 5000 chars",
+        "core item 7 (MD&A) truncated \u2014 289 < 5000 chars",
+        "core item 8 (Financial Statements) truncated \u2014 321 < 2000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "1A",
+        "3",
+        "7",
+        "7A",
+        "8",
+        "9",
+        "9A",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "JNJ",
+      "status": "ok",
+      "error": null,
+      "cik": 200406,
+      "fiscal_year": 2025,
+      "accession": "0000200406-26-000016",
+      "items_found": 23,
+      "overall_confidence": 0.503,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0388,
+      "duration_ms": 54437,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "7A",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ]
+    },
+    {
+      "ticker": "PFE",
+      "status": "ok",
+      "error": null,
+      "cik": 78003,
+      "fiscal_year": 2025,
+      "accession": "0000078003-26-000026",
+      "items_found": 23,
+      "overall_confidence": 0.501,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0561,
+      "duration_ms": 74108,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order",
+        "2 required item(s) below expected min length",
+        "core item 7 (MD&A) truncated \u2014 99 < 5000 chars",
+        "core item 8 (Financial Statements) truncated \u2014 99 < 2000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "7",
+        "7A",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ]
+    },
+    {
+      "ticker": "MRK",
+      "status": "ok",
+      "error": null,
+      "cik": 310158,
+      "fiscal_year": 2025,
+      "accession": "0000310158-26-000063",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0253,
+      "duration_ms": 24111,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "3",
+        "7A",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "XOM",
+      "status": "ok",
+      "error": null,
+      "cik": 34088,
+      "fiscal_year": 2025,
+      "accession": "0000034088-26-000045",
+      "items_found": 22,
+      "overall_confidence": 0.502,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0222,
+      "duration_ms": 23509,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order",
+        "1 required item(s) below expected min length",
+        "core item 7 (MD&A) truncated \u2014 1572 < 5000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "5",
+        "9",
+        "10",
+        "11",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "CVX",
+      "status": "ok",
+      "error": null,
+      "cik": 93410,
+      "fiscal_year": 2025,
+      "accession": "0000093410-26-000078",
+      "items_found": 23,
+      "overall_confidence": 0.502,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0439,
+      "duration_ms": 56907,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "3 item(s) out of canonical order",
+        "1 required item(s) below expected min length",
+        "core item 7 (MD&A) truncated \u2014 872 < 5000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "5",
+        "7A",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "WMT",
+      "status": "ok",
+      "error": null,
+      "cik": 104169,
+      "fiscal_year": 2026,
+      "accession": "0000104169-26-000055",
+      "items_found": 23,
+      "overall_confidence": 0.497,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0343,
+      "duration_ms": 43604,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "4 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ]
+    },
+    {
+      "ticker": "COST",
+      "status": "ok",
+      "error": null,
+      "cik": 909832,
+      "fiscal_year": 2025,
+      "accession": "0000909832-25-000101",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0166,
+      "duration_ms": 22792,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "HD",
+      "status": "ok",
+      "error": null,
+      "cik": 354950,
+      "fiscal_year": 2026,
+      "accession": "0001628280-26-019436",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0309,
+      "duration_ms": 40703,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "9",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "DIS",
+      "status": "ok",
+      "error": null,
+      "cik": 1744489,
+      "fiscal_year": 2025,
+      "accession": "0001744489-25-000155",
+      "items_found": 23,
+      "overall_confidence": 0.514,
+      "quarantined": true,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.023,
+      "duration_ms": 24383,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order",
+        "1 required item(s) below expected min length",
+        "core item 8 (Financial Statements) truncated \u2014 58 < 2000 chars"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "8",
+        "9",
+        "9A",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "NFLX",
+      "status": "ok",
+      "error": null,
+      "cik": 1065280,
+      "fiscal_year": 2025,
+      "accession": "0001065280-26-000034",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.022,
+      "duration_ms": 23944,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "2",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ]
+    },
+    {
+      "ticker": "BA",
+      "status": "ok",
+      "error": null,
+      "cik": 12927,
+      "fiscal_year": 2025,
+      "accession": "0001628280-26-004357",
+      "items_found": 23,
+      "overall_confidence": 0.509,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0188,
+      "duration_ms": 17247,
+      "method_summary": {
+        "L1": 22,
+        "L2": 0,
+        "L3": 1
+      },
+      "quarantine_reasons": [
+        "2 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "5",
+        "9",
+        "11",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "CAT",
+      "status": "ok",
+      "error": null,
+      "cik": 18230,
+      "fiscal_year": 2025,
+      "accession": "0000018230-26-000008",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0236,
+      "duration_ms": 23120,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "3",
+        "7A",
+        "9",
+        "9A",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    },
+    {
+      "ticker": "KO",
+      "status": "ok",
+      "error": null,
+      "cik": 21344,
+      "fiscal_year": 2025,
+      "accession": "0001628280-26-010047",
+      "items_found": 23,
+      "overall_confidence": 0.515,
+      "quarantined": false,
+      "coverage_ratio": 1.0,
+      "cost_usd": 0.0208,
+      "duration_ms": 22503,
+      "method_summary": {
+        "L1": 23,
+        "L2": 0,
+        "L3": 0
+      },
+      "quarantine_reasons": [
+        "1 item(s) out of canonical order"
+      ],
+      "required_missing": [],
+      "required_short": [
+        "9",
+        "9A",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14"
+      ]
+    }
+  ]
+}

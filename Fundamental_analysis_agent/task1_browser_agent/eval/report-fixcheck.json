@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-05-21T16:24:33.152506+00:00",
+  "metrics": {
+    "n_cases": 0,
+    "n_pass": 0,
+    "n_infra_error": 0,
+    "pass_rate": 0.0,
+    "pass_rate_ex_infra": 0.0,
+    "cost_p50": 0.0,
+    "cost_p95": 0.0,
+    "duration_p50_ms": 0.0,
+    "duration_p95_ms": 0.0,
+    "recovery_rate": 0.0,
+    "by_category": {}
+  },
+  "cases": []
+}

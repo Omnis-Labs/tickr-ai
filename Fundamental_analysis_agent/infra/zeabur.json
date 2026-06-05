@@ -1,0 +1,22 @@
+{
+  "name": "whaleforce-backend",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "infra/Dockerfile"
+  },
+  "start": {
+    "command": "uvicorn task1_browser_agent.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+  },
+  "healthcheck": {
+    "path": "/task1/health",
+    "intervalSeconds": 30,
+    "timeoutSeconds": 5
+  },
+  "ports": [
+    {
+      "id": "web",
+      "port": 8000,
+      "type": "http"
+    }
+  ]
+}

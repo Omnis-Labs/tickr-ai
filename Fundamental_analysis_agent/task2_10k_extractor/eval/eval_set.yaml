@@ -1,0 +1,342 @@
+cases:
+- id: aapl-2023
+  industry: tech
+  company: AAPL
+  fiscal_year: 2023
+  url: https://www.sec.gov/Archives/edgar/data/320193/000032019323000106/aapl-20230930.htm
+  assertions:
+    min_items_found: 16
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.85
+    max_quarantined: false
+    max_cost_usd: 0.05
+    max_duration_ms: 15000
+    item_contains:
+      1A: business, reputation
+      '7': financial statements
+    expected_method:
+      1A: L1
+      '7': L1
+- id: msft-2023
+  industry: tech
+  company: MSFT
+  fiscal_year: 2023
+  url: https://www.sec.gov/Archives/edgar/data/789019/000095017023035122/msft-20230630.htm
+  assertions:
+    min_items_found: 16
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.85
+    max_quarantined: false
+    max_cost_usd: 0.05
+    max_duration_ms: 15000
+    expected_method:
+      1A: L1
+      '7': L1
+- id: invalid-url-graceful-fail
+  industry: synthetic
+  company: N/A
+  fiscal_year: 2023
+  url: https://www.sec.gov/Archives/edgar/data/0/0/this-does-not-exist.htm
+  assertions:
+    expect_failed: true
+    max_duration_ms: 30000
+- id: aapl-2025
+  industry: tech
+  company: AAPL
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm
+  filed_date: '2025-10-31'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: msft-2025
+  industry: tech
+  company: MSFT
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/789019/000095017025100235/msft-20250630.htm
+  filed_date: '2025-07-30'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: goog-2025
+  industry: tech
+  company: GOOG
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm
+  filed_date: '2026-02-05'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: meta-2025
+  industry: tech
+  company: META
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-20251231.htm
+  filed_date: '2026-01-29'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: jpm-2025
+  industry: bank
+  company: JPM
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm
+  filed_date: '2026-02-13'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: bac-2025
+  industry: bank
+  company: BAC
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/70858/000007085826000157/bac-20251231.htm
+  filed_date: '2026-02-25'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: xom-2025
+  industry: energy
+  company: XOM
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/34088/000003408826000045/xom-20251231.htm
+  filed_date: '2026-02-18'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: cvx-2025
+  industry: energy
+  company: CVX
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/93410/000009341026000078/cvx-20251231.htm
+  filed_date: '2026-02-24'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: wmt-2026
+  industry: retail
+  company: WMT
+  fiscal_year: 2026
+  url: https://www.sec.gov/Archives/edgar/data/104169/000010416926000055/wmt-20260131.htm
+  filed_date: '2026-03-13'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: tgt-2026
+  industry: retail
+  company: TGT
+  fiscal_year: 2026
+  url: https://www.sec.gov/Archives/edgar/data/27419/000002741926000016/tgt-20260131.htm
+  filed_date: '2026-03-11'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: pfe-2025
+  industry: pharma
+  company: PFE
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/78003/000007800326000026/pfe-20251231.htm
+  filed_date: '2026-02-26'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: jnj-2025
+  industry: pharma
+  company: JNJ
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/200406/000020040626000016/jnj-20251228.htm
+  filed_date: '2026-02-11'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: spg-2025
+  industry: reit
+  company: SPG
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/1040971/000162828026008669/slg-20251231.htm
+  filed_date: '2026-02-17'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: ba-2025
+  industry: industrial
+  company: BA
+  fiscal_year: 2025
+  url: https://www.sec.gov/Archives/edgar/data/12927/000162828026004357/ba-20251231.htm
+  filed_date: '2026-01-30'
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: aapl-2015
+  industry: tech
+  company: AAPL
+  fiscal_year: 2015
+  url: https://www.sec.gov/Archives/edgar/data/320193/000119312515356351/d17062d10k.htm
+  filed_date: '2015-10-28'
+  note: Pre-iXBRL era; tests L1 on plain HTML 10-K
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: msft-2015
+  industry: tech
+  company: MSFT
+  fiscal_year: 2015
+  url: https://www.sec.gov/Archives/edgar/data/789019/000119312515272806/d918813d10k.htm
+  filed_date: '2015-07-31'
+  note: Pre-iXBRL era; same filer different year tests temporal stability
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.5
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000
+- id: jpm-2015
+  industry: bank
+  company: JPM
+  fiscal_year: 2015
+  url: https://www.sec.gov/Archives/edgar/data/19617/000001961716000902/corp10k2015.htm
+  filed_date: '2016-02-23'
+  note: Pre-iXBRL bank filing; mostly references-by-reference for 10-14
+  assertions:
+    min_items_found: 14
+    required_item_ids:
+    - '1'
+    - 1A
+    - '7'
+    - '8'
+    min_overall_confidence: 0.4
+    max_quarantined: false
+    max_cost_usd: 0.1
+    max_duration_ms: 30000

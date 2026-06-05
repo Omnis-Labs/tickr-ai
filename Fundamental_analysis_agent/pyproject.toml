@@ -1,0 +1,65 @@
+[project]
+name = "fundamental-analysis-agent"
+version = "0.1.0"
+description = "Fundamental Analysis Agent — browser agent + SEC 10-K extractor + fundamentals-driven strategy lab"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "sse-starlette>=2.1",
+    "anthropic>=0.39",
+    "openai>=1.54",
+    "google-genai>=0.3",
+    "playwright>=1.48",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.3",
+    "httpx>=0.27",
+    "sqlalchemy>=2.0",
+    "aiosqlite>=0.20",
+    "asyncpg>=0.30",
+    "alembic>=1.13",
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "structlog>=24.4",
+    "tenacity>=9.0",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    "yfinance>=0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "httpx>=0.27",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy"]
