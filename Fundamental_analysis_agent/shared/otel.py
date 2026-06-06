@@ -49,7 +49,7 @@ def setup_otel(app=None) -> bool:
 
         resource = Resource.create(
             {
-                "service.name": "whaleforce-llm-test",
+                "service.name": "fundamental-analysis-agent",
                 "service.version": "0.2.0",
                 "deployment.environment": "dev" if settings.log_format == "text" else "prod",
             }
@@ -95,7 +95,7 @@ def setup_otel(app=None) -> bool:
         return False
 
 
-def get_tracer(name: str = "whaleforce"):
+def get_tracer(name: str = "fundamental-analysis"):
     """Return a no-op tracer when OTel is disabled — callers don't branch."""
     try:
         from opentelemetry import trace

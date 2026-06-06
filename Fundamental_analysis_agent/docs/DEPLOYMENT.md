@@ -71,7 +71,7 @@ cd web
 vercel login
 vercel link
 vercel env add NEXT_PUBLIC_API_URL
-# Paste your Railway / Zeabur backend URL, e.g. https://whaleforce.up.railway.app
+# Paste your Railway / Zeabur backend URL, e.g. https://your-backend.example.com
 vercel --prod
 ```
 
@@ -115,7 +115,7 @@ particular ways across browsers.
 ## 6. Cost & rate-limit considerations
 
 - **Gemini free tier** handles the dev eval cost ($0.60 across hundreds of
-  calls). The interview demo cost is bounded by the per-task budget
+  calls). The demo cost is bounded by the per-task budget
   (`TASK1_BUDGET_USD`, default $0.20) and the global daily cap
   (`GLOBAL_DAILY_BUDGET_USD`, default $10).
 - **SEC EDGAR** publishes a 10-req/sec rate limit for unauthenticated

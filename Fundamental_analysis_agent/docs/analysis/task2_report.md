@@ -202,7 +202,7 @@ pipeline automatically picks it up on next run.
 All numbers above (95 % pass, mean confidence 0.896) are from the 20-case
 curated eval. That set was chosen for industry diversity **and the heading
 thresholds, gap-based picker, and Platt calibration were tuned against it.**
-After interviewer feedback (2026-06-04) that pasting INTC and Citi produced
+After reviewer feedback (2026-06-04) that pasting INTC and Citi produced
 failures the curated number didn't predict, we ran a 25-ticker real-world
 sweep of untuned large-cap filers ([`tools/sweep_random_tickers.py`](../../tools/sweep_random_tickers.py),
 full writeup [`real_world_sweep.md`](real_world_sweep.md)). What real users get:

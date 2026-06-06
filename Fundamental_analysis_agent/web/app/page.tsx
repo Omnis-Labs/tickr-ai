@@ -3,7 +3,7 @@ export default function HomePage() {
     <div className="space-y-10">
       <section>
         <h1 className="text-3xl font-semibold mb-2">
-          US-stock — LLM Engineer Coding Test
+          US-stock — Fundamental Analysis Agent
         </h1>
         <p className="text-zinc-400 text-sm leading-relaxed max-w-3xl">
           Two systems, one repo. Production-grade discipline applied throughout:
@@ -108,7 +108,7 @@ export default function HomePage() {
         <p>
           Full design in{" "}
           <a
-            href="https://github.com/ChiShengChen/whaleforce-llm-test/blob/main/PLAN.md"
+            href="https://github.com/Omnis-Labs/hunch-it/blob/main/Fundamental_analysis_agent/PLAN.md"
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-300 hover:text-zinc-100 underline"
@@ -118,7 +118,7 @@ export default function HomePage() {
           {" · "}
           ADRs in{" "}
           <a
-            href="https://github.com/ChiShengChen/whaleforce-llm-test/tree/main/docs/adr"
+            href="https://github.com/Omnis-Labs/hunch-it/tree/main/Fundamental_analysis_agent/docs/adr"
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-300 hover:text-zinc-100 underline"
@@ -128,7 +128,7 @@ export default function HomePage() {
           {" · "}
           Per-task analysis in{" "}
           <a
-            href="https://github.com/ChiShengChen/whaleforce-llm-test/tree/main/docs/analysis"
+            href="https://github.com/Omnis-Labs/hunch-it/tree/main/Fundamental_analysis_agent/docs/analysis"
             target="_blank"
             rel="noopener noreferrer"
             className="text-zinc-300 hover:text-zinc-100 underline"

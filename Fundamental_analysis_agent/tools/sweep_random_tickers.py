@@ -4,7 +4,7 @@ Pulls a stratified sample of S&P 500 + mid-cap tickers, fetches each
 filer's most recent 10-K via EDGAR submissions API, runs the full pipeline,
 and emits a JSON report with per-filer + aggregate failure mode breakdown.
 
-This is the harness referenced by the interviewer feedback re: "ensure docs
+This is the harness referenced by the reviewer feedback re: "ensure docs
 describe actual system behavior". Numbers here are what real users see.
 """
 
@@ -36,7 +36,7 @@ from task2_10k_extractor.pipeline.orchestrator import run_pipeline
 SAMPLE = [
     # Mega-cap tech (typically well-structured)
     "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    # Known-fail regressions from interviewer feedback
+    # Known-fail regressions from reviewer feedback
     "INTC", "C",
     # Other large-caps from diverse industries
     "JPM", "BAC", "WFC",  # banks (often complex iXBRL)

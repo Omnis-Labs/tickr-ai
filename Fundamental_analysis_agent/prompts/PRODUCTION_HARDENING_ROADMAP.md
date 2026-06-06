@@ -1,7 +1,7 @@
 # Production Hardening Roadmap
-## Whaleforce LLM Test → Quant-Firm Production System
+## Fundamental Analysis Agent → Quant-Firm Production System
 
-> This document is a working spec for taking the current interview deliverable
+> This document is a working spec for taking the current initial deliverable
 > (a deployed two-task system covering browser automation and SEC 10-K
 > extraction) to a state where a professional quantitative finance firm could
 > reasonably adopt it for internal research workflows.
@@ -15,13 +15,13 @@ checkbox here.
 
 ## 0. Context
 
-The current system was built to pass an LLM Engineer coding test. It scores
+The current system was built to pass an engineering project. It scores
 well on the rubric (eval discipline, layered fallbacks, calibrated confidence,
 cost attribution, honest failure modes), and it is publicly deployed at
-`https://whaleforce-llm-test.vercel.app` with a Railway backend and a Supabase
+`https://your-deployment.example.com` with a Railway backend and a Supabase
 data layer.
 
-But "good interview deliverable" and "system a quant firm pays to use" are
+But "good initial deliverable" and "system a quant firm pays to use" are
 two different bars. The eight-week plan below closes the delta on the
 dimensions a buying quant team will actually evaluate:
 
@@ -195,7 +195,7 @@ isolation and independent cost caps.
   - Add `tenant_id` column to every existing table (`api_keys`, `audit_log`,
     `cost_ledger`, `selector_history`, `task1_jobs`, `task2_jobs`,
     `task1_steps`).
-  - Backfill an `"interview-demo"` tenant for all existing rows.
+  - Backfill an `"demo"` tenant for all existing rows.
   - **Acceptance:** Schema dump shows `tenant_id` on every domain table.
 
 - [ ] **PR-302: Row-level security in Postgres**
@@ -288,7 +288,7 @@ results via webhook the next morning, without writing custom orchestration.
     payload arrives with correct signature.
 
 - [ ] **PR-503: Python SDK**
-  - `pip install whaleforce-extractor` — auto-generated from the FastAPI
+  - `pip install fundamental-extractor` — auto-generated from the FastAPI
     OpenAPI spec via `openapi-python-client`.
   - Published to TestPyPI initially.
   - **Acceptance:** SDK example script runs end-to-end with a real API key.
@@ -332,7 +332,7 @@ within 60 seconds and has the data to diagnose within 5 minutes.
   - Publish a public StatusPage.io page (free tier) showing API
     availability and Task 1/Task 2 success rate.
   - Configure StatusPage to read from Honeycomb's SLI metrics.
-  - **Acceptance:** Status page is live at `status.whaleforce-test.dev`.
+  - **Acceptance:** Status page is live at `status.example.com`.
 
 - [ ] **PR-604: Incident response runbook**
   - For each PagerDuty alert, a `docs/runbooks/<alert>.md` describes:

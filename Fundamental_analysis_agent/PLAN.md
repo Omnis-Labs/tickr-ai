@@ -1,4 +1,4 @@
-# Whaleforce LLM Engineer 面試 — 系統規劃
+# Fundamental Analysis Agent — 系統規劃
 
 > 目標：以**量化公司 production-grade** 紀律完成兩題（Task 1 瀏覽器 Agent + Task 2 SEC 10-K 抽取），爭取 A 級評分。
 >
@@ -75,11 +75,11 @@
 ### 1.2 目錄結構（最終形態）
 
 ```
-whaleforce-llm-test/
+fundamental-analysis-agent/
 ├── PLAN.md                       # 本檔
 ├── README.md                     # 部署入口、URL、how to run（實作階段補）
 ├── docs/
-│   ├── spec/                     # 面試題目原文
+│   ├── spec/                     # 規格原文
 │   ├── adr/                      # Architectural Decision Records
 │   └── analysis/
 │       ├── task1_report.md       # 效能/成本/擴充性/正確性分析
@@ -330,7 +330,7 @@ class ExtractedItem(BaseModel):
 | `/` | 兩題入口 + 各自 supported / unsupported 矩陣 |
 | `/task1` | 任務輸入 + 即時進度（SSE step-by-step + screenshot 縮圖）+ 失敗 inspector（DOM diff、recovery trace） |
 | `/task2` | Filing 上傳 / EDGAR URL 輸入 + item 結果樹狀展開 + confidence 顯示 + 原文 highlight |
-| `/dashboard` | Eval metrics、cost、latency、success rate 圖表 — **給面試官看分析報告用，至關重要** |
+| `/dashboard` | Eval metrics、cost、latency、success rate 圖表 — **給評審看分析報告用，至關重要** |
 
 ---
 
@@ -363,7 +363,7 @@ class ExtractedItem(BaseModel):
 
 ---
 
-## 10. 面試 Demo 必須直接秀的 5 件事
+## 10. Demo 必須直接秀的 5 件事
 
 1. **Dashboard 一頁有所有 metric**：success rate, cost p50/p95, latency, ECE, cache hit rate
 2. **Failure inspector**：點一個 failed task → 看到 DOM snapshot + LLM diagnose 過程 + recovery 嘗試

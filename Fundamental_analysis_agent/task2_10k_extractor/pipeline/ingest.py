@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 
 # SEC's policy says: "Sample Company Name AdminContact@<sample company domain>.com"
 # Replace with your real contact in production.
-SEC_USER_AGENT = "Whaleforce Interview Project chenchisheng (research, contact: chenchisheng@example.com)"
+SEC_USER_AGENT = "Fundamental Analysis Agent (research, contact: research@example.com)"
 
 EDGAR_HOST_HINT = "sec.gov"
 

@@ -28,7 +28,7 @@ import yaml
 from shared.config import get_settings
 
 # Same SEC-compliant UA as ingest.py — EDGAR rate-limits anonymous scrapers.
-SEC_UA = "Whaleforce Interview Project (research, contact: chenchisheng@example.com)"
+SEC_UA = "Fundamental Analysis Agent (research, contact: research@example.com)"
 
 _SEC_HEADERS = {"User-Agent": SEC_UA, "Accept": "application/json"}
 
@@ -272,7 +272,7 @@ def _pick_10k_filing(
 
     Note: EDGAR's `filings.recent` only contains the last ~1000 filings or
     one rolling year, whichever is larger. Older 10-Ks live under
-    `filings.files[].name` and need a separate fetch. For interview-scale
+    `filings.files[].name` and need a separate fetch. For demo-scale
     eval (recent filings only), `recent` is sufficient.
     """
     recent = submissions.get("filings", {}).get("recent", {})

@@ -65,7 +65,7 @@ PLAN → LOCATE → ACT → VERIFY → DONE / REPLAN / ESCALATE
 - **More code than ReAct.** ~5 small modules instead of one loop. Worth it
   for the testability and observability gain.
 - **Less adaptive on truly novel sites.** A free-form ReAct loop will sometimes
-  improvise on weird pages where our state machine ESCALATEs. For an interview
+  improvise on weird pages where our state machine ESCALATEs. For an review
   project we accept this; in prod we'd raise the escalation rate as a feature
   ("the system says it doesn't know — go look") not a bug.
 

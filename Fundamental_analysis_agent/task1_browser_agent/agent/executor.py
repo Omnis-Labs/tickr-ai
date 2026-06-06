@@ -160,7 +160,7 @@ class BrowserExecutor:
                     'input, button, a, select, textarea, form, label, nav, main, [role]'
                 )).slice(0, 60).map(n => fmt(n, 60));
                 // Content elements — Wikipedia / generic site mains first
-                // (the dominant interview-set pattern); bare HTML pages as
+                // (the dominant eval-set pattern); bare HTML pages as
                 // last-resort fallback only when the primary set is empty.
                 let content = Array.from(document.querySelectorAll(
                     'article, main p, [role=main] p, #content p, #bodyContent p, .mw-parser-output > p, h1, h2, h3'

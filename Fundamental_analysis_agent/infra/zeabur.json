@@ -1,5 +1,5 @@
 {
-  "name": "whaleforce-backend",
+  "name": "fundamental-analysis-backend",
   "build": {
     "type": "dockerfile",
     "dockerfile": "infra/Dockerfile"

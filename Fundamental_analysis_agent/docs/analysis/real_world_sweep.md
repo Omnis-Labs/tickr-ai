@@ -4,7 +4,7 @@
 > most recent 10-K fetched live from EDGAR and run through the full pipeline.
 > No curation, no manual fixups. Output: [`real_world_sweep.json`](real_world_sweep.json).
 >
-> Built in response to interviewer feedback (2026-06-04) flagging that the
+> Built in response to reviewer feedback (2026-06-04) flagging that the
 > curated 20-case eval — which reports 95 % pass / mean conf 0.896 — does
 > not reflect what a real user gets when they paste an arbitrary ticker.
 > This document records what they actually get.
@@ -13,7 +13,7 @@
 
 Up until 2026-06-04 the only Task 2 quality signal was [`task2_10k_extractor/eval/report.json`](../../task2_10k_extractor/eval/report.json) — 20 cases, 19 passing, mean confidence 0.896. The cases were curated for industry diversity, and the system was hyper-parameter-tuned (heading detection thresholds, gap-based picker, Platt calibration) against them.
 
-The interviewer correctly noted that this curated number was not what they observed when pasting INTC and Citi. They both failed in production: INTC was quarantined at conf 0.328 with all required items < 250 chars, and Citi returned 0 items at conf 0.245.
+The reviewer correctly noted that this curated number was not what they observed when pasting INTC and Citi. They both failed in production: INTC was quarantined at conf 0.328 with all required items < 250 chars, and Citi returned 0 items at conf 0.245.
 
 This sweep was built to measure the **real production failure rate** on a sample where the system was never tuned to specific filers.
 
@@ -133,7 +133,7 @@ Locked in by [`task2_10k_extractor/tests/test_recovery_gate.py`](../../task2_10k
 - **The curated 95 % eval does not generalize.** On 25 untuned filers the substance-extraction rate (core-4 intact) is **68 %**, and mean confidence drops from 0.896 to **0.526**. The curated set was selected for — and the heading thresholds tuned against — filings the system handles cleanly. Real samples include filing styles the system was never fit to.
 - **Confidence calibration does not transfer.** The Platt model was fit on the curated set (where scores spread 0.3–0.95). On real filings the score collapses to a ~0.51 cluster (median 0.509, 24/25 below 0.55) almost regardless of whether extraction succeeded. The number on the dashboard is therefore not trustworthy on out-of-distribution filers, which is exactly where a confidence signal would be most valuable.
 - **Quarantine did NOT fire on the real failures (now FIXED — [ADR-007](../adr/ADR-007-structural-quarantine-gate.md)).** The score-only gate at `QUARANTINE_THRESHOLD = 0.45` let the real-world ~0.50 cluster through, so **0/25 were quarantined — including Citi with its entire MD&A (Item 7) missing.** The fix replaced reliance on the mis-calibrated score with a **hard structural gate**: any of Items 1/1A/7/8 missing or below floor quarantines regardless of score. Result on the same sweep: **8/8 real failures now flagged, 0/17 false positives.** A user pasting Citi now gets `core item 7 (MD&A) missing`, not silent garbage. The learned score is retained only as a lower floor; re-fitting it on out-of-distribution data remains future work but is no longer load-bearing for safety.
-- **Section boundaries are the dominant failure mode**, exactly as the interviewer noted — once the legitimate incorporation cases (NVDA, NFLX) are excluded, the real failures concentrate on **Item 7 (MD&A, 5/8)** and Item 8 financials. Multiple filers have section openers, or financial-statement headings, that our detector misses.
+- **Section boundaries are the dominant failure mode**, exactly as the reviewer noted — once the legitimate incorporation cases (NVDA, NFLX) are excluded, the real failures concentrate on **Item 7 (MD&A, 5/8)** and Item 8 financials. Multiple filers have section openers, or financial-statement headings, that our detector misses.
 - **The system is robust against crashing and against silent-nothing.** 25/25 resolved a ticker, fetched a live 10-K, and returned a populated item set. It never threw and never returned zero items. The failure mode is *quiet partial truncation*, not a crash — which is harder to detect and the reason the quarantine gap above matters.
 - **Cost is low but not $0.** Real median is **$0.024/filing** (only 1/25 stayed on the free L1+L2 path; the rest triggered L3 self-consistency), max $0.060. The README's "median $0.00" is a curated-set artifact.
 

@@ -40,7 +40,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Whaleforce — Task 1 + Task 2 + Task 3", version="0.3.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1 + Task 2 + Task 3", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

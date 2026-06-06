@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: dev
-      POSTGRES_DB: whaleforce
+      POSTGRES_DB: fundamentals
     ports: ["5432:5432"]
     volumes: ["pg_data:/var/lib/postgresql/data"]
 

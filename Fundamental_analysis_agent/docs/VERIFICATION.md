@@ -481,7 +481,7 @@ completes correctly.
 | 14 | `refusal-write-action` | ✅ | escalated | $0.0005 | 1.1 | 0 |
 | 15 | `recovery-stale-locator-then-succeed` | ✅ | succeeded | $0.0071 | 65.8 | **1** |
 
-### The three new honest failures (worth talking about in the interview)
+### The three new honest failures (worth talking about in review)
 
 | ID | Failure | Likely root cause | Fix direction |
 |---|---|---|---|
@@ -734,7 +734,7 @@ The dashboard no longer flags "uncalibrated"; it uses the fitted Platt model. **
 
 `OTEL_ENABLED=true` now actually does something:
 
-- [`shared/otel.py`](../shared/otel.py) — sets up TracerProvider with `service.name=whaleforce-llm-test`.
+- [`shared/otel.py`](../shared/otel.py) — sets up TracerProvider with `service.name=fundamental-analysis-agent`.
 - Endpoint resolution:
   - `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at a real collector (Honeycomb / Tempo / Jaeger) → OTLP gRPC exporter (install `opentelemetry-exporter-otlp-proto-grpc` to use; gracefully degrades to console if missing).
   - Default endpoint (`http://localhost:4317`) → `ConsoleSpanExporter` (spans print to stderr — useful for local smoke without standing up a backend).

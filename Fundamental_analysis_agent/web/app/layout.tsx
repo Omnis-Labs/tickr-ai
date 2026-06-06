@@ -5,7 +5,7 @@ import NavLinks from "./_nav";
 export const metadata: Metadata = {
   title: "US-stock LLM Test",
   description:
-    "Browser Agent (Task 1) + SEC 10-K Item Extractor (Task 2) + Strategy Lab (Task 3). US-stock AI Coding Test 2026.",
+    "Browser Agent (Task 1) + SEC 10-K Item Extractor (Task 2) + Strategy Lab (Task 3). US-stock fundamental analysis.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NavLinks />
             <div className="flex-1" />
             <a
-              href="https://github.com/ChiShengChen/whaleforce-llm-test"
+              href="https://github.com/Omnis-Labs/hunch-it/tree/main/Fundamental_analysis_agent"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-zinc-500 hover:text-zinc-200"
@@ -32,12 +32,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="px-6 py-6 max-w-6xl mx-auto">{children}</main>
         <footer className="border-t border-zinc-900 px-6 py-4 mt-12">
           <div className="max-w-6xl mx-auto text-xs text-zinc-600 flex flex-wrap gap-4">
-            <span>US-stock LLM Engineer Coding Test 2026</span>
+            <span>US-stock Fundamental Analysis Agent</span>
             <span>·</span>
             <a href="/dashboard" className="hover:text-zinc-300">Dashboard</a>
             <span>·</span>
             <a
-              href="https://github.com/ChiShengChen/whaleforce-llm-test/blob/main/docs/VERIFICATION.md"
+              href="https://github.com/Omnis-Labs/hunch-it/blob/main/Fundamental_analysis_agent/docs/VERIFICATION.md"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-zinc-300"
