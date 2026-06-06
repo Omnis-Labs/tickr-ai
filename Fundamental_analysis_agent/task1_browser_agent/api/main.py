@@ -34,13 +34,14 @@ from task1_browser_agent.agent.state_machine import AgentRunner
 from task1_browser_agent.api.job_store import store
 from task2_10k_extractor.api.router import router as task2_router
 from task3_strategy.api.router import router as task3_router
+from task4_technical.api.router import router as task4_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1 + Task 2 + Task 3", version="0.3.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1 + Task 2 + Task 3 + Task 4", version="0.4.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -50,6 +51,7 @@ app.add_middleware(
 )
 app.include_router(task2_router)
 app.include_router(task3_router)
+app.include_router(task4_router)
 
 
 @app.on_event("startup")

@@ -15,8 +15,8 @@ function niceTicks(min: number, max: number, n = 4): number[] {
 }
 
 export function CandlestickChart({
-  prices, trades, filingDate,
-}: { prices: PricePoint[]; trades: Trade[]; filingDate: string }) {
+  prices, trades, filingDate, markerLabel = "10-K filed",
+}: { prices: PricePoint[]; trades: Trade[]; filingDate: string; markerLabel?: string }) {
   const H = 340;
   if (prices.length < 2) return <p className="text-zinc-500 text-sm">No price data.</p>;
   const lows = prices.map((p) => p.low);
@@ -46,7 +46,7 @@ export function CandlestickChart({
         <g>
           <line x1={x(filingIdx)} x2={x(filingIdx)} y1={PAD.t} y2={H - PAD.b}
                 stroke="#f59e0b" strokeWidth={1} strokeDasharray="3 3" />
-          <text x={x(filingIdx) + 3} y={PAD.t + 9} fill="#f59e0b" fontSize={9}>10-K filed</text>
+          <text x={x(filingIdx) + 3} y={PAD.t + 9} fill="#f59e0b" fontSize={9}>{markerLabel}</text>
         </g>
       )}
       {prices.map((p, i) => {

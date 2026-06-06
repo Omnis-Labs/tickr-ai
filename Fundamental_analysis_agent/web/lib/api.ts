@@ -607,3 +607,88 @@ export async function pollStrategy(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 4 — technical-analysis-driven strategy lab
+// Reuses the Task 3 PricePoint / Trade / EquityPoint / BacktestMetrics /
+// BacktestResult interfaces above (identical shapes).
+// ===========================================================================
+
+export interface TechnicalSpec {
+  entry_signal:
+    | "buy_and_hold" | "sma_cross" | "macd_cross" | "rsi_oversold"
+    | "bollinger_breakout" | "donchian_breakout" | "momentum";
+  exit_signal:
+    | "hold" | "sma_reverse" | "macd_reverse" | "rsi_overbought"
+    | "bollinger_revert" | "donchian_stop" | "time_exit";
+  stance: "bullish" | "neutral" | "cautious";
+  sma_fast: number; sma_slow: number;
+  macd_fast: number; macd_slow: number; macd_signal: number;
+  rsi_period: number; rsi_oversold: number; rsi_overbought: number;
+  bollinger_period: number; bollinger_k: number;
+  donchian_period: number;
+  momentum_lookback_days: number; momentum_threshold_pct: number;
+  time_exit_days: number;
+  require_volume_confirm: boolean; volume_fast: number; volume_slow: number; volume_confirm_ratio: number;
+  stop_loss_pct: number; take_profit_pct: number;
+  thesis: string; rationale_entry: string; rationale_exit: string;
+}
+
+export interface TechnicalResult {
+  job_id: string; ticker: string; company_name: string | null;
+  as_of_date: string;
+  prices: PricePoint[]; strategy: TechnicalSpec; backtest: BacktestResult;
+  indicator_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task4Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: TechnicalResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createAnalysis(ticker: string): Promise<Task4Job> {
+  const res = await fetch(`${API_BASE}/task4/analyses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createAnalysis failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getAnalysis(jobId: string): Promise<Task4Job> {
+  const res = await fetch(`${API_BASE}/task4/analyses/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getAnalysis failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollAnalysis(
+  jobId: string,
+  onUpdate: (j: Task4Job) => void,
+  intervalMs = 1500,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getAnalysis(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}
