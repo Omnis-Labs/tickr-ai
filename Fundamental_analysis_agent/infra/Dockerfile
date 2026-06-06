@@ -24,6 +24,7 @@ COPY shared/ shared/
 COPY task1_browser_agent/ task1_browser_agent/
 COPY task2_10k_extractor/ task2_10k_extractor/
 COPY task3_strategy/ task3_strategy/
+COPY task4_technical/ task4_technical/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .
