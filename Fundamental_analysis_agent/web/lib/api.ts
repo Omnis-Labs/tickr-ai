@@ -534,11 +534,12 @@ export interface Trade {
   return_pct: number | null; exit_reason: string;
 }
 
-export interface EquityPoint { date: string; strategy: number; benchmark: number; }
+export interface EquityPoint { date: string; strategy: number; benchmark: number; market: number | null; }
 
 export interface BacktestMetrics {
   total_return_pct: number; benchmark_return_pct: number; excess_return_pct: number;
   benchmark_from_entry_pct: number | null; excess_vs_entry_pct: number | null;
+  market_return_pct: number | null; excess_vs_market_pct: number | null;
   cagr_pct: number; sharpe: number; max_drawdown_pct: number;
   win_rate_pct: number; n_trades: number; exposure_pct: number;
   days: number; transaction_cost_bps: number;

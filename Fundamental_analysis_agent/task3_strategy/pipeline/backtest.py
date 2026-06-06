@@ -117,6 +117,7 @@ def run_backtest(
     *,
     start: date,
     transaction_cost_bps: float = 10.0,
+    market_prices: list[PricePoint] | None = None,
 ) -> BacktestResult:
     window = [p for p in prices if p.date >= start]
     if len(window) < 2:
@@ -148,6 +149,14 @@ def run_backtest(
     # like it "lost" to the benchmark. Anchoring both at opens[1] makes
     # buy_and_hold ≡ benchmark (to within transaction cost).
     bench_entry = opens[1]
+
+    # Market (SPY) benchmark, aligned to the window dates and anchored at the
+    # same first-actionable bar as the stock benchmark. Carry-forward on the
+    # rare missing date so the line has no gaps. None if SPY data is absent.
+    mkt_close = {p.date: p.close for p in (market_prices or [])}
+    mkt_open = {p.date: p.open for p in (market_prices or [])}
+    mkt_entry = mkt_open.get(window[1].date) if market_prices else None
+    last_mkt = 1.0
 
     for i in range(n):
         # ---- mark-to-market at today's close ----
@@ -205,12 +214,23 @@ def run_backtest(
                 trades.append(Trade(entry_date=window[i + 1].date, entry_price=round(exec_price, 4)))
                 cash = 0.0
 
+        if mkt_entry:
+            if i == 0:
+                market_val: float | None = 1.0
+            else:
+                if window[i].date in mkt_close:
+                    last_mkt = mkt_close[window[i].date] / mkt_entry
+                market_val = round(last_mkt, 6)
+        else:
+            market_val = None
+
         equity_curve.append(
             EquityPoint(
                 date=window[i].date,
                 strategy=round(equity, 6),
                 # flat at 1.0 on bar 0 (not yet actionable), then hold from opens[1]
                 benchmark=1.0 if i == 0 else round(closes[i] / bench_entry, 6),
+                market=market_val,
             )
         )
 
@@ -271,12 +291,20 @@ def _metrics(curve: list[EquityPoint], trades: list[Trade], closes: list[float],
         excess_vs_entry = round(total_ret - bench_from_entry, 2)
         bench_from_entry = round(bench_from_entry, 2)
 
+    # Market (S&P 500) benchmark + alpha vs market, derived from the curve.
+    market_ret = market_excess = None
+    if curve[-1].market is not None:
+        market_ret = round((curve[-1].market - 1.0) * 100.0, 2)
+        market_excess = round(total_ret - market_ret, 2)
+
     return BacktestMetrics(
         total_return_pct=round(total_ret, 2),
         benchmark_return_pct=round(bench_ret, 2),
         excess_return_pct=round(total_ret - bench_ret, 2),
         benchmark_from_entry_pct=bench_from_entry,
         excess_vs_entry_pct=excess_vs_entry,
+        market_return_pct=market_ret,
+        excess_vs_market_pct=market_excess,
         cagr_pct=round(cagr, 2),
         sharpe=round(sharpe, 2),
         max_drawdown_pct=round(max_dd * 100.0, 2),

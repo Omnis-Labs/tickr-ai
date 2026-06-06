@@ -98,8 +98,19 @@ async def run_strategy_pipeline(*, ticker: str, job_id: str | None = None) -> St
         prices=prices, filing_date=available, budget_usd=0.10,
     )
 
+    # ----- market benchmark (S&P 500 via SPY) — best-effort, never fatal -----
+    market_prices = None
+    if ticker != "SPY":
+        try:
+            market_prices = await asyncio.wait_for(asyncio.to_thread(fetch_prices, "SPY"), timeout=30)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("task3_spy_fetch_failed", error=str(e)[:160])
+
     # ----- backtest (deterministic, lookahead-aligned to `available`) -----
-    backtest = run_backtest(prices, spec, start=available, transaction_cost_bps=_TXN_COST_BPS)
+    backtest = run_backtest(
+        prices, spec, start=available,
+        transaction_cost_bps=_TXN_COST_BPS, market_prices=market_prices,
+    )
 
     # trim the prices we ship to the chart: ~1y of pre-filing context + the test window
     chart_from = available - timedelta(days=_CHART_LOOKBACK_DAYS)
@@ -114,10 +125,11 @@ async def run_strategy_pipeline(*, ticker: str, job_id: str | None = None) -> St
         "The LLM selected the strategy and parameters from a fixed menu; execution is fully deterministic. "
         "Rule-based execution prevents future prices from leaking into the result, but the strategy *selection* "
         "could still reflect the model's prior knowledge — treat the thesis as a hypothesis, not a prediction.",
-        "Two benchmarks are shown: buy-and-hold over the full window (from the filing date — "
-        "charges the strategy for the indicator warm-up period when it cannot yet trade), and "
-        "buy-and-hold from the strategy's first entry (isolates timing/signal quality from that "
-        "warm-up cash drag).",
+        "Benchmarks shown: buy-and-hold over the full window (from the filing date — charges the "
+        "strategy for the indicator warm-up period when it cannot yet trade); buy-and-hold from "
+        "the strategy's first entry (isolates timing/signal quality from that warm-up cash drag); "
+        "and the S&P 500 (SPY) over the same window — 'alpha vs market' is the strategy's return "
+        "minus the market's, i.e. whether it beat the broad market, not just the stock.",
     ]
     logger.info(
         "task3_done", ticker=ticker, entry=spec.entry_signal,

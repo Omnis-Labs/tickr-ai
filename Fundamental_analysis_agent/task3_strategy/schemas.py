@@ -83,6 +83,7 @@ class EquityPoint(BaseModel):
     date: date
     strategy: float       # portfolio value, starts at 1.0
     benchmark: float      # buy-and-hold of the same stock from filing date
+    market: float | None = None   # buy-and-hold of S&P 500 (SPY) over the same window
 
 
 class BacktestMetrics(BaseModel):
@@ -95,6 +96,10 @@ class BacktestMetrics(BaseModel):
     # None when the strategy never entered.
     benchmark_from_entry_pct: float | None = None
     excess_vs_entry_pct: float | None = None   # strategy − entry-aligned benchmark
+    # Market (S&P 500 via SPY) buy-and-hold over the same window, and the
+    # strategy's alpha against it. None if SPY data was unavailable.
+    market_return_pct: float | None = None
+    excess_vs_market_pct: float | None = None  # strategy − market = alpha vs market
     cagr_pct: float
     sharpe: float                        # annualised, rf=0
     max_drawdown_pct: float

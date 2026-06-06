@@ -86,7 +86,8 @@ export function CandlestickChart({
 export function EquityChart({ curve }: { curve: EquityPoint[] }) {
   const H = 240;
   if (curve.length < 2) return <p className="text-zinc-500 text-sm">No equity data.</p>;
-  const vals = curve.flatMap((p) => [p.strategy, p.benchmark]);
+  const hasMarket = curve.some((p) => p.market != null);
+  const vals = curve.flatMap((p) => [p.strategy, p.benchmark, ...(p.market != null ? [p.market] : [])]);
   const yMin = Math.min(...vals);
   const yMax = Math.max(...vals);
   const plotW = W - PAD.l - PAD.r;
@@ -95,6 +96,10 @@ export function EquityChart({ curve }: { curve: EquityPoint[] }) {
   const y = (v: number) => PAD.t + (1 - (v - yMin) / (yMax - yMin || 1)) * plotH;
   const line = (key: "strategy" | "benchmark") =>
     curve.map((p, i) => `${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(" ");
+  const marketLine = curve
+    .map((p, i) => (p.market != null ? `${x(i).toFixed(1)},${y(p.market).toFixed(1)}` : null))
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Backtest equity curve">
@@ -105,6 +110,7 @@ export function EquityChart({ curve }: { curve: EquityPoint[] }) {
         </g>
       ))}
       <line x1={PAD.l} x2={W - PAD.r} y1={y(1)} y2={y(1)} stroke="#3f3f46" strokeWidth={1} strokeDasharray="2 2" />
+      {hasMarket && <polyline points={marketLine} fill="none" stroke="#60a5fa" strokeWidth={1.4} strokeDasharray="4 2" />}
       <polyline points={line("benchmark")} fill="none" stroke="#71717a" strokeWidth={1.4} />
       <polyline points={line("strategy")} fill="none" stroke="#10b981" strokeWidth={1.8} />
     </svg>

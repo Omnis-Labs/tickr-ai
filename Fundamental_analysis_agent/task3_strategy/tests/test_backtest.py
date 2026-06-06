@@ -127,6 +127,28 @@ def test_entry_aligned_benchmark_none_when_no_trades():
     assert r.metrics.excess_vs_entry_pct is None
 
 
+def test_market_benchmark_and_alpha():
+    stock = _series([100, 110, 121, 133])
+    market = _series([100, 102, 104, 106])  # same dates, +6% over the window
+    r = run_backtest(stock, StrategySpec(entry_signal="buy_and_hold"),
+                     start=stock[0].date, market_prices=market)
+    # market anchored at opens[1]==close[0]==100 → 106/100−1 = +6%
+    assert r.metrics.market_return_pct == pytest.approx(6.0, abs=0.1)
+    # alpha vs market = strategy total − market return
+    assert r.metrics.excess_vs_market_pct == pytest.approx(
+        r.metrics.total_return_pct - r.metrics.market_return_pct, abs=0.01)
+    assert r.equity_curve[-1].market is not None
+    assert r.equity_curve[0].market == 1.0  # flat on bar 0
+
+
+def test_market_benchmark_none_without_data():
+    stock = _series([100, 101, 102, 103])
+    r = run_backtest(stock, StrategySpec(entry_signal="buy_and_hold"), start=stock[0].date)
+    assert r.metrics.market_return_pct is None
+    assert r.metrics.excess_vs_market_pct is None
+    assert r.equity_curve[-1].market is None
+
+
 def test_insufficient_history_raises():
     prices = _series([100])
     with pytest.raises(RuntimeError):

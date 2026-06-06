@@ -156,7 +156,8 @@ function ResultView({ r }: { r: StrategyResult }) {
           <h3 className="text-sm font-semibold text-zinc-300">Backtest equity curve</h3>
           <p className="text-xs">
             <span className="text-emerald-400">━ strategy</span>{"   "}
-            <span className="text-zinc-500">━ buy &amp; hold</span>
+            <span className="text-zinc-500">━ buy &amp; hold</span>{"   "}
+            <span className="text-blue-400">┄ S&amp;P 500</span>
           </p>
         </div>
         <EquityChart curve={r.backtest.equity_curve} />
@@ -259,6 +260,13 @@ function BacktestPanel({ m }: { m: BacktestMetrics }) {
             <div />
             <Metric label="Hold · from entry" value={pct(m.benchmark_from_entry_pct as number)} />
             <Metric label="Excess · from entry" value={pct(m.excess_vs_entry_pct as number)} good={(m.excess_vs_entry_pct as number) >= 0} />
+          </>
+        )}
+        {m.market_return_pct != null && (
+          <>
+            <div />
+            <Metric label="S&P 500" value={pct(m.market_return_pct)} />
+            <Metric label="Alpha vs market" value={pct(m.excess_vs_market_pct as number)} good={(m.excess_vs_market_pct as number) >= 0} />
           </>
         )}
       </div>
