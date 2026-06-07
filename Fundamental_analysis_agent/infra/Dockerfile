@@ -45,6 +45,8 @@ COPY task21_ranker/ task21_ranker/
 COPY task22_congress/ task22_congress/
 COPY task23_pairs/ task23_pairs/
 COPY task24_contagion/ task24_contagion/
+COPY task25_astro/ task25_astro/
+COPY task26_meihua/ task26_meihua/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .

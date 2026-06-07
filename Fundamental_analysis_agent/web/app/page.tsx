@@ -387,6 +387,22 @@ export default function HomePage() {
           window — keyed to the bellwether's filing date, lookahead-free.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/astro" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 25</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">Financial Astrology · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> Mercury
+          retrograde / moon phase / planetary aspects through the same honest backtest — to measure the suite&apos;s
+          false-positive rate. If it shows alpha, the framework leaks.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+        <a href="/meihua" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 26</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">梅花易數 I Ching · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> A
+          hexagram cast from the date drives a 體用生剋 rule — and N random seeds give a <span className="text-purple-300">null
+          distribution</span> the real agents are scored against (a poor-man&apos;s Reality Check).</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

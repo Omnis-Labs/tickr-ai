@@ -43,6 +43,13 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/pairs", label: "T23 · Pairs trading" },
     ],
   },
+  {
+    title: "Controls (placebo)",
+    items: [
+      { href: "/astro", label: "T25 · Financial astrology" },
+      { href: "/meihua", label: "T26 · 梅花易數 I Ching" },
+    ],
+  },
 ];
 
 const ALL = GROUPS.flatMap((g) => g.items);

@@ -1517,3 +1517,43 @@ export async function createContagion(tickers: string): Promise<Task24Job> {
 }
 export const getContagion = (id: string): Promise<Task24Job> => _get(`/task24/contagion/${id}`);
 export const pollContagion = _poll<Task24Job>(getContagion);
+
+// ---- Task 25: financial astrology (CONTROL / PLACEBO) ----
+export interface PlanetPosition { body: string; ecliptic_lon: number; sign: string; retrograde: boolean; }
+export interface AstroSpec {
+  entry_signal: "buy_and_hold" | "avoid_mercury_retrograde" | "moon_phase_long" | "benefic_aspect";
+  aspect_orb_deg: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface AstroResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: PlanetPosition[]; aspects: string[]; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: AstroSpec; backtest: BacktestResult;
+  astro_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task25Job { job_id: string; ticker: string; status: JobStatus; result: AstroResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createAstro = (t: string): Promise<Task25Job> => _create("/task25/astro", t);
+export const getAstro = (id: string): Promise<Task25Job> => _get(`/task25/astro/${id}`);
+export const pollAstro = _poll<Task25Job>(getAstro);
+
+// ---- Task 26: 梅花易數 Plum-Blossom I Ching (CONTROL / PLACEBO) ----
+export interface HexagramChart {
+  upper: string; lower: string; moving_line: number; line_diagram: string[];
+  ben_gua: string; hu_gua: string; bian_gua: string; ti: string; yong: string;
+  ti_wuxing: string; yong_wuxing: string; relation: string; verdict: string; auspicious: boolean;
+}
+export interface MeihuaSpec {
+  entry_signal: "buy_and_hold" | "ti_yong_auspicious" | "yang_ti";
+  seed: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface MeihuaResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  hexagram: HexagramChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: MeihuaSpec; backtest: BacktestResult;
+  meihua_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task26Job { job_id: string; ticker: string; status: JobStatus; result: MeihuaResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createMeihua = (t: string): Promise<Task26Job> => _create("/task26/meihua", t);
+export const getMeihua = (id: string): Promise<Task26Job> => _get(`/task26/meihua/${id}`);
+export const pollMeihua = _poll<Task26Job>(getMeihua);

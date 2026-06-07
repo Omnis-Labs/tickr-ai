@@ -55,13 +55,15 @@ from task21_ranker.api.router import router as task21_router
 from task22_congress.api.router import router as task22_router
 from task23_pairs.api.router import router as task23_router
 from task24_contagion.api.router import router as task24_router
+from task25_astro.api.router import router as task25_router
+from task26_meihua.api.router import router as task26_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-24 (full agent suite)", version="1.7.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-26 (24 signals + 2 placebo controls)", version="1.8.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -92,6 +94,8 @@ app.include_router(task21_router)
 app.include_router(task22_router)
 app.include_router(task23_router)
 app.include_router(task24_router)
+app.include_router(task25_router)
+app.include_router(task26_router)
 
 
 @app.on_event("startup")
