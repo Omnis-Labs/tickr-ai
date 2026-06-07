@@ -1,6 +1,6 @@
 # Agent Suite — what each agent does & how they interact
 
-**24 agents**, one repo. Two are utilities (browser automation, document extraction); the rest are
+**26 agents**, one repo (24 signals + 2 placebo controls). Two are utilities (browser automation, document extraction); the rest are
 US-stock trading-research agents. This document is the map: per-agent function, then the dependency
 / interaction graph and the shared backbone they all stand on.
 
@@ -11,7 +11,7 @@ US-stock trading-research agents. This document is the map: per-agent function, 
 
 ## 0. The shared design pattern (every strategy agent)
 
-All trading agents (T3–T24) follow the **same contract**, which is the heart of the suite:
+All trading agents (T3–T26, including the two placebo controls) follow the **same contract**, which is the heart of the suite:
 
 ```
 ticker → gather data (as-of a decision date)
@@ -34,7 +34,7 @@ losses shown not hidden, costs always charged.
 
 ---
 
-## 1. The 24 agents
+## 1. The 26 agents
 
 ### Utilities
 | # | Agent | Input → Output | What it does |
@@ -68,6 +68,14 @@ losses shown not hidden, costs always charged.
 | # | Agent | Data source | Core signal |
 |---|---|---|---|
 | **T23** | Pairs trading (stat-arb) | prices (two tickers) | The suite's one **long-short, dollar-neutral** strategy: spread = logA − β·logB (trailing OLS), rolling **z-score** mean-reversion (enter on stretch, exit on reversion, stop on blow-out). β + z-stats trailing → lookahead-free. |
+
+### Control / placebo arm (calibrate the false-positive rate)
+| # | Agent | Data source | Core signal |
+|---|---|---|---|
+| **T25** | Financial astrology ⚠️ | planetary positions via `ephem` (offline, deterministic) | Mercury-retrograde / moon-phase / benefic-aspect timing. NO economic mechanism — runs the IDENTICAL lookahead-free backtest to measure what Sharpe the framework manufactures from noise. Prints the 星盤 + reasoning chain. |
+| **T26** | 梅花易數 I Ching ⚠️ | deterministic 時間起卦 from the date(+seed) | 體用五行生剋 hold/flat. Also the suite's **null-distribution engine**: N seeds → a null Sharpe band (poor-man's White's Reality Check; p95 Sharpe ≈ 0.94 over 480 draws — a real agent must clear that to beat luck). Prints the full 命盤 + 起卦→體用→生剋→變卦 chain. |
+
+In both, the LLM writes the horoscope/卦辭 and the engine IGNORES it — the ultimate test of selection ≠ execution. Flagged `is_control` everywhere; a high Sharpe here means the framework is leaking, not the planets/hexagram working.
 
 ### Aggregators (consume other agents)
 | # | Agent | Consumes | What it does |
@@ -109,7 +117,7 @@ runs other agents end-to-end).
   **T5** (technical leg) and **T10** (per-name signal).
 - **The generic `run_factor_backtest` (lives in T17)** — a long-only, stop/exit-aware,
   SPY-benchmarked engine driven by a `want_long(date)` callable — is reused by **T18, T19, T20, T22,
-  T24**, so every event/anomaly/regime/disclosure/contagion gate shares one execution path.
+  T24, T25, T26**, so every event/anomaly/regime/disclosure/contagion gate shares one execution path.
 - **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) is reused by **T21**;
   only the membership differs — T10's comes from per-name signals, T21's from a cross-sectional rank.
 - **T23 has its own market-neutral backtest** (long-short, dollar-neutral) — it can't reuse the
@@ -203,6 +211,8 @@ its limits.
 | T22 | `/task22/congress` | `/congress` | `task22_congress/` |
 | T23 | `/task23/pairs` | `/pairs` | `task23_pairs/` |
 | T24 | `/task24/contagion` | `/contagion` | `task24_contagion/` |
+| T25 | `/task25/astro` | `/astro` | `task25_astro/` · ⚠️ control |
+| T26 | `/task26/meihua` | `/meihua` | `task26_meihua/` · ⚠️ control |
 
 *A new `taskN_*` package must be registered in four places or the deploy silently rolls back:
 `task1_browser_agent/api/main.py` (router), `infra/Dockerfile` (COPY), and `pyproject.toml`
