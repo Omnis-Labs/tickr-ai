@@ -13,6 +13,9 @@ const ITEMS = [
   { href: "/earnings", label: "Task 8 · Earnings" },
   { href: "/institutional", label: "Task 9 · 13F" },
   { href: "/portfolio", label: "Task 10 · Portfolio" },
+  { href: "/fundamentals", label: "Task 11 · Fund. Trend" },
+  { href: "/seasonality", label: "Task 12 · Seasonality" },
+  { href: "/overnight", label: "Task 13 · Overnight" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

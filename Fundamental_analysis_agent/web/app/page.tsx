@@ -257,6 +257,41 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a href="/fundamentals" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 11</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Fundamentals Trend (XBRL)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Structured quarterly financials from <span className="text-blue-400">SEC XBRL</span> →
+            lookahead-safe <span className="text-amber-400">fundamental momentum</span> (YoY revenue/
+            earnings growth + margin trend, keyed off the filing date, as-originally-reported) → backtest.
+            Task 3 reads the 10-K text; this reads the numbers.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+
+        <a href="/seasonality" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 12</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Seasonality / Calendar Effects</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Month-of-year returns, sell-in-May, turn-of-month → an LLM picks a{" "}
+            <span className="text-amber-400">calendar rule</span> (lookahead-free to execute). Honest that
+            the pattern is in-sample — weak signals default to buy-and-hold rather than overfit.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+
+        <a href="/overnight" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 13</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Overnight vs Intraday (Gap)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Splits returns into the <span className="text-amber-400">overnight</span> (close→open) vs{" "}
+            <span className="text-amber-400">intraday</span> (open→close) move — the documented anomaly that
+            most US-equity return accrues overnight — then backtests a participation rule{" "}
+            <strong>honestly net of the daily round-trip cost</strong> that usually erases the gross edge.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

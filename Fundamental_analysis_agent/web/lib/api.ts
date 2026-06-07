@@ -1188,3 +1188,104 @@ export async function pollInstitutional(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 11 — quantitative fundamentals-trend (XBRL) · Task 12 — seasonality ·
+// Task 13 — overnight/gap. All reuse the BacktestResult / PricePoint shapes.
+// ===========================================================================
+
+function _poll<J extends { status: JobStatus }>(
+  get: (id: string) => Promise<J>,
+) {
+  return (jobId: string, onUpdate: (j: J) => void, intervalMs = 1500): Promise<() => void> => {
+    let stopped = false;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const j = await get(jobId);
+        onUpdate(j);
+        if (j.status === "succeeded" || j.status === "failed") return;
+      } catch (e) { console.error(e); }
+      if (!stopped) setTimeout(tick, intervalMs);
+    };
+    tick();
+    return Promise.resolve(() => { stopped = true; });
+  };
+}
+
+async function _create(path: string, ticker: string) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function _get(path: string) {
+  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`request failed: ${res.status}`);
+  return res.json();
+}
+
+// ---- Task 11: fundamentals-trend ----
+export interface QuarterPoint {
+  end: string; filed: string; fy: number; fp: string;
+  revenue: number | null; gross_profit: number | null; net_income: number | null;
+}
+export interface FundTrendSpec {
+  entry_signal: "revenue_growth" | "earnings_growth" | "margin_expansion" | "growth_and_margin" | "any_improving";
+  exit_signal: "deteriorating" | "time_exit" | "hold";
+  revenue_growth_threshold_pct: number; earnings_growth_threshold_pct: number; holding_days: number;
+  stop_loss_pct: number; take_profit_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale_entry: string; rationale_exit: string;
+}
+export interface FundTrendResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null; as_of_date: string;
+  n_quarters: number; quarters: QuarterPoint[];
+  prices: PricePoint[]; strategy: FundTrendSpec; backtest: BacktestResult;
+  fundamentals_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task11Job { job_id: string; ticker: string; status: JobStatus; result: FundTrendResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createFundTrend = (t: string): Promise<Task11Job> => _create("/task11/fundamentals-trend", t);
+export const getFundTrend = (id: string): Promise<Task11Job> => _get(`/task11/fundamentals-trend/${id}`);
+export const pollFundTrend = _poll<Task11Job>(getFundTrend);
+
+// ---- Task 12: seasonality ----
+export interface SeasonalSpec {
+  entry_signal: "buy_and_hold" | "best_months" | "sell_in_may" | "turn_of_month";
+  months: number[]; tom_before: number; tom_after: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface SeasonalResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  prices: PricePoint[]; strategy: SeasonalSpec; backtest: BacktestResult;
+  seasonality_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task12Job { job_id: string; ticker: string; status: JobStatus; result: SeasonalResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createSeasonal = (t: string): Promise<Task12Job> => _create("/task12/seasonality", t);
+export const getSeasonal = (id: string): Promise<Task12Job> => _get(`/task12/seasonality/${id}`);
+export const pollSeasonal = _poll<Task12Job>(getSeasonal);
+
+// ---- Task 13: overnight/gap ----
+export interface GapSpec {
+  entry_signal: "buy_and_hold" | "overnight" | "intraday" | "overnight_after_up";
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface GapResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  prices: PricePoint[]; strategy: GapSpec; backtest: BacktestResult;
+  gap_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task13Job { job_id: string; ticker: string; status: JobStatus; result: GapResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createGap = (t: string): Promise<Task13Job> => _create("/task13/overnight", t);
+export const getGap = (id: string): Promise<Task13Job> => _get(`/task13/overnight/${id}`);
+export const pollGap = _poll<Task13Job>(getGap);

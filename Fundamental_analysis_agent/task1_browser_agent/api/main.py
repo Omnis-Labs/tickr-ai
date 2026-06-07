@@ -41,6 +41,9 @@ from task7_relative.api.router import router as task7_router
 from task8_earnings.api.router import router as task8_router
 from task9_institutional.api.router import router as task9_router
 from task10_portfolio.api.router import router as task10_router
+from task11_fundamentals_trend.api.router import router as task11_router
+from task12_seasonality.api.router import router as task12_router
+from task13_overnight.api.router import router as task13_router
 
 configure_logging()
 logger = get_logger(__name__)
@@ -64,6 +67,9 @@ app.include_router(task7_router)
 app.include_router(task8_router)
 app.include_router(task9_router)
 app.include_router(task10_router)
+app.include_router(task11_router)
+app.include_router(task12_router)
+app.include_router(task13_router)
 
 
 @app.on_event("startup")
