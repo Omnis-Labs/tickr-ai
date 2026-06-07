@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-06-07T23:18:02.290916+00:00",
+  "n_draws": 480,
+  "panel": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "JPM",
+    "XOM",
+    "KO",
+    "PG",
+    "WMT",
+    "JNJ"
+  ],
+  "draws_per_ticker": {
+    "AAPL": 40,
+    "MSFT": 40,
+    "NVDA": 40,
+    "AMZN": 40,
+    "GOOGL": 40,
+    "META": 40,
+    "JPM": 40,
+    "XOM": 40,
+    "KO": 40,
+    "PG": 40,
+    "WMT": 40,
+    "JNJ": 40
+  },
+  "sharpe_null": {
+    "p5": -0.72,
+    "p25": -0.28,
+    "p50": 0.095,
+    "p75": 0.492,
+    "p90": 0.78,
+    "p95": 0.94,
+    "p99": 1.11
+  },
+  "sharpe_mean": 0.09,
+  "sharpe_max": 1.29,
+  "excess_vs_market_null": {
+    "p5": -108.4,
+    "p25": -96.07,
+    "p50": -79.5,
+    "p75": -52.08,
+    "p90": -17.35,
+    "p95": 7.6,
+    "p99": 36.29
+  },
+  "sharpe_significance_threshold_p95": 0.94,
+  "observed_sharpe": 1.21,
+  "observed_pvalue": 0.0042,
+  "observed_verdict": "significant (beats placebo)"
+}

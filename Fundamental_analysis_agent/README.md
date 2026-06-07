@@ -1,6 +1,18 @@
-# Fundamental Analysis Agent
+# US-stock LLM — Browser Agent · SEC 10-K Extractor · Strategy Lab
 
-Browser Agent · SEC 10-K Extractor · Fundamentals-driven Strategy Lab.
+Implemented, deployed, and live.
+
+| Live URL | Purpose |
+|---|---|
+| **https://your-deployment.example.com/task1** | Task 1 — Browser Agent (submit any NL task, watch the state machine run) |
+| **https://your-deployment.example.com/task2** | Task 2 — SEC 10-K Item Extractor (paste an EDGAR URL, **or** a ticker, **or** a free-text query like `"微軟 年報"`) |
+| **https://your-deployment.example.com/dashboard** | Eval pass rates, cost ledger, capability matrices for both tasks |
+| **https://your-deployment.example.com/jobs/{job_id}** | Failure inspector — screenshots, DOM snapshots, step trace, eval metadata |
+| **https://your-backend.example.com/task1/health** | Backend health probe |
+
+> The deployed frontends accept arbitrary input — submit anything you like
+> to any of the forms.
+
 ---
 
 ## 📖 Documents worth reading first
@@ -231,6 +243,50 @@ Every prompt the system uses is in [prompts/](prompts/):
 - **Task 2** — [input_parser (free-text → intent)](prompts/task2_10k/input_parser.md), [extractor_a (per-item)](prompts/task2_10k/extractor_a.md), [extractor_b (whole-chunk)](prompts/task2_10k/extractor_b.md)
 
 These were iterated on with Claude as the primary AI collaborator. The full bug-history-with-fixes is in [docs/VERIFICATION.md](docs/VERIFICATION.md), which is the most honest read of how the system evolved (16 sections, 16+ documented bugs each with root cause + fix).
+
+---
+
+## 🎲 Statistical honesty: the placebo control arm & null distribution
+
+A 24-agent suite, each with several strategy templates, runs hundreds of
+lookahead-free backtests. **Multiple testing** guarantees a few will post a great
+Sharpe by pure chance — the single biggest methodological risk in the whole project.
+Rather than hand-wave it away, the suite ships **two placebo control agents** that run
+the *identical* lookahead-free backtest on signals known to have **no economic
+mechanism**:
+
+- **T25 — financial astrology** (Mercury retrograde / moon phase / planetary aspects,
+  computed offline from `ephem`; a calendar date leaks nothing about prices, so it is
+  *more* lookahead-free than any filing).
+- **T26 — 梅花易數 Plum-Blossom I Ching** (a hexagram cast deterministically from the
+  date drives a 體用五行生剋 hold/flat rule).
+
+In both, the LLM writes a florid horoscope / 卦辭 thesis and the engine **ignores it** —
+the ultimate test of the suite's *selection ≠ execution* invariant. If a placebo prints
+a high Sharpe, the **framework is leaking** (or you are watching selection bias), not the
+planets working.
+
+**The reversal — the diviner becomes the suite's significance test.** Because the
+梅花易 casting takes a `seed`, we draw a whole **null distribution**: a panel of 12
+tickers × 40 seeds = **480 worthless backtests** through the real engine. The result is
+a poor-man's White's Reality Check:
+
+```
+null Sharpe (480 placebo draws):  p50 = 0.10   p90 = 0.78   p95 = 0.94   p99 = 1.11   max = 1.29
+→ a real agent needs Sharpe ≥ 0.94 to beat random hexagram-timing at 95% confidence.
+```
+
+So a headline like T20's VIX-gate Sharpe of **1.21** isn't taken at face value — measured
+against this null it lands at **p ≈ 0.004** (significant); an agent posting Sharpe 0.6 would
+be *indistinguishable from luck*, no matter how good its story. Run it yourself:
+
+```bash
+python -m task26_meihua.eval.null_distribution --seeds 40 --observe 1.21
+# → null percentiles + the p-value of any observed Sharpe
+```
+
+The control arm is labelled `is_control` everywhere and rendered with a purple **PLACEBO**
+banner in the UI so it can never be mistaken for a tradable signal.
 
 ---
 
