@@ -30,6 +30,8 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/events", label: "T18 · Corporate events" },
       { href: "/anomaly", label: "T19 · Price anomalies" },
       { href: "/vix", label: "T20 · VIX regime gate" },
+      { href: "/congress", label: "T22 · Congressional trading" },
+      { href: "/contagion", label: "T24 · Earnings contagion" },
     ],
   },
   {
@@ -38,6 +40,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/ensemble", label: "T5 · Ensemble" },
       { href: "/portfolio", label: "T10 · Portfolio sizing" },
       { href: "/ranker", label: "T21 · Cross-sectional ranker" },
+      { href: "/pairs", label: "T23 · Pairs trading" },
     ],
   },
 ];

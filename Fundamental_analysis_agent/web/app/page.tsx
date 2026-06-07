@@ -363,6 +363,30 @@ export default function HomePage() {
           held — benchmarked against the equal-weight basket of all names and the S&amp;P 500.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/congress" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 22</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Congressional Trading</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">US lawmakers' <span className="text-amber-400">disclosed trades</span>
+          {" "}(STOCK Act), keyed to the disclosure date so the edge is post-disclosure drift. Pluggable data: free House-PTR parse,
+          or a Quiver/FMP key for full coverage.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+        <a href="/pairs" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 23</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Pairs Trading (stat-arb)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Two correlated names → a spread z-score → a{" "}
+          <span className="text-amber-400">market-neutral</span> mean-reversion bet (long the cheap leg, short the rich). The
+          suite's one long-short strategy; judge it on Sharpe, not raw return.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+        <a href="/contagion" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 24</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Earnings Contagion</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">A bellwether's earnings move its <span className="text-amber-400">peers</span>
+          {" "}before they report. Classify the bellwether's 8-Ks (reusing Task 8) and trade the peer in the short read-across
+          window — keyed to the bellwether's filing date, lookahead-free.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

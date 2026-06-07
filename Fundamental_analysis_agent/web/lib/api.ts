@@ -1448,3 +1448,72 @@ export interface Task20Job { job_id: string; ticker: string; status: JobStatus; 
 export const createVix = (t: string): Promise<Task20Job> => _create("/task20/vix", t);
 export const getVix = (id: string): Promise<Task20Job> => _get(`/task20/vix/${id}`);
 export const pollVix = _poll<Task20Job>(getVix);
+
+// ---- Task 22: congressional trading (pluggable provider) ----
+export interface CongressTrade {
+  disclosure_date: string; transaction_date: string | null; member: string;
+  chamber: "house" | "senate" | "unknown"; txn_type: "buy" | "sell" | "exchange";
+  amount_low: number; amount_high: number; note: string;
+}
+export interface CongressSpec {
+  entry_signal: "buy_and_hold" | "follow_buys" | "avoid_after_sells";
+  holding_days: number; sell_window_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface CongressResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  provider: string; n_trades: number; trades_recent: CongressTrade[];
+  prices: PricePoint[]; strategy: CongressSpec; backtest: BacktestResult;
+  congress_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task22Job { job_id: string; ticker: string; status: JobStatus; result: CongressResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createCongress = (t: string): Promise<Task22Job> => _create("/task22/congress", t);
+export const getCongress = (id: string): Promise<Task22Job> => _get(`/task22/congress/${id}`);
+export const pollCongress = _poll<Task22Job>(getCongress);
+
+// ---- Task 23: pairs trading (long-short; reuses BacktestMetrics + EquityPoint) ----
+export interface PairSpec {
+  formation_window: number; z_entry: number; z_exit: number; stop_z: number; max_holding_days: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface PairResult {
+  job_id: string; ticker_a: string; ticker_b: string; as_of_date: string; common_window_start: string;
+  spec: PairSpec; metrics: BacktestMetrics; equity_curve: EquityPoint[]; trades: Trade[];
+  pair_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task23Job { job_id: string; tickers: string[]; status: JobStatus; result: PairResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export async function createPairs(tickers: string): Promise<Task23Job> {
+  const res = await fetch(`${API_BASE}/task23/pairs`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tickers }) });
+  if (!res.ok) {
+    let detail = ""; try { const b = await res.json(); detail = typeof b?.detail === "string" ? b.detail : ""; } catch { /* */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createPairs failed: ${res.status}`);
+  }
+  return res.json();
+}
+export const getPairs = (id: string): Promise<Task23Job> => _get(`/task23/pairs/${id}`);
+export const pollPairs = _poll<Task23Job>(getPairs);
+
+// ---- Task 24: earnings contagion (bellwether → peer; reuses EarningsEvent) ----
+export interface ContagionSpec {
+  entry_signal: "buy_and_hold" | "follow_positive" | "avoid_after_negative";
+  drift_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface ContagionResult {
+  job_id: string; bellwether: string; peer: string; company_name: string | null; as_of_date: string;
+  n_events: number; events: EarningsEvent[]; prices: PricePoint[]; strategy: ContagionSpec; backtest: BacktestResult;
+  contagion_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task24Job { job_id: string; tickers: string[]; status: JobStatus; result: ContagionResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export async function createContagion(tickers: string): Promise<Task24Job> {
+  const res = await fetch(`${API_BASE}/task24/contagion`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tickers }) });
+  if (!res.ok) {
+    let detail = ""; try { const b = await res.json(); detail = typeof b?.detail === "string" ? b.detail : ""; } catch { /* */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createContagion failed: ${res.status}`);
+  }
+  return res.json();
+}
+export const getContagion = (id: string): Promise<Task24Job> => _get(`/task24/contagion/${id}`);
+export const pollContagion = _poll<Task24Job>(getContagion);
