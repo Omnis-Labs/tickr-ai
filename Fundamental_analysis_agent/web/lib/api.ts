@@ -1027,3 +1027,83 @@ export async function pollPortfolio(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 8 — earnings-release (SEC 8-K Ex-99.1) agent
+// Reuses the BacktestResult / PricePoint shapes above.
+// ===========================================================================
+
+export interface EarningsEvent {
+  filing_date: string;
+  sentiment: "bullish" | "neutral" | "bearish";
+  guidance: "raised" | "maintained" | "lowered" | "none";
+  beat_miss: "beat" | "inline" | "miss" | "unknown";
+  quote: string;
+}
+
+export interface EarningsSpec {
+  entry_signal: "any_earnings" | "bullish" | "bullish_or_raised" | "beat";
+  exit_signal: "time_exit" | "next_earnings";
+  holding_days: number; stop_loss_pct: number; take_profit_pct: number;
+  stance: "bullish" | "neutral" | "cautious";
+  thesis: string; rationale_entry: string; rationale_exit: string;
+}
+
+export interface EarningsResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null;
+  as_of_date: string; n_releases: number; events: EarningsEvent[]; source: string;
+  prices: PricePoint[]; strategy: EarningsSpec; backtest: BacktestResult;
+  earnings_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task8Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: EarningsResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createEarnings(ticker: string): Promise<Task8Job> {
+  const res = await fetch(`${API_BASE}/task8/earnings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createEarnings failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getEarnings(jobId: string): Promise<Task8Job> {
+  const res = await fetch(`${API_BASE}/task8/earnings/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getEarnings failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollEarnings(
+  jobId: string,
+  onUpdate: (j: Task8Job) => void,
+  intervalMs = 1500,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getEarnings(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

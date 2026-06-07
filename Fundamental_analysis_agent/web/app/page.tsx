@@ -209,6 +209,30 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/earnings"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 8</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Earnings (SEC 8-K) → Strategy → PEAD Backtest
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → its recent earnings <span className="text-blue-400">press releases</span>{" "}
+            (8-K Item 2.02 / Ex-99.1) are fetched; an LLM classifies each{" "}
+            <span className="text-amber-400">as-of its filing date</span> (sentiment / guidance /
+            beat-miss, with citations); then it trades the{" "}
+            <span className="text-purple-400">post-earnings drift</span> — lookahead-free, acting only
+            on the open after each filing, vs buy-and-hold and the S&amp;P 500. Reads the press
+            release, not the live Q&amp;A transcript (source is pluggable).
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

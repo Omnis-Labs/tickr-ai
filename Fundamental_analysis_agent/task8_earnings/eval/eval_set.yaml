@@ -1,0 +1,31 @@
+# Task 8 — earnings-release agent eval set.
+# Grades invariants + deterministic behaviour; records the stochastic LLM choice.
+
+cases:
+- id: aapl-earnings
+  category: large-cap
+  ticker: AAPL
+  description: Heavy, clean earnings-8-K history — exercises fetch → classify →
+    readings → PEAD backtest end-to-end.
+  assertions:
+    min_releases: 4
+    max_cost_usd: 0.05
+    max_duration_ms: 150000
+
+- id: tsm-foreign-no-8k
+  category: foreign
+  ticker: TSM
+  description: Foreign private issuer — files no 8-K earnings releases, so the agent
+    must find zero releases and show a flat baseline, deterministically.
+  assertions:
+    expect_zero_releases: true
+    max_cost_usd: 0.03
+    max_duration_ms: 120000
+
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

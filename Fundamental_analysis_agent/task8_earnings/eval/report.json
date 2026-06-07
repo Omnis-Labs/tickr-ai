@@ -1,0 +1,60 @@
+{
+  "generated_at": "2026-06-07T18:44:53.859538+00:00",
+  "metrics": {
+    "n_cases": 3,
+    "n_pass": 3,
+    "pass_rate": 1.0,
+    "cost_total": 0.005582,
+    "duration_p95_ms": 9810.849999999999
+  },
+  "cases": [
+    {
+      "id": "aapl-earnings",
+      "category": "large-cap",
+      "ticker": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "n_releases": 12,
+      "earnings_regime": "consistently_bullish",
+      "entry_signal": "bullish",
+      "total_return_pct": 28.92,
+      "excess_vs_hold_pct": -45.73,
+      "alpha_vs_market_pct": -49.97,
+      "duration_ms": 10103,
+      "cost_usd": 0.004869,
+      "failure_reasons": []
+    },
+    {
+      "id": "tsm-foreign-no-8k",
+      "category": "foreign",
+      "ticker": "TSM",
+      "passed": true,
+      "status": "succeeded",
+      "n_releases": 0,
+      "earnings_regime": "no_releases",
+      "entry_signal": "any_earnings",
+      "total_return_pct": 0.0,
+      "excess_vs_hold_pct": -328.07,
+      "alpha_vs_market_pct": -78.89,
+      "duration_ms": 4260,
+      "cost_usd": 0.000713,
+      "failure_reasons": []
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "ticker": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "n_releases": null,
+      "earnings_regime": null,
+      "entry_signal": null,
+      "total_return_pct": null,
+      "excess_vs_hold_pct": null,
+      "alpha_vs_market_pct": null,
+      "duration_ms": 2218,
+      "cost_usd": 0.0,
+      "failure_reasons": []
+    }
+  ]
+}
