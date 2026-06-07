@@ -136,6 +136,30 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/insider"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 6</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Insider (SEC Form 4) → Strategy → Backtest
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → its SEC <span className="text-blue-400">Form 4</span> filings are
+            fetched and parsed into open-market insider transactions, keyed off each filing&apos;s{" "}
+            <span className="text-amber-400">filing date</span> (not the trade date) so the backtest
+            can only act once public. An LLM picks one strategy from a fixed insider-signal menu
+            (cluster buying / net-$ buying / …) grounded in the as-of readings, then a lookahead-free
+            backtest runs vs buy-and-hold and the S&amp;P 500. Only open-market buys/sales count —
+            grants and option exercises are excluded, and selling is a weak exit signal, not a short.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

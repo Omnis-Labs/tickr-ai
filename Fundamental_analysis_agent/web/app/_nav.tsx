@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/strategy", label: "Task 3 · Strategy Lab" },
   { href: "/technical", label: "Task 4 · Technical Lab" },
   { href: "/ensemble", label: "Task 5 · Ensemble" },
+  { href: "/insider", label: "Task 6 · Insider" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

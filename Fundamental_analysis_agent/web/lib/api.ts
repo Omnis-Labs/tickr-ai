@@ -789,3 +789,77 @@ export async function pollEnsemble(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 6 — insider (SEC Form 4) agent
+// Reuses the BacktestResult / PricePoint shapes above.
+// ===========================================================================
+
+export interface InsiderSpec {
+  entry_signal: "buy_and_hold" | "any_insider_buy" | "cluster_buy" | "net_value_buy";
+  exit_signal: "hold" | "time_exit" | "net_sell";
+  stance: "bullish" | "neutral" | "cautious";
+  lookback_days: number; min_distinct_buyers: number; min_net_value_usd: number;
+  holding_days: number; stop_loss_pct: number; take_profit_pct: number;
+  thesis: string; rationale_entry: string; rationale_exit: string;
+}
+
+export interface InsiderResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null;
+  as_of_date: string;
+  n_form4_filings: number; n_transactions: number; fetch_capped: boolean;
+  prices: PricePoint[]; strategy: InsiderSpec; backtest: BacktestResult;
+  insider_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task6Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: InsiderResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createInsider(ticker: string): Promise<Task6Job> {
+  const res = await fetch(`${API_BASE}/task6/insiders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createInsider failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getInsider(jobId: string): Promise<Task6Job> {
+  const res = await fetch(`${API_BASE}/task6/insiders/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getInsider failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollInsider(
+  jobId: string,
+  onUpdate: (j: Task6Job) => void,
+  intervalMs = 1500,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getInsider(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

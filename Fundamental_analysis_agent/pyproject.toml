@@ -50,7 +50,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared"]
+testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider"]
 
 [tool.mypy]
 python_version = "3.11"
