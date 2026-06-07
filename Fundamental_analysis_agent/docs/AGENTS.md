@@ -1,6 +1,6 @@
 # Agent Suite — what each agent does & how they interact
 
-**16 agents**, one repo. Two are utilities (browser automation, document extraction); the rest are
+**21 agents**, one repo. Two are utilities (browser automation, document extraction); the rest are
 US-stock trading-research agents. This document is the map: per-agent function, then the dependency
 / interaction graph and the shared backbone they all stand on.
 
@@ -11,7 +11,7 @@ US-stock trading-research agents. This document is the map: per-agent function, 
 
 ## 0. The shared design pattern (every strategy agent)
 
-All trading agents (T3–T16) follow the **same contract**, which is the heart of the suite:
+All trading agents (T3–T21) follow the **same contract**, which is the heart of the suite:
 
 ```
 ticker → gather data (as-of a decision date)
@@ -34,7 +34,7 @@ losses shown not hidden, costs always charged.
 
 ---
 
-## 1. The 16 agents
+## 1. The 21 agents
 
 ### Utilities
 | # | Agent | Input → Output | What it does |
@@ -56,13 +56,18 @@ losses shown not hidden, costs always charged.
 | **T13** | Overnight / gap | prices (OHLC) | Decomposes overnight (close→open) vs intraday (open→close); honest about the daily round-trip cost. |
 | **T14** | Volatility regime | prices | Vol-managed long/flat — participate when realized vol is calm, step aside when it spikes. |
 | **T15** | Buyback | SEC XBRL (via T11) | Falling diluted share count = net repurchases (filing-date keyed) → follow sustained buybacks. |
-| **T16** | Short pressure / squeeze | FINRA daily short-volume | Short-volume-ratio percentile → squeeze / low-short rule. **Short *volume*, not short *interest*** (caveated). |
+| **T16** | Short pressure / squeeze | FINRA daily short-volume **+ NASDAQ bi-monthly short-interest** | Short-volume-ratio percentile (squeeze / low-short) **and** real days-to-cover / outstanding shorts (si_squeeze / low_si). Both publish-lagged. Honest: short *volume* ≠ short *interest*; NASDAQ SI covers Nasdaq-listed names only. |
+| **T17** | Fundamental quality | SEC XBRL `companyfacts` | Piotroski **F-Score** (9-point), Sloan **accruals**, and the **asset-growth** anomaly — point-in-time, filing-date keyed. A multi-factor accounting-quality screen (numbers, like T11/T15). |
+| **T18** | Corporate events | SEC 8-K / 13D filings | **Schedule 13D** activist-stake drift (positive) + **red flags** (dilution 424B5/S-3, late NT filings, auditor change, delisting) + LLM-read **adverse 8-K 5.02** exec departures. Ride activist drift, stand aside on red flags. |
+| **T19** | Price anomalies | prices | Three documented anomalies, prices only: **52-week-high momentum**, **MAX/lottery** avoidance, **tax-loss reversal** (Jan effect). Trailing-window + calendar → lookahead-free. |
+| **T20** | VIX regime gate | prices + ^VIX / ^VIX3M | CBOE **term structure** (VIX vs VIX3M) as a regime switch: long in contango (calm), to cash on inversion or a VIX-level spike. Same-day VIX → next-open fill. |
 
 ### Aggregators (consume other agents)
 | # | Agent | Consumes | What it does |
 |---|---|---|---|
 | **T5** | Ensemble / arbiter | **T3 + T4** | Runs both legs over a common window; an LLM **arbiter** picks a combine policy (AND/OR/weighted/gated/defer) from each leg's *reasoning, not returns*; one combined backtest. |
 | **T10** | Portfolio / risk sizing | **T4 across a watchlist** | Per-name signals → LLM picks a **sizing policy** (equal/inverse-vol/risk-parity/signal-proportional + caps + vol target) → multi-name **portfolio** backtest vs an equal-weight basket + SPY. |
+| **T21** | Cross-sectional ranker | **a watchlist of prices** | LLM picks ONE long-only **factor** (12-1 momentum / low-vol / near-52w-high / short-term reversal); each rebalance the universe is ranked on trailing data and the **top-N held** (equal/inverse-vol). Where T10 *sizes* a basket, T21 *selects* it. Reuses T10's portfolio backtest. |
 
 ---
 
@@ -91,13 +96,19 @@ runs other agents end-to-end).
 
 ### 2b. Building-block reuse (shared code, not full runs)
 - **Backtest engine + `_metrics` (lives in T4)** is the common scoring ruler, reused by
-  **T5, T6, T7, T8, T9, T11, T12, T13, T14, T15, T16**. (T10 has its own portfolio-level
+  **T5, T6, T7, T8, T9, T11, T12, T13, T14, T15, T16**. (T10/T21 use the portfolio-level
   `PortfolioMetrics`; T3/T4 are native.) → every agent's Sharpe/drawdown/alpha is defined identically.
 - **T4's `run_backtest` + `author_technical` + `indicator_readings_asof`** are reused wholesale by
   **T5** (technical leg) and **T10** (per-name signal).
+- **The generic `run_factor_backtest` (lives in T17)** — a long-only, stop/exit-aware,
+  SPY-benchmarked engine driven by a `want_long(date)` callable — is reused by **T18, T19, T20**, so
+  every event/anomaly/regime gate shares one execution path.
+- **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) is reused by **T21**;
+  only the membership differs — T10's comes from per-name signals, T21's from a cross-sectional rank.
 - **T5's `inmarket_by_date`** (trades → daily in-market series) is reused by **T10**.
-- **T11's XBRL `companyfacts` fetch + `_quarterly_series`** is reused by **T15** (buyback) — share
-  counts via the `shares` unit vs T11's `USD`.
+- **T11's XBRL `companyfacts` fetch + `_quarterly_series` / `annual_series` / `instant_series`** is
+  reused by **T15** (buyback) and **T17** (quality) — share counts via the `shares` unit vs T11's `USD`.
+- **T18 reuses T8's 8-K fetch/HTML-to-text** to read the body of 8-K 5.02 exec-change items.
 - **T2's grounded-citation discipline** is echoed by **T3** (10-K citations) and **T8** (press-release
   citations).
 
@@ -113,16 +124,19 @@ runs other agents end-to-end).
 
 ### 2d. External data dependency map
 ```
-prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21
+   └─ ^VIX / ^VIX3M ....... T20 (term structure)
 SEC EDGAR (filings/submissions/XBRL)
    ├─ 10-K text ........... T2 → T3 → T5
    ├─ Form 4 .............. T6
-   ├─ 8-K Ex-99.1 ......... T8
+   ├─ 8-K Ex-99.1 ......... T8 → T18 (8-K 5.02 body)
+   ├─ 13D / red-flag forms  T18
    ├─ 13F-HR (curated) .... T9
-   └─ XBRL companyfacts ... T11 → T15
+   └─ XBRL companyfacts ... T11 → T15, T17
 SEC SIC code ............... T7 (sector ETF), and industry mapping
 FINRA regsho short-volume .. T16
-(LLM gateway) .............. T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16
+NASDAQ short-interest ...... T16 (bi-monthly days-to-cover)
+(LLM gateway) .............. every strategy agent T3–T21
 ```
 
 ---
@@ -130,17 +144,19 @@ FINRA regsho short-volume .. T16
 ## 3. The shape of the whole thing
 
 - **Data gathering:** T1 (browser automation) + T2 (10-K extraction) feed/anchor the rest.
-- **Six independent single-name signal sources** by *category*:
-  fundamentals-text (T3), fundamentals-numbers (T11), technical (T4), relative-strength (T7),
-  volatility/risk (T14), and four "event/positioning" signals — insider (T6), earnings (T8),
-  institutional (T9), buyback (T15), short (T16), plus two price-anomaly signals — seasonality (T12),
-  overnight (T13).
+- **Many independent single-name signal sources** by *category*:
+  fundamentals-text (T3), fundamentals-numbers (T11), accounting-quality (T17), technical (T4),
+  relative-strength (T7), volatility/risk (T14), market-regime gate (T20); "event/positioning"
+  signals — insider (T6), earnings (T8), institutional (T9), buyback (T15), short (T16), corporate
+  events/13D (T18); and price-anomaly signals — seasonality (T12), overnight (T13), price anomalies
+  (T19).
 - **One fusion layer (T5)** combines a fundamental + a technical view per name.
-- **One capstone (T10)** sizes signals across many names into a risk-controlled portfolio.
+- **Two portfolio-level capstones:** **T10** *sizes* signals across many names into a risk-controlled
+  portfolio; **T21** *selects* the names by cross-sectional factor rank (and reuses T10's backtest).
 
 That is the progression the suite is built to demonstrate: **gather → many independent signals →
-fuse → size into a portfolio**, every step lookahead-safe, free-data-first, and honest about its
-limits.
+fuse → select & size into a portfolio**, every step lookahead-safe, free-data-first, and honest about
+its limits.
 
 ---
 
@@ -164,6 +180,11 @@ limits.
 | T14 | `/task14/volatility` | `/volatility` | `task14_volatility/` |
 | T15 | `/task15/buyback` | `/buyback` | `task15_buyback/` |
 | T16 | `/task16/short` | `/short` | `task16_short/` |
+| T17 | `/task17/quality` | `/quality` | `task17_quality/` |
+| T18 | `/task18/events` | `/events` | `task18_events/` |
+| T19 | `/task19/anomaly` | `/anomaly` | `task19_anomaly/` |
+| T20 | `/task20/vix` | `/vix` | `task20_vix/` |
+| T21 | `/task21/rankings` | `/ranker` | `task21_ranker/` |
 
 *A new `taskN_*` package must be registered in four places or the deploy silently rolls back:
 `task1_browser_agent/api/main.py` (router), `infra/Dockerfile` (COPY), and `pyproject.toml`
