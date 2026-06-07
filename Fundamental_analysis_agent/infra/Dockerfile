@@ -34,6 +34,9 @@ COPY task10_portfolio/ task10_portfolio/
 COPY task11_fundamentals_trend/ task11_fundamentals_trend/
 COPY task12_seasonality/ task12_seasonality/
 COPY task13_overnight/ task13_overnight/
+COPY task14_volatility/ task14_volatility/
+COPY task15_buyback/ task15_buyback/
+COPY task16_short/ task16_short/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .

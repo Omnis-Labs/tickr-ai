@@ -292,6 +292,31 @@ export default function HomePage() {
           </p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+
+        <a href="/volatility" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 14</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Volatility Regime / Risk Mgmt</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Trailing realized <span className="text-amber-400">volatility</span> +
+          percentile → a vol-managed long/flat rule: participate when calm, step aside when vol spikes. Judged on risk-adjusted terms.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+
+        <a href="/buyback" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 15</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Share Buybacks (XBRL)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Falling diluted <span className="text-blue-400">share count</span> from
+          SEC XBRL = net <span className="text-amber-400">buybacks</span> → follow sustained repurchases. Lookahead-safe, quarterly.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+
+        <a href="/short" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 16</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Short Pressure / Squeeze (FINRA)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">FINRA daily <span className="text-amber-400">short-volume</span> ratio
+          (weekly-sampled, cached) → a squeeze / low-short rule. Honestly flagged: this is short <em>volume</em> (incl. market-maker
+          hedging), <strong>not short interest</strong> — free historical short-interest doesn&apos;t exist, so it&apos;s the closest free proxy.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

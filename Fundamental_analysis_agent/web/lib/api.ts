@@ -1289,3 +1289,55 @@ export interface Task13Job { job_id: string; ticker: string; status: JobStatus; 
 export const createGap = (t: string): Promise<Task13Job> => _create("/task13/overnight", t);
 export const getGap = (id: string): Promise<Task13Job> => _get(`/task13/overnight/${id}`);
 export const pollGap = _poll<Task13Job>(getGap);
+
+// ===========================================================================
+// Task 14 — volatility regime · Task 15 — buyback · Task 16 — short pressure
+// ===========================================================================
+
+export interface VolSpec {
+  entry_signal: "buy_and_hold" | "calm_regime" | "trend_and_calm";
+  vol_window: number; vol_threshold_pct: number; sma_window: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface VolResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  prices: PricePoint[]; strategy: VolSpec; backtest: BacktestResult;
+  volatility_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task14Job { job_id: string; ticker: string; status: JobStatus; result: VolResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createVol = (t: string): Promise<Task14Job> => _create("/task14/volatility", t);
+export const getVol = (id: string): Promise<Task14Job> => _get(`/task14/volatility/${id}`);
+export const pollVol = _poll<Task14Job>(getVol);
+
+export interface SharePoint { end: string; filed: string; fy: number; fp: string; diluted_shares: number; }
+export interface BuybackSpec {
+  entry_signal: "buy_and_hold" | "buyback" | "aggressive_buyback";
+  exit_signal: "stops_buyback" | "time_exit" | "hold";
+  reduction_threshold_pct: number; holding_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface BuybackResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null; as_of_date: string;
+  n_quarters: number; shares: SharePoint[]; prices: PricePoint[]; strategy: BuybackSpec; backtest: BacktestResult;
+  buyback_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task15Job { job_id: string; ticker: string; status: JobStatus; result: BuybackResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createBuyback = (t: string): Promise<Task15Job> => _create("/task15/buyback", t);
+export const getBuyback = (id: string): Promise<Task15Job> => _get(`/task15/buyback/${id}`);
+export const pollBuyback = _poll<Task15Job>(getBuyback);
+
+export interface ShortSpec {
+  entry_signal: "buy_and_hold" | "squeeze" | "low_short";
+  exit_signal: "short_normalizes" | "time_exit" | "hold";
+  svr_threshold_pct: number; sma_window: number; holding_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface ShortResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; n_samples: number;
+  prices: PricePoint[]; strategy: ShortSpec; backtest: BacktestResult;
+  short_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task16Job { job_id: string; ticker: string; status: JobStatus; result: ShortResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createShort = (t: string): Promise<Task16Job> => _create("/task16/short", t);
+export const getShort = (id: string): Promise<Task16Job> => _get(`/task16/short/${id}`);
+export const pollShort = _poll<Task16Job>(getShort);

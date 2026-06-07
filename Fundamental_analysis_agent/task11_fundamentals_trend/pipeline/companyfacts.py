@@ -47,13 +47,21 @@ async def fetch_companyfacts(cik: int) -> dict:
     raise RuntimeError(f"could not fetch companyfacts for CIK {cik}")
 
 
-def _quarterly_series(gaap: dict, tags: list[str]) -> dict[date, tuple[date, int, str, float]]:
+def _quarterly_series(
+    gaap: dict, tags: list[str], unit: str = "USD",
+) -> dict[date, tuple[date, int, str, float]]:
     """For the first present tag, return {period_end: (filed, fy, fp, val)} keeping
-    only ~quarterly (80–100 day) periods, earliest-filed per end (point-in-time)."""
+    only ~quarterly (80–100 day) periods, earliest-filed per end (point-in-time).
+
+    `unit` selects the XBRL unit (USD for $ flows; 'shares' for share counts);
+    falls back to the sole available unit if the requested one is absent."""
     for tag in tags:
         if tag not in gaap:
             continue
-        rows = gaap[tag].get("units", {}).get("USD", [])
+        units = gaap[tag].get("units", {})
+        rows = units.get(unit)
+        if rows is None:
+            rows = next(iter(units.values())) if len(units) == 1 else []
         out: dict[date, tuple[date, int, str, float]] = {}
         for r in rows:
             start, end, filed = r.get("start"), r.get("end"), r.get("filed")

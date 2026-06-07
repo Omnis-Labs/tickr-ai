@@ -16,6 +16,9 @@ const ITEMS = [
   { href: "/fundamentals", label: "Task 11 · Fund. Trend" },
   { href: "/seasonality", label: "Task 12 · Seasonality" },
   { href: "/overnight", label: "Task 13 · Overnight" },
+  { href: "/volatility", label: "Task 14 · Vol Regime" },
+  { href: "/buyback", label: "Task 15 · Buyback" },
+  { href: "/short", label: "Task 16 · Short" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 
