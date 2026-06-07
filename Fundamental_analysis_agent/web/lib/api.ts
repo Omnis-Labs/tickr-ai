@@ -1376,3 +1376,19 @@ export interface Task18Job { job_id: string; ticker: string; status: JobStatus; 
 export const createEvents = (t: string): Promise<Task18Job> => _create("/task18/events", t);
 export const getEvents = (id: string): Promise<Task18Job> => _get(`/task18/events/${id}`);
 export const pollEvents = _poll<Task18Job>(getEvents);
+
+// ---- Task 19: price anomalies (52w-high / MAX / tax-loss) ----
+export interface AnomalySpec {
+  entry_signal: "buy_and_hold" | "near_52w_high" | "avoid_max_lottery" | "tax_loss_reversal";
+  high_threshold_pct: number; max_daily_threshold_pct: number; max_window_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface AnomalyResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  prices: PricePoint[]; strategy: AnomalySpec; backtest: BacktestResult;
+  anomaly_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task19Job { job_id: string; ticker: string; status: JobStatus; result: AnomalyResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createAnomaly = (t: string): Promise<Task19Job> => _create("/task19/anomaly", t);
+export const getAnomaly = (id: string): Promise<Task19Job> => _get(`/task19/anomaly/${id}`);
+export const pollAnomaly = _poll<Task19Job>(getAnomaly);

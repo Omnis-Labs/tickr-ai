@@ -336,6 +336,15 @@ export default function HomePage() {
           the filing date; ride activist drift, stand aside on red flags.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/anomaly" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 19</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Price Anomalies</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Three documented price anomalies (prices only):
+          <span className="text-amber-400"> 52-week-high momentum</span>, <span className="text-amber-400">MAX/lottery</span>
+          avoidance, and <span className="text-amber-400">tax-loss reversal</span> (Jan effect). LLM picks one; trailing-window
+          + calendar → lookahead-free.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

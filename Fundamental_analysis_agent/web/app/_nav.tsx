@@ -28,6 +28,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/short", label: "T16 · Short pressure" },
       { href: "/quality", label: "T17 · Fundamental quality" },
       { href: "/events", label: "T18 · Corporate events" },
+      { href: "/anomaly", label: "T19 · Price anomalies" },
     ],
   },
   {
