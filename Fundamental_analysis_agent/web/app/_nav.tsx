@@ -7,6 +7,7 @@ const ITEMS = [
   { href: "/task2", label: "Task 2 · 10-K Extractor" },
   { href: "/strategy", label: "Task 3 · Strategy Lab" },
   { href: "/technical", label: "Task 4 · Technical Lab" },
+  { href: "/ensemble", label: "Task 5 · Ensemble" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

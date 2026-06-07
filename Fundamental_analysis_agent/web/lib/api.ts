@@ -692,3 +692,100 @@ export async function pollAnalysis(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 5 — ensemble / multi-agent arbitration
+// Fuses Task 3 (fundamental) + Task 4 (technical) into one combined-position
+// backtest. Reuses the BacktestResult / PricePoint shapes above.
+// ===========================================================================
+
+export type CombineMode =
+  | "and" | "or" | "weighted"
+  | "fundamental_gated_technical" | "defer_fundamental" | "defer_technical";
+
+export type Agreement = "agree" | "conflict" | "partial" | "single_leg";
+
+export interface EnsemblePolicy {
+  combine_mode: CombineMode;
+  fundamental_weight: number;
+  technical_weight: number;
+  resolved_stance: "bullish" | "neutral" | "cautious";
+  agreement: Agreement;
+  arbitration_thesis: string;
+  conflict_resolution: string;
+}
+
+export interface SubAgentSummary {
+  agent: "fundamental" | "technical";
+  available: boolean;
+  stance: "bullish" | "neutral" | "cautious" | null;
+  entry_signal: string | null;
+  exit_signal: string | null;
+  thesis: string;
+  total_return_pct: number | null;
+  excess_vs_market_pct: number | null;
+  sharpe: number | null;
+  n_trades: number | null;
+  note: string;
+}
+
+export interface EnsembleResult {
+  job_id: string; ticker: string; company_name: string | null;
+  common_window_start: string; as_of_date: string;
+  fundamental: SubAgentSummary; technical: SubAgentSummary;
+  policy: EnsemblePolicy;
+  backtest: BacktestResult;
+  prices: PricePoint[];
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task5Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: EnsembleResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createEnsemble(ticker: string): Promise<Task5Job> {
+  const res = await fetch(`${API_BASE}/task5/ensembles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createEnsemble failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getEnsemble(jobId: string): Promise<Task5Job> {
+  const res = await fetch(`${API_BASE}/task5/ensembles/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getEnsemble failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollEnsemble(
+  jobId: string,
+  onUpdate: (j: Task5Job) => void,
+  intervalMs = 1500,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getEnsemble(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

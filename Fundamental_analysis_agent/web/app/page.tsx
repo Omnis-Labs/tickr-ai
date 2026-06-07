@@ -88,6 +88,54 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/technical"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 4</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Technicals → Strategy → Backtest
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → a snapshot of indicators (RSI, MACD, moving averages,
+            Bollinger, Donchian, volume) computed strictly{" "}
+            <span className="text-amber-400">as-of the most recent close</span> → an LLM
+            picks one executable strategy from a fixed technical menu, grounded in those
+            readings → a lookahead-free backtest over the trailing ~3 years. Signals act
+            on the next bar&apos;s open.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
+
+        <a
+          href="/ensemble"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 5</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Ensemble — Fundamental + Technical arbitration
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → the <span className="text-emerald-400">fundamental</span> agent
+            (Task 3) and the <span className="text-blue-400">technical</span> agent (Task 4)
+            run over one common window → an LLM <span className="text-purple-400">arbiter</span>{" "}
+            fuses them, picking one combine policy from a fixed menu (AND / OR / weighted /
+            gated / defer) from each agent&apos;s reasoning —{" "}
+            <em>not</em> its returns, so the policy isn&apos;t fit to the test window. The
+            combined position is backtested vs buy-and-hold and the S&amp;P 500. Degrades to
+            technical-only when there is no usable 10-K.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">
