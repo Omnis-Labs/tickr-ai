@@ -1,0 +1,35 @@
+# Task 24 — earnings-contagion eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM read-across choice is recorded, not graded.
+cases:
+- id: avgo-mrvl
+  category: semis
+  bellwether: AVGO
+  peer: MRVL
+  description: Broadcom → Marvell — a real semiconductor read-across pairing.
+  assertions:
+    max_cost_usd: 0.08
+    max_duration_ms: 140000
+- id: jpm-bac
+  category: banks
+  bellwether: JPM
+  peer: BAC
+  description: JPMorgan → Bank of America — money-center bank read-across.
+  assertions:
+    max_cost_usd: 0.08
+    max_duration_ms: 140000
+- id: same-ticker-graceful-fail
+  category: synthetic
+  bellwether: AAPL
+  peer: AAPL
+  description: Bellwether == peer must be rejected cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000
+- id: bad-peer-graceful-fail
+  category: synthetic
+  bellwether: AAPL
+  peer: ZZQQXX
+  description: Nonexistent peer — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

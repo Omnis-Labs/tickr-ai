@@ -1,0 +1,28 @@
+# Task 19 — price anomalies (52w-high / MAX / tax-loss) eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM-chosen signal is recorded, not graded.
+cases:
+- id: nvda
+  category: momentum
+  ticker: NVDA
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: aapl
+  category: mixed
+  ticker: AAPL
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: intc
+  category: laggard
+  ticker: INTC
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

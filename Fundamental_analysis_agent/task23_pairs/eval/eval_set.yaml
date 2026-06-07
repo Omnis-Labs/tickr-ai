@@ -1,0 +1,48 @@
+# Task 23 — pairs-trading eval set.
+#
+# Graded on market-neutral lookahead invariants + graceful failure + cost/time caps,
+# PLUS a DATA-INTEGRITY guard: a pairing asserted to be co-moving must clear a
+# correlation floor, so the engine can't dress an unrelated "pair" up as one. The
+# returns/Sharpe are recorded, not graded (a market-neutral book is judged on Sharpe,
+# and a real pair may still lose — that is honest, not a failure).
+cases:
+- id: ko-pep
+  category: classic-pair
+  ticker_a: KO
+  ticker_b: PEP
+  description: Coca-Cola / Pepsi — the textbook consumer-staples pair.
+  assertions:
+    min_correlation: 0.4
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: v-ma
+  category: classic-pair
+  ticker_a: V
+  ticker_b: MA
+  description: Visa / Mastercard — a tightly co-moving payments duopoly.
+  assertions:
+    min_correlation: 0.5
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: unrelated-data-integrity
+  category: data-integrity
+  ticker_a: KO
+  ticker_b: NVDA
+  description: >
+    A deliberately UNRELATED pairing. It must still run cleanly and honestly RECORD the
+    low correlation (no min_correlation assertion) — the point is the engine surfaces
+    that this isn't a real pair rather than hiding it behind a flashy backtest.
+  assertions:
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: same-ticker-graceful-fail
+  category: synthetic
+  ticker_a: KO
+  ticker_b: KO
+  description: Identical tickers must be rejected cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

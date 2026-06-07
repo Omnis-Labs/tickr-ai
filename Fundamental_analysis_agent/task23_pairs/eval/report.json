@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-06-07T23:24:17.878310+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.000746,
+    "cost_p95": 0.000773,
+    "cost_total": 0.002218,
+    "duration_p50_ms": 4429.0,
+    "duration_p95_ms": 6003.1,
+    "by_category": {
+      "classic-pair": {
+        "n": 2,
+        "n_pass": 2
+      },
+      "data-integrity": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "ko-pep",
+      "category": "classic-pair",
+      "label": "KO/PEP",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 4429,
+      "cost_usd": 0.000696,
+      "failure_reasons": [],
+      "recorded": {
+        "correlation": 0.61,
+        "half_life_days": 1.4,
+        "z_entry": 1.5,
+        "total_return_pct": -18.68,
+        "sharpe": -0.95,
+        "n_trades": 48,
+        "exposure_pct": 71.4
+      }
+    },
+    {
+      "id": "v-ma",
+      "category": "classic-pair",
+      "label": "V/MA",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 6178,
+      "cost_usd": 0.000776,
+      "failure_reasons": [],
+      "recorded": {
+        "correlation": 0.85,
+        "half_life_days": 2.8,
+        "z_entry": 1.5,
+        "total_return_pct": -7.14,
+        "sharpe": -0.54,
+        "n_trades": 29,
+        "exposure_pct": 55.9
+      }
+    },
+    {
+      "id": "unrelated-data-integrity",
+      "category": "data-integrity",
+      "label": "KO/NVDA",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 1694,
+      "cost_usd": 0.000746,
+      "failure_reasons": [],
+      "recorded": {
+        "correlation": -0.21,
+        "half_life_days": 1.4,
+        "z_entry": 2.5,
+        "total_return_pct": -13.4,
+        "sharpe": -0.22,
+        "n_trades": 36,
+        "exposure_pct": 32.5
+      }
+    },
+    {
+      "id": "same-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "KO/KO",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 0,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

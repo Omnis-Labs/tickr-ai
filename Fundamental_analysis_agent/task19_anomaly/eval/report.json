@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-06-07T23:24:09.202228+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.000704,
+    "cost_p95": 0.0007094,
+    "cost_total": 0.002005,
+    "duration_p50_ms": 3613.0,
+    "duration_p95_ms": 5056.6,
+    "by_category": {
+      "momentum": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "mixed": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "laggard": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "nvda",
+      "category": "momentum",
+      "label": "NVDA",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 3613,
+      "cost_usd": 0.000704,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "total_return_pct": 427.02,
+        "sharpe": 1.42,
+        "exposure_pct": 99.9,
+        "n_trades": 1,
+        "alpha_vs_market_pct": 348.13
+      }
+    },
+    {
+      "id": "aapl",
+      "category": "mixed",
+      "label": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 3395,
+      "cost_usd": 0.000591,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "near_52w_high",
+        "total_return_pct": 0.44,
+        "sharpe": 0.08,
+        "exposure_pct": 42.6,
+        "n_trades": 23,
+        "alpha_vs_market_pct": -78.45
+      }
+    },
+    {
+      "id": "intc",
+      "category": "laggard",
+      "label": "INTC",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 5217,
+      "cost_usd": 0.00071,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "total_return_pct": 182.82,
+        "sharpe": 0.88,
+        "exposure_pct": 99.5,
+        "n_trades": 4,
+        "alpha_vs_market_pct": 103.93
+      }
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 3853,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

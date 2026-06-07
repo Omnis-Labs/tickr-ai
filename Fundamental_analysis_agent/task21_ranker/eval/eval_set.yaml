@@ -1,0 +1,39 @@
+# Task 21 — cross-sectional ranker eval set.
+#
+# Graded on portfolio lookahead invariants + graceful failure + cost/time caps, PLUS
+# SURVIVORSHIP / data-integrity assertions (the whole point of hardening a watchlist
+# agent): a delisted/bad name must be DROPPED (not crash, not silently included), the
+# run must still succeed on the survivors, and the survivorship caveat must be present.
+# The LLM-chosen factor is recorded, not graded.
+cases:
+- id: megacap-momentum
+  category: clean
+  tickers: "AAPL, MSFT, NVDA, AMZN, GOOGL, META, JPM, XOM"
+  description: A clean 8-name megacap universe — exercises ranking + top-N selection.
+  assertions:
+    expect_min_universe: 8
+    max_cost_usd: 0.05
+    max_duration_ms: 160000
+
+- id: survivorship-drop-delisted
+  category: survivorship
+  tickers: "AAPL, MSFT, NVDA, WBA, ZZQQXX, KO, XOM"
+  description: >
+    Mixes live names with a nonexistent ticker (ZZQQXX) and a thin/likely-bad one. The
+    bad name MUST be dropped, the run MUST still succeed on the survivors, and the
+    survivorship caveat MUST be present — proving the agent doesn't silently include or
+    crash on names that lack usable history.
+  assertions:
+    expect_dropped_contains: ZZQQXX
+    expect_survivorship_caveat: true
+    expect_min_universe: 4
+    max_cost_usd: 0.05
+    max_duration_ms: 160000
+
+- id: too-few-graceful-fail
+  category: synthetic
+  tickers: "AAPL, ZZQQXX"
+  description: Only one usable name after dropping → must fail cleanly (need ≥ 3).
+  assertions:
+    expect_failed: true
+    max_duration_ms: 90000

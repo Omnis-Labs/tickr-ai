@@ -1,0 +1,22 @@
+# Task 20 — VIX regime gate eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM-chosen signal is recorded, not graded.
+cases:
+- id: spy
+  category: index
+  ticker: SPY
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: qqq
+  category: index
+  ticker: QQQ
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

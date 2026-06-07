@@ -1,0 +1,81 @@
+{
+  "generated_at": "2026-06-07T23:24:26.311016+00:00",
+  "metrics": {
+    "n_cases": 3,
+    "n_pass": 3,
+    "pass_rate": 1.0,
+    "cost_p50": 0.000839,
+    "cost_p95": 0.0008543,
+    "cost_total": 0.001678,
+    "duration_p50_ms": 5424.5,
+    "duration_p95_ms": 6076.55,
+    "by_category": {
+      "clean": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "survivorship": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "megacap-momentum",
+      "category": "clean",
+      "label": "megacap-momentum",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 4700,
+      "cost_usd": 0.000856,
+      "failure_reasons": [],
+      "recorded": {
+        "factor": "momentum_12_1",
+        "top_n": 3,
+        "n_universe": 8,
+        "dropped": [],
+        "total_return_pct": 41.81,
+        "sharpe": 0.65,
+        "excess_vs_basket_pct": -100.22
+      }
+    },
+    {
+      "id": "survivorship-drop-delisted",
+      "category": "survivorship",
+      "label": "survivorship-drop-delisted",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 6149,
+      "cost_usd": 0.000822,
+      "failure_reasons": [],
+      "recorded": {
+        "factor": "momentum_12_1",
+        "top_n": 2,
+        "n_universe": 5,
+        "dropped": [
+          "WBA",
+          "ZZQQXX"
+        ],
+        "total_return_pct": 1.59,
+        "sharpe": 0.14,
+        "excess_vs_basket_pct": -125.14
+      }
+    },
+    {
+      "id": "too-few-graceful-fail",
+      "category": "synthetic",
+      "label": "too-few-graceful-fail",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 0,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+# Task 17 — fundamental-quality (Piotroski/accruals/asset-growth) eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM-chosen signal is recorded, not graded.
+cases:
+- id: aapl
+  category: quality-strong
+  ticker: AAPL
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: intc
+  category: quality-weak
+  ticker: INTC
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: ko
+  category: quality-stable
+  ticker: KO
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

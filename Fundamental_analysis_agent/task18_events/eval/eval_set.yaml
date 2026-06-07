@@ -1,0 +1,28 @@
+# Task 18 — corporate events (13D / red-flags / 8-K 5.02) eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM-chosen signal is recorded, not graded.
+cases:
+- id: bhc
+  category: activist
+  ticker: BHC
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: aapl
+  category: quiet
+  ticker: AAPL
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: cvna
+  category: events
+  ticker: CVNA
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

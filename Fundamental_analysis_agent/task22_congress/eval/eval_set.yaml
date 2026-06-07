@@ -1,0 +1,28 @@
+# Task 22 — congressional trading (pluggable provider) eval set. Graded on lookahead invariants + graceful
+# failure + cost/time caps; the LLM-chosen signal is recorded, not graded.
+cases:
+- id: nvda
+  category: traded
+  ticker: NVDA
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: aapl
+  category: traded
+  ticker: AAPL
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: msft
+  category: traded
+  ticker: MSFT
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 120000
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

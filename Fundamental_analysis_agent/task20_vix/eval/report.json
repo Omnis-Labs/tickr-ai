@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-06-07T23:24:53.403371+00:00",
+  "metrics": {
+    "n_cases": 3,
+    "n_pass": 3,
+    "pass_rate": 1.0,
+    "cost_p50": 0.0007199999999999999,
+    "cost_p95": 0.0007335,
+    "cost_total": 0.0014399999999999999,
+    "duration_p50_ms": 5587.0,
+    "duration_p95_ms": 5651.8,
+    "by_category": {
+      "index": {
+        "n": 2,
+        "n_pass": 2
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "spy",
+      "category": "index",
+      "label": "SPY",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 5515,
+      "cost_usd": 0.000705,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "vix_term_gate",
+        "total_return_pct": 52.08,
+        "sharpe": 1.21,
+        "exposure_pct": 93.4,
+        "n_trades": 19,
+        "alpha_vs_market_pct": null
+      }
+    },
+    {
+      "id": "qqq",
+      "category": "index",
+      "label": "QQQ",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 5659,
+      "cost_usd": 0.000735,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "vix_term_gate",
+        "total_return_pct": 60.53,
+        "sharpe": 1.01,
+        "exposure_pct": 93.4,
+        "n_trades": 19,
+        "alpha_vs_market_pct": -18.36
+      }
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 889,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}
