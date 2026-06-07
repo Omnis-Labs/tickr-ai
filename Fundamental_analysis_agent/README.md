@@ -45,8 +45,13 @@ task2_10k_extractor/     SEC 10-K extractor — pipeline/ (ingest → normalize 
                          L1 → L2 → L3 → confidence → calibration),
                          api/ (with LLM-powered free-text input parser),
                          eval/ (20 cases over 7 industries + pre-iXBRL)
-web/                     Next.js 15 frontend — 5 pages: /, /task1, /task2,
-                         /dashboard, /jobs/[id]
+task3_strategy/ … task26_meihua/
+                         The Strategy Lab — 22 US-stock research agents + 2 placebo
+                         controls (T3–T26). Each = pipeline/ (data → signal →
+                         lookahead-free backtest), api/ router, eval/. See the full
+                         map below and in docs/AGENTS.md.
+web/                     Next.js 15 frontend — a page per agent under web/app/…,
+                         plus /, /dashboard, /jobs/[id]
 prompts/                 Versioned prompt templates (4 for Task 1 + 3 for Task 2)
 docs/spec/               Original project spec (EN + ZH)
                          + PRODUCTION_HARDENING_ROADMAP.md (production roadmap)
@@ -58,6 +63,135 @@ docs/DEPLOYMENT.md       Step-by-step prod deploy walkthrough
 infra/                   Dockerfile, railway.json, zeabur.json, Procfile,
                          docker-compose.dev.yml, .env.production.example
 ```
+
+---
+
+## 🧭 The full agent suite (T1–T26) — principles & how they interact
+
+What began as the two review tasks (T1 browser agent, T2 10-K extractor) grew into a
+**26-agent US-stock research suite**: 24 signal/portfolio agents + **2 placebo controls**.
+The deep-dive map is [docs/AGENTS.md](docs/AGENTS.md); this is the self-contained summary.
+
+### The shared design pattern (every strategy agent)
+
+```
+ticker → gather data (as-of a decision date)
+       → LLM picks ONE strategy from a small, fixed DSL (it never writes free code)
+       → deterministic, LOOKAHEAD-FREE backtest of that rule
+       → result vs buy-and-hold + the S&P 500 (SPY), with honest caveats
+```
+
+Two invariants make it trustworthy:
+
+1. **Lookahead-free execution** — a signal computed on the close of bar *i* executes at the
+   **open of bar *i+1***; filing-based data is keyed to the **filing/publish date**, never the
+   event date. The LLM only ever sees as-of information.
+2. **Selection ≠ execution** — the LLM *selects* from a constrained menu (it can't leak future
+   prices through code); the *execution* is pure deterministic Python. The placebo controls
+   (T25/T26) are the proof: their florid LLM narrative is computed but **ignored** by the engine.
+
+### Utilities (data gathering)
+
+| # | Agent | Principle |
+|---|---|---|
+| **T1** | Browser agent | NL task → explicit `PLAN·LOCATE·ACT·VERIFY·DIAGNOSE` state machine; self-corrects via typed root-cause + a three-pronged locator (CSS→ARIA→text). |
+| **T2** | SEC 10-K extractor | Layered L1 anchor → L2 structural → L3 LLM self-consistency; Platt-calibrated confidence; **quarantines** low-confidence filings instead of emitting wrong data. |
+
+### Single-name signal agents (data → LLM DSL → lookahead-free backtest)
+
+| # | Agent | Principle |
+|---|---|---|
+| **T3** | Fundamental (10-K text) | LLM thesis + strategy grounded in the filing text (with citations); filing-date-aligned backtest. |
+| **T4** | Technical | RSI/MACD/SMA/Bollinger/Donchian/volume readings → a technical rule. **Owns the shared backtest engine + metrics.** |
+| **T6** | Insider (Form 4) | Open-market insider cluster-buys / net-value (filing-date keyed); selling is a weak exit, never a short. |
+| **T7** | Relative strength | Stock ÷ sector-ETF (SIC-mapped, SPY fallback) → RS trend / breakout / momentum. |
+| **T8** | Earnings (8-K) | LLM classifies each earnings release (sentiment/guidance/beat-miss) → post-earnings-drift (PEAD). |
+| **T9** | Institutional (13F) | Tracks famous managers' holdings → accumulation/distribution; ~45-day-lag confirmation. |
+| **T11** | Fundamentals trend | XBRL YoY revenue/earnings growth + margin trend (point-in-time) → fundamental momentum. |
+| **T12** | Seasonality | Month-of-year / sell-in-May / turn-of-month; in-sample-caveated, defaults to buy-and-hold when weak. |
+| **T13** | Overnight / gap | Decomposes overnight (close→open) vs intraday (open→close); honest about the round-trip cost. |
+| **T14** | Volatility regime | Vol-managed long/flat — participate when realized vol is calm, step aside when it spikes. |
+| **T15** | Buyback | Falling diluted share count = net repurchases (filing-date keyed) → follow sustained buybacks. |
+| **T16** | Short pressure | FINRA short-**volume** percentile **+** NASDAQ bi-monthly short-**interest** (days-to-cover); both publish-lagged. |
+| **T17** | Fundamental quality | Piotroski **F-Score** + Sloan **accruals** + **asset-growth** anomaly — point-in-time accounting quality. |
+| **T18** | Corporate events | 13D activist drift (+) + red flags (dilution / late filings / auditor change / delisting) + LLM-read 8-K 5.02 exec departures. |
+| **T19** | Price anomalies | **52-week-high momentum**, **MAX/lottery** avoidance, **tax-loss reversal** — prices only, calendar/trailing-window. |
+| **T20** | VIX regime gate | CBOE term structure (^VIX vs ^VIX3M): long in contango, to cash on inversion or a VIX spike. |
+| **T22** | Congressional trading | Follow disclosed lawmaker buys / avoid after sells, keyed to the **disclosure** date. Pluggable data (Quiver/FMP key, else free House-PTR parse). |
+| **T24** | Earnings contagion | A bellwether's earnings move its **peer** before the peer reports; classifies the bellwether's 8-Ks (reusing T8), trades the peer. |
+
+### Long-short / market-neutral
+
+| # | Agent | Principle |
+|---|---|---|
+| **T23** | Pairs trading (stat-arb) | The suite's one **long-short, dollar-neutral** strategy: spread = logA − β·logB (trailing OLS), rolling **z-score** mean-reversion (enter on stretch, exit on reversion, stop on blow-out). |
+
+### Portfolio capstones & fusion (consume other agents)
+
+| # | Agent | Principle |
+|---|---|---|
+| **T5** | Ensemble / arbiter | Runs **T3 + T4** over a common window; an LLM arbiter picks a combine policy (AND/OR/weighted/gated/defer) from each leg's *reasoning, not returns*. |
+| **T10** | Portfolio / risk sizing | Runs **T4** across a watchlist → LLM picks a **sizing policy** (equal/inverse-vol/risk-parity/signal-proportional + caps + vol target) → multi-name portfolio backtest. |
+| **T21** | Cross-sectional ranker | LLM picks ONE factor (momentum / low-vol / 52w-high / reversal); each rebalance ranks the universe on trailing data and holds the **top-N**. Reuses T10's backtest. Where T10 *sizes*, T21 *selects*. |
+
+### Control / placebo arm ⚠️ (calibrate the false-positive rate)
+
+| # | Agent | Principle |
+|---|---|---|
+| **T25** | Financial astrology | Mercury-retrograde / moon-phase / aspect timing via `ephem` (offline, deterministic). **No economic mechanism** — runs the identical backtest to measure what Sharpe the framework manufactures from noise. Prints the 星盤 + reasoning chain. |
+| **T26** | 梅花易數 I Ching | Deterministic 時間起卦 → 體用五行生剋 hold/flat. Its `seed` makes it the **null-distribution engine** (poor-man's White's Reality Check: **480 draws → p95 Sharpe ≈ 0.94**, the bar a real agent must clear to beat luck). Prints the full 命盤 + 起卦→體用→生剋→變卦 chain. |
+
+### Interaction relationship diagram
+
+**(a) Aggregation — an agent runs other agents end-to-end:**
+
+```
+                 ┌────────────┐         ┌─────────────┐
+   10-K (T2) ───▶│ T3 fundam. │──┐   ┌──│ T4 technical│──────┐ (per name, across a watchlist)
+                 └────────────┘  │   │  └─────────────┘      │
+                                 ▼   ▼                       ▼
+                            ┌──────────────┐     ┌───────────────────┐   ┌──────────────────────┐
+                            │ T5 ensemble  │     │ T10 portfolio     │   │ T21 cross-sectional  │
+                            │  (arbiter)   │     │  sizing + risk    │   │  ranker (reuses T10) │
+                            └──────────────┘     └───────────────────┘   └──────────────────────┘
+
+   8-K (T8) ───▶ classify the BELLWETHER's earnings ──▶ ┌──────────────────────┐
+                                                        │ T24 earnings contagion│ trades the PEER
+                                                        └──────────────────────┘
+```
+
+**(b) Building-block reuse — shared code, not full runs:**
+
+- **T4's backtest engine + `_metrics`** is the common scoring ruler → reused by T5, T6, T7, T8, T9, T11–T16.
+- **The generic `run_factor_backtest` (in T17)** — long-only, driven by a `want_long(date)` callable → reused by **T18, T19, T20, T22, T24, T25, T26**.
+- **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) → reused by **T21**.
+- **T23** keeps its own market-neutral backtest but fills T4's `BacktestMetrics` so the shared UI panel renders it.
+- **T11's XBRL `companyfacts` fetch** → reused by T15 (buyback) and T17 (quality).
+- **T8's 8-K fetch + classifier** → reused by T18 (5.02 body) and T24 (bellwether).
+- **`shared/eval_harness.py`** (lookahead-invariant checks for factor / portfolio / pairs shapes) → reused by every agent's eval runner.
+
+**(c) External data dependency map:**
+
+```
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26
+   └─ ^VIX / ^VIX3M ....... T20
+SEC EDGAR (filings / submissions / XBRL)
+   ├─ 10-K text ........... T2 → T3 → T5
+   ├─ Form 4 .............. T6
+   ├─ 8-K Ex-99.1 ......... T8 → T18, T24
+   ├─ 13D / red-flag forms  T18
+   ├─ 13F-HR (curated) .... T9
+   └─ XBRL companyfacts ... T11 → T15, T17
+SEC SIC code ............... T7 (sector ETF), industry mapping
+FINRA short-volume ......... T16        NASDAQ short-interest ... T16
+Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
+ephem (offline astronomy) .. T25        date-only casting ....... T26
+(LLM gateway) .............. every strategy agent T3–T26
+```
+
+The progression the suite demonstrates: **gather → many independent signals → fuse → select & size
+into a portfolio**, every step lookahead-safe and free-data-first — with two placebo controls bolted on
+to keep the whole thing statistically honest.
 
 ---
 
