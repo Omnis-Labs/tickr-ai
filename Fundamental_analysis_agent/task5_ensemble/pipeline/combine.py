@@ -16,6 +16,17 @@ proportionally.
 The metrics (Sharpe, drawdown, alpha vs S&P 500, entry-aligned benchmark) are
 computed by Task 4's `_metrics`, reused verbatim so the ensemble's numbers are
 defined identically to the legs it is compared against.
+
+KNOWN BOUNDARY — intrabar risk overlays are not preserved. The ensemble operates
+on *daily* target exposures derived from each leg's in-market days, so it can only
+rebalance at the open. A sub-strategy's intrabar stop-loss / take-profit (which
+fills mid-bar at the trigger level) cannot be represented: on the leg's stop day
+the ensemble simply goes flat at the next open instead. Therefore
+`defer_technical` reproduces the technical leg *exactly* only when that leg has no
+stop/take overlay (pinned by test_defer_technical_reproduces_technical_backtest);
+for a leg that DOES stop out intrabar, the combined backtest will drift from the
+leg's standalone result (the eval records this drift rather than treating it as a
+bug). This is an accepted property of a daily-rebalanced combination overlay.
 """
 
 from __future__ import annotations

@@ -1,0 +1,110 @@
+# Task 5 — ensemble agent eval set.
+#
+# Unlike Task 2 (where the ground truth is a fixed filing), Task 5's headline
+# output — which combine policy the LLM arbiter picks — is stochastic and has no
+# single correct answer. So pass/fail rides on what IS deterministic:
+#
+#   * system invariants, asserted on EVERY successful case automatically by the
+#     runner (no per-case config needed):
+#       - lookahead: backtest start == common_window_start, and no episode opens
+#         before it; the benchmark anchors at 1.0 on bar 0.
+#       - metrics populated + in-range (exposure 0..100, sharpe/drawdown present).
+#       - defer_technical ⇒ ensemble return ≈ technical-leg return (the
+#         ensemble-of-one-agent ≡ that-agent property, checked live).
+#   * deterministic behaviour, asserted per case:
+#       - a foreign filer (20-F, no 10-K) ⇒ technical-only fallback.
+#       - a bad ticker ⇒ graceful failure.
+#   * per-case cost / duration caps.
+#
+# Everything else (chosen mode, agreement, stances, per-leg returns) is RECORDED
+# in report.json for inspection, not graded — that is how the agree/conflict
+# distribution is surfaced honestly without pretending a stochastic choice is
+# "right" or "wrong".
+
+# NOTE on `expect_fundamental_available`: we do NOT assert it for US large-caps.
+# Whether a 10-K extracts cleanly (vs is quarantined) is Task 2's responsibility
+# and is graded by Task 2's eval — INTC, for example, is a known quarantine case
+# (truncated Item 1/8, ADR-007). Task 5's job is to HANDLE both outcomes: use the
+# fundamental leg when available, fall back to technical-only when not. So for US
+# names we only assert the system invariants + cost/time, and RECORD which path
+# was taken. We assert availability only where it is deterministic: a foreign
+# filer (TSM) has no 10-K, full stop.
+
+cases:
+# ---- agree-likely: strong-uptrend mega-caps, both legs usually bullish --------
+- id: aapl-agree
+  category: agree-candidate
+  ticker: AAPL
+  description: Mega-cap uptrend; fundamental + technical typically both bullish.
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+- id: msft-agree
+  category: agree-candidate
+  ticker: MSFT
+  description: Mega-cap; legs may diverge (fundamentals bullish vs a softer trend),
+    exercising the conflict/gated path.
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+- id: nvda-agree
+  category: agree-candidate
+  ticker: NVDA
+  description: Strong momentum name; tests constructive / gated arbitration.
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+# ---- conflict-candidates: fundamentals vs technicals may diverge -------------
+# (Outcome recorded, not hard-asserted — the arbiter may still see both one way,
+#  and the fundamental leg may quarantine → technical-only. Both are valid.)
+- id: intc-conflict
+  category: conflict-candidate
+  ticker: INTC
+  description: Turnaround story. Doubles as a quarantine-propagation case — INTC's
+    10-K is a known Task 2 quarantine (ADR-007), so the ensemble usually (and
+    correctly) falls back to technical-only here.
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+- id: pfe-conflict
+  category: conflict-candidate
+  ticker: PFE
+  description: Pfizer — post-COVID earnings normalisation vs a weak price trend;
+    a plausible fundamental/technical divergence. (Replaces WBA, which delisted.)
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+- id: xom-conflict
+  category: conflict-candidate
+  ticker: XOM
+  description: Energy cyclical — fundamental vs technical regime can diverge.
+  assertions:
+    max_cost_usd: 0.06
+    max_duration_ms: 150000
+
+# ---- technical-only fallback: foreign filer (files 20-F, has no 10-K) --------
+- id: tsm-foreign-fallback
+  category: fallback
+  ticker: TSM
+  description: Taiwan Semiconductor ADR — files 20-F, not 10-K. Fundamental leg
+    must be unavailable and the ensemble must defer to technical, deterministically.
+  assertions:
+    expect_fundamental_available: false
+    expect_combine_mode: defer_technical
+    expect_agreement: single_leg
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+# ---- graceful failure: not a tradable US ticker ------------------------------
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly (no crash, clean message).
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000
