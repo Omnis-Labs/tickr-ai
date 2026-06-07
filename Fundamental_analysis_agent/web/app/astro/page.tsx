@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createAstro, pollAstro, Task25Job, AstroResult } from "@/lib/api";
 import { CandlestickChart, EquityChart } from "./Charts";
+import { StarChart } from "./StarChart";
 import { Backtest, Caveats, Readings } from "../_components/panels";
 
 const STANCE: Record<string, string> = {
@@ -69,8 +70,9 @@ export default function AstroPage() {
           <div className="flex items-baseline justify-between flex-wrap gap-2"><h2 className="text-xl font-semibold">{r.ticker} <span className="text-[11px] px-2 py-0.5 rounded border border-purple-700 bg-purple-950/30 text-purple-300 align-middle">PLACEBO</span></h2>
             <span className="text-xs text-zinc-500">as-of {r.as_of_date} · cost ${r.cost_usd.toFixed(4)}</span></div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="border border-zinc-800 rounded-md p-4 space-y-2">
+            <div className="border border-zinc-800 rounded-md p-4 space-y-3">
               <h3 className="text-sm font-semibold text-zinc-200">星盤 — as-of chart</h3>
+              <StarChart chart={r.chart} aspects={r.aspects} />
               <table className="w-full text-xs"><tbody className="text-zinc-300">
                 {r.chart.map((p) => <tr key={p.body} className="border-t border-zinc-900"><td className="py-1 pr-3 font-medium">{p.body}</td><td className="pr-3 text-right tabular-nums">{p.ecliptic_lon.toFixed(1)}°</td><td className="pr-3">{p.sign}</td><td className={p.retrograde ? "text-amber-400" : "text-zinc-600"}>{p.retrograde ? "℞ retrograde" : "direct"}</td></tr>)}
               </tbody></table>
