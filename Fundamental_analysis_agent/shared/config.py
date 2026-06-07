@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     task2_budget_usd: float = 0.10
     global_daily_budget_usd: float = 10.0
 
+    # Price data source. yfinance is free but personal-use-only (ToS) and
+    # rate-limits; "tiingo" is a licensed feed for a real product. Selection is
+    # behind fetch_prices(); an unset/failed paid provider falls back to yfinance.
+    price_provider: Literal["yfinance", "tiingo"] = "yfinance"
+    tiingo_api_key: str = ""
+
     database_url: str = "sqlite+aiosqlite:///./data/dev.db"
 
     artifact_backend: Literal["local", "supabase"] = "local"
