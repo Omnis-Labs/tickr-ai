@@ -1,5 +1,7 @@
 # US-stock LLM — Browser Agent · SEC 10-K Extractor · Strategy Lab
 
+> 🌐 Languages: **English (this page)** · [繁體中文](README.zh-TW.md)
+
 Implemented, deployed, and live.
 
 | Live URL | Purpose |
