@@ -1,47 +1,101 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
-const ITEMS = [
-  { href: "/task1", label: "Task 1 · Browser Agent" },
-  { href: "/task2", label: "Task 2 · 10-K Extractor" },
-  { href: "/strategy", label: "Task 3 · Strategy Lab" },
-  { href: "/technical", label: "Task 4 · Technical Lab" },
-  { href: "/ensemble", label: "Task 5 · Ensemble" },
-  { href: "/insider", label: "Task 6 · Insider" },
-  { href: "/relative", label: "Task 7 · Rel. Strength" },
-  { href: "/earnings", label: "Task 8 · Earnings" },
-  { href: "/institutional", label: "Task 9 · 13F" },
-  { href: "/portfolio", label: "Task 10 · Portfolio" },
-  { href: "/fundamentals", label: "Task 11 · Fund. Trend" },
-  { href: "/seasonality", label: "Task 12 · Seasonality" },
-  { href: "/overnight", label: "Task 13 · Overnight" },
-  { href: "/volatility", label: "Task 14 · Vol Regime" },
-  { href: "/buyback", label: "Task 15 · Buyback" },
-  { href: "/short", label: "Task 16 · Short" },
-  { href: "/dashboard", label: "Dashboard" },
+const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
+  {
+    title: "Tools",
+    items: [
+      { href: "/task1", label: "T1 · Browser agent" },
+      { href: "/task2", label: "T2 · 10-K extractor" },
+    ],
+  },
+  {
+    title: "Signal agents",
+    items: [
+      { href: "/strategy", label: "T3 · Fundamental (10-K)" },
+      { href: "/technical", label: "T4 · Technical" },
+      { href: "/insider", label: "T6 · Insider (Form 4)" },
+      { href: "/relative", label: "T7 · Relative strength" },
+      { href: "/earnings", label: "T8 · Earnings (8-K)" },
+      { href: "/institutional", label: "T9 · Institutional (13F)" },
+      { href: "/fundamentals", label: "T11 · Fundamentals trend" },
+      { href: "/seasonality", label: "T12 · Seasonality" },
+      { href: "/overnight", label: "T13 · Overnight / gap" },
+      { href: "/volatility", label: "T14 · Volatility regime" },
+      { href: "/buyback", label: "T15 · Buyback" },
+      { href: "/short", label: "T16 · Short pressure" },
+    ],
+  },
+  {
+    title: "Fusion & portfolio",
+    items: [
+      { href: "/ensemble", label: "T5 · Ensemble" },
+      { href: "/portfolio", label: "T10 · Portfolio sizing" },
+    ],
+  },
 ];
+
+const ALL = GROUPS.flatMap((g) => g.items);
 
 export default function NavLinks() {
   const pathname = usePathname() || "/";
+  const [open, setOpen] = useState(false);
+  const isActive = (h: string) => pathname === h || pathname.startsWith(h + "/");
+  const current = ALL.find((it) => isActive(it.href));
+
   return (
-    <nav className="flex gap-4 text-sm">
-      {ITEMS.map((it) => {
-        const active = pathname === it.href || pathname.startsWith(it.href + "/");
-        return (
-          <a
-            key={it.href}
-            href={it.href}
-            className={
-              active
-                ? "text-zinc-100 border-b-2 border-emerald-400 -mb-px"
-                : "text-zinc-400 hover:text-zinc-100"
-            }
-          >
-            {it.label}
-          </a>
-        );
-      })}
-    </nav>
+    <div className="relative flex items-center gap-4 text-sm">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 ${open || current ? "text-zinc-100" : "text-zinc-300"} hover:text-zinc-100`}
+      >
+        Agents <span className="text-zinc-500">({ALL.length})</span>
+        <span className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+      </button>
+
+      {current && (
+        <span className="hidden md:inline text-emerald-400 truncate max-w-[14rem]">
+          {current.label}
+        </span>
+      )}
+
+      <a
+        href="/dashboard"
+        className={isActive("/dashboard")
+          ? "text-zinc-100 border-b-2 border-emerald-400 -mb-px"
+          : "text-zinc-400 hover:text-zinc-100"}
+      >
+        Dashboard
+      </a>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute top-full left-0 mt-3 z-50 w-[min(92vw,720px)] rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
+            {GROUPS.map((g) => (
+              <div key={g.title}>
+                <div className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">{g.title}</div>
+                <div className="flex flex-col gap-1.5">
+                  {g.items.map((it) => (
+                    <a
+                      key={it.href}
+                      href={it.href}
+                      onClick={() => setOpen(false)}
+                      className={isActive(it.href)
+                        ? "text-emerald-400"
+                        : "text-zinc-300 hover:text-zinc-100"}
+                    >
+                      {it.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
