@@ -1,7 +1,7 @@
 [project]
 name = "fundamental-analysis-agent"
 version = "0.1.0"
-description = "Fundamental Analysis Agent — browser agent + SEC 10-K extractor + fundamentals-driven strategy lab"
+description = "Fundamental Analysis Agent LLM Engineer review — browser agent + 10-K extractor"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -50,7 +50,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly"]
+testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -62,4 +62,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly"]
+packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix"]

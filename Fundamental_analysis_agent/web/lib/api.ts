@@ -1392,3 +1392,19 @@ export interface Task19Job { job_id: string; ticker: string; status: JobStatus; 
 export const createAnomaly = (t: string): Promise<Task19Job> => _create("/task19/anomaly", t);
 export const getAnomaly = (id: string): Promise<Task19Job> => _get(`/task19/anomaly/${id}`);
 export const pollAnomaly = _poll<Task19Job>(getAnomaly);
+
+// ---- Task 20: VIX regime gate (^VIX term structure / level) ----
+export interface VixSpec {
+  entry_signal: "buy_and_hold" | "vix_term_gate" | "vix_level_gate";
+  term_threshold: number; level_threshold: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface VixResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  prices: PricePoint[]; strategy: VixSpec; backtest: BacktestResult;
+  vix_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task20Job { job_id: string; ticker: string; status: JobStatus; result: VixResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createVix = (t: string): Promise<Task20Job> => _create("/task20/vix", t);
+export const getVix = (id: string): Promise<Task20Job> => _get(`/task20/vix/${id}`);
+export const pollVix = _poll<Task20Job>(getVix);

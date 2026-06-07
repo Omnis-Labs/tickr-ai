@@ -29,6 +29,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/quality", label: "T17 · Fundamental quality" },
       { href: "/events", label: "T18 · Corporate events" },
       { href: "/anomaly", label: "T19 · Price anomalies" },
+      { href: "/vix", label: "T20 · VIX regime gate" },
     ],
   },
   {

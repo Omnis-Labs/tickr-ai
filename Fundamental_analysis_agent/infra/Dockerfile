@@ -40,6 +40,7 @@ COPY task16_short/ task16_short/
 COPY task17_quality/ task17_quality/
 COPY task18_events/ task18_events/
 COPY task19_anomaly/ task19_anomaly/
+COPY task20_vix/ task20_vix/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .

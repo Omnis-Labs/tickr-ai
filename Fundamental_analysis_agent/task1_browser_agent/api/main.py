@@ -50,13 +50,14 @@ from task16_short.api.router import router as task16_router
 from task17_quality.api.router import router as task17_router
 from task18_events.api.router import router as task18_router
 from task19_anomaly.api.router import router as task19_router
+from task20_vix.api.router import router as task20_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-19 (full agent suite)", version="1.4.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-20 (full agent suite)", version="1.5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -82,6 +83,7 @@ app.include_router(task16_router)
 app.include_router(task17_router)
 app.include_router(task18_router)
 app.include_router(task19_router)
+app.include_router(task20_router)
 
 
 @app.on_event("startup")
