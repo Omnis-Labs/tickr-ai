@@ -195,6 +195,50 @@ to keep the whole thing statistically honest.
 
 ---
 
+## 💰 Where each agent's edge actually comes from (and when it bleeds)
+
+A signal only makes money if it harvests something real: a **risk premium** (you get paid to bear
+risk), a **behavioral anomaly** (a mispricing from human bias — which *decays as it gets arbitraged*),
+an **information edge** (someone knows more), or **relative-value arbitrage**. Naming the source per
+agent is the honest test — and it exposes that several of these "edges" are decayed, crowded, or (for
+the two controls) **absent on purpose**. T1/T2 are tools, not traders: they make no market money, they
+cut the cost of gathering data.
+
+| # | What it actually harvests | Makes money when… | Loses money when… |
+|---|---|---|---|
+| **T3** Fundamental | Value/quality premium + slow fundamental mispricing | cheap/quality names re-rate and the filing-grounded thesis is right | fundamentals already priced (efficient), value traps, or the thesis is overfit/wrong |
+| **T4** Technical | Trend/momentum risk premium + short-horizon autocorrelation | the tape trends and persists | choppy/mean-reverting markets whipsaw it; momentum crashes at reversals; costs compound |
+| **T5** Ensemble | Signal diversification (variance reduction) + conflict-gating | the two weakly-correlated legs agree **and** are right | correlated error (both wrong together) or an overfit combine policy |
+| **T6** Insider | Information asymmetry — insiders know more | following *opportunistic* cluster buys that genuinely predict upside | the signal is public + lagged + crowded; many buys are uninformative (10b5-1, comp); selling is noisy so it's ignored |
+| **T7** Relative strength | Cross-sectional momentum / sector leadership | leaders keep leading their sector | factor rotations and sharp reversals — it *is* momentum, so it owns momentum-crash risk |
+| **T8** Earnings (PEAD) | Post-earnings under-reaction drift — the most robust anomaly | drift continues after a genuine beat-and-raise | the surprise is already priced (mega-caps), "priced-for-perfection" sell-the-beat, decayed drift, costs |
+| **T9** Institutional (13F) | Smart-money skill spillover (copy good managers) | the manager's edge persists past the **45-day reporting lag** | positions are stale/already exited; long-equity-only view; fund-list survivorship — thin, mostly confirmation |
+| **T10** Portfolio sizing | Diversification + risk-control premium (Sharpe, not raw return) | names are diversifiable and trailing vol forecasts forward vol | correlations spike in crises (diversification fails when you need it); vol-targeting de-risks at the bottom |
+| **T11** Fundamentals trend | Earnings/revenue-momentum anomaly | accelerating fundamentals aren't yet priced | growth mean-reverts, value traps, quarterly-XBRL lag |
+| **T12** Seasonality | Calendar anomalies (turn-of-month, sell-in-May) — thin & contested | the pattern is real *and* survives out-of-sample (rare) | in-sample data-mining; it defaults to buy-and-hold precisely because the edge is usually absent |
+| **T13** Overnight / gap | The overnight-return premium (overnight ⬆, intraday flat) | the overnight drift persists | the daily round-trip transaction cost usually eats the **entire** edge — the agent says so upfront |
+| **T14** Volatility regime | Low-vol anomaly / vol-managed Sharpe (Moreira–Muir) | vol is persistent, so sidestepping high-vol regimes lifts Sharpe | it misses the violent rebounds clustered near vol spikes; in calm bulls it just trails buy-and-hold by costs |
+| **T15** Buyback | Buyback anomaly (share-count reduction → outperformance) | sustained *real* repurchases the market under-weights | debt-funded buybacks at the top, buybacks that only offset dilution, or already priced; slow signal |
+| **T16** Short pressure | Short-interest sentiment / squeeze + crowded-short avoidance | riding a squeeze or dodging a crowded short | short-*volume* includes MM hedging (noise); interest is stale/bi-monthly; shorts are often *right* → catching a falling knife |
+| **T17** Fundamental quality | Quality premium (Piotroski F-score, accruals, asset-growth anomalies) | tilting to profitable, low-accrual, low-asset-growth names | junk/low-quality rallies (early-cycle risk-on); the premia have decayed since publication |
+| **T18** Corporate events | Event-driven: 13D activist value-creation + red-flag avoidance | activist drift plays out / red flags are correctly dodged | activism fails, dilution already priced, one-off events; filing-date lag |
+| **T19** Price anomalies | Behavioral biases (52w-high anchoring, lottery-demand, tax-loss) | the bias persists out-of-sample | heavy arbitrage/decay since publication; momentum-crash and reversal risk |
+| **T20** VIX regime gate | Vol term-structure regime premium (inversion → worse forward returns) | it sidesteps the worst vol regimes on an index | cash during the sharp up-days that cluster near vol spikes (whipsaw); a blunt index tool, weak on single names |
+| **T22** Congressional trading | *Alleged* political information edge — honestly **near-zero** | only if a thin post-disclosure drift exists | public + crowded + disclosed up to 45 days late kills any edge; partial free data. Borderline-placebo, and labelled so |
+| **T23** Pairs trading | Statistical-arbitrage / relative-value mean-reversion (market-neutral) | a cointegrated spread reverts faster than it diverges | the relationship **breaks** (structural change / M&A); borrow + double costs; heavily arbitraged; can lose in any market direction |
+| **T24** Earnings contagion | Intra-industry information transfer (read-across) | the peer drifts with the bellwether's surprise before it reports | the peer's idiosyncratics dominate; *competitive* read-across flips the sign; already priced; tiny decaying window |
+| **T25** Financial astrology ⚠️ | **Nothing.** No economic mechanism | only by luck/noise | it gives up the equity premium on astrologically-arbitrary flat days + pays costs — by design |
+| **T26** 梅花易數 ⚠️ | **Nothing.** No economic mechanism | only by chance | the null shows worthless timing still posts p95 Sharpe ≈ 0.94 from equity-premium variance alone — that's the point: it's the ruler, not a strategy |
+
+**The honest net-of-everything read:** after costs and post-publication decay, the most *defensible*
+members are the risk-premium harvesters (**T10** diversification, **T14**/**T20** vol-timing) and the
+few anomalies that have survived best (**T8** PEAD, **T17** quality, **T15** buyback). The
+information-edge agents (**T9**, **T22**) are the weakest — public, lagged, crowded. And **any** agent
+whose backtested Sharpe doesn't clear the **placebo null (≈0.94, see below)** should be treated as
+indistinguishable from luck, however good its story sounds.
+
+---
+
 ## 📊 Top-line numbers (current eval baselines)
 
 **Task 1 — Browser Agent** ([eval set, 15 cases over 6 categories](task1_browser_agent/eval/eval_set.yaml))
