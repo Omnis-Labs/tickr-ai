@@ -937,3 +937,93 @@ export async function pollRelative(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 10 — portfolio / risk & position-sizing agent
+// equity_curve reuses the EquityPoint shape (date/strategy/benchmark/market).
+// ===========================================================================
+
+export interface PortfolioSpec {
+  method: "equal_weight" | "inverse_vol" | "risk_parity" | "signal_proportional";
+  max_weight: number; gross_cap: number; target_vol_pct: number;
+  rebalance: "weekly" | "monthly" | "quarterly"; vol_lookback_days: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+
+export interface Holding {
+  ticker: string; available: boolean;
+  stance: "bullish" | "neutral" | "cautious" | null;
+  entry_signal: string | null; long_as_of: boolean;
+  ann_vol_pct: number | null; standalone_return_pct: number | null;
+  avg_weight_pct: number; note: string;
+}
+
+export interface PortfolioMetrics {
+  total_return_pct: number; benchmark_return_pct: number; excess_return_pct: number;
+  market_return_pct: number | null; excess_vs_market_pct: number | null;
+  cagr_pct: number; sharpe: number; max_drawdown_pct: number;
+  ann_vol_pct: number; target_vol_pct: number;
+  avg_n_holdings: number; avg_gross_exposure_pct: number;
+  n_rebalances: number; turnover_annual_pct: number;
+  days: number; transaction_cost_bps: number;
+}
+
+export interface PortfolioResult {
+  job_id: string; tickers: string[]; signal_source: string;
+  as_of_date: string; common_window_start: string;
+  spec: PortfolioSpec; holdings: Holding[]; metrics: PortfolioMetrics;
+  equity_curve: EquityPoint[];
+  universe_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task10Job {
+  job_id: string; tickers: string[]; status: JobStatus;
+  result: PortfolioResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createPortfolio(tickers: string): Promise<Task10Job> {
+  const res = await fetch(`${API_BASE}/task10/portfolios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tickers }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createPortfolio failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getPortfolio(jobId: string): Promise<Task10Job> {
+  const res = await fetch(`${API_BASE}/task10/portfolios/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getPortfolio failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollPortfolio(
+  jobId: string,
+  onUpdate: (j: Task10Job) => void,
+  intervalMs = 2000,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getPortfolio(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

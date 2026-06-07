@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/ensemble", label: "Task 5 · Ensemble" },
   { href: "/insider", label: "Task 6 · Insider" },
   { href: "/relative", label: "Task 7 · Rel. Strength" },
+  { href: "/portfolio", label: "Task 10 · Portfolio" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 

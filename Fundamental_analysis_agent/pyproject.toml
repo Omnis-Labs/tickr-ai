@@ -50,7 +50,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative"]
+testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task10_portfolio"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -62,4 +62,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative"]
+packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task10_portfolio"]

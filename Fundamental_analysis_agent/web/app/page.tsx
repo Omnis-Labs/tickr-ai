@@ -184,6 +184,31 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/portfolio"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 10</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Portfolio / Risk Sizing — the capstone
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a watchlist → each name&apos;s long/flat signal comes from the{" "}
+            <span className="text-cyan-400">Task 4</span> agent; an LLM picks one{" "}
+            <span className="text-purple-400">sizing policy</span> (equal-weight / inverse-vol /
+            risk-parity / signal-proportional + single-name cap, gross cap, vol target, rebalance)
+            from as-of universe stats — not per-name weights, which are deterministic. A lookahead-free{" "}
+            <span className="text-amber-400">portfolio backtest</span> then allocates across names vs
+            an equal-weight basket and the S&amp;P 500. The piece that turns the signal agents into a
+            sized, risk-controlled book.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">
