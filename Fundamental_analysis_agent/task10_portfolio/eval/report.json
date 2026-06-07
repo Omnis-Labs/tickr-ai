@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-06-07T18:25:06.367099+00:00",
+  "metrics": {
+    "n_cases": 3,
+    "n_pass": 3,
+    "pass_rate": 1.0,
+    "cost_total": 0.007563
+  },
+  "cases": [
+    {
+      "id": "core-basket",
+      "category": "normal",
+      "tickers": [
+        "AAPL",
+        "MSFT",
+        "JPM"
+      ],
+      "passed": true,
+      "status": "succeeded",
+      "method": "inverse_vol",
+      "n_holdings": 3,
+      "total_return_pct": 78.72,
+      "excess_vs_basket_pct": -1.87,
+      "alpha_vs_market_pct": -0.34,
+      "sharpe": 1.14,
+      "duration_ms": 6547,
+      "cost_usd": 0.004301,
+      "failure_reasons": []
+    },
+    {
+      "id": "basket-with-bad-ticker",
+      "category": "degradation",
+      "tickers": [
+        "AAPL",
+        "XOM",
+        "ZZQQXX"
+      ],
+      "passed": true,
+      "status": "succeeded",
+      "method": "inverse_vol",
+      "n_holdings": 2,
+      "total_return_pct": 69.67,
+      "excess_vs_basket_pct": 4.65,
+      "alpha_vs_market_pct": -9.39,
+      "sharpe": 1.2,
+      "duration_ms": 7868,
+      "cost_usd": 0.003262,
+      "failure_reasons": []
+    },
+    {
+      "id": "too-few-names-fail",
+      "category": "synthetic",
+      "tickers": [
+        "ZZQQXX",
+        "NOPEXX"
+      ],
+      "passed": true,
+      "status": "failed",
+      "method": null,
+      "n_holdings": null,
+      "total_return_pct": null,
+      "excess_vs_basket_pct": null,
+      "alpha_vs_market_pct": null,
+      "sharpe": null,
+      "duration_ms": 770,
+      "cost_usd": 0.0,
+      "failure_reasons": []
+    }
+  ]
+}

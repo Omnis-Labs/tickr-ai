@@ -1,0 +1,42 @@
+# Task 6 — insider (Form 4) agent eval set.
+#
+# Pass/fail rides on the deterministic parts (system invariants + deterministic
+# behaviour + cost/time); the stochastic LLM strategy choice is RECORDED, not
+# graded. See task5_ensemble/eval/eval_set.yaml for the rationale.
+
+cases:
+- id: aapl-insider
+  category: large-cap
+  ticker: AAPL
+  description: Liquid mega-cap with heavy Form 4 flow (mostly selling) — exercises
+    the full fetch+parse+readings+backtest path.
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 150000
+
+- id: ge-insider
+  category: large-cap
+  ticker: GE
+  description: Industrial with periodic insider activity — a second real filer.
+  assertions:
+    max_cost_usd: 0.05
+    max_duration_ms: 150000
+
+- id: tsm-foreign-no-form4
+  category: foreign
+  ticker: TSM
+  description: Foreign private issuer (ADR) — exempt from Section 16, so it files
+    NO Form 4. The agent must find zero insider transactions and fall back to the
+    buy-and-hold baseline, deterministically.
+  assertions:
+    expect_zero_transactions: true
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

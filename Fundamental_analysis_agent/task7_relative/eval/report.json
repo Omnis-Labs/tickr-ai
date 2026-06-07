@@ -1,0 +1,87 @@
+{
+  "generated_at": "2026-06-07T18:23:05.419622+00:00",
+  "metrics": {
+    "n_cases": 5,
+    "n_pass": 5,
+    "pass_rate": 1.0,
+    "cost_total": 0.004794,
+    "duration_p95_ms": 6593.650000000001
+  },
+  "cases": [
+    {
+      "id": "nvda-tech",
+      "category": "sector-map",
+      "ticker": "NVDA",
+      "passed": true,
+      "status": "succeeded",
+      "sector_etf": "XLK",
+      "rs_regime": "underperforming",
+      "entry_signal": "buy_and_hold",
+      "total_return_pct": 412.51,
+      "alpha_vs_market_pct": 333.62,
+      "duration_ms": 4546,
+      "cost_usd": 0.001224,
+      "failure_reasons": []
+    },
+    {
+      "id": "jpm-bank",
+      "category": "sector-map",
+      "ticker": "JPM",
+      "passed": true,
+      "status": "succeeded",
+      "sector_etf": "XLF",
+      "rs_regime": "outperforming",
+      "entry_signal": "rs_uptrend",
+      "total_return_pct": 58.29,
+      "alpha_vs_market_pct": -20.6,
+      "duration_ms": 6955,
+      "cost_usd": 0.001132,
+      "failure_reasons": []
+    },
+    {
+      "id": "xom-energy",
+      "category": "sector-map",
+      "ticker": "XOM",
+      "passed": true,
+      "status": "succeeded",
+      "sector_etf": "XLE",
+      "rs_regime": "inline",
+      "entry_signal": "rs_momentum",
+      "total_return_pct": -1.37,
+      "alpha_vs_market_pct": -80.26,
+      "duration_ms": 3363,
+      "cost_usd": 0.001219,
+      "failure_reasons": []
+    },
+    {
+      "id": "qqq-fallback",
+      "category": "fallback",
+      "ticker": "QQQ",
+      "passed": true,
+      "status": "succeeded",
+      "sector_etf": "SPY",
+      "rs_regime": "outperforming",
+      "entry_signal": "rs_uptrend",
+      "total_return_pct": 55.82,
+      "alpha_vs_market_pct": -23.07,
+      "duration_ms": 3067,
+      "cost_usd": 0.001219,
+      "failure_reasons": []
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "ticker": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "sector_etf": null,
+      "rs_regime": null,
+      "entry_signal": null,
+      "total_return_pct": null,
+      "alpha_vs_market_pct": null,
+      "duration_ms": 746,
+      "cost_usd": 0.0,
+      "failure_reasons": []
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+# Task 7 — relative-strength agent eval set.
+#
+# Grades invariants + deterministic sector-ETF resolution; records the stochastic
+# LLM strategy choice.
+
+cases:
+- id: nvda-tech
+  category: sector-map
+  ticker: NVDA
+  description: Semiconductor (SIC 3674) → must map to the Technology ETF (XLK).
+  assertions:
+    expect_sector_etf: XLK
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: jpm-bank
+  category: sector-map
+  ticker: JPM
+  description: Commercial bank → Financials ETF (XLF).
+  assertions:
+    expect_sector_etf: XLF
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: xom-energy
+  category: sector-map
+  ticker: XOM
+  description: Petroleum → Energy ETF (XLE).
+  assertions:
+    expect_sector_etf: XLE
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: qqq-fallback
+  category: fallback
+  ticker: QQQ
+  description: An ETF (not a 10-K filer, no CIK) → can't be sector-classified, so
+    relative strength must fall back to the market (SPY).
+  assertions:
+    expect_sector_etf: SPY
+    max_cost_usd: 0.04
+    max_duration_ms: 120000
+
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

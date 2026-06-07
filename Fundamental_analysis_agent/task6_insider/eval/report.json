@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-06-07T18:22:30.948896+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.001077,
+    "cost_total": 0.003285,
+    "duration_p95_ms": 112035.09999999999
+  },
+  "cases": [
+    {
+      "id": "aapl-insider",
+      "category": "large-cap",
+      "ticker": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "insider_regime": "net_selling",
+      "entry_signal": "net_value_buy",
+      "n_form4_filings": 150,
+      "n_transactions": 162,
+      "total_return_pct": 0.0,
+      "alpha_vs_market_pct": -78.89,
+      "duration_ms": 46217,
+      "cost_usd": 0.001263,
+      "failure_reasons": []
+    },
+    {
+      "id": "ge-insider",
+      "category": "large-cap",
+      "ticker": "GE",
+      "passed": true,
+      "status": "succeeded",
+      "insider_regime": "no_activity",
+      "entry_signal": "buy_and_hold",
+      "n_form4_filings": 150,
+      "n_transactions": 4,
+      "total_return_pct": 258.79,
+      "alpha_vs_market_pct": 179.9,
+      "duration_ms": 118533,
+      "cost_usd": 0.001077,
+      "failure_reasons": []
+    },
+    {
+      "id": "tsm-foreign-no-form4",
+      "category": "foreign",
+      "ticker": "TSM",
+      "passed": true,
+      "status": "succeeded",
+      "insider_regime": "no_activity",
+      "entry_signal": "buy_and_hold",
+      "n_form4_filings": 68,
+      "n_transactions": 0,
+      "total_return_pct": 411.24,
+      "alpha_vs_market_pct": 332.35,
+      "duration_ms": 53554,
+      "cost_usd": 0.000945,
+      "failure_reasons": []
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "ticker": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "insider_regime": null,
+      "entry_signal": null,
+      "n_form4_filings": null,
+      "n_transactions": null,
+      "total_return_pct": null,
+      "alpha_vs_market_pct": null,
+      "duration_ms": 1069,
+      "cost_usd": 0.0,
+      "failure_reasons": []
+    }
+  ]
+}

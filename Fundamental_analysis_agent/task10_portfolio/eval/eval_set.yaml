@@ -1,0 +1,35 @@
+# Task 10 — portfolio/risk-sizing eval set.
+#
+# Grades invariants + deterministic behaviour (drop unusable tickers, refuse too
+# few names); records the stochastic LLM sizing policy. Kept small — each case
+# runs one Task 4 author+backtest per name.
+
+cases:
+- id: core-basket
+  category: normal
+  tickers: [AAPL, MSFT, JPM]
+  description: A clean 3-name basket — exercises per-name signals + sizing + the
+    portfolio backtest end-to-end.
+  assertions:
+    min_holdings: 3
+    max_cost_usd: 0.06
+    max_duration_ms: 200000
+
+- id: basket-with-bad-ticker
+  category: degradation
+  tickers: [AAPL, XOM, ZZQQXX]
+  description: One nonexistent ticker mixed in — it must be dropped (available=False)
+    and the portfolio built from the remaining names, not fail outright.
+  assertions:
+    expect_dropped: [ZZQQXX]
+    min_holdings: 2
+    max_cost_usd: 0.06
+    max_duration_ms: 200000
+
+- id: too-few-names-fail
+  category: synthetic
+  tickers: [ZZQQXX, NOPEXX]
+  description: No usable tickers → must fail cleanly (need >= 2 with price history).
+  assertions:
+    expect_failed: true
+    max_duration_ms: 90000
