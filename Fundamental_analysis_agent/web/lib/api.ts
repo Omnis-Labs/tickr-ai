@@ -1359,3 +1359,20 @@ export interface Task17Job { job_id: string; ticker: string; status: JobStatus; 
 export const createQuality = (t: string): Promise<Task17Job> => _create("/task17/quality", t);
 export const getQuality = (id: string): Promise<Task17Job> => _get(`/task17/quality/${id}`);
 export const pollQuality = _poll<Task17Job>(getQuality);
+
+// ---- Task 18: corporate events (8-K / 13D) ----
+export interface EventRecord { date: string; kind: string; polarity: "positive" | "negative" | "neutral"; note: string; }
+export interface EventSpec {
+  entry_signal: "buy_and_hold" | "activist_drift" | "avoid_redflags";
+  holding_days: number; redflag_window_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface EventResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null; as_of_date: string;
+  n_events: number; events: EventRecord[]; prices: PricePoint[]; strategy: EventSpec; backtest: BacktestResult;
+  event_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task18Job { job_id: string; ticker: string; status: JobStatus; result: EventResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createEvents = (t: string): Promise<Task18Job> => _create("/task18/events", t);
+export const getEvents = (id: string): Promise<Task18Job> => _get(`/task18/events/${id}`);
+export const pollEvents = _poll<Task18Job>(getEvents);

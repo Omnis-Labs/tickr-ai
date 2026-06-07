@@ -327,6 +327,15 @@ export default function HomePage() {
           keyed; the LLM picks the factor or a composite. Numbers, where T3 reads the 10-K text.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/events" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 18</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Corporate Events (8-K / 13D)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-emerald-400">Schedule 13D</span> activist
+          stakes (positive drift) + <span className="text-amber-400">red flags</span> (dilution, late filings, auditor changes,
+          delisting, adverse <span className="text-amber-400">8-K 5.02</span> exec departures the LLM reads from the text). Keyed off
+          the filing date; ride activist drift, stand aside on red flags.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">
