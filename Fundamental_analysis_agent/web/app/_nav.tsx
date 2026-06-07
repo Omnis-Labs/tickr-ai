@@ -26,6 +26,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/volatility", label: "T14 · Volatility regime" },
       { href: "/buyback", label: "T15 · Buyback" },
       { href: "/short", label: "T16 · Short pressure" },
+      { href: "/quality", label: "T17 · Fundamental quality" },
     ],
   },
   {

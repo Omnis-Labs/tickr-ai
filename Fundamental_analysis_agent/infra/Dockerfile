@@ -37,6 +37,7 @@ COPY task13_overnight/ task13_overnight/
 COPY task14_volatility/ task14_volatility/
 COPY task15_buyback/ task15_buyback/
 COPY task16_short/ task16_short/
+COPY task17_quality/ task17_quality/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .

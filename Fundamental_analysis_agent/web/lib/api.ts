@@ -1341,3 +1341,21 @@ export interface Task16Job { job_id: string; ticker: string; status: JobStatus; 
 export const createShort = (t: string): Promise<Task16Job> => _create("/task16/short", t);
 export const getShort = (id: string): Promise<Task16Job> => _get(`/task16/short/${id}`);
 export const pollShort = _poll<Task16Job>(getShort);
+
+// ---- Task 17: fundamental quality (XBRL: F-Score / accruals / asset-growth) ----
+export interface QualitySpec {
+  entry_signal: "buy_and_hold" | "f_score" | "low_accruals" | "low_asset_growth" | "composite_quality";
+  exit_signal: "deteriorating" | "time_exit" | "hold";
+  f_threshold: number; max_accruals_pct: number; max_asset_growth_pct: number;
+  holding_days: number; stop_loss_pct: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface QualityResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null; as_of_date: string;
+  prices: PricePoint[]; strategy: QualitySpec; backtest: BacktestResult;
+  quality_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task17Job { job_id: string; ticker: string; status: JobStatus; result: QualityResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createQuality = (t: string): Promise<Task17Job> => _create("/task17/quality", t);
+export const getQuality = (id: string): Promise<Task17Job> => _get(`/task17/quality/${id}`);
+export const pollQuality = _poll<Task17Job>(getQuality);

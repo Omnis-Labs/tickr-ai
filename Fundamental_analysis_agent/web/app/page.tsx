@@ -317,6 +317,16 @@ export default function HomePage() {
           hedging), <strong>not short interest</strong> — free historical short-interest doesn&apos;t exist, so it&apos;s the closest free proxy.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+
+        <a href="/quality" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 17</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Fundamental Quality (XBRL)</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Three classic free quality factors from SEC XBRL —
+          Piotroski <span className="text-blue-400">F-Score</span>, Sloan <span className="text-amber-400">accruals</span>
+          (earnings quality), and the <span className="text-amber-400">asset-growth</span> anomaly — point-in-time, filing-date
+          keyed; the LLM picks the factor or a composite. Numbers, where T3 reads the 10-K text.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

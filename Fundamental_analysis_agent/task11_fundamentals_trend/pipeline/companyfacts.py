@@ -47,6 +47,58 @@ async def fetch_companyfacts(cik: int) -> dict:
     raise RuntimeError(f"could not fetch companyfacts for CIK {cik}")
 
 
+def annual_series(gaap: dict, tags: list[str], unit: str = "USD") -> dict[date, tuple[date, float]]:
+    """{period_end: (filed, val)} for ANNUAL (~365-day) flow periods, earliest-filed
+    per end (point-in-time). Used by fiscal-year factor agents (F-Score, accruals)."""
+    for tag in tags:
+        if tag not in gaap:
+            continue
+        units = gaap[tag].get("units", {})
+        rows = units.get(unit) or (next(iter(units.values())) if len(units) == 1 else [])
+        out: dict[date, tuple[date, float]] = {}
+        for r in rows:
+            start, end, filed, val = r.get("start"), r.get("end"), r.get("filed"), r.get("val")
+            if not (start and end and filed and val is not None) or r.get("form") not in ("10-K", "10-Q"):
+                continue
+            try:
+                sd, ed, fd = date.fromisoformat(start), date.fromisoformat(end), date.fromisoformat(filed)
+            except ValueError:
+                continue
+            if not (350 <= (ed - sd).days <= 380):
+                continue
+            if ed not in out or fd < out[ed][0]:
+                out[ed] = (fd, float(val))
+        if out:
+            return out
+    return {}
+
+
+def instant_series(gaap: dict, tags: list[str], unit: str = "USD") -> dict[date, tuple[date, float]]:
+    """{as-of date: (filed, val)} for INSTANT (balance-sheet) facts, earliest-filed
+    per date (point-in-time)."""
+    for tag in tags:
+        if tag not in gaap:
+            continue
+        units = gaap[tag].get("units", {})
+        rows = units.get(unit) or (next(iter(units.values())) if len(units) == 1 else [])
+        out: dict[date, tuple[date, float]] = {}
+        for r in rows:
+            end, filed, val = r.get("end"), r.get("filed"), r.get("val")
+            if not (end and filed and val is not None) or r.get("start"):   # instant = no start
+                continue
+            if r.get("form") not in ("10-K", "10-Q"):
+                continue
+            try:
+                ed, fd = date.fromisoformat(end), date.fromisoformat(filed)
+            except ValueError:
+                continue
+            if ed not in out or fd < out[ed][0]:
+                out[ed] = (fd, float(val))
+        if out:
+            return out
+    return {}
+
+
 def _quarterly_series(
     gaap: dict, tags: list[str], unit: str = "USD",
 ) -> dict[date, tuple[date, int, str, float]]:
