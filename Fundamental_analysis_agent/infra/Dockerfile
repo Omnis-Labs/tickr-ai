@@ -27,6 +27,7 @@ COPY task3_strategy/ task3_strategy/
 COPY task4_technical/ task4_technical/
 COPY task5_ensemble/ task5_ensemble/
 COPY task6_insider/ task6_insider/
+COPY task7_relative/ task7_relative/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .

@@ -863,3 +863,77 @@ export async function pollInsider(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 7 — peer/sector relative-strength agent
+// Reuses the BacktestResult / PricePoint shapes above.
+// ===========================================================================
+
+export interface RelativeSpec {
+  entry_signal: "buy_and_hold" | "rs_uptrend" | "rs_breakout" | "rs_momentum";
+  exit_signal: "hold" | "rs_downtrend" | "time_exit";
+  stance: "bullish" | "neutral" | "cautious";
+  rs_sma: number; rs_high_lookback: number;
+  rs_momentum_lookback_days: number; rs_momentum_threshold_pct: number;
+  holding_days: number; stop_loss_pct: number; take_profit_pct: number;
+  thesis: string; rationale_entry: string; rationale_exit: string;
+}
+
+export interface RelativeResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string;
+  sector_etf: string; sector_label: string;
+  prices: PricePoint[]; strategy: RelativeSpec; backtest: BacktestResult;
+  relative_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task7Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: RelativeResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createRelative(ticker: string): Promise<Task7Job> {
+  const res = await fetch(`${API_BASE}/task7/relatives`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createRelative failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getRelative(jobId: string): Promise<Task7Job> {
+  const res = await fetch(`${API_BASE}/task7/relatives/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getRelative failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollRelative(
+  jobId: string,
+  onUpdate: (j: Task7Job) => void,
+  intervalMs = 1500,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getRelative(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

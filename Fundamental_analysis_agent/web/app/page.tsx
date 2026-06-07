@@ -160,6 +160,30 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/relative"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 7</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Peer / Sector Relative Strength → Strategy → Backtest
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → we resolve its <span className="text-blue-400">sector ETF</span> from
+            the SEC SIC code (S&amp;P 500 fallback) and compute a{" "}
+            <span className="text-amber-400">relative-strength</span> series (stock ÷ sector),
+            strictly as-of the latest close. An LLM picks one strategy from a fixed RS menu (uptrend
+            / breakout / momentum); a lookahead-free backtest then holds the <em>stock</em> long/flat
+            with RS deciding only when to be long — vs buy-and-hold and the S&amp;P 500. Surfaces
+            nuances like “beating the market but lagging its own sector.”
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

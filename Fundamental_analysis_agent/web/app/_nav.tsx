@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/technical", label: "Task 4 · Technical Lab" },
   { href: "/ensemble", label: "Task 5 · Ensemble" },
   { href: "/insider", label: "Task 6 · Insider" },
+  { href: "/relative", label: "Task 7 · Rel. Strength" },
   { href: "/dashboard", label: "Dashboard" },
 ];
 
