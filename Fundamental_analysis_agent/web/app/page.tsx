@@ -354,6 +354,15 @@ export default function HomePage() {
           fill, lookahead-free.</p>
           <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/ranker" className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 21</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">Cross-sectional Factor Ranker</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">Give it a watchlist; the LLM picks one long-only
+          <span className="text-amber-400"> cross-sectional factor</span> (12-1 momentum, low-vol, near-52w-high, or short-term
+          reversal). Each rebalance the universe is ranked on trailing data and the <span className="text-amber-400">top-N</span> is
+          held — benchmarked against the equal-weight basket of all names and the S&amp;P 500.</p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

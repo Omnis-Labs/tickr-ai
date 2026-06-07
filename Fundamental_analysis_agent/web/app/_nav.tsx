@@ -37,6 +37,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
     items: [
       { href: "/ensemble", label: "T5 · Ensemble" },
       { href: "/portfolio", label: "T10 · Portfolio sizing" },
+      { href: "/ranker", label: "T21 · Cross-sectional ranker" },
     ],
   },
 ];

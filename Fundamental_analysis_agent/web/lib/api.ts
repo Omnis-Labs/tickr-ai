@@ -1028,6 +1028,46 @@ export async function pollPortfolio(
   return () => { stopped = true; };
 }
 
+// ---- Task 21: cross-sectional ranker (reuses PortfolioMetrics + EquityPoint) ----
+export interface RankSpec {
+  factor: "momentum_12_1" | "low_volatility" | "near_52w_high" | "short_term_reversal";
+  top_n: number; weight_method: "equal_weight" | "inverse_vol";
+  rebalance: "weekly" | "monthly" | "quarterly"; lookback_days: number; max_weight: number;
+  stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface RankHolding {
+  ticker: string; available: boolean; factor_value: number | null; rank: number | null;
+  selected_now: boolean; avg_weight_pct: number; standalone_return_pct: number | null; note: string;
+}
+export interface RankResult {
+  job_id: string; tickers: string[]; as_of_date: string; common_window_start: string;
+  spec: RankSpec; holdings: RankHolding[]; metrics: PortfolioMetrics; equity_curve: EquityPoint[];
+  universe_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task21Job { job_id: string; tickers: string[]; status: JobStatus; result: RankResult | null; error_message: string | null; created_at: string; updated_at: string; }
+
+export async function createRanking(tickers: string): Promise<Task21Job> {
+  const res = await fetch(`${API_BASE}/task21/rankings`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tickers }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createRanking failed: ${res.status}`);
+  }
+  return res.json();
+}
+export async function getRanking(jobId: string): Promise<Task21Job> {
+  const res = await fetch(`${API_BASE}/task21/rankings/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getRanking failed: ${res.status}`);
+  return res.json();
+}
+export const pollRanking = _poll<Task21Job>(getRanking);
+
 // ===========================================================================
 // Task 8 — earnings-release (SEC 8-K Ex-99.1) agent
 // Reuses the BacktestResult / PricePoint shapes above.
