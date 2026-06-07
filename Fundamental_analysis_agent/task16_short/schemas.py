@@ -1,11 +1,15 @@
 """Task 16 — short-pressure / squeeze agent.
 
-Free historical short-INTEREST (bi-monthly outstanding shorts) basically doesn't
-exist, so this uses FINRA's free daily **short-VOLUME** (CNMS regsho): the fraction
-of a day's volume that was short-sale executions. It is weekly-sampled + cached.
+Two complementary free data sources, both lagged to their publish date so the
+signal is lookahead-safe:
+  • FINRA daily **short-VOLUME** (CNMS regsho): the fraction of a day's volume that
+    was short-sale executions — a high-frequency *pressure gauge* (weekly-sampled).
+  • NASDAQ bi-monthly settlement **short-INTEREST** (outstanding shorts +
+    days-to-cover): the real exchange-reported overhang, ~12 months of history.
 Honest distinctions surfaced in the UI: (1) short VOLUME ≠ short INTEREST; (2)
 FINRA short volume includes market-maker hedging, so a high ratio is not purely
-bearish; (3) signal is keyed off the publish date (lagged), so lookahead-safe.
+bearish; (3) short interest is bi-monthly and published ~8 business days late, so
+it is keyed to its publish date.
 
 Reuses Task 4's backtest contracts.
 """
@@ -27,8 +31,10 @@ __all__ = ["ShortEntrySignal", "ShortExitSignal", "Stance", "ShortSpec", "ShortR
 
 ShortEntrySignal = Literal[
     "buy_and_hold",
-    "squeeze",        # long when short-volume ratio is elevated AND price > SMA (ride the squeeze)
-    "low_short",      # long when short-volume ratio is low (little overhang)
+    "squeeze",        # long when short-VOLUME ratio is elevated AND price > SMA (ride the squeeze)
+    "low_short",      # long when short-VOLUME ratio is low (little overhang)
+    "si_squeeze",     # long when days-to-cover (short INTEREST) is elevated AND price > SMA
+    "low_si",         # long when days-to-cover is low (little outstanding short overhang)
 ]
 ShortExitSignal = Literal["short_normalizes", "time_exit", "hold"]
 
@@ -37,6 +43,7 @@ class ShortSpec(BaseModel):
     entry_signal: ShortEntrySignal
     exit_signal: ShortExitSignal = "time_exit"
     svr_threshold_pct: float = 50.0   # short-volume-ratio threshold (percent of volume)
+    dtc_threshold: float = 3.0        # days-to-cover threshold for the short-INTEREST signals
     sma_window: int = 50
     holding_days: int = 40
     stop_loss_pct: float = 0.0

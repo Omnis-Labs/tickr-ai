@@ -1367,9 +1367,9 @@ export const getBuyback = (id: string): Promise<Task15Job> => _get(`/task15/buyb
 export const pollBuyback = _poll<Task15Job>(getBuyback);
 
 export interface ShortSpec {
-  entry_signal: "buy_and_hold" | "squeeze" | "low_short";
+  entry_signal: "buy_and_hold" | "squeeze" | "low_short" | "si_squeeze" | "low_si";
   exit_signal: "short_normalizes" | "time_exit" | "hold";
-  svr_threshold_pct: number; sma_window: number; holding_days: number; stop_loss_pct: number;
+  svr_threshold_pct: number; dtc_threshold: number; sma_window: number; holding_days: number; stop_loss_pct: number;
   stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
 }
 export interface ShortResult {

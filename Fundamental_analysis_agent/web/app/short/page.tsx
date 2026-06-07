@@ -17,12 +17,15 @@ const REGIME: Record<string, string> = {
   no_data: "text-zinc-400 border-zinc-700 bg-zinc-900",
 };
 const SIG: Record<string, string> = {
-  buy_and_hold: "Buy & hold", squeeze: "Squeeze (high short + price > SMA)", low_short: "Long when short is low",
+  buy_and_hold: "Buy & hold", squeeze: "Squeeze (high short-vol + price > SMA)", low_short: "Long when short-vol is low",
+  si_squeeze: "Squeeze (high days-to-cover + price > SMA)", low_si: "Long when days-to-cover is low",
   short_normalizes: "Exit when short normalizes", time_exit: "Time exit", hold: "Hold to end",
 };
 const RLABEL: Record<string, string> = {
-  short_regime: "Regime", current_short_vol_ratio_pct: "Current short-vol %", median_short_vol_ratio_pct: "Median short-vol %",
-  short_vol_percentile: "Percentile", n_samples: "Samples",
+  short_regime: "Short-vol regime", current_short_vol_ratio_pct: "Current short-vol %", median_short_vol_ratio_pct: "Median short-vol %",
+  short_vol_percentile: "Short-vol percentile", n_samples: "Short-vol samples",
+  si_regime: "Short-interest regime", current_days_to_cover: "Days to cover", days_to_cover_percentile: "Days-to-cover pctile",
+  short_interest_trend: "Short-interest trend", n_si_samples: "Short-interest samples",
 };
 
 export default function ShortPage() {
@@ -42,10 +45,11 @@ export default function ShortPage() {
     <div className="space-y-6">
       <section><div className="flex items-baseline gap-2"><h1 className="text-2xl font-semibold">Task 16</h1>
         <span className="text-xs text-zinc-500 uppercase tracking-wider">Short Pressure / Squeeze → Strategy → Backtest</span></div>
-        <p className="text-sm text-zinc-400 mt-2 leading-relaxed max-w-3xl">Enter a ticker. We pull FINRA daily{" "}
-        <strong>short-volume</strong> (% of volume sold short), weekly-sampled &amp; cached, and an LLM picks a squeeze/
-        low-short rule. ⚠️ This is short <em>volume</em> (incl. MM hedging), <strong>not short interest</strong> — a
-        pressure gauge, not a clean signal. First run fetches FINRA files (then cached).</p></section>
+        <p className="text-sm text-zinc-400 mt-2 leading-relaxed max-w-3xl">Enter a ticker. Two free, publish-lagged
+        views of short positioning: FINRA daily <strong>short-volume</strong> (% of volume sold short — a noisy pressure
+        gauge that incl. MM hedging) and NASDAQ bi-monthly <strong>short-interest</strong> (real outstanding shorts +
+        days-to-cover — the genuine squeeze fuel). The LLM picks a squeeze / low-short rule from either. ⚠️ Short interest
+        covers Nasdaq-listed names only; both feeds are lagged so the signal is lookahead-safe.</p></section>
       <form onSubmit={run} className="flex gap-2 max-w-md">
         <input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="Ticker, e.g. GME"
           className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:border-emerald-700 outline-none" />
@@ -63,7 +67,7 @@ export default function ShortPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="border border-zinc-800 rounded-md p-4 space-y-3"><div className="flex items-center gap-2"><h3 className="text-sm font-semibold text-zinc-200">Strategy &amp; thesis</h3>
               <span className={`text-[11px] px-2 py-0.5 rounded border ${STANCE[r.strategy.stance] || ""}`}>{r.strategy.stance}</span></div>
-              <div className="text-xs text-zinc-400"><span className="text-zinc-200">{SIG[r.strategy.entry_signal] || r.strategy.entry_signal}</span>{" → "}<span className="text-zinc-200">{SIG[r.strategy.exit_signal] || r.strategy.exit_signal}</span>{r.strategy.entry_signal !== "buy_and_hold" && <span> · threshold {r.strategy.svr_threshold_pct}%</span>}{r.strategy.exit_signal === "time_exit" && <span> · hold {r.strategy.holding_days}d</span>}</div>
+              <div className="text-xs text-zinc-400"><span className="text-zinc-200">{SIG[r.strategy.entry_signal] || r.strategy.entry_signal}</span>{" → "}<span className="text-zinc-200">{SIG[r.strategy.exit_signal] || r.strategy.exit_signal}</span>{(r.strategy.entry_signal === "squeeze" || r.strategy.entry_signal === "low_short") && <span> · threshold {r.strategy.svr_threshold_pct}%</span>}{(r.strategy.entry_signal === "si_squeeze" || r.strategy.entry_signal === "low_si") && <span> · {r.strategy.dtc_threshold} days-to-cover</span>}{r.strategy.exit_signal === "time_exit" && <span> · hold {r.strategy.holding_days}d</span>}</div>
               <p className="text-sm text-zinc-300 leading-relaxed">{r.strategy.thesis}</p>{r.strategy.rationale && <p className="text-xs text-zinc-500">{r.strategy.rationale}</p>}</div>
             <Backtest m={r.backtest.metrics} />
           </div>

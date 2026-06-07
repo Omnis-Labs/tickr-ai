@@ -11,7 +11,7 @@ from task16_short.schemas import ShortSpec
 
 logger = get_logger(__name__)
 _DIR = Path(__file__).resolve().parents[2] / "prompts" / "task16_short"
-_ENTRY = {"buy_and_hold", "squeeze", "low_short"}
+_ENTRY = {"buy_and_hold", "squeeze", "low_short", "si_squeeze", "low_si"}
 _EXIT = {"short_normalizes", "time_exit", "hold"}
 
 
@@ -41,6 +41,7 @@ def _spec(data: dict) -> ShortSpec:
     s = data.get("stance") if data.get("stance") in ("bullish", "neutral", "cautious") else "neutral"
     return ShortSpec(entry_signal=e, exit_signal=x,
                      svr_threshold_pct=_cf(data.get("svr_threshold_pct"), 10, 90, 50.0),
+                     dtc_threshold=_cf(data.get("dtc_threshold"), 0.5, 30, 3.0),
                      sma_window=_ci(data.get("sma_window"), 20, 200, 50),
                      holding_days=_ci(data.get("holding_days"), 5, 252, 40),
                      stop_loss_pct=_cf(data.get("stop_loss_pct"), 0, 90, 0.0), stance=s,

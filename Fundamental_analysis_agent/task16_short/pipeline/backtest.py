@@ -26,33 +26,72 @@ def svr_asof(series: list[tuple[date, float]], d: date) -> float | None:
     return val
 
 
-def short_readings(series: list[tuple[date, float]]) -> dict[str, float | str]:
-    if not series:
+def dtc_asof(series: list[tuple[date, float, float]], d: date) -> float | None:
+    """Most recent days-to-cover STRICTLY BEFORE d (publish-lagged short interest)."""
+    val = None
+    for sd, dtc, _si in series:
+        if sd < d:
+            val = dtc
+        else:
+            break
+    return val
+
+
+def short_readings(
+    series: list[tuple[date, float]],
+    si_series: list[tuple[date, float, float]] | None = None,
+) -> dict[str, float | str]:
+    if not series and not si_series:
         return {"short_regime": "no_data", "n_samples": 0.0}
-    vals = [v for _, v in series]
-    cur = vals[-1]
-    srt = sorted(vals)
-    median = srt[len(srt) // 2]
-    pctl = sum(1 for v in srt if v <= cur) / len(srt) * 100.0
-    regime = "elevated_short" if pctl >= 70 else "low_short" if pctl <= 30 else "normal"
-    return {
-        "short_regime": regime,
-        "current_short_vol_ratio_pct": round(cur, 1),
-        "median_short_vol_ratio_pct": round(median, 1),
-        "short_vol_percentile": round(pctl, 0),
-        "n_samples": float(len(series)),
-    }
+    out: dict[str, float | str] = {}
+    if series:
+        vals = [v for _, v in series]
+        cur = vals[-1]
+        srt = sorted(vals)
+        median = srt[len(srt) // 2]
+        pctl = sum(1 for v in srt if v <= cur) / len(srt) * 100.0
+        regime = "elevated_short" if pctl >= 70 else "low_short" if pctl <= 30 else "normal"
+        out.update({
+            "short_regime": regime,
+            "current_short_vol_ratio_pct": round(cur, 1),
+            "median_short_vol_ratio_pct": round(median, 1),
+            "short_vol_percentile": round(pctl, 0),
+            "n_samples": float(len(series)),
+        })
+    else:
+        out["short_regime"] = "no_data"
+        out["n_samples"] = 0.0
+    if si_series:
+        dtcs = [dtc for _, dtc, _ in si_series]
+        cur_dtc = dtcs[-1]
+        srt = sorted(dtcs)
+        pctl = sum(1 for v in srt if v <= cur_dtc) / len(srt) * 100.0
+        # short-interest trend: latest vs ~3 settlements (≈6 weeks) ago
+        prev = si_series[-4][2] if len(si_series) >= 4 else si_series[0][2]
+        latest_si = si_series[-1][2]
+        trend = "rising" if latest_si > prev * 1.05 else "falling" if latest_si < prev * 0.95 else "flat"
+        out.update({
+            "si_regime": "high_short_interest" if pctl >= 70 else "low_short_interest" if pctl <= 30 else "normal_si",
+            "current_days_to_cover": round(cur_dtc, 2),
+            "days_to_cover_percentile": round(pctl, 0),
+            "short_interest_trend": trend,
+            "n_si_samples": float(len(si_series)),
+        })
+    return out
 
 
 def readings_block(r: dict[str, float | str]) -> str:
     order = ["short_regime", "current_short_vol_ratio_pct", "median_short_vol_ratio_pct",
-             "short_vol_percentile", "n_samples"]
+             "short_vol_percentile", "n_samples",
+             "si_regime", "current_days_to_cover", "days_to_cover_percentile",
+             "short_interest_trend", "n_si_samples"]
     return "\n".join(f"- {k}: {r[k]}" for k in order if k in r)
 
 
 def run_short_backtest(
     prices: list[PricePoint], svr: list[tuple[date, float]], spec: ShortSpec, *, start: date,
     transaction_cost_bps: float = 10.0, market_prices: list[PricePoint] | None = None,
+    si_series: list[tuple[date, float, float]] | None = None,
 ) -> BacktestResult:
     full = prices
     closes_full = [p.close for p in full]
@@ -72,10 +111,20 @@ def run_short_backtest(
             return None
         return sum(closes_full[fi + 1 - spec.sma_window: fi + 1]) / spec.sma_window
 
+    si = si_series or []
+
     def want_long(fi: int) -> bool:
         sig = spec.entry_signal
         if sig == "buy_and_hold":
             return True
+        if sig in ("si_squeeze", "low_si"):
+            dtc = dtc_asof(si, full[fi].date)
+            if dtc is None:
+                return False
+            if sig == "si_squeeze":
+                sma = _sma(fi)
+                return dtc >= spec.dtc_threshold and sma is not None and closes_full[fi] > sma
+            return dtc <= spec.dtc_threshold       # low_si
         s = svr_asof(svr, full[fi].date)
         if s is None:
             return False

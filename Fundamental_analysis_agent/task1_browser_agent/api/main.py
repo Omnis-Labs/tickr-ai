@@ -58,7 +58,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-21 (full agent suite)", version="1.6.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-21 (full agent suite)", version="1.6.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

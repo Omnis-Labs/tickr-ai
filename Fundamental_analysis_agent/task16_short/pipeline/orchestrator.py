@@ -13,6 +13,7 @@ from task3_strategy.pipeline.prices import fetch_prices
 from task16_short.pipeline.autoresearch import author_short
 from task16_short.pipeline.backtest import readings_block, run_short_backtest, short_readings
 from task16_short.pipeline.finra import fetch_short_volume_series
+from task16_short.pipeline.short_interest import fetch_short_interest_series
 from task16_short.schemas import ShortResult
 
 logger = get_logger(__name__)
@@ -60,20 +61,25 @@ async def run_short_pipeline(*, ticker: str, job_id: str | None = None) -> Short
     market_prices = None if ticker == "SPY" else await _safe("SPY")
 
     no_data = ""
-    svr = []
+    svr: list = []
+    si_series: list = []
     try:
-        svr = await fetch_short_volume_series(ticker, since=backtest_start - timedelta(days=30), as_of=as_of)
+        svr, si_series = await asyncio.gather(
+            fetch_short_volume_series(ticker, since=backtest_start - timedelta(days=30), as_of=as_of),
+            fetch_short_interest_series(ticker),
+        )
     except Exception as e:  # noqa: BLE001
         logger.warning("task16_finra_failed", error=str(e)[:200])
         no_data = f"FINRA short-volume fetch failed for {ticker}: {type(e).__name__}."
-    if not svr and not no_data:
-        no_data = f"no FINRA short-volume data found for {ticker} (not NMS-listed?)."
+    if not svr and not si_series and not no_data:
+        no_data = f"no FINRA short-volume or NASDAQ short-interest data found for {ticker} (not NMS-listed?)."
 
-    readings = short_readings(svr)
+    readings = short_readings(svr, si_series)
     spec = await author_short(trace_id=job_id, ticker=ticker, readings_block=readings_block(readings),
                               budget_usd=_LEG_BUDGET_USD)
     backtest = run_short_backtest(prices, svr, spec, start=backtest_start,
-                                  transaction_cost_bps=_TXN_COST_BPS, market_prices=market_prices)
+                                  transaction_cost_bps=_TXN_COST_BPS, market_prices=market_prices,
+                                  si_series=si_series)
     chart = [p for p in prices if p.date >= backtest_start - timedelta(days=_CHART_LOOKBACK_DAYS)]
     cost = await cost_for_trace(job_id)
     caveats = [
@@ -81,16 +87,22 @@ async def run_short_pipeline(*, ticker: str, job_id: str | None = None) -> Short
         f"(window start {backtest_start.isoformat()}). Not investment advice.",
         "Past performance does not predict future returns.",
         f"Transaction cost modelled at {_TXN_COST_BPS:.0f} bps per side; slippage not modelled.",
-        "Signal source: FINRA daily SHORT-VOLUME (regsho), weekly-sampled & cached, used with a "
-        "publish lag (lookahead-safe). ⚠️ This is short VOLUME (% of daily volume sold short), NOT "
-        "short INTEREST (outstanding shorts), and it INCLUDES market-maker hedging — so a high ratio "
-        "is a pressure gauge, not a clean bearish/squeeze signal. Free historical short-interest is "
-        "not available, hence this proxy.",
+        "Signal sources, both used with a publish lag (lookahead-safe): (1) FINRA daily "
+        "SHORT-VOLUME (regsho), weekly-sampled — the % of daily volume sold short, which "
+        "INCLUDES market-maker hedging, so a high ratio is a pressure gauge, not a clean bearish "
+        "signal; (2) NASDAQ bi-monthly settlement SHORT-INTEREST (outstanding shorts + "
+        "days-to-cover) — the real overhang, but it updates only twice a month and is published "
+        "~8 business days after the settlement date (we key it to that publish date).",
+        f"Short interest: {len(si_series)} bi-monthly settlement samples "
+        f"({'used' if spec.entry_signal in ('si_squeeze', 'low_si') else 'shown as context'}). "
+        f"Bi-monthly cadence means the days-to-cover gate changes state at most ~twice a month. "
+        f"⚠️ NASDAQ's short-interest feed only covers Nasdaq-LISTED stocks — for NYSE-listed names "
+        f"(no samples above) only the short-VOLUME signals are available.",
         "Benchmarks: buy-and-hold of the stock and the S&P 500 (SPY).",
     ]
     if no_data:
         caveats.insert(1, f"⚠️ {no_data} No short-pressure entries fired — flat baseline.")
-    logger.info("task16_done", ticker=ticker, n=len(svr), entry=spec.entry_signal,
+    logger.info("task16_done", ticker=ticker, n=len(svr), n_si=len(si_series), entry=spec.entry_signal,
                 ret=backtest.metrics.total_return_pct, ms=int((time.perf_counter() - started) * 1000))
     return ShortResult(job_id=job_id, ticker=ticker, company_name=ticker, as_of_date=as_of, n_samples=len(svr),
                        prices=chart, strategy=spec, backtest=backtest, short_readings=readings, caveats=caveats,
