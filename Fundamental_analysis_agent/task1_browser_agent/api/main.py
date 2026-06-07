@@ -39,6 +39,7 @@ from task5_ensemble.api.router import router as task5_router
 from task6_insider.api.router import router as task6_router
 from task7_relative.api.router import router as task7_router
 from task8_earnings.api.router import router as task8_router
+from task9_institutional.api.router import router as task9_router
 from task10_portfolio.api.router import router as task10_router
 
 configure_logging()
@@ -46,7 +47,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1 + Task 2 + Task 3 + Task 4 + Task 5 + Task 6 + Task 7 + Task 8 + Task 10", version="0.9.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-10 (full agent suite)", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -61,6 +62,7 @@ app.include_router(task5_router)
 app.include_router(task6_router)
 app.include_router(task7_router)
 app.include_router(task8_router)
+app.include_router(task9_router)
 app.include_router(task10_router)
 
 

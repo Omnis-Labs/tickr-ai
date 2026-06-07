@@ -1107,3 +1107,84 @@ export async function pollEarnings(
   tick();
   return () => { stopped = true; };
 }
+
+// ===========================================================================
+// Task 9 — institutional / 13F superinvestor-tracking agent
+// Reuses the BacktestResult / PricePoint shapes above.
+// ===========================================================================
+
+export interface FundSummary {
+  fund_name: string;
+  latest_shares: number;
+  latest_filing_date: string | null;
+  change: "new" | "added" | "trimmed" | "held" | "exited" | "absent";
+}
+
+export interface InstitutionalSpec {
+  entry_signal: "any_holding" | "accumulating" | "new_buying";
+  exit_signal: "hold" | "distributing" | "time_exit";
+  accumulation_lookback_days: number; holding_days: number;
+  stop_loss_pct: number; take_profit_pct: number;
+  stance: "bullish" | "neutral" | "cautious";
+  thesis: string; rationale_entry: string; rationale_exit: string;
+}
+
+export interface InstitutionalResult {
+  job_id: string; ticker: string; company_name: string | null; cik: number | null;
+  as_of_date: string; n_funds_tracked: number; n_funds_holding: number;
+  funds: FundSummary[];
+  prices: PricePoint[]; strategy: InstitutionalSpec; backtest: BacktestResult;
+  institutional_readings: Record<string, number | string>;
+  caveats: string[]; cost_usd: number; created_at: string;
+}
+
+export interface Task9Job {
+  job_id: string; ticker: string; status: JobStatus;
+  result: InstitutionalResult | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
+
+export async function createInstitutional(ticker: string): Promise<Task9Job> {
+  const res = await fetch(`${API_BASE}/task9/institutional`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticker }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail
+        : Array.isArray(body?.detail) ? body.detail.map((d: { msg?: string }) => d.msg).join("; ") : "";
+    } catch { /* not json */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `createInstitutional failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function getInstitutional(jobId: string): Promise<Task9Job> {
+  const res = await fetch(`${API_BASE}/task9/institutional/${jobId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getInstitutional failed: ${res.status}`);
+  return res.json();
+}
+
+export async function pollInstitutional(
+  jobId: string,
+  onUpdate: (j: Task9Job) => void,
+  intervalMs = 2000,
+): Promise<() => void> {
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const j = await getInstitutional(jobId);
+      onUpdate(j);
+      if (j.status === "succeeded" || j.status === "failed") return;
+    } catch (e) {
+      console.error(e);
+    }
+    if (!stopped) setTimeout(tick, intervalMs);
+  };
+  tick();
+  return () => { stopped = true; };
+}

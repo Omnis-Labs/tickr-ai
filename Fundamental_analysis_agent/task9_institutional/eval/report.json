@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-06-07T19:19:19.431328+00:00",
+  "metrics": {
+    "n_cases": 3,
+    "n_pass": 3,
+    "pass_rate": 1.0,
+    "cost_total": 0.001714
+  },
+  "cases": [
+    {
+      "id": "aapl-13f",
+      "category": "large-cap",
+      "ticker": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "n_funds_holding": 4,
+      "regime": "distributing",
+      "entry_signal": "any_holding",
+      "total_return_pct": 24.2,
+      "alpha_vs_market_pct": -54.69,
+      "duration_ms": 52953,
+      "cost_usd": 0.000856,
+      "failure_reasons": []
+    },
+    {
+      "id": "msft-13f",
+      "category": "large-cap",
+      "ticker": "MSFT",
+      "passed": true,
+      "status": "succeeded",
+      "n_funds_holding": 0,
+      "regime": "no_tracked_holders",
+      "entry_signal": "accumulating",
+      "total_return_pct": 0.0,
+      "alpha_vs_market_pct": -78.89,
+      "duration_ms": 84585,
+      "cost_usd": 0.000858,
+      "failure_reasons": []
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "ticker": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "n_funds_holding": null,
+      "regime": null,
+      "entry_signal": null,
+      "total_return_pct": null,
+      "alpha_vs_market_pct": null,
+      "duration_ms": 3788,
+      "cost_usd": 0.0,
+      "failure_reasons": []
+    }
+  ]
+}

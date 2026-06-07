@@ -1,0 +1,313 @@
+"use client";
+
+import { useState } from "react";
+import {
+  createInstitutional,
+  pollInstitutional,
+  Task9Job,
+  InstitutionalResult,
+  InstitutionalSpec,
+  FundSummary,
+  BacktestMetrics,
+} from "@/lib/api";
+import { CandlestickChart, EquityChart } from "./Charts";
+
+const STANCE_COLOR: Record<string, string> = {
+  bullish: "text-emerald-400 border-emerald-700 bg-emerald-950/30",
+  neutral: "text-zinc-300 border-zinc-700 bg-zinc-900",
+  cautious: "text-amber-400 border-amber-700 bg-amber-950/30",
+};
+
+const REGIME_COLOR: Record<string, string> = {
+  accumulating: "text-emerald-400 border-emerald-700 bg-emerald-950/30",
+  steady: "text-zinc-300 border-zinc-700 bg-zinc-900",
+  distributing: "text-amber-400 border-amber-700 bg-amber-950/30",
+  not_held: "text-zinc-400 border-zinc-700 bg-zinc-900",
+  no_tracked_holders: "text-zinc-400 border-zinc-700 bg-zinc-900",
+};
+
+const CHANGE_COLOR: Record<string, string> = {
+  new: "text-emerald-400", added: "text-emerald-400", held: "text-zinc-400",
+  trimmed: "text-amber-400", exited: "text-red-400", absent: "text-zinc-600",
+};
+
+const SIGNAL_LABEL: Record<string, string> = {
+  any_holding: "While funds hold it", accumulating: "While funds accumulate",
+  new_buying: "On recent net buying", hold: "Hold to end",
+  distributing: "Exit on distribution", time_exit: "Time exit",
+};
+
+const READING_LABEL: Record<string, string> = {
+  institutional_regime: "Regime", n_funds_holding: "Funds holding",
+  total_shares_held: "Total shares", shares_change_pct: "Shares change",
+  lookback_days: "Lookback (days)", n_added: "Added", n_trimmed: "Trimmed", top_holder: "Top holder",
+};
+
+function pct(n: number) { return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`; }
+function fmtShares(n: number) { return n.toLocaleString(undefined, { maximumFractionDigits: 0 }); }
+
+export default function InstitutionalPage() {
+  const [ticker, setTicker] = useState("");
+  const [job, setJob] = useState<Task9Job | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run(e: React.FormEvent) {
+    e.preventDefault();
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    setBusy(true); setErr(null); setJob(null);
+    try {
+      const j = await createInstitutional(t);
+      setJob(j);
+      pollInstitutional(j.job_id, (next) => {
+        setJob(next);
+        if (next.status !== "pending" && next.status !== "running") setBusy(false);
+      });
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : String(e2));
+      setBusy(false);
+    }
+  }
+
+  const result = job?.result ?? null;
+
+  return (
+    <div className="space-y-6">
+      <section>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-2xl font-semibold">Task 9</h1>
+          <span className="text-xs text-zinc-500 uppercase tracking-wider">
+            Institutional (13F) → Strategy → Backtest
+          </span>
+        </div>
+        <p className="text-sm text-zinc-400 mt-2 leading-relaxed max-w-3xl">
+          Enter a ticker. We track a curated set of well-known managers (Berkshire, Baupost,
+          Pershing Square, …) via their SEC <strong>13F-HR</strong> filings and follow whether they
+          are <strong>accumulating</strong> the name. An LLM picks a &ldquo;follow the smart
+          money&rdquo; strategy; the backtest is keyed off the 13F <strong>filing date</strong>{" "}
+          (~45 days after quarter-end), so it&apos;s lookahead-safe but <em>slow</em> — a
+          confirmation signal, not a timing edge. Tracks only the curated funds (not total
+          institutional ownership), matched by issuer name.
+        </p>
+      </section>
+
+      <form onSubmit={run} className="flex gap-2 max-w-md">
+        <input value={ticker} onChange={(e) => setTicker(e.target.value)}
+          placeholder="Ticker, e.g. AAPL"
+          className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-3 py-2 text-sm focus:border-emerald-700 outline-none" />
+        <button type="submit" disabled={busy}
+          className="px-4 py-2 text-sm rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed">
+          {busy ? "Running…" : "Generate"}
+        </button>
+      </form>
+
+      {err && <p className="text-red-400 text-sm">{err}</p>}
+
+      {job && (
+        <p className="text-xs text-zinc-500">
+          job <code className="text-zinc-300">{job.job_id}</code> · status{" "}
+          <code className={
+            job.status === "succeeded" ? "text-emerald-400"
+            : job.status === "failed" ? "text-red-400" : "text-zinc-300"
+          }>{job.status}</code>
+          {busy && " · fetching 13F filings across funds, backtesting…"}
+        </p>
+      )}
+
+      {job?.status === "failed" && <p className="text-red-400 text-sm">{job.error_message}</p>}
+
+      {result && <ResultView r={result} />}
+    </div>
+  );
+}
+
+function ResultView({ r }: { r: InstitutionalResult }) {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-baseline justify-between flex-wrap gap-2">
+        <h2 className="text-xl font-semibold">
+          {r.ticker}<span className="text-sm text-zinc-500 font-normal"> · {r.company_name}</span>
+        </h2>
+        <span className="text-xs text-zinc-500">
+          as-of {r.as_of_date} · {r.n_funds_holding}/{r.n_funds_tracked} tracked funds hold it ·
+          {" "}cost ${r.cost_usd.toFixed(4)}
+        </span>
+      </div>
+
+      <div className="border border-zinc-800 rounded-md p-3">
+        <h3 className="text-sm font-semibold text-zinc-300 mb-1">Price (split/dividend-adjusted)</h3>
+        <p className="text-xs text-zinc-500 mb-2">
+          <span className="text-emerald-400">▲</span> entry · <span className="text-red-400">▼</span> exit ·{" "}
+          <span className="text-amber-400">┊</span> backtest window start
+        </p>
+        <CandlestickChart prices={r.prices} trades={r.backtest.trades}
+          filingDate={r.backtest.start_date} markerLabel="window start" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ThesisPanel s={r.strategy} />
+        <BacktestPanel m={r.backtest.metrics} />
+      </div>
+
+      <ReadingsPanel readings={r.institutional_readings} />
+      <FundsTable funds={r.funds} />
+
+      <div className="border border-zinc-800 rounded-md p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-semibold text-zinc-300">Backtest equity curve</h3>
+          <p className="text-xs">
+            <span className="text-emerald-400">━ strategy</span>{"   "}
+            <span className="text-zinc-500">━ buy &amp; hold</span>{"   "}
+            <span className="text-blue-400">┄ S&amp;P 500</span>
+          </p>
+        </div>
+        <EquityChart curve={r.backtest.equity_curve} />
+      </div>
+
+      <div className="border border-zinc-800 rounded-md p-4 bg-zinc-950/40">
+        <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+          Honesty &amp; limitations
+        </h3>
+        <ul className="text-xs text-zinc-500 space-y-1 list-disc pl-4">
+          {r.caveats.map((c, i) => <li key={i}>{c}</li>)}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ThesisPanel({ s }: { s: InstitutionalSpec }) {
+  return (
+    <div className="border border-zinc-800 rounded-md p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-zinc-200">Strategy &amp; thesis</h3>
+        <span className={`text-[11px] px-2 py-0.5 rounded border ${STANCE_COLOR[s.stance] || ""}`}>{s.stance}</span>
+      </div>
+      <div className="text-xs text-zinc-400">
+        <span className="text-zinc-200">{SIGNAL_LABEL[s.entry_signal] || s.entry_signal}</span>
+        {" → "}<span className="text-zinc-200">{SIGNAL_LABEL[s.exit_signal] || s.exit_signal}</span>
+        <span> · {s.accumulation_lookback_days}d lookback</span>
+        {s.exit_signal === "time_exit" && <span> · hold {s.holding_days}d</span>}
+        {s.stop_loss_pct > 0 && <span> · stop {s.stop_loss_pct}%</span>}
+      </div>
+      <p className="text-sm text-zinc-300 leading-relaxed">{s.thesis}</p>
+      {(s.rationale_entry || s.rationale_exit) && (
+        <div className="text-xs text-zinc-500 space-y-1">
+          {s.rationale_entry && <p><span className="text-emerald-400">Entry:</span> {s.rationale_entry}</p>}
+          {s.rationale_exit && <p><span className="text-red-400">Exit:</span> {s.rationale_exit}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReadingsPanel({ readings }: { readings: Record<string, number | string> }) {
+  const regime = readings["institutional_regime"];
+  return (
+    <div className="border border-zinc-800 rounded-md p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="text-sm font-semibold text-zinc-200">13F readings (as-of)</h3>
+        {typeof regime === "string" && (
+          <span className={`text-[11px] px-2 py-0.5 rounded border ${REGIME_COLOR[regime] || ""}`}>
+            {regime.replace(/_/g, " ")}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-y-3 gap-x-2">
+        {Object.keys(READING_LABEL).filter((k) => k in readings && k !== "institutional_regime").map((k) => {
+          const v = readings[k];
+          const isChg = k === "shares_change_pct" && typeof v === "number";
+          const color = isChg ? ((v as number) >= 0 ? "text-emerald-400" : "text-red-400") : "text-zinc-200";
+          const shown = k === "total_shares_held" && typeof v === "number" ? fmtShares(v)
+            : isChg ? pct(v as number) : String(v);
+          return (
+            <div key={k}>
+              <div className="text-[11px] text-zinc-500">{READING_LABEL[k]}</div>
+              <div className={`text-sm font-medium ${color}`}>{shown}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FundsTable({ funds }: { funds: FundSummary[] }) {
+  if (!funds.length) {
+    return (
+      <div className="border border-zinc-800 rounded-md p-4 text-sm text-zinc-500">
+        None of the tracked funds hold this name (in the window).
+      </div>
+    );
+  }
+  return (
+    <div className="border border-zinc-800 rounded-md p-4 overflow-x-auto">
+      <h3 className="text-sm font-semibold text-zinc-200 mb-2">Tracked holders ({funds.length})</h3>
+      <table className="w-full text-xs">
+        <thead className="text-zinc-500 text-left">
+          <tr><th className="py-1 pr-3">Fund</th><th className="pr-3 text-right">Shares</th>
+            <th className="pr-3">Last 13F</th><th className="pr-3">Change</th></tr>
+        </thead>
+        <tbody className="text-zinc-300">
+          {funds.map((f) => (
+            <tr key={f.fund_name} className="border-t border-zinc-900">
+              <td className="py-1 pr-3 font-medium">{f.fund_name}</td>
+              <td className="pr-3 text-right">{fmtShares(f.latest_shares)}</td>
+              <td className="pr-3 text-zinc-500">{f.latest_filing_date ?? "—"}</td>
+              <td className={`pr-3 ${CHANGE_COLOR[f.change]}`}>{f.change}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Metric({ label, value, good }: { label: string; value: string; good?: boolean | null }) {
+  const color = good == null ? "text-zinc-200" : good ? "text-emerald-400" : "text-red-400";
+  return (
+    <div>
+      <div className="text-[11px] text-zinc-500 uppercase tracking-wider">{label}</div>
+      <div className={`text-lg font-semibold ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function BacktestPanel({ m }: { m: BacktestMetrics }) {
+  const hasEntryBench = m.benchmark_from_entry_pct != null;
+  return (
+    <div className="border border-zinc-800 rounded-md p-4">
+      <h3 className="text-sm font-semibold text-zinc-200 mb-3">
+        Backtest <span className="text-xs text-zinc-500 font-normal">({m.days} days, {m.transaction_cost_bps} bps/side)</span>
+      </h3>
+      <div className="grid grid-cols-3 gap-y-3 gap-x-2 mb-3">
+        <Metric label="Strategy" value={pct(m.total_return_pct)} good={m.total_return_pct >= 0} />
+        <Metric label="Hold · full window" value={pct(m.benchmark_return_pct)} />
+        <Metric label="Excess · full" value={pct(m.excess_return_pct)} good={m.excess_return_pct >= 0} />
+        {hasEntryBench && (
+          <>
+            <div />
+            <Metric label="Hold · from entry" value={pct(m.benchmark_from_entry_pct as number)} />
+            <Metric label="Excess · from entry" value={pct(m.excess_vs_entry_pct as number)} good={(m.excess_vs_entry_pct as number) >= 0} />
+          </>
+        )}
+        {m.market_return_pct != null && (
+          <>
+            <div />
+            <Metric label="S&P 500" value={pct(m.market_return_pct)} />
+            <Metric label="Alpha vs market" value={pct(m.excess_vs_market_pct as number)} good={(m.excess_vs_market_pct as number) >= 0} />
+          </>
+        )}
+      </div>
+      <div className="grid grid-cols-3 gap-y-4 gap-x-2 border-t border-zinc-800 pt-3">
+        <Metric label="CAGR" value={pct(m.cagr_pct)} good={m.cagr_pct >= 0} />
+        <Metric label="Sharpe" value={m.sharpe.toFixed(2)} good={m.sharpe >= 1} />
+        <Metric label="Max drawdown" value={pct(m.max_drawdown_pct)} good={false} />
+        <Metric label="Win rate" value={`${m.win_rate_pct.toFixed(0)}%`} />
+        <Metric label="Trades" value={String(m.n_trades)} />
+        <Metric label="Exposure" value={`${m.exposure_pct.toFixed(0)}%`} />
+      </div>
+    </div>
+  );
+}

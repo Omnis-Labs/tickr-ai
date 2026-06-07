@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/insider", label: "Task 6 · Insider" },
   { href: "/relative", label: "Task 7 · Rel. Strength" },
   { href: "/earnings", label: "Task 8 · Earnings" },
+  { href: "/institutional", label: "Task 9 · 13F" },
   { href: "/portfolio", label: "Task 10 · Portfolio" },
   { href: "/dashboard", label: "Dashboard" },
 ];

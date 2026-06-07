@@ -1,0 +1,33 @@
+# Task 9 — institutional (13F) agent eval set.
+# Grades invariants + deterministic behaviour; records the stochastic LLM choice.
+# ("No tracked holder → flat" is pinned by the unit test test_no_tracked_holders_means_flat.)
+
+cases:
+- id: aapl-13f
+  category: large-cap
+  ticker: AAPL
+  description: >-
+    Widely held by the tracked funds (Berkshire et al.) — exercises the full
+    multi-fund fetch, name-match, aggregate and backtest path. Fund discovery is
+    network-dependent (SEC throttles the ~260 requests/case under the eval's
+    back-to-back load), so n_funds_holding is RECORDED, not graded — only the
+    system invariants are. A single interactive request is not throttled.
+  assertions:
+    max_cost_usd: 0.04
+    max_duration_ms: 200000
+
+- id: msft-13f
+  category: large-cap
+  ticker: MSFT
+  description: A second widely-held mega-cap.
+  assertions:
+    max_cost_usd: 0.04
+    max_duration_ms: 200000
+
+- id: bad-ticker-graceful-fail
+  category: synthetic
+  ticker: ZZQQXX
+  description: Nonexistent ticker — must fail cleanly.
+  assertions:
+    expect_failed: true
+    max_duration_ms: 60000

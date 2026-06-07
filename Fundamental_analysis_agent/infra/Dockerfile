@@ -29,6 +29,7 @@ COPY task5_ensemble/ task5_ensemble/
 COPY task6_insider/ task6_insider/
 COPY task7_relative/ task7_relative/
 COPY task8_earnings/ task8_earnings/
+COPY task9_institutional/ task9_institutional/
 COPY task10_portfolio/ task10_portfolio/
 COPY prompts/ prompts/
 

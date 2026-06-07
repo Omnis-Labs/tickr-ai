@@ -233,6 +233,30 @@ export default function HomePage() {
             Try it →
           </div>
         </a>
+
+        <a
+          href="/institutional"
+          className="group block border border-zinc-800 rounded-md p-5 hover:border-emerald-700 hover:bg-emerald-950/10 transition-colors md:col-span-2"
+        >
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-lg font-semibold">Task 9</h2>
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Institutional (13F) superinvestor tracking → Strategy → Backtest
+            </span>
+          </div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed">
+            Enter a ticker → we track a curated set of <span className="text-blue-400">well-known
+            managers</span> (Berkshire, Baupost, Pershing Square, …) via their SEC{" "}
+            <span className="text-blue-400">13F-HR</span> filings and follow whether they&apos;re{" "}
+            <span className="text-amber-400">accumulating</span> the name. An LLM picks a follow-the-
+            smart-money strategy; the backtest is keyed off the 13F filing date (~45-day lag → a
+            lookahead-safe but slow confirmation signal). Curated funds only, matched by issuer name —
+            both surfaced honestly.
+          </p>
+          <div className="text-xs text-emerald-400 mt-3 group-hover:underline">
+            Try it →
+          </div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">
