@@ -1,6 +1,6 @@
 # Agent Suite — what each agent does & how they interact
 
-**21 agents**, one repo. Two are utilities (browser automation, document extraction); the rest are
+**24 agents**, one repo. Two are utilities (browser automation, document extraction); the rest are
 US-stock trading-research agents. This document is the map: per-agent function, then the dependency
 / interaction graph and the shared backbone they all stand on.
 
@@ -11,7 +11,7 @@ US-stock trading-research agents. This document is the map: per-agent function, 
 
 ## 0. The shared design pattern (every strategy agent)
 
-All trading agents (T3–T21) follow the **same contract**, which is the heart of the suite:
+All trading agents (T3–T24) follow the **same contract**, which is the heart of the suite:
 
 ```
 ticker → gather data (as-of a decision date)
@@ -34,7 +34,7 @@ losses shown not hidden, costs always charged.
 
 ---
 
-## 1. The 21 agents
+## 1. The 24 agents
 
 ### Utilities
 | # | Agent | Input → Output | What it does |
@@ -61,6 +61,13 @@ losses shown not hidden, costs always charged.
 | **T18** | Corporate events | SEC 8-K / 13D filings | **Schedule 13D** activist-stake drift (positive) + **red flags** (dilution 424B5/S-3, late NT filings, auditor change, delisting) + LLM-read **adverse 8-K 5.02** exec departures. Ride activist drift, stand aside on red flags. |
 | **T19** | Price anomalies | prices | Three documented anomalies, prices only: **52-week-high momentum**, **MAX/lottery** avoidance, **tax-loss reversal** (Jan effect). Trailing-window + calendar → lookahead-free. |
 | **T20** | VIX regime gate | prices + ^VIX / ^VIX3M | CBOE **term structure** (VIX vs VIX3M) as a regime switch: long in contango (calm), to cash on inversion or a VIX-level spike. Same-day VIX → next-open fill. |
+| **T22** | Congressional trading | STOCK Act disclosures (pluggable: Quiver/FMP key, else free House-PTR PDF parse) | Follow disclosed lawmaker **buys** / avoid after **sells**, keyed to the DISCLOSURE date (lookahead-free). A weak, crowded signal; free coverage is partial (House-only, e-filed PTRs). |
+| **T24** | Earnings contagion | SEC 8-K (bellwether, via T8) | A bellwether's earnings move its **peer** before the peer reports. Classifies the bellwether's 8-Ks (reusing T8) and trades the peer in the short read-across window after each filing. Input is a (bellwether, peer) pair. |
+
+### Long-short / market-neutral
+| # | Agent | Data source | Core signal |
+|---|---|---|---|
+| **T23** | Pairs trading (stat-arb) | prices (two tickers) | The suite's one **long-short, dollar-neutral** strategy: spread = logA − β·logB (trailing OLS), rolling **z-score** mean-reversion (enter on stretch, exit on reversion, stop on blow-out). β + z-stats trailing → lookahead-free. |
 
 ### Aggregators (consume other agents)
 | # | Agent | Consumes | What it does |
@@ -101,10 +108,14 @@ runs other agents end-to-end).
 - **T4's `run_backtest` + `author_technical` + `indicator_readings_asof`** are reused wholesale by
   **T5** (technical leg) and **T10** (per-name signal).
 - **The generic `run_factor_backtest` (lives in T17)** — a long-only, stop/exit-aware,
-  SPY-benchmarked engine driven by a `want_long(date)` callable — is reused by **T18, T19, T20**, so
-  every event/anomaly/regime gate shares one execution path.
+  SPY-benchmarked engine driven by a `want_long(date)` callable — is reused by **T18, T19, T20, T22,
+  T24**, so every event/anomaly/regime/disclosure/contagion gate shares one execution path.
 - **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) is reused by **T21**;
   only the membership differs — T10's comes from per-name signals, T21's from a cross-sectional rank.
+- **T23 has its own market-neutral backtest** (long-short, dollar-neutral) — it can't reuse the
+  long-only engines — but fills T4's `BacktestMetrics`/`BacktestResult` so the shared UI panel renders it.
+- **T24 reuses T8's `fetch_earnings_releases` + `classify_events` wholesale** on the *bellwether*, then
+  trades the *peer* — the suite's second agent-runs-another-agent path after T5/T10.
 - **T5's `inmarket_by_date`** (trades → daily in-market series) is reused by **T10**.
 - **T11's XBRL `companyfacts` fetch + `_quarterly_series` / `annual_series` / `instant_series`** is
   reused by **T15** (buyback) and **T17** (quality) — share counts via the `shares` unit vs T11's `USD`.
@@ -124,19 +135,20 @@ runs other agents end-to-end).
 
 ### 2d. External data dependency map
 ```
-prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24
    └─ ^VIX / ^VIX3M ....... T20 (term structure)
 SEC EDGAR (filings/submissions/XBRL)
    ├─ 10-K text ........... T2 → T3 → T5
    ├─ Form 4 .............. T6
-   ├─ 8-K Ex-99.1 ......... T8 → T18 (8-K 5.02 body)
+   ├─ 8-K Ex-99.1 ......... T8 → T18 (8-K 5.02 body), T24 (bellwether)
    ├─ 13D / red-flag forms  T18
    ├─ 13F-HR (curated) .... T9
    └─ XBRL companyfacts ... T11 → T15, T17
 SEC SIC code ............... T7 (sector ETF), and industry mapping
 FINRA regsho short-volume .. T16
 NASDAQ short-interest ...... T16 (bi-monthly days-to-cover)
-(LLM gateway) .............. every strategy agent T3–T21
+Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
+(LLM gateway) .............. every strategy agent T3–T24
 ```
 
 ---
@@ -150,7 +162,10 @@ NASDAQ short-interest ...... T16 (bi-monthly days-to-cover)
   signals — insider (T6), earnings (T8), institutional (T9), buyback (T15), short (T16), corporate
   events/13D (T18); and price-anomaly signals — seasonality (T12), overnight (T13), price anomalies
   (T19).
+- **Alternative / cross-asset signals:** congressional disclosures (T22), and earnings *read-across*
+  from a bellwether to a peer (T24, an agent-runs-agent over T8).
 - **One fusion layer (T5)** combines a fundamental + a technical view per name.
+- **One long-short, market-neutral strategy (T23)** — pairs/stat-arb — the lone non-long-only member.
 - **Two portfolio-level capstones:** **T10** *sizes* signals across many names into a risk-controlled
   portfolio; **T21** *selects* the names by cross-sectional factor rank (and reuses T10's backtest).
 
@@ -185,6 +200,9 @@ its limits.
 | T19 | `/task19/anomaly` | `/anomaly` | `task19_anomaly/` |
 | T20 | `/task20/vix` | `/vix` | `task20_vix/` |
 | T21 | `/task21/rankings` | `/ranker` | `task21_ranker/` |
+| T22 | `/task22/congress` | `/congress` | `task22_congress/` |
+| T23 | `/task23/pairs` | `/pairs` | `task23_pairs/` |
+| T24 | `/task24/contagion` | `/contagion` | `task24_contagion/` |
 
 *A new `taskN_*` package must be registered in four places or the deploy silently rolls back:
 `task1_browser_agent/api/main.py` (router), `infra/Dockerfile` (COPY), and `pyproject.toml`
