@@ -143,7 +143,7 @@ Two invariants make it trustworthy:
 | **T25** | Financial astrology | Mercury-retrograde / moon-phase / aspect timing via `ephem` (offline, deterministic). **No economic mechanism** — runs the identical backtest to measure what Sharpe the framework manufactures from noise. Prints the 星盤 + reasoning chain. |
 | **T26** | 梅花易數 I Ching | Deterministic 時間起卦 → 體用五行生剋 hold/flat. Its `seed` makes it the **null-distribution engine** (poor-man's White's Reality Check: **480 draws → p95 Sharpe ≈ 0.94**, the bar a real agent must clear to beat luck). Prints the full 命盤 + 起卦→體用→生剋→變卦 chain. |
 | **T27** | 八字 Four Pillars | Casts the company's natal chart from its **listing date**, reads 日主 + 旺衰 + 喜用神, and holds when the current 流年/流月 五行 is favourable to the Day Master. Deterministic, lookahead-free (anchors: 2000-01-07=甲子日, 1984=甲子年). Prints the 四柱 命盤 + reasoning chain. |
-| **T28** | 紫微斗數 四化飛星 | Casts the full 紫微 命盤 (12 palaces, 14 stars, 五行局) from the **listing date** (py-iztro), then trades the 四化飛星: holds when the year's 化祿/化權 fly into the natal 命宮/財帛/官祿, flat when 化忌 does. Deterministic; prints the 4×4 命盤 board + reasoning chain. |
+| **T28** | 紫微斗數 四化飛星 | Casts the full 紫微 命盤 (12 palaces, 14 stars, 五行局) from the **listing date** (pure-Python engine, verified vs py-iztro), then trades the 四化飛星: holds when the year's 化祿/化權 fly into the natal 命宮/財帛/官祿, flat when 化忌 does. Deterministic; prints the 4×4 命盤 board + reasoning chain. |
 
 ### Interaction relationship diagram
 
@@ -189,7 +189,7 @@ SEC EDGAR (filings / submissions / XBRL)
 SEC SIC code ............... T7 (sector ETF), industry mapping
 FINRA short-volume ......... T16        NASDAQ short-interest ... T16
 Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
-ephem (offline astronomy) .. T25   date-only casting ... T26   firstTradeDate natal ... T27   py-iztro 紫微 ... T28
+ephem (offline astronomy) .. T25   date-only casting ... T26   firstTradeDate natal ... T27   pure-Python 紫微 ... T28
 (LLM gateway) .............. every strategy agent T3–T28
 ```
 

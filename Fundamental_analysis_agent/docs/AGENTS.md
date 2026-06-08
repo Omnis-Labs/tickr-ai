@@ -75,7 +75,7 @@ losses shown not hidden, costs always charged.
 | **T25** | Financial astrology ⚠️ | planetary positions via `ephem` (offline, deterministic) | Mercury-retrograde / moon-phase / benefic-aspect timing. NO economic mechanism — runs the IDENTICAL lookahead-free backtest to measure what Sharpe the framework manufactures from noise. Prints the 星盤 + reasoning chain. |
 | **T26** | 梅花易數 I Ching ⚠️ | deterministic 時間起卦 from the date(+seed) | 體用五行生剋 hold/flat. Also the suite's **null-distribution engine**: N seeds → a null Sharpe band (poor-man's White's Reality Check; p95 Sharpe ≈ 0.94 over 480 draws — a real agent must clear that to beat luck). Prints the full 命盤 + 起卦→體用→生剋→變卦 chain. |
 | **T27** | 八字 Four Pillars ⚠️ | natal chart from the **listing/first-trade date** | Reads 日主 + 旺衰 + 喜用神; holds when the current 流年/流月 五行 is favourable to the Day Master. Deterministic, lookahead-free. Pinned to verifiable anchors (2000-01-07=甲子日, 1984=甲子年). Prints the full 命盤 (四柱) + reasoning chain. |
-| **T28** | 紫微斗數 四化飛星 ⚠️ | natal 命盤 from the **listing date** (via py-iztro) | Casts 12 palaces + 14 stars + 五行局, then trades the **四化飛星**: holds when the year's 化祿/化權 fly into the natal 命宮/財帛/官祿, flat when 化忌 does. Deterministic; 流年/流月 干支 reuse T27's 八字 calendar. Prints the 4×4 命盤 board + reasoning chain. |
+| **T28** | 紫微斗數 四化飛星 ⚠️ | natal 命盤 from the **listing date** (pure-Python engine) | Casts 12 palaces + 14 stars + 五行局, then trades the **四化飛星**: holds when the year's 化祿/化權 fly into the natal 命宮/財帛/官祿, flat when 化忌 does. Deterministic; 流年/流月 干支 reuse T27's 八字 calendar. Prints the 4×4 命盤 board + reasoning chain. |
 
 In both, the LLM writes the horoscope/卦辭 and the engine IGNORES it — the ultimate test of selection ≠ execution. Flagged `is_control` everywhere; a high Sharpe here means the framework is leaking, not the planets/hexagram working.
 
@@ -159,7 +159,7 @@ SEC SIC code ............... T7 (sector ETF), and industry mapping
 FINRA regsho short-volume .. T16
 NASDAQ short-interest ...... T16 (bi-monthly days-to-cover)
 Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
-ephem (offline astronomy) .. T25   date-only casting ... T26   py-iztro 紫微 engine ... T28
+ephem (offline astronomy) .. T25   date-only casting ... T26   pure-Python 紫微 engine ... T28
 (LLM gateway) .............. every strategy agent T3–T28
 ```
 
