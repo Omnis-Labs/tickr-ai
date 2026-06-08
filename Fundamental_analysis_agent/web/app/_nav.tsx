@@ -51,6 +51,8 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/bazi", label: "T27 · 八字 Four Pillars" },
       { href: "/ziwei", label: "T28 · 紫微斗數 飛星" },
       { href: "/suimei", label: "T29 · 四柱推命 (日)" },
+      { href: "/qizheng", label: "T30 · 七政四餘" },
+      { href: "/tieban", label: "T31 · 鐵板神數" },
     ],
   },
 ];

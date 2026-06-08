@@ -427,6 +427,22 @@ export default function HomePage() {
           <span className="text-purple-300"> 天中殺 (空亡)</span> (細木数子's axes), not 五行. Same honest backtest, worthless signal.</p>
           <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/qizheng" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 30</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">七政四餘 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> Real Chinese
+          horoscopic astrology — <span className="text-purple-300">七政</span> (日月+五星) and <span className="text-purple-300">四餘</span>
+          {" "}(羅睺/計都/月孛/紫炁) from ephem; signal rides benefic/malefic transits vs the natal Sun. Worthless by design.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
+        <a href="/tieban" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 31</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">鐵板神數 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm (double).</span> The
+          legendary <span className="text-purple-300">鐵板神數</span> 條文 book is proprietary, so a deterministic 太玄數 起例 over the
+          natal 四柱 stands in — 命數 → 流年條文 → 吉凶 drives hold/flat. Worthless by design, twice over.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

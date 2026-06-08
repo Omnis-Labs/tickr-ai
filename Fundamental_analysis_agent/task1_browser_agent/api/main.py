@@ -60,13 +60,15 @@ from task26_meihua.api.router import router as task26_router
 from task27_bazi.api.router import router as task27_router
 from task28_ziwei.api.router import router as task28_router
 from task29_suimei.api.router import router as task29_router
+from task30_qizheng.api.router import router as task30_router
+from task31_tieban.api.router import router as task31_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-29 (24 signals + 5 placebo controls)", version="1.11.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-31 (24 signals + 7 placebo controls)", version="1.12.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -102,6 +104,8 @@ app.include_router(task26_router)
 app.include_router(task27_router)
 app.include_router(task28_router)
 app.include_router(task29_router)
+app.include_router(task30_router)
+app.include_router(task31_router)
 
 
 @app.on_event("startup")

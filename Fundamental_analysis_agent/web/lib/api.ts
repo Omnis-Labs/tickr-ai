@@ -1629,3 +1629,45 @@ export interface Task29Job { job_id: string; ticker: string; status: JobStatus; 
 export const createSuimei = (t: string): Promise<Task29Job> => _create("/task29/suimei", t);
 export const getSuimei = (id: string): Promise<Task29Job> => _get(`/task29/suimei/${id}`);
 export const pollSuimei = _poll<Task29Job>(getSuimei);
+
+// ---- Task 30: 七政四餘 Chinese horoscopic astrology (CONTROL / PLACEBO) ----
+export interface QizhengStar { name: string; ecliptic_lon: number; sign: string; }
+export interface QizhengChart {
+  listing_date: string; listing_date_is_data_limit: boolean; ming_zhu_sign: string;
+  seven: QizhengStar[]; siyu: QizhengStar[]; jupiter_sign: string; mars_sign: string; rahu_sign: string;
+}
+export interface QizhengSpec {
+  entry_signal: "buy_and_hold" | "benefic_transit" | "avoid_malefic";
+  stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface QizhengResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: QizhengChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: QizhengSpec; backtest: BacktestResult;
+  qizheng_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task30Job { job_id: string; ticker: string; status: JobStatus; result: QizhengResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createQizheng = (t: string): Promise<Task30Job> => _create("/task30/qizheng", t);
+export const getQizheng = (id: string): Promise<Task30Job> => _get(`/task30/qizheng/${id}`);
+export const pollQizheng = _poll<Task30Job>(getQizheng);
+
+// ---- Task 31: 鐵板神數 Iron-Plate Numerology (CONTROL / PLACEBO) ----
+export interface TiebanPillar { role: string; gz: string; taixuan: number; }
+export interface TiebanChart {
+  listing_date: string; listing_date_is_data_limit: boolean; pillars: TiebanPillar[];
+  ming_number: number; liunian_verse_no: number; liunian_verdict: string; liunian_gua: string;
+}
+export interface TiebanSpec {
+  entry_signal: "buy_and_hold" | "verse_fortune" | "avoid_inauspicious";
+  stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface TiebanResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: TiebanChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: TiebanSpec; backtest: BacktestResult;
+  tieban_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task31Job { job_id: string; ticker: string; status: JobStatus; result: TiebanResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createTieban = (t: string): Promise<Task31Job> => _create("/task31/tieban", t);
+export const getTieban = (id: string): Promise<Task31Job> => _get(`/task31/tieban/${id}`);
+export const pollTieban = _poll<Task31Job>(getTieban);
