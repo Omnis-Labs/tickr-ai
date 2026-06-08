@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
   {
@@ -66,11 +66,24 @@ const ALL = GROUPS.flatMap((g) => g.items);
 export default function NavLinks() {
   const pathname = usePathname() || "/";
   const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const isActive = (h: string) => pathname === h || pathname.startsWith(h + "/");
   const current = ALL.find((it) => isActive(it.href));
 
+  // close on click/tap outside the menu, or on Escape — robust to header stacking contexts
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
   return (
-    <div className="relative flex items-center gap-4 text-sm">
+    <div ref={rootRef} className="relative flex items-center gap-4 text-sm">
       <button
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 ${open || current ? "text-zinc-100" : "text-zinc-300"} hover:text-zinc-100`}
@@ -96,7 +109,6 @@ export default function NavLinks() {
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
           <div className="absolute top-full left-0 mt-3 z-50 w-[min(92vw,720px)] max-h-[78vh] overflow-y-auto overscroll-contain rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4 items-start">
             {GROUPS.map((g) => (
               <div key={g.title}>
