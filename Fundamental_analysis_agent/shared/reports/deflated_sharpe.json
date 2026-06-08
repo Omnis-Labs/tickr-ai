@@ -1,0 +1,82 @@
+{
+  "method": "Deflated Sharpe Ratio (Bailey & López de Prado, 2014)",
+  "inputs": {
+    "n_trials": 348,
+    "n_bars_median": 753,
+    "freq_per_year": 252.0,
+    "skew_assumed": 0.0,
+    "kurt_assumed": 3.0,
+    "var_sr_ann": 0.3839
+  },
+  "expected_max_sharpe_ann": 1.823,
+  "control_max_sharpe_ann": 1.95,
+  "legacy_p95_threshold_ann": 1.42,
+  "n_agents_significant": 0,
+  "agents": [
+    {
+      "agent": "T20 vix",
+      "sharpe_ann": 1.11,
+      "psr_vs_zero": 0.9723,
+      "dsr": 0.1094,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T19 anomaly",
+      "sharpe_ann": 0.88,
+      "psr_vs_zero": 0.9356,
+      "dsr": 0.0518,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T18 events",
+      "sharpe_ann": 0.79,
+      "psr_vs_zero": 0.9137,
+      "dsr": 0.0373,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T17 quality",
+      "sharpe_ann": 0.74,
+      "psr_vs_zero": 0.8993,
+      "dsr": 0.0308,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T24 contagion",
+      "sharpe_ann": 0.62,
+      "psr_vs_zero": 0.8578,
+      "dsr": 0.0189,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T22 congress",
+      "sharpe_ann": 0.47,
+      "psr_vs_zero": 0.7915,
+      "dsr": 0.0097,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T21 ranker",
+      "sharpe_ann": 0.395,
+      "psr_vs_zero": 0.7525,
+      "dsr": 0.0068,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T23 pairs",
+      "sharpe_ann": -0.54,
+      "psr_vs_zero": 0.1755,
+      "dsr": 0.0,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    }
+  ],
+  "interpretation": "Across 348 skill-less placebo trials the expected best Sharpe by luck alone is 1.82 (annualised). A real agent's edge is credible only if its Deflated Sharpe Ratio > 0.95 — i.e. it beats not the median fluke but the best-of-348 fluke. 0/8 agents clear it on median single-name Sharpe."
+}

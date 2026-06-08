@@ -133,6 +133,7 @@ async def compute(tickers: list[str]) -> dict:
     spy = await asyncio.to_thread(fetch_prices, "SPY")
     pooled: list[float] = []
     excess: list[float] = []      # alpha vs SPY — NOT inflated by the equity premium
+    bar_counts: list[int] = []    # in-window bars per ticker → PSR/DSR std-error term
     by_system: dict[str, list[float]] = {}
     for tk in tickers:
         try:
@@ -144,6 +145,7 @@ async def compute(tickers: list[str]) -> dict:
         as_of = prices[-1].date
         start = max(prices[0].date, as_of - timedelta(days=_LOOKBACK))
         dates = [p.date for p in prices if p.date >= start]
+        bar_counts.append(len(dates))
         listing = await asyncio.to_thread(_listing, tk, prices[0].date)
         for system, sigs in _control_signals(listing, dates):
             for _label, wl in sigs:
@@ -168,6 +170,10 @@ async def compute(tickers: list[str]) -> dict:
         "alpha_p95_threshold_pct": round(_percentile(excess, 95), 2),
         "by_system_mean_sharpe": {s: round(sum(v) / len(v), 3) for s, v in sorted(by_system.items())},
         "by_system_max_sharpe": {s: round(max(v), 3) for s, v in sorted(by_system.items())},
+        # raw per-trial annualised Sharpes — the trial set the Deflated Sharpe Ratio deflates
+        # against (tools/deflated_sharpe.py reads these); n_bars feeds the PSR std-error term.
+        "n_bars_median": int(sorted(bar_counts)[len(bar_counts) // 2]) if bar_counts else 0,
+        "pooled_sharpe_samples": [round(x, 4) for x in pooled],
         "_pooled": [round(x, 4) for x in pooled],
         "_pooled_alpha": [round(x, 4) for x in excess],
     }
