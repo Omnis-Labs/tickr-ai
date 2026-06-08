@@ -419,6 +419,14 @@ export default function HomePage() {
           — does the year&apos;s 化祿/化權/化忌 fly into 命宮/財帛/官祿? — through the same honest, lookahead-free backtest.</p>
           <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/suimei" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 29</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">四柱推命 (日) · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> The Japanese
+          (京都泰山流) reading of the four pillars — driven by <span className="text-purple-300">十二運星</span> and
+          <span className="text-purple-300"> 天中殺 (空亡)</span> (細木数子's axes), not 五行. Same honest backtest, worthless signal.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

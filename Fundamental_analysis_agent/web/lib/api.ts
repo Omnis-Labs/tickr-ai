@@ -1605,3 +1605,27 @@ export interface Task28Job { job_id: string; ticker: string; status: JobStatus; 
 export const createZiwei = (t: string): Promise<Task28Job> => _create("/task28/ziwei", t);
 export const getZiwei = (id: string): Promise<Task28Job> => _get(`/task28/ziwei/${id}`);
 export const pollZiwei = _poll<Task28Job>(getZiwei);
+
+// ---- Task 29: 四柱推命 Japanese Four Pillars (CONTROL / PLACEBO) ----
+export interface SuimeiPillar {
+  role: string; gz: string; stem: string; branch: string; twelve_fortune: string; hidden: string[];
+}
+export interface SuimeiChart {
+  listing_date: string; listing_date_is_data_limit: boolean;
+  day_master: string; day_master_elem: string; tenchusatsu: string; pillars: SuimeiPillar[];
+  liunian_branch: string; liunian_fortune: string; liunian_in_tenchusatsu: boolean;
+}
+export interface SuimeiSpec {
+  entry_signal: "buy_and_hold" | "twelve_fortune" | "avoid_tenchusatsu";
+  stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface SuimeiResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: SuimeiChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: SuimeiSpec; backtest: BacktestResult;
+  suimei_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task29Job { job_id: string; ticker: string; status: JobStatus; result: SuimeiResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createSuimei = (t: string): Promise<Task29Job> => _create("/task29/suimei", t);
+export const getSuimei = (id: string): Promise<Task29Job> => _get(`/task29/suimei/${id}`);
+export const pollSuimei = _poll<Task29Job>(getSuimei);

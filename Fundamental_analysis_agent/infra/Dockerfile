@@ -49,6 +49,7 @@ COPY task25_astro/ task25_astro/
 COPY task26_meihua/ task26_meihua/
 COPY task27_bazi/ task27_bazi/
 COPY task28_ziwei/ task28_ziwei/
+COPY task29_suimei/ task29_suimei/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .
