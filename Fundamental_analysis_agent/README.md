@@ -47,9 +47,9 @@ task2_10k_extractor/     SEC 10-K extractor — pipeline/ (ingest → normalize 
                          L1 → L2 → L3 → confidence → calibration),
                          api/ (with LLM-powered free-text input parser),
                          eval/ (20 cases over 7 industries + pre-iXBRL)
-task3_strategy/ … task26_meihua/
-                         The Strategy Lab — 22 US-stock research agents + 2 placebo
-                         controls (T3–T26). Each = pipeline/ (data → signal →
+task3_strategy/ … task27_bazi/
+                         The Strategy Lab — 22 US-stock research agents + 3 placebo
+                         controls (T3–T27). Each = pipeline/ (data → signal →
                          lookahead-free backtest), api/ router, eval/. See the full
                          map below and in docs/AGENTS.md.
 web/                     Next.js 15 frontend — a page per agent under web/app/…,
@@ -68,10 +68,10 @@ infra/                   Dockerfile, railway.json, zeabur.json, Procfile,
 
 ---
 
-## 🧭 The full agent suite (T1–T26) — principles & how they interact
+## 🧭 The full agent suite (T1–T27) — principles & how they interact
 
 What began as the two review tasks (T1 browser agent, T2 10-K extractor) grew into a
-**26-agent US-stock research suite**: 24 signal/portfolio agents + **2 placebo controls**.
+**27-agent US-stock research suite**: 24 signal/portfolio agents + **3 placebo controls**.
 The deep-dive map is [docs/AGENTS.md](docs/AGENTS.md); this is the self-contained summary.
 
 ### The shared design pattern (every strategy agent)
@@ -90,7 +90,7 @@ Two invariants make it trustworthy:
    event date. The LLM only ever sees as-of information.
 2. **Selection ≠ execution** — the LLM *selects* from a constrained menu (it can't leak future
    prices through code); the *execution* is pure deterministic Python. The placebo controls
-   (T25/T26) are the proof: their florid LLM narrative is computed but **ignored** by the engine.
+   (T25/T26/T27) are the proof: their florid LLM narrative is computed but **ignored** by the engine.
 
 ### Utilities (data gathering)
 
@@ -142,6 +142,7 @@ Two invariants make it trustworthy:
 |---|---|---|
 | **T25** | Financial astrology | Mercury-retrograde / moon-phase / aspect timing via `ephem` (offline, deterministic). **No economic mechanism** — runs the identical backtest to measure what Sharpe the framework manufactures from noise. Prints the 星盤 + reasoning chain. |
 | **T26** | 梅花易數 I Ching | Deterministic 時間起卦 → 體用五行生剋 hold/flat. Its `seed` makes it the **null-distribution engine** (poor-man's White's Reality Check: **480 draws → p95 Sharpe ≈ 0.94**, the bar a real agent must clear to beat luck). Prints the full 命盤 + 起卦→體用→生剋→變卦 chain. |
+| **T27** | 八字 Four Pillars | Casts the company's natal chart from its **listing date**, reads 日主 + 旺衰 + 喜用神, and holds when the current 流年/流月 五行 is favourable to the Day Master. Deterministic, lookahead-free (anchors: 2000-01-07=甲子日, 1984=甲子年). Prints the 四柱 命盤 + reasoning chain. |
 
 ### Interaction relationship diagram
 
@@ -165,7 +166,7 @@ Two invariants make it trustworthy:
 **(b) Building-block reuse — shared code, not full runs:**
 
 - **T4's backtest engine + `_metrics`** is the common scoring ruler → reused by T5, T6, T7, T8, T9, T11–T16.
-- **The generic `run_factor_backtest` (in T17)** — long-only, driven by a `want_long(date)` callable → reused by **T18, T19, T20, T22, T24, T25, T26**.
+- **The generic `run_factor_backtest` (in T17)** — long-only, driven by a `want_long(date)` callable → reused by **T18, T19, T20, T22, T24, T25, T26, T27**.
 - **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) → reused by **T21**.
 - **T23** keeps its own market-neutral backtest but fills T4's `BacktestMetrics` so the shared UI panel renders it.
 - **T11's XBRL `companyfacts` fetch** → reused by T15 (buyback) and T17 (quality).
@@ -175,7 +176,7 @@ Two invariants make it trustworthy:
 **(c) External data dependency map:**
 
 ```
-prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27
    └─ ^VIX / ^VIX3M ....... T20
 SEC EDGAR (filings / submissions / XBRL)
    ├─ 10-K text ........... T2 → T3 → T5
@@ -187,8 +188,8 @@ SEC EDGAR (filings / submissions / XBRL)
 SEC SIC code ............... T7 (sector ETF), industry mapping
 FINRA short-volume ......... T16        NASDAQ short-interest ... T16
 Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
-ephem (offline astronomy) .. T25        date-only casting ....... T26
-(LLM gateway) .............. every strategy agent T3–T26
+ephem (offline astronomy) .. T25   date-only casting ... T26   listing-date natal (firstTradeDate) ... T27
+(LLM gateway) .............. every strategy agent T3–T27
 ```
 
 The progression the suite demonstrates: **gather → many independent signals → fuse → select & size
@@ -231,6 +232,7 @@ cut the cost of gathering data.
 | **T24** Earnings contagion | Intra-industry information transfer (read-across) | the peer drifts with the bellwether's surprise before it reports | the peer's idiosyncratics dominate; *competitive* read-across flips the sign; already priced; tiny decaying window |
 | **T25** Financial astrology ⚠️ | **Nothing.** No economic mechanism | only by luck/noise | it gives up the equity premium on astrologically-arbitrary flat days + pays costs — by design |
 | **T26** 梅花易數 ⚠️ | **Nothing.** No economic mechanism | only by chance | the null shows worthless timing still posts p95 Sharpe ≈ 0.94 from equity-premium variance alone — that's the point: it's the ruler, not a strategy |
+| **T27** 八字 ⚠️ | **Nothing.** No economic mechanism | only by luck/selection bias | a single natal reading on a hand-picked 10× winner can clear the null by chance — exactly why the *distribution*, not one run, is the honest measure |
 
 **The honest net-of-everything read:** after costs and post-publication decay, the most *defensible*
 members are the risk-premium harvesters (**T10** diversification, **T14**/**T20** vol-timing) and the
