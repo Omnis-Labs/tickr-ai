@@ -418,21 +418,25 @@ python -m task26_meihua.eval.null_distribution --seeds 40 --observe 1.21
 ```
 占卜對照組虛無帶（348 次抽樣，11 系統 × 12 檔）：
    p50 = 0.47   p90 = 1.33   p95 = 1.42   p99 = 1.72   max = 1.95
-疊加——真 agent 已提交 eval 之最佳 Sharpe 對比對照組 p95 (1.42)：
-   T19 異象 1.42   T20 VIX 1.21   T21 排序 0.65   T23 配對 −0.22   → 無一越過
+疊加——各真 agent 在其 eval 案例上之「中位數」單檔 Sharpe：
+   T17 0.74  T18 0.79  T19 0.88  T20 1.11  T21 0.40  T22 0.47  T23 −0.54  T24 0.62
+   對照組 p95 = 1.42  →  0 / 8 越過（但多數高於對照組中位數 0.47）
 ```
 
 ![占卜對照組虛無帶 — 真 agent vs 11 個 placebo 系統](docs/analysis/divination_null_band.svg)
 
-*（在 [`/dashboard`](https://your-deployment.example.com/dashboard) 上也有互動版。）*
+*（在 [`/dashboard`](https://your-deployment.example.com/dashboard) 上也有互動版；以
+`python -m tools.divination_null_band && python -m tools.render_null_band` 重新產生。）*
 
 **請誠實地讀這個數字，因為它是整個 repo 最重要的數字。** 匯集後的對照組 p95 是 **1.42**——比上面
-單一引擎的 0.94 *更高*——而沒有任何一個真 agent 的單檔 Sharpe 越過它。這**不是**因為占卜有效；而是
-因為在多頭行情、megacap 面板上，原始單檔 Sharpe 被**漲上去的那些股票之股票溢酬**主導——一個毫無價值
-的規則，只要剛好抱著 NVDA 走完一段 4 倍，就能跑出 ~1.9 的 Sharpe。這正是對照組要揭露的多重檢定／選擇
-偏誤陷阱：*挑對標的，任何擇時規則都「找得到」alpha。* 這也正是為什麼整套以 **alpha vs SPY** 為準、而非
-原始 Sharpe，且公平比較必須 like-for-like（同標的、市場相對）。對照組不討好真 agent——它們用一條殘酷而
-誠實的標準檢驗它們。自己跑：
+單一引擎的 0.94 *更高*——而**沒有任何一個**真 agent 的中位數單檔 Sharpe 越過它（最強的 T20 也只有 1.11）。
+這**不是**因為占卜有效；而是因為在多頭行情、megacap 面板上，原始單檔 Sharpe 被**漲上去那些股票之股票溢酬**
+主導——一個毫無價值的規則，只要剛好抱著 NVDA 走完 4 倍就能跑出 ~1.9 的 Sharpe。（用中位數正是為了讓單一
+幸運標的無法挑高分數；若用 max 會讓好幾個「假性越過」。）這正是對照組要揭露的多重檢定／選擇偏誤陷阱：
+*挑對標的，任何擇時規則都「找得到」alpha。* 這也正是為什麼整套以 **alpha vs SPY** 為準、而非原始 Sharpe，
+且公平比較必須 like-for-like（同標的、市場相對）——注意對照組的 *alpha* p95 同樣被灌水到 +105%，所以那也
+不是乾淨的門檻。真 agent **確實**越過的是對照組*中位數*（0.47）：它們贏過擲硬幣式的擇時，只是贏不過幸運的
+尾端。對照組不討好真 agent——它們用一條殘酷而誠實的標準檢驗它們。自己跑：
 
 ```bash
 python -m tools.divination_null_band --observe 1.21   # 完整虛無帶 + 任意 Sharpe 的 p-value

@@ -99,7 +99,7 @@ function NullBandPanel({ band }: { band: NullBand | null }) {
         why the suite scores <span className="text-zinc-300">alpha vs SPY</span>, not raw Sharpe.)
       </p>
       {/* axis */}
-      <div className="relative h-24 mb-2">
+      <div className="relative h-36 mb-2">
         {/* shaded band p50→p95 */}
         <div className="absolute top-8 h-3 bg-purple-900/40 border-y border-purple-800"
           style={{ left: X(p.p50 ?? lo), width: `calc(${X(p95)} - ${X(p.p50 ?? lo)})` }} />
@@ -112,12 +112,12 @@ function NullBandPanel({ band }: { band: NullBand | null }) {
             <div className="text-[10px] text-zinc-500 -translate-x-1/2 mt-0.5 whitespace-nowrap">{t.k} {(t.v as number).toFixed(2)}</div>
           </div>
         ))}
-        {/* real-agent markers */}
+        {/* real-agent markers — at MEDIAN single-name Sharpe */}
         {overlay.map(([name, o], i) => (
-          <div key={name} className="absolute" style={{ left: X(o.best_sharpe), top: i % 2 ? "62px" : "0px" }}>
+          <div key={name} className="absolute" style={{ left: X(o.sharpe_median), top: `${64 + (i % 4) * 17}px` }}>
             <div className={`w-2.5 h-2.5 rounded-full -translate-x-1/2 ${o.clears_control_p95 ? "bg-emerald-400" : "bg-red-400"}`} />
             <div className={`text-[10px] -translate-x-1/2 whitespace-nowrap ${o.clears_control_p95 ? "text-emerald-400" : "text-red-400"}`}>
-              {name.split(" ")[0]} {o.best_sharpe.toFixed(2)}
+              {name.split(" ")[0]} {o.sharpe_median.toFixed(2)}
             </div>
           </div>
         ))}

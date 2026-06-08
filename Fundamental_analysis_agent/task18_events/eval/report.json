@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-06-08T02:09:55.741875+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.002652,
+    "cost_p95": 0.0031947,
+    "cost_total": 0.007204,
+    "duration_p50_ms": 8006.0,
+    "duration_p95_ms": 8377.7,
+    "by_category": {
+      "activist": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "quiet": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "events": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "bhc",
+      "category": "activist",
+      "label": "BHC",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 8006,
+      "cost_usd": 0.002652,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "total_return_pct": -25.47,
+        "sharpe": 0.05,
+        "exposure_pct": 99.3,
+        "n_trades": 5,
+        "alpha_vs_market_pct": -104.36
+      }
+    },
+    {
+      "id": "aapl",
+      "category": "quiet",
+      "label": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 8419,
+      "cost_usd": 0.003255,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "total_return_pct": 74.3,
+        "sharpe": 0.85,
+        "exposure_pct": 99.9,
+        "n_trades": 1,
+        "alpha_vs_market_pct": -4.59
+      }
+    },
+    {
+      "id": "cvna",
+      "category": "events",
+      "label": "CVNA",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 7055,
+      "cost_usd": 0.001297,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "activist_drift",
+        "total_return_pct": 140.41,
+        "sharpe": 0.79,
+        "exposure_pct": 66.4,
+        "n_trades": 8,
+        "alpha_vs_market_pct": 61.52
+      }
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 3316,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

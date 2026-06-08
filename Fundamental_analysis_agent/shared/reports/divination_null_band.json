@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T01:53:34.247752+00:00",
+  "generated_at": "2026-06-08T02:16:23.416616+00:00",
   "panel": [
     "AAPL",
     "MSFT",
@@ -24,6 +24,15 @@
     "max": 1.95
   },
   "sharpe_p95_threshold": 1.42,
+  "pooled_alpha_vs_market_pct": {
+    "p50": -58.2,
+    "p75": -16.09,
+    "p90": 53.38,
+    "p95": 105.5,
+    "p99": 348.13,
+    "max": 441.31
+  },
+  "alpha_p95_threshold_pct": 105.5,
   "by_system_mean_sharpe": {
     "T25 astrology": 0.665,
     "T26 梅花易": -0.017,
@@ -51,20 +60,52 @@
     "T35 Jyotiṣa": 1.5
   },
   "real_agent_overlay": {
+    "T17 quality": {
+      "sharpe_median": 0.74,
+      "sharpe_best": 1.0,
+      "n_cases": 3,
+      "clears_control_p95": false
+    },
+    "T18 events": {
+      "sharpe_median": 0.79,
+      "sharpe_best": 0.85,
+      "n_cases": 3,
+      "clears_control_p95": false
+    },
     "T19 anomaly": {
-      "best_sharpe": 1.42,
+      "sharpe_median": 0.88,
+      "sharpe_best": 1.42,
+      "n_cases": 3,
       "clears_control_p95": false
     },
     "T20 vix": {
-      "best_sharpe": 1.21,
+      "sharpe_median": 1.11,
+      "sharpe_best": 1.21,
+      "n_cases": 2,
       "clears_control_p95": false
     },
     "T21 ranker": {
-      "best_sharpe": 0.65,
+      "sharpe_median": 0.395,
+      "sharpe_best": 0.65,
+      "n_cases": 2,
+      "clears_control_p95": false
+    },
+    "T22 congress": {
+      "sharpe_median": 0.47,
+      "sharpe_best": 1.45,
+      "n_cases": 3,
       "clears_control_p95": false
     },
     "T23 pairs": {
-      "best_sharpe": -0.22,
+      "sharpe_median": -0.54,
+      "sharpe_best": -0.22,
+      "n_cases": 3,
+      "clears_control_p95": false
+    },
+    "T24 contagion": {
+      "sharpe_median": 0.62,
+      "sharpe_best": 1.05,
+      "n_cases": 2,
       "clears_control_p95": false
     }
   }

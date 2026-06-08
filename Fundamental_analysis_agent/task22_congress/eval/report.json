@@ -1,0 +1,90 @@
+{
+  "generated_at": "2026-06-08T02:11:01.950218+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.000577,
+    "cost_p95": 0.0005976999999999999,
+    "cost_total": 0.00174,
+    "duration_p50_ms": 6539.0,
+    "duration_p95_ms": 7117.7,
+    "by_category": {
+      "traded": {
+        "n": 3,
+        "n_pass": 3
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "nvda",
+      "category": "traded",
+      "label": "NVDA",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 4495,
+      "cost_usd": 0.0006,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "avoid_after_sells",
+        "total_return_pct": 438.8,
+        "sharpe": 1.45,
+        "exposure_pct": 96.4,
+        "n_trades": 1,
+        "alpha_vs_market_pct": 359.91
+      }
+    },
+    {
+      "id": "aapl",
+      "category": "traded",
+      "label": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 7182,
+      "cost_usd": 0.000563,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "follow_buys",
+        "total_return_pct": 2.96,
+        "sharpe": 0.37,
+        "exposure_pct": 2.0,
+        "n_trades": 1,
+        "alpha_vs_market_pct": -75.93
+      }
+    },
+    {
+      "id": "msft",
+      "category": "traded",
+      "label": "MSFT",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 6539,
+      "cost_usd": 0.000577,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "total_return_pct": 28.35,
+        "sharpe": 0.47,
+        "exposure_pct": 99.9,
+        "n_trades": 1,
+        "alpha_vs_market_pct": -50.54
+      }
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 3213,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

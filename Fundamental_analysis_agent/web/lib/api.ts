@@ -177,7 +177,7 @@ export interface NullBand {
   sharpe_p95_threshold?: number;
   by_system_mean_sharpe?: Record<string, number>;
   by_system_max_sharpe?: Record<string, number>;
-  real_agent_overlay?: Record<string, { best_sharpe: number; clears_control_p95: boolean }>;
+  real_agent_overlay?: Record<string, { sharpe_median: number; sharpe_best: number; n_cases: number; clears_control_p95: boolean }>;
 }
 export async function getNullBand(): Promise<NullBand> {
   const res = await fetch(`${API_BASE}/task1/dashboard/divination-null-band`, { cache: "no-store" });

@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="420" viewBox="0 0 760 420" font-family="ui-sans-serif,system-ui,sans-serif">
-<rect width="760" height="420" fill="#0a0a0b"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="480" viewBox="0 0 760 480" font-family="ui-sans-serif,system-ui,sans-serif">
+<rect width="760" height="480" fill="#0a0a0b"/>
 <text x="90" y="28" fill="#e4e4e7" font-size="15" font-weight="600">Divination-control null band — real agents vs 11 placebo systems</text>
 <text x="90" y="46" fill="#a1a1aa" font-size="11">348 draws · 12 names · a real agent must clear the control p95 (1.42) to be distinguishable from divination</text>
 <line x1="90.0" y1="96" x2="670.0" y2="96" stroke="#3f3f46" stroke-width="1"/>
@@ -22,64 +22,76 @@
 <text x="583.1812500000001" y="70" fill="#a1a1aa" font-size="9" text-anchor="middle">p99 1.72</text>
 <line x1="624.6875" y1="74" x2="624.6875" y2="96" stroke="#f87171" stroke-width="1.5"/>
 <text x="624.6875" y="70" fill="#f87171" font-size="9" text-anchor="middle">max 1.95</text>
-<line x1="528.625" y1="96" x2="528.625" y2="120" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
-<circle cx="528.625" cy="126" r="4" fill="#f87171"/>
-<text x="535.625" y="129" fill="#f87171" font-size="9.5">T19 anomaly 1.42</text>
-<line x1="490.56249999999994" y1="96" x2="490.56249999999994" y2="138" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
-<circle cx="490.56249999999994" cy="144" r="4" fill="#f87171"/>
-<text x="497.56249999999994" y="147" fill="#f87171" font-size="9.5">T20 vix 1.21</text>
-<line x1="389.06249999999994" y1="96" x2="389.06249999999994" y2="156" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
-<circle cx="389.06249999999994" cy="162" r="4" fill="#f87171"/>
-<text x="396.06249999999994" y="165" fill="#f87171" font-size="9.5">T21 ranker 0.65</text>
-<line x1="231.375" y1="96" x2="231.375" y2="120" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
-<circle cx="231.375" cy="126" r="4" fill="#f87171"/>
-<text x="238.375" y="129" fill="#f87171" font-size="9.5">T23 pairs -0.22</text>
-<circle cx="94" cy="132" r="4" fill="#34d399"/><text x="104" y="135" fill="#a1a1aa" font-size="9.5">clears control p95</text>
-<circle cx="240" cy="132" r="4" fill="#f87171"/><text x="250" y="135" fill="#a1a1aa" font-size="9.5">inside the band (≈ placebo)</text>
-<rect x="420" y="127" width="14" height="10" fill="#581c8740" stroke="#7e22ce"/><text x="440" y="135" fill="#a1a1aa" font-size="9.5">p50→p95 control band</text>
-<text x="90" y="158" fill="#d4d4d8" font-size="11" font-weight="600">Max Sharpe by divination system (worthless timing on the best name in the panel)</text>
-<text x="90" y="183" fill="#a1a1aa" font-size="10">T28 紫微</text>
-<rect x="220" y="174" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="174" width="448.5" height="11" fill="#7e22ce"/>
-<text x="686" y="183" fill="#d4d4d8" font-size="10">1.95</text>
-<text x="90" y="203" fill="#a1a1aa" font-size="10">T30 七政四餘</text>
-<rect x="220" y="194" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="194" width="434.7" height="11" fill="#7e22ce"/>
-<text x="686" y="203" fill="#d4d4d8" font-size="10">1.89</text>
-<text x="90" y="223" fill="#a1a1aa" font-size="10">T29 四柱推命</text>
-<rect x="220" y="214" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="214" width="407.1" height="11" fill="#7e22ce"/>
-<text x="686" y="223" fill="#d4d4d8" font-size="10">1.77</text>
-<text x="90" y="243" fill="#a1a1aa" font-size="10">T27 八字</text>
+<line x1="405.375" y1="96" x2="405.375" y2="120" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="405.375" cy="126" r="4" fill="#f87171"/>
+<text x="412.375" y="129" fill="#f87171" font-size="9.5">T17 quality 0.74</text>
+<line x1="414.4375" y1="96" x2="414.4375" y2="137" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="414.4375" cy="143" r="4" fill="#f87171"/>
+<text x="421.4375" y="146" fill="#f87171" font-size="9.5">T18 events 0.79</text>
+<line x1="430.74999999999994" y1="96" x2="430.74999999999994" y2="154" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="430.74999999999994" cy="160" r="4" fill="#f87171"/>
+<text x="437.74999999999994" y="163" fill="#f87171" font-size="9.5">T19 anomaly 0.88</text>
+<line x1="472.4375" y1="96" x2="472.4375" y2="171" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="472.4375" cy="177" r="4" fill="#f87171"/>
+<text x="479.4375" y="180" fill="#f87171" font-size="9.5">T20 vix 1.11</text>
+<line x1="342.84375" y1="96" x2="342.84375" y2="120" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="342.84375" cy="126" r="4" fill="#f87171"/>
+<text x="349.84375" y="129" fill="#f87171" font-size="9.5">T21 ranker 0.40</text>
+<line x1="356.4375" y1="96" x2="356.4375" y2="137" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="356.4375" cy="143" r="4" fill="#f87171"/>
+<text x="363.4375" y="146" fill="#f87171" font-size="9.5">T22 congress 0.47</text>
+<line x1="173.375" y1="96" x2="173.375" y2="154" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="173.375" cy="160" r="4" fill="#f87171"/>
+<text x="180.375" y="163" fill="#f87171" font-size="9.5">T23 pairs -0.54</text>
+<line x1="383.625" y1="96" x2="383.625" y2="171" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="383.625" cy="177" r="4" fill="#f87171"/>
+<text x="390.625" y="180" fill="#f87171" font-size="9.5">T24 contagion 0.62</text>
+<circle cx="94" cy="192" r="4" fill="#34d399"/><text x="104" y="195" fill="#a1a1aa" font-size="9.5">clears control p95</text>
+<circle cx="240" cy="192" r="4" fill="#f87171"/><text x="250" y="195" fill="#a1a1aa" font-size="9.5">inside the band (≈ placebo)</text>
+<rect x="420" y="187" width="14" height="10" fill="#581c8740" stroke="#7e22ce"/><text x="440" y="195" fill="#a1a1aa" font-size="9.5">p50→p95 control band</text>
+<text x="90" y="218" fill="#d4d4d8" font-size="11" font-weight="600">Max Sharpe by divination system (worthless timing on the best name in the panel)</text>
+<text x="90" y="243" fill="#a1a1aa" font-size="10">T28 紫微</text>
 <rect x="220" y="234" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="234" width="397.9" height="11" fill="#7e22ce"/>
-<text x="686" y="243" fill="#d4d4d8" font-size="10">1.73</text>
-<text x="90" y="263" fill="#a1a1aa" font-size="10">T25 astrology</text>
+<rect x="220" y="234" width="448.5" height="11" fill="#7e22ce"/>
+<text x="686" y="243" fill="#d4d4d8" font-size="10">1.95</text>
+<text x="90" y="263" fill="#a1a1aa" font-size="10">T30 七政四餘</text>
 <rect x="220" y="254" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="254" width="377.2" height="11" fill="#7e22ce"/>
-<text x="686" y="263" fill="#d4d4d8" font-size="10">1.64</text>
-<text x="90" y="283" fill="#a1a1aa" font-size="10">T34 太乙神數</text>
+<rect x="220" y="254" width="434.7" height="11" fill="#7e22ce"/>
+<text x="686" y="263" fill="#d4d4d8" font-size="10">1.89</text>
+<text x="90" y="283" fill="#a1a1aa" font-size="10">T29 四柱推命</text>
 <rect x="220" y="274" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="274" width="345.0" height="11" fill="#7e22ce"/>
-<text x="686" y="283" fill="#d4d4d8" font-size="10">1.50</text>
-<text x="90" y="303" fill="#a1a1aa" font-size="10">T35 Jyotiṣa</text>
+<rect x="220" y="274" width="407.1" height="11" fill="#7e22ce"/>
+<text x="686" y="283" fill="#d4d4d8" font-size="10">1.77</text>
+<text x="90" y="303" fill="#a1a1aa" font-size="10">T27 八字</text>
 <rect x="220" y="294" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="294" width="345.0" height="11" fill="#7e22ce"/>
-<text x="686" y="303" fill="#d4d4d8" font-size="10">1.50</text>
-<text x="90" y="323" fill="#a1a1aa" font-size="10">T31 鐵板神數</text>
+<rect x="220" y="294" width="397.9" height="11" fill="#7e22ce"/>
+<text x="686" y="303" fill="#d4d4d8" font-size="10">1.73</text>
+<text x="90" y="323" fill="#a1a1aa" font-size="10">T25 astrology</text>
 <rect x="220" y="314" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="314" width="326.6" height="11" fill="#7e22ce"/>
-<text x="686" y="323" fill="#d4d4d8" font-size="10">1.42</text>
-<text x="90" y="343" fill="#a1a1aa" font-size="10">T26 梅花易</text>
+<rect x="220" y="314" width="377.2" height="11" fill="#7e22ce"/>
+<text x="686" y="323" fill="#d4d4d8" font-size="10">1.64</text>
+<text x="90" y="343" fill="#a1a1aa" font-size="10">T34 太乙神數</text>
 <rect x="220" y="334" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="334" width="305.9" height="11" fill="#7e22ce"/>
-<text x="686" y="343" fill="#d4d4d8" font-size="10">1.33</text>
-<text x="90" y="363" fill="#a1a1aa" font-size="10">T33 大六壬</text>
+<rect x="220" y="334" width="345.0" height="11" fill="#7e22ce"/>
+<text x="686" y="343" fill="#d4d4d8" font-size="10">1.50</text>
+<text x="90" y="363" fill="#a1a1aa" font-size="10">T35 Jyotiṣa</text>
 <rect x="220" y="354" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="354" width="287.5" height="11" fill="#7e22ce"/>
-<text x="686" y="363" fill="#d4d4d8" font-size="10">1.25</text>
-<text x="90" y="383" fill="#a1a1aa" font-size="10">T32 奇門遁甲</text>
+<rect x="220" y="354" width="345.0" height="11" fill="#7e22ce"/>
+<text x="686" y="363" fill="#d4d4d8" font-size="10">1.50</text>
+<text x="90" y="383" fill="#a1a1aa" font-size="10">T31 鐵板神數</text>
 <rect x="220" y="374" width="460" height="11" fill="#18181b"/>
-<rect x="220" y="374" width="223.1" height="11" fill="#7e22ce"/>
-<text x="686" y="383" fill="#d4d4d8" font-size="10">0.97</text>
+<rect x="220" y="374" width="326.6" height="11" fill="#7e22ce"/>
+<text x="686" y="383" fill="#d4d4d8" font-size="10">1.42</text>
+<text x="90" y="403" fill="#a1a1aa" font-size="10">T26 梅花易</text>
+<rect x="220" y="394" width="460" height="11" fill="#18181b"/>
+<rect x="220" y="394" width="305.9" height="11" fill="#7e22ce"/>
+<text x="686" y="403" fill="#d4d4d8" font-size="10">1.33</text>
+<text x="90" y="423" fill="#a1a1aa" font-size="10">T33 大六壬</text>
+<rect x="220" y="414" width="460" height="11" fill="#18181b"/>
+<rect x="220" y="414" width="287.5" height="11" fill="#7e22ce"/>
+<text x="686" y="423" fill="#d4d4d8" font-size="10">1.25</text>
+<text x="90" y="443" fill="#a1a1aa" font-size="10">T32 奇門遁甲</text>
+<rect x="220" y="434" width="460" height="11" fill="#18181b"/>
+<rect x="220" y="434" width="223.1" height="11" fill="#7e22ce"/>
+<text x="686" y="443" fill="#d4d4d8" font-size="10">0.97</text>
 </svg>

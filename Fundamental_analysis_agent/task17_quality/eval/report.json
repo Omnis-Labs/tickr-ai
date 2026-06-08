@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-06-08T02:09:16.841780+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.000664,
+    "cost_p95": 0.0006811,
+    "cost_total": 0.001948,
+    "duration_p50_ms": 5737.0,
+    "duration_p95_ms": 5750.5,
+    "by_category": {
+      "quality-strong": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "quality-weak": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "quality-stable": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 1,
+        "n_pass": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "aapl",
+      "category": "quality-strong",
+      "label": "AAPL",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 5737,
+      "cost_usd": 0.000664,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "composite_quality",
+        "total_return_pct": 41.5,
+        "sharpe": 0.74,
+        "exposure_pct": 66.8,
+        "n_trades": 2,
+        "alpha_vs_market_pct": -37.39
+      }
+    },
+    {
+      "id": "intc",
+      "category": "quality-weak",
+      "label": "INTC",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 5752,
+      "cost_usd": 0.000601,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "low_accruals",
+        "total_return_pct": 250.7,
+        "sharpe": 1.0,
+        "exposure_pct": 99.7,
+        "n_trades": 2,
+        "alpha_vs_market_pct": 171.81
+      }
+    },
+    {
+      "id": "ko",
+      "category": "quality-stable",
+      "label": "KO",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 2549,
+      "cost_usd": 0.000683,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "f_score",
+        "total_return_pct": 18.58,
+        "sharpe": 0.73,
+        "exposure_pct": 33.3,
+        "n_trades": 1,
+        "alpha_vs_market_pct": -60.31
+      }
+    },
+    {
+      "id": "bad-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 4452,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

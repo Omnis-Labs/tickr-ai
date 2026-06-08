@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-06-08T02:10:20.992147+00:00",
+  "metrics": {
+    "n_cases": 4,
+    "n_pass": 4,
+    "pass_rate": 1.0,
+    "cost_p50": 0.0035295000000000005,
+    "cost_p95": 0.00430215,
+    "cost_total": 0.007059000000000001,
+    "duration_p50_ms": 20276.0,
+    "duration_p95_ms": 21358.7,
+    "by_category": {
+      "semis": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "banks": {
+        "n": 1,
+        "n_pass": 1
+      },
+      "synthetic": {
+        "n": 2,
+        "n_pass": 2
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "avgo-mrvl",
+      "category": "semis",
+      "label": "AVGO\u2192MRVL",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 19073,
+      "cost_usd": 0.004388,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "follow_positive",
+        "n_events": 12,
+        "total_return_pct": 4.63,
+        "sharpe": 0.19,
+        "exposure_pct": 8.4
+      }
+    },
+    {
+      "id": "jpm-bac",
+      "category": "banks",
+      "label": "JPM\u2192BAC",
+      "passed": true,
+      "status": "succeeded",
+      "duration_ms": 21479,
+      "cost_usd": 0.002671,
+      "failure_reasons": [],
+      "recorded": {
+        "entry_signal": "buy_and_hold",
+        "n_events": 4,
+        "total_return_pct": 97.65,
+        "sharpe": 1.05,
+        "exposure_pct": 99.9
+      }
+    },
+    {
+      "id": "same-ticker-graceful-fail",
+      "category": "synthetic",
+      "label": "AAPL\u2192AAPL",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 0,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    },
+    {
+      "id": "bad-peer-graceful-fail",
+      "category": "synthetic",
+      "label": "AAPL\u2192ZZQQXX",
+      "passed": true,
+      "status": "failed",
+      "duration_ms": 1298,
+      "cost_usd": 0.0,
+      "failure_reasons": [],
+      "recorded": {}
+    }
+  ]
+}

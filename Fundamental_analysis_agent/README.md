@@ -490,23 +490,29 @@ runs **every** control across a 12-ticker panel for free and pools the Sharpes:
 ```
 divination-control null band (348 draws, 11 systems × 12 names):
    p50 = 0.47   p90 = 1.33   p95 = 1.42   p99 = 1.72   max = 1.95
-overlay — real agents' best committed-eval Sharpe vs the control p95 (1.42):
-   T19 anomaly 1.42   T20 vix 1.21   T21 ranker 0.65   T23 pairs −0.22   → none clear it
+overlay — each real agent's MEDIAN single-name Sharpe across its committed eval cases:
+   T17 0.74  T18 0.79  T19 0.88  T20 1.11  T21 0.40  T22 0.47  T23 −0.54  T24 0.62
+   control p95 = 1.42  →  0 / 8 clear it (though most sit above the control median 0.47)
 ```
 
 ![Divination-control null band — real agents vs 11 placebo systems](docs/analysis/divination_null_band.svg)
 
-*(Also live + interactive on the [`/dashboard`](https://your-deployment.example.com/dashboard).)*
+*(Also live + interactive on the [`/dashboard`](https://your-deployment.example.com/dashboard); regenerate
+both with `python -m tools.divination_null_band && python -m tools.render_null_band`.)*
 
 **Read this honestly, because it's the most important number in the repo.** The pooled control
-p95 is **1.42** — *higher* than the single-engine 0.94 above — and none of the real agents'
-committed single-name Sharpes clear it. That is **not** because the divination works; it's
-because raw single-name Sharpe on a megacap panel during a bull run is dominated by the **equity
-premium on whichever names rose** — a worthless rule that happens to stay long NVDA through a 4×
-posts Sharpe ~1.9. This is exactly the multiple-testing / selection-bias trap the controls exist
-to expose: *pick the right ticker and any timing rule "finds" alpha.* It is also precisely why the
-suite benchmarks **alpha vs SPY**, not raw Sharpe, and why a fair test must be like-for-like (same
-instrument, market-relative). The controls don't flatter the real agents — they hold them to a
+p95 is **1.42** — *higher* than the single-engine 0.94 above — and **none** of the 24 real agents'
+median single-name Sharpe clears it (the strongest, T20 at 1.11, still falls short). That is **not**
+because the divination works; it's because raw single-name Sharpe on a megacap panel during a bull
+run is dominated by the **equity premium on whichever names rose** — a worthless rule that happens
+to stay long NVDA through a 4× posts Sharpe ~1.9. (Median is used precisely so a single lucky ticker
+can't cherry-pick the score; `max` would let several "clear" the bar meaninglessly.) This is exactly
+the multiple-testing / selection-bias trap the controls exist to expose: *pick the right ticker and
+any timing rule "finds" alpha.* It is also precisely why the suite benchmarks **alpha vs SPY**, not
+raw Sharpe, and why a fair test must be like-for-like (same instrument, market-relative) — note the
+controls' *alpha* p95 is an equally-inflated +105%, so that isn't a clean gate either. What the real
+agents **do** clear is the control *median* (0.47): they beat coin-flip timing, just not the lucky
+tail. The controls don't flatter the real agents — they hold them to a
 brutal, honest bar. Run it:
 
 ```bash

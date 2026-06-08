@@ -132,6 +132,7 @@ async def compute(tickers: list[str]) -> dict:
     await init_db()
     spy = await asyncio.to_thread(fetch_prices, "SPY")
     pooled: list[float] = []
+    excess: list[float] = []      # alpha vs SPY — NOT inflated by the equity premium
     by_system: dict[str, list[float]] = {}
     for tk in tickers:
         try:
@@ -153,6 +154,8 @@ async def compute(tickers: list[str]) -> dict:
                     continue
                 pooled.append(bt.metrics.sharpe)
                 by_system.setdefault(system, []).append(bt.metrics.sharpe)
+                if bt.metrics.excess_vs_market_pct is not None:
+                    excess.append(bt.metrics.excess_vs_market_pct)
         logger.info("null_ticker_done", ticker=tk, n=len(pooled))
 
     pctls = [50, 75, 90, 95, 99]
@@ -161,29 +164,46 @@ async def compute(tickers: list[str]) -> dict:
         "panel": tickers, "n_draws": len(pooled),
         "pooled_sharpe": {f"p{p}": round(_percentile(pooled, p), 3) for p in pctls} | {"max": round(max(pooled), 3) if pooled else 0.0},
         "sharpe_p95_threshold": round(_percentile(pooled, 95), 3),
+        "pooled_alpha_vs_market_pct": {f"p{p}": round(_percentile(excess, p), 2) for p in pctls} | {"max": round(max(excess), 2) if excess else 0.0},
+        "alpha_p95_threshold_pct": round(_percentile(excess, 95), 2),
         "by_system_mean_sharpe": {s: round(sum(v) / len(v), 3) for s, v in sorted(by_system.items())},
         "by_system_max_sharpe": {s: round(max(v), 3) for s, v in sorted(by_system.items())},
         "_pooled": [round(x, 4) for x in pooled],
+        "_pooled_alpha": [round(x, 4) for x in excess],
     }
 
 
-def _real_overlay(threshold: float) -> dict:
-    """Overlay real agents' committed eval-report Sharpes vs the control p95."""
-    out = {}
-    reports = {"T19 anomaly": "task19_anomaly", "T20 vix": "task20_vix",
-               "T21 ranker": "task21_ranker", "T23 pairs": "task23_pairs"}
+# human-readable labels for agents that expose a backtest Sharpe in their eval report
+_AGENT_LABELS = {
+    "task17_quality": "T17 quality", "task18_events": "T18 events", "task19_anomaly": "T19 anomaly",
+    "task20_vix": "T20 vix", "task21_ranker": "T21 ranker", "task22_congress": "T22 congress",
+    "task23_pairs": "T23 pairs", "task24_contagion": "T24 contagion",
+}
+
+
+def _real_overlay(sharpe_thr: float) -> dict:
+    """Auto-scan every agent's committed eval report. Records the MEDIAN Sharpe across its
+    succeeded eval cases (robust — `max` would just cherry-pick the luckiest ticker) and the
+    best, and whether the median clears the control p95. NB: single-name Sharpe — and alpha
+    vs SPY — are both inflated by the equity premium on whichever names rose, so this is an
+    honest *illustration*, not a verdict; per-agent skill is judged inside each agent's own
+    eval (lookahead invariants + alpha vs its own benchmark)."""
+    import statistics
+    out: dict = {}
     root = Path(__file__).resolve().parents[1]
-    for name, pkg in reports.items():
+    for pkg, name in _AGENT_LABELS.items():
         rp = root / pkg / "eval" / "report.json"
         if not rp.exists():
             continue
         try:
-            rep = json.loads(rp.read_text())
-            sharpes = [c.get("recorded", {}).get("sharpe") for c in rep.get("cases", [])]
+            cases = json.loads(rp.read_text()).get("cases", [])
+            sharpes = [c.get("recorded", {}).get("sharpe") for c in cases]
             sharpes = [s for s in sharpes if isinstance(s, (int, float))]
-            if sharpes:
-                best = max(sharpes)
-                out[name] = {"best_sharpe": round(best, 3), "clears_control_p95": best > threshold}
+            if not sharpes:
+                continue
+            med = statistics.median(sharpes)
+            out[name] = {"sharpe_median": round(med, 3), "sharpe_best": round(max(sharpes), 3),
+                         "n_cases": len(sharpes), "clears_control_p95": med > sharpe_thr}
         except Exception:  # noqa: BLE001
             continue
     return out
@@ -204,10 +224,12 @@ async def main(argv: list[str] | None = None) -> int:
         rep["observed_sharpe"] = args.observe
         rep["observed_pvalue_vs_controls"] = round(p, 4)
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.output).write_text(json.dumps({k: v for k, v in rep.items() if k != "_pooled"}, indent=2, ensure_ascii=False))
+    Path(args.output).write_text(json.dumps({k: v for k, v in rep.items() if not k.startswith("_")}, indent=2, ensure_ascii=False))
     print(json.dumps({k: v for k, v in rep.items() if not k.startswith("_")}, indent=2, ensure_ascii=False))
-    print(f"\n→ across 11 divination controls, {rep['n_draws']} draws; a real agent needs Sharpe > "
-          f"{thr} to beat the control p95.")
+    n_clear = sum(1 for v in rep["real_agent_overlay"].values() if v.get("clears_control_p95"))
+    print(f"\n→ {rep['n_draws']} control draws; control Sharpe p95 = {thr}. Of {len(rep['real_agent_overlay'])} "
+          f"real agents with eval reports, {n_clear} clear it on MEDIAN single-name Sharpe.")
+    print("  (single-name Sharpe is inflated by the equity premium — illustration, not verdict.)")
     return 0
 
 

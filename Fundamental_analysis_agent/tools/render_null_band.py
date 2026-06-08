@@ -35,7 +35,7 @@ def render() -> str:
     systems = sorted(d.get("by_system_max_sharpe", {}).items(), key=lambda kv: -kv[1])
     overlay = list(d.get("real_agent_overlay", {}).items())
 
-    bars_top = 150
+    bars_top = 210     # leave room for up to 8 real-agent dots over 4 staggered rows
     H = bars_top + len(systems) * 20 + 50
     e: list[str] = []
     e.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="ui-sans-serif,system-ui,sans-serif">')
@@ -61,13 +61,14 @@ def render() -> str:
         x = _x(v)
         e.append(f'<line x1="{x}" y1="{ay-22}" x2="{x}" y2="{ay}" stroke="{col}" stroke-width="1.5"/>')
         e.append(f'<text x="{x}" y="{ay-26}" fill="{col}" font-size="9" text-anchor="middle">{k} {v:.2f}</text>')
-    # real-agent dots (below axis), alternating height to avoid overlap
+    # real-agent dots (below axis) at MEDIAN single-name Sharpe, staggered to avoid overlap
     for i, (name, o) in enumerate(overlay):
-        x = _x(o["best_sharpe"]); col = "#34d399" if o.get("clears_control_p95") else "#f87171"
-        yy = ay + 30 + (i % 3) * 18
+        med = o.get("sharpe_median", o.get("best_sharpe", 0.0))
+        x = _x(med); col = "#34d399" if o.get("clears_control_p95") else "#f87171"
+        yy = ay + 30 + (i % 4) * 17
         e.append(f'<line x1="{x}" y1="{ay}" x2="{x}" y2="{yy-6}" stroke="{col}" stroke-width="0.6" stroke-dasharray="2 2"/>')
         e.append(f'<circle cx="{x}" cy="{yy}" r="4" fill="{col}"/>')
-        e.append(f'<text x="{x+7}" y="{yy+3}" fill="{col}" font-size="9.5">{html.escape(name)} {o["best_sharpe"]:.2f}</text>')
+        e.append(f'<text x="{x+7}" y="{yy+3}" fill="{col}" font-size="9.5">{html.escape(name)} {med:.2f}</text>')
 
     # legend
     ly = bars_top - 18
