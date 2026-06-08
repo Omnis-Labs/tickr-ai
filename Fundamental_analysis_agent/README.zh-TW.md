@@ -422,6 +422,10 @@ python -m task26_meihua.eval.null_distribution --seeds 40 --observe 1.21
    T19 異象 1.42   T20 VIX 1.21   T21 排序 0.65   T23 配對 −0.22   → 無一越過
 ```
 
+![占卜對照組虛無帶 — 真 agent vs 11 個 placebo 系統](docs/analysis/divination_null_band.svg)
+
+*（在 [`/dashboard`](https://your-deployment.example.com/dashboard) 上也有互動版。）*
+
 **請誠實地讀這個數字，因為它是整個 repo 最重要的數字。** 匯集後的對照組 p95 是 **1.42**——比上面
 單一引擎的 0.94 *更高*——而沒有任何一個真 agent 的單檔 Sharpe 越過它。這**不是**因為占卜有效；而是
 因為在多頭行情、megacap 面板上，原始單檔 Sharpe 被**漲上去的那些股票之股票溢酬**主導——一個毫無價值

@@ -494,6 +494,10 @@ overlay — real agents' best committed-eval Sharpe vs the control p95 (1.42):
    T19 anomaly 1.42   T20 vix 1.21   T21 ranker 0.65   T23 pairs −0.22   → none clear it
 ```
 
+![Divination-control null band — real agents vs 11 placebo systems](docs/analysis/divination_null_band.svg)
+
+*(Also live + interactive on the [`/dashboard`](https://your-deployment.example.com/dashboard).)*
+
 **Read this honestly, because it's the most important number in the repo.** The pooled control
 p95 is **1.42** — *higher* than the single-engine 0.94 above — and none of the real agents'
 committed single-name Sharpes clear it. That is **not** because the divination works; it's
