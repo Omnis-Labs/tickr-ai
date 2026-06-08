@@ -1,0 +1,24 @@
+{
+  "benchmark": "FinanceBench (Patronus AI, 2023) — 150 open-source questions",
+  "mode": "oracle",
+  "judge_model": "Tier.CHEAP (suite gateway)",
+  "n_questions": 150,
+  "n_covered": 150,
+  "coverage": 1.0,
+  "accuracy": 0.453,
+  "accuracy_by_type": {
+    "metrics-generated": {
+      "n": 50,
+      "accuracy": 0.34
+    },
+    "domain-relevant": {
+      "n": 50,
+      "accuracy": 0.42
+    },
+    "novel-generated": {
+      "n": 50,
+      "accuracy": 0.6
+    }
+  },
+  "note": "oracle = gold evidence passage supplied (isolates QA reasoning). openbook = download filing + lexical retrieval (retrieve + reason; coverage = live links)."
+}

@@ -28,6 +28,12 @@ repeatably, at a known cost.
 *Each case records `entry_signal`, `total_return`, `Sharpe`, `exposure`, `n_trades`, and
 `alpha_vs_market` — so a failing run tells you **which invariant broke**, not just "it went down".*
 
+**External benchmark — FinanceBench** ([financebench.md](financebench.md)). We also run the public
+150-question FinanceBench set on the document-understanding layer (cheapest model tier): **45%**
+answer accuracy given the evidence, **16%** with naive retrieval. The 45→16 gap localises the moat as
+*retrieval over filings*, not the answer model — and we report the humble cheap-tier number, not a
+leaderboard-max.
+
 ---
 
 ## Performance contract (what the backtest is allowed to claim)

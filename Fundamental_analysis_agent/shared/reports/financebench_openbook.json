@@ -1,0 +1,24 @@
+{
+  "benchmark": "FinanceBench (Patronus AI, 2023)",
+  "mode": "openbook",
+  "judge_model": "Tier.CHEAP (suite gateway)",
+  "n_questions_total": 150,
+  "n_covered": 38,
+  "coverage_note": "link-limited: 14 of ~98 filings served as PDF to a non-browser client",
+  "coverage": 0.253,
+  "accuracy_over_covered": 0.158,
+  "accuracy_by_type": {
+    "metrics-generated": {
+      "n": 8,
+      "accuracy": 0.25
+    },
+    "domain-relevant": {
+      "n": 20,
+      "accuracy": 0.1
+    },
+    "novel-generated": {
+      "n": 10,
+      "accuracy": 0.2
+    }
+  }
+}

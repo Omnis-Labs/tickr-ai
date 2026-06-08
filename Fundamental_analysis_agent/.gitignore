@@ -59,3 +59,6 @@ playwright/.cache/
 # Logs
 *.log
 logs/
+
+# FinanceBench PDF/text cache (large, regenerable)
+tools/.cache/
