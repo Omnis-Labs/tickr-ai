@@ -1580,3 +1580,28 @@ export interface Task27Job { job_id: string; ticker: string; status: JobStatus; 
 export const createBazi = (t: string): Promise<Task27Job> => _create("/task27/bazi", t);
 export const getBazi = (id: string): Promise<Task27Job> => _get(`/task27/bazi/${id}`);
 export const pollBazi = _poll<Task27Job>(getBazi);
+
+// ---- Task 28: 紫微斗數 (四化飛星) (CONTROL / PLACEBO) ----
+export interface ZiweiPalace {
+  name: string; branch: string; is_body: boolean; stars: string[];
+}
+export interface ZiweiChart {
+  listing_date: string; listing_date_is_data_limit: boolean;
+  soul_star: string; body_star: string; five_elements_class: string;
+  palaces: ZiweiPalace[]; liunian_stem: string; liunian_sihua: string;
+  sihua_landing: Record<string, string>; target_palaces: string[];
+}
+export interface ZiweiSpec {
+  entry_signal: "buy_and_hold" | "sihua_year" | "sihua_month";
+  stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface ZiweiResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: ZiweiChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: ZiweiSpec; backtest: BacktestResult;
+  ziwei_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task28Job { job_id: string; ticker: string; status: JobStatus; result: ZiweiResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createZiwei = (t: string): Promise<Task28Job> => _create("/task28/ziwei", t);
+export const getZiwei = (id: string): Promise<Task28Job> => _get(`/task28/ziwei/${id}`);
+export const pollZiwei = _poll<Task28Job>(getZiwei);

@@ -411,6 +411,14 @@ export default function HomePage() {
           when the current 流年五行 is favourable — the same honest backtest on a worthless signal.</p>
           <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/ziwei" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 28</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">紫微斗數 四化飛星 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> Casts the
+          company&apos;s full 紫微 命盤 (12 palaces, 14 stars) from its listing date and trades the <span className="text-purple-300">四化飛星</span>
+          — does the year&apos;s 化祿/化權/化忌 fly into 命宮/財帛/官祿? — through the same honest, lookahead-free backtest.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

@@ -33,7 +33,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# T28 紫微斗數 uses py-iztro (pulls pythonmonkey, a SpiderMonkey JS runtime). Kept OPTIONAL
+# so a missing/failed native wheel can never block the core image build — T28 imports it
+# lazily and degrades to an "engine unavailable" message if absent.
+divination = ["py-iztro==0.1.5"]
 dev = [
+    "py-iztro==0.1.5",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
@@ -52,7 +57,7 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix", "task21_ranker", "task22_congress", "task23_pairs", "task24_contagion", "task25_astro", "task26_meihua", "task27_bazi"]
+testpaths = ["task1_browser_agent", "task2_10k_extractor", "shared", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix", "task21_ranker", "task22_congress", "task23_pairs", "task24_contagion", "task25_astro", "task26_meihua", "task27_bazi", "task28_ziwei"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -64,4 +69,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix", "task21_ranker", "task22_congress", "task23_pairs", "task24_contagion", "task25_astro", "task26_meihua", "task27_bazi"]
+packages = ["shared", "task1_browser_agent", "task2_10k_extractor", "task3_strategy", "task4_technical", "task5_ensemble", "task6_insider", "task7_relative", "task8_earnings", "task9_institutional", "task10_portfolio", "task11_fundamentals_trend", "task12_seasonality", "task13_overnight", "task14_volatility", "task15_buyback", "task16_short", "task17_quality", "task18_events", "task19_anomaly", "task20_vix", "task21_ranker", "task22_congress", "task23_pairs", "task24_contagion", "task25_astro", "task26_meihua", "task27_bazi", "task28_ziwei"]
