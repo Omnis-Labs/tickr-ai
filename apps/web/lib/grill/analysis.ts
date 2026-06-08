@@ -119,7 +119,8 @@ export const AI_ANALYST_CATALOG: readonly AiAnalystCatalogItem[] = [
     id: 'portfolio_risk_sizer',
     name: 'Portfolio Risk Sizer',
     originTask: 'T10 Portfolio / Risk Sizing',
-    technique: 'Task 4 per-name signals, inverse-vol / risk-parity / signal-proportional sizing, caps, and vol targeting',
+    technique:
+      'Task 4 per-name signals, inverse-vol / risk-parity / signal-proportional sizing, caps, and vol targeting',
     dataNeeds: 'Pyth OHLC bars for the selected asset and a Hunch watchlist',
     defaultSelected: false,
   },
@@ -135,7 +136,8 @@ export const AI_ANALYST_CATALOG: readonly AiAnalystCatalogItem[] = [
     id: 'pairs_trading',
     name: 'Pairs Trading',
     originTask: 'T23 Pairs Trading',
-    technique: 'Trailing OLS hedge ratio, spread z-score, mean-reversion thresholds, and market-neutral caveats',
+    technique:
+      'Trailing OLS hedge ratio, spread z-score, mean-reversion thresholds, and market-neutral caveats',
     dataNeeds: 'Pyth OHLC bars for the selected asset and an auto-selected supported pair asset',
     defaultSelected: false,
   },
@@ -144,23 +146,66 @@ export const AI_ANALYST_CATALOG: readonly AiAnalystCatalogItem[] = [
     name: 'Meihua Null Control',
     originTask: 'T26 Meihua I Ching Control',
     technique: 'Deterministic date seed, body/use five-element relation, and null-control backtest',
-    dataNeeds: 'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
+    defaultSelected: false,
+  },
+  {
+    id: 'bazi_null_control',
+    name: 'Bazi Null Control',
+    originTask: 'T27 Bazi Four Pillars Control',
+    technique:
+      'Four pillars, day-master strength, favourable elements, and favourable-year null backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset; first visible bar is used as the Hunch natal anchor',
+    defaultSelected: false,
+  },
+  {
+    id: 'suimei_null_control',
+    name: 'Suimei Null Control',
+    originTask: 'T29 Shichu-Suimei Control',
+    technique:
+      'Japanese four pillars, twelve-fortune stage, tenchusatsu void pair, and null backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset; first visible bar is used as the Hunch natal anchor',
+    defaultSelected: false,
+  },
+  {
+    id: 'tieban_null_control',
+    name: 'Tieban Null Control',
+    originTask: 'T31 Tieban Shenshu Control',
+    technique: 'Taixuan counts over natal four pillars, verse-number verdict, and null backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset; first visible bar is used as the Hunch natal anchor',
     defaultSelected: false,
   },
   {
     id: 'qimen_null_control',
     name: 'Qimen Null Control',
     originTask: 'T32 Qimen Dunjia Control',
-    technique: 'Simplified deterministic season/day gate, auspicious-gate rule, and null-control backtest',
-    dataNeeds: 'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
+    technique:
+      'Simplified deterministic season/day gate, auspicious-gate rule, and null-control backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
+    defaultSelected: false,
+  },
+  {
+    id: 'liuren_null_control',
+    name: 'Liuren Null Control',
+    originTask: 'T33 Da Liu Ren Control',
+    technique: 'Simplified yue jiang, useful-god branch relation, and null-control backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset; first visible bar is used as the Hunch natal anchor',
     defaultSelected: false,
   },
   {
     id: 'taiyi_null_control',
     name: 'Taiyi Null Control',
     originTask: 'T34 Taiyi Shenshu Control',
-    technique: 'Deterministic accumulated-year host/guest count, host-prevails rule, and null-control backtest',
-    dataNeeds: 'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
+    technique:
+      'Deterministic accumulated-year host/guest count, host-prevails rule, and null-control backtest',
+    dataNeeds:
+      'Pyth OHLC bars for the selected asset plus the bar date; no economic data by design',
     defaultSelected: false,
   },
 ];
@@ -598,7 +643,10 @@ function choosePairAssetId(assetId: string): string {
     asset?.kind === 'CRYPTO'
       ? ['wBTC', 'ETH', 'BNB']
       : ['QQQx', 'SPYx', 'SMHx', ...getSignalAssets().map((candidate) => candidate.assetId)];
-  return candidates.find((candidate) => candidate !== assetId && signalAssetIds.has(candidate)) ?? chooseBenchmarkAssetId(assetId);
+  return (
+    candidates.find((candidate) => candidate !== assetId && signalAssetIds.has(candidate)) ??
+    chooseBenchmarkAssetId(assetId)
+  );
 }
 
 export function getRequiredGrillBarAssetIds(
@@ -1768,7 +1816,10 @@ function signalProportionalPortfolioWeights(scores: readonly number[]): number[]
     : equalPortfolioWeights(scores.length);
 }
 
-function riskParityPortfolioWeights(cov: readonly (readonly number[])[], iterations = 100): number[] {
+function riskParityPortfolioWeights(
+  cov: readonly (readonly number[])[],
+  iterations = 100,
+): number[] {
   const n = cov.length;
   if (n === 0) return [];
   if (n === 1) return [1];
@@ -1788,7 +1839,7 @@ function riskParityPortfolioWeights(cov: readonly (readonly number[])[], iterati
     weights = normaliseWeights(
       weights.map((weight, index) => {
         const contribution = weight * (marginalRisk[index] ?? 0);
-        return weight * target / (contribution > 1e-18 ? contribution : 1e-18);
+        return (weight * target) / (contribution > 1e-18 ? contribution : 1e-18);
       }),
     );
   }
@@ -1802,7 +1853,9 @@ function applyPortfolioMaxWeight(weights: readonly number[], cap: number): numbe
   if (cap * n <= 1 + 1e-9) return equalPortfolioWeights(n);
   const out = [...weights];
   for (let iter = 0; iter < 2 * n + 2; iter++) {
-    const over = out.map((weight, index) => ({ weight, index })).filter(({ weight }) => weight > cap + 1e-12);
+    const over = out
+      .map((weight, index) => ({ weight, index }))
+      .filter(({ weight }) => weight > cap + 1e-12);
     if (over.length === 0) break;
     const excess = over.reduce((sum, { weight }) => sum + weight - cap, 0);
     for (const { index } of over) out[index] = cap;
@@ -1898,7 +1951,9 @@ function buildPortfolioUniverse(input: {
   const closesByAssetId = new Map<string, number[]>();
   for (const { assetId, bars } of candidates) {
     const byTime = new Map(bars.map((bar) => [bar.time, bar]));
-    const alignedBars = commonTimes.map((time) => byTime.get(time)).filter((bar): bar is PreparedBar => Boolean(bar));
+    const alignedBars = commonTimes
+      .map((time) => byTime.get(time))
+      .filter((bar): bar is PreparedBar => Boolean(bar));
     if (alignedBars.length !== commonTimes.length) continue;
     alignedBarsByAssetId.set(assetId, alignedBars);
     closesByAssetId.set(
@@ -1939,7 +1994,8 @@ function buildPortfolioSignals(universe: PortfolioUniverse): Map<string, Portfol
     const currentSma200 = lastDefined(sma200) ?? currentSma50;
     const currentMacd = lastDefined(macd.line) ?? 0;
     const currentSignal = lastDefined(macd.signal) ?? 0;
-    const bullish = last > currentSma50 && currentSma50 >= currentSma200 && currentMacd >= currentSignal;
+    const bullish =
+      last > currentSma50 && currentSma50 >= currentSma200 && currentMacd >= currentSignal;
     const cautious = last < currentSma50 && currentMacd < currentSignal;
     const stance = bullish ? 'bullish' : cautious ? 'cautious' : 'neutral';
     signals.set(assetId, {
@@ -1973,17 +2029,22 @@ function portfolioReadings(
       const volA = annualisedVolFromReturns(rets.get(a) ?? []);
       const volB = annualisedVolFromReturns(rets.get(b) ?? []);
       if (volA > 1e-9 && volB > 1e-9) {
-        correlations.push(covarianceFromReturns(rets.get(a) ?? [], rets.get(b) ?? []) / (volA * volB));
+        correlations.push(
+          covarianceFromReturns(rets.get(a) ?? [], rets.get(b) ?? []) / (volA * volB),
+        );
       }
     }
   }
 
-  const nLongNow = universe.assetIds.filter((assetId) => signals.get(assetId)?.inMarket.at(-1)).length;
+  const nLongNow = universe.assetIds.filter((assetId) =>
+    signals.get(assetId)?.inMarket.at(-1),
+  ).length;
   const meanVol = vols.length > 0 ? vols.reduce((sum, value) => sum + value, 0) / vols.length : 0;
   return {
     nNames: universe.assetIds.length,
     nLongNow,
-    breadthPctLongNow: universe.assetIds.length > 0 ? round((nLongNow / universe.assetIds.length) * 100, 1) : 0,
+    breadthPctLongNow:
+      universe.assetIds.length > 0 ? round((nLongNow / universe.assetIds.length) * 100, 1) : 0,
     meanAnnVolPct: round(meanVol * 100, 1),
     minAnnVolPct: round((vols.length > 0 ? Math.min(...vols) : 0) * 100, 1),
     maxAnnVolPct: round((vols.length > 0 ? Math.max(...vols) : 0) * 100, 1),
@@ -2067,7 +2128,10 @@ function runPortfolioSizingBacktest(input: {
       if (longs.length > 0) {
         const vols = longs.map((assetId) =>
           annualisedVolFromReturns(
-            (returnsByAssetId.get(assetId) ?? []).slice(Math.max(0, i - input.spec.volLookbackDays), i),
+            (returnsByAssetId.get(assetId) ?? []).slice(
+              Math.max(0, i - input.spec.volLookbackDays),
+              i,
+            ),
           ),
         );
         const cov = longs.map((a) =>
@@ -2088,15 +2152,21 @@ function runPortfolioSizingBacktest(input: {
           grossCap: input.spec.grossCap,
           targetVolPct: input.spec.targetVolPct,
         });
-        longs.forEach((assetId, index) => targetValues.set(assetId, (weights[index] ?? 0) * equity));
+        longs.forEach((assetId, index) =>
+          targetValues.set(assetId, (weights[index] ?? 0) * equity),
+        );
       }
 
       const turnover = names.reduce(
-        (sum, assetId) => sum + Math.abs((targetValues.get(assetId) ?? 0) - (values.get(assetId) ?? 0)),
+        (sum, assetId) =>
+          sum + Math.abs((targetValues.get(assetId) ?? 0) - (values.get(assetId) ?? 0)),
         0,
       );
       turnoverTotal += turnover / equity;
-      cash = equity - Array.from(targetValues.values()).reduce((sum, value) => sum + value, 0) - turnover * cost;
+      cash =
+        equity -
+        Array.from(targetValues.values()).reduce((sum, value) => sum + value, 0) -
+        turnover * cost;
       values = targetValues;
       nRebalances++;
       equity = cash + Array.from(values.values()).reduce((sum, value) => sum + value, 0);
@@ -2111,11 +2181,19 @@ function runPortfolioSizingBacktest(input: {
       investedDays++;
       grossSum += invested / equity;
       for (const assetId of names) {
-        weightSum.set(assetId, (weightSum.get(assetId) ?? 0) + ((values.get(assetId) ?? 0) / equity) * 100);
+        weightSum.set(
+          assetId,
+          (weightSum.get(assetId) ?? 0) + ((values.get(assetId) ?? 0) / equity) * 100,
+        );
       }
     }
     strategyCurve.push(round(equity, 6));
-    benchmarkCurve.push(round(Array.from(benchmarkValues.values()).reduce((sum, value) => sum + value, 0), 6));
+    benchmarkCurve.push(
+      round(
+        Array.from(benchmarkValues.values()).reduce((sum, value) => sum + value, 0),
+        6,
+      ),
+    );
   }
 
   const final = strategyCurve.at(-1) ?? 1;
@@ -2149,9 +2227,11 @@ function runPortfolioSizingBacktest(input: {
     },
     avgWeightPctByAssetId,
     latestWeightPctByAssetId: latestWeight,
-    longAsOfByAssetId: new Map(names.map((assetId) => [assetId, input.signals.get(assetId)?.inMarket.at(-1) ?? false])),
+    longAsOfByAssetId: new Map(
+      names.map((assetId) => [assetId, input.signals.get(assetId)?.inMarket.at(-1) ?? false]),
+    ),
     nRebalances,
-    turnoverAnnualPct: round(turnoverTotal / Math.max(years, 1e-9) * 100, 1),
+    turnoverAnnualPct: round((turnoverTotal / Math.max(years, 1e-9)) * 100, 1),
   };
 }
 
@@ -2183,7 +2263,11 @@ function portfolioRiskSizerOpinion(input: {
         ? 'reject'
         : 'challenge';
   const confidence =
-    verdict === 'support' ? 0.72 : verdict === 'reject' ? 0.67 : 0.59 + Math.min(0.08, targetWeight / 100);
+    verdict === 'support'
+      ? 0.72
+      : verdict === 'reject'
+        ? 0.67
+        : 0.59 + Math.min(0.08, targetWeight / 100);
 
   return {
     analystId: input.analyst.id,
@@ -2258,7 +2342,9 @@ function olsBeta(xs: readonly number[], ys: readonly number[]): number {
   const meanY = y.reduce((sum, value) => sum + value, 0) / n;
   const variance = x.reduce((sum, value) => sum + (value - meanX) ** 2, 0);
   if (variance <= 1e-12) return 1;
-  return x.reduce((sum, value, index) => sum + (value - meanX) * ((y[index] ?? 0) - meanY), 0) / variance;
+  return (
+    x.reduce((sum, value, index) => sum + (value - meanX) * ((y[index] ?? 0) - meanY), 0) / variance
+  );
 }
 
 function pairHalfLife(spread: readonly number[]): number {
@@ -2318,7 +2404,9 @@ function pairReadings(
   const currentBeta = lastDefined(beta) ?? 1;
   const logA = closesA.slice(-window).map((close) => (close > 0 ? Math.log(close) : 0));
   const logB = closesB.slice(-window).map((close) => (close > 0 ? Math.log(close) : 0));
-  const halfLife = pairHalfLife(logA.map((value, index) => value - currentBeta * (logB[index] ?? 0)));
+  const halfLife = pairHalfLife(
+    logA.map((value, index) => value - currentBeta * (logB[index] ?? 0)),
+  );
   const absZ = Math.abs(currentZ);
   return {
     spreadRegime: absZ >= 2 ? 'stretched' : absZ >= 1 ? 'diverging' : 'tight',
@@ -2330,7 +2418,8 @@ function pairReadings(
 }
 
 function choosePairSpec(readings: PairReadings): PairSpec {
-  const reliable = readings.returnCorrelation >= 0.5 && readings.halfLifeDays > 0 && readings.halfLifeDays <= 90;
+  const reliable =
+    readings.returnCorrelation >= 0.5 && readings.halfLifeDays > 0 && readings.halfLifeDays <= 90;
   const formationWindow = reliable
     ? Math.max(30, Math.min(126, Math.round(readings.halfLifeDays * 3)))
     : 63;
@@ -2364,8 +2453,12 @@ function alignPairSeries(input: {
   }
   const assetByTime = new Map(input.assetBars.map((bar) => [bar.time, bar]));
   const pairByTime = new Map(input.pairBars.map((bar) => [bar.time, bar]));
-  const barsA = commonTimes.map((time) => assetByTime.get(time)).filter((bar): bar is PreparedBar => Boolean(bar));
-  const barsB = commonTimes.map((time) => pairByTime.get(time)).filter((bar): bar is PreparedBar => Boolean(bar));
+  const barsA = commonTimes
+    .map((time) => assetByTime.get(time))
+    .filter((bar): bar is PreparedBar => Boolean(bar));
+  const barsB = commonTimes
+    .map((time) => pairByTime.get(time))
+    .filter((bar): bar is PreparedBar => Boolean(bar));
   if (barsA.length !== commonTimes.length || barsB.length !== commonTimes.length) {
     throw new Error('Pair bars could not be aligned.');
   }
@@ -2383,7 +2476,11 @@ function runPairsBacktest(input: {
   transactionCostBps?: number;
 }): AnalystBacktestSummary {
   const n = input.pair.commonTimes.length;
-  const { z } = computePairZSeries(input.pair.closesA, input.pair.closesB, input.spec.formationWindow);
+  const { z } = computePairZSeries(
+    input.pair.closesA,
+    input.pair.closesB,
+    input.spec.formationWindow,
+  );
   const returnsA = dailyReturnsFromCloses(input.pair.closesA);
   const returnsB = dailyReturnsFromCloses(input.pair.closesB);
   const cost = (input.transactionCostBps ?? 10) / 10_000;
@@ -2430,7 +2527,10 @@ function runPairsBacktest(input: {
     strategy.push(round(equity, 6));
     benchmark.push(
       entryA > 0 && entryB > 0
-        ? round(0.5 * (input.pair.closesA[i]! / entryA) + 0.5 * (input.pair.closesB[i]! / entryB), 6)
+        ? round(
+            0.5 * (input.pair.closesA[i]! / entryA) + 0.5 * (input.pair.closesB[i]! / entryB),
+            6,
+          )
         : 1,
     );
   }
@@ -2467,14 +2567,24 @@ function pairsTradingOpinion(input: {
   const initial = computePairZSeries(pair.closesA, pair.closesB, 63);
   let readings = pairReadings(pair.closesA, pair.closesB, initial.z, initial.beta, 63);
   const spec = choosePairSpec(readings);
-  const chosen = spec.formationWindow === 63 ? initial : computePairZSeries(pair.closesA, pair.closesB, spec.formationWindow);
+  const chosen =
+    spec.formationWindow === 63
+      ? initial
+      : computePairZSeries(pair.closesA, pair.closesB, spec.formationWindow);
   if (spec.formationWindow !== 63) {
-    readings = pairReadings(pair.closesA, pair.closesB, chosen.z, chosen.beta, spec.formationWindow);
+    readings = pairReadings(
+      pair.closesA,
+      pair.closesB,
+      chosen.z,
+      chosen.beta,
+      spec.formationWindow,
+    );
   }
   const backtest = runPairsBacktest({ pair, spec });
   const indicators = baseIndicatorsFromBars(pair.barsA);
   const last = pair.barsA.at(-1)!.close;
-  const reliable = readings.returnCorrelation >= 0.5 && readings.halfLifeDays > 0 && readings.halfLifeDays <= 90;
+  const reliable =
+    readings.returnCorrelation >= 0.5 && readings.halfLifeDays > 0 && readings.halfLifeDays <= 90;
   const verdict: AnalystVerdict =
     reliable && readings.currentZScore <= -spec.zEntry
       ? 'support'
@@ -2482,13 +2592,7 @@ function pairsTradingOpinion(input: {
         ? 'reject'
         : 'challenge';
   const confidence =
-    verdict === 'support'
-      ? 0.69
-      : verdict === 'reject'
-        ? 0.68
-        : reliable
-          ? 0.6
-          : 0.54;
+    verdict === 'support' ? 0.69 : verdict === 'reject' ? 0.68 : reliable ? 0.6 : 0.54;
 
   return {
     analystId: input.analyst.id,
@@ -2611,7 +2715,11 @@ const MEIHUA_CONTROLS: Record<MeihuaElement, MeihuaElement> = {
 
 function dayOfYearUtc(date: Date): number {
   const start = Date.UTC(date.getUTCFullYear(), 0, 1);
-  return Math.floor((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - start) / 86_400_000) + 1;
+  return (
+    Math.floor(
+      (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - start) / 86_400_000,
+    ) + 1
+  );
 }
 
 function meihuaModIndex(value: number, size: number): number {
@@ -2635,7 +2743,10 @@ function meihuaKingWen(upper: MeihuaTrigramName, lower: MeihuaTrigramName): numb
   return MEIHUA_KING_WEN[lower][MEIHUA_ORDER.indexOf(upper)] ?? 1;
 }
 
-function meihuaRelation(ti: MeihuaTrigramName, yong: MeihuaTrigramName): {
+function meihuaRelation(
+  ti: MeihuaTrigramName,
+  yong: MeihuaTrigramName,
+): {
   label: string;
   auspicious: boolean;
 } {
@@ -2664,7 +2775,7 @@ function meihuaDivine(date: Date, seed = 0): MeihuaDivination {
   const doy = dayOfYearUtc(date);
   const upper = MEIHUA_ORDER[meihuaModIndex(year + month + day + seed, 8)]!;
   const lower = MEIHUA_ORDER[meihuaModIndex(year + month + day + doy + seed, 8)]!;
-  const moving = ((year + month + day + doy + seed) % 6) || 6;
+  const moving = (year + month + day + doy + seed) % 6 || 6;
   const lines = meihuaLines(upper, lower);
   const changed = [...lines];
   changed[moving - 1] = changed[moving - 1] === 1 ? 0 : 1;
@@ -2730,6 +2841,463 @@ function meihuaNullControlOpinion(input: {
       'Fundamental_analysis_agent/task26_meihua/eval/null_distribution.py',
       'Fundamental_analysis_agent/prompts/task26_meihua/meihua_author.md',
       'Fundamental_analysis_agent/task26_meihua/tests/test_meihua.py',
+    ],
+    indicators,
+  };
+}
+
+type BaziElement = 'wood' | 'fire' | 'earth' | 'metal' | 'water';
+
+interface BaziPillar {
+  stem: string;
+  branch: string;
+  stemElement: BaziElement;
+  branchElement: BaziElement;
+  stemIndex: number;
+  branchIndex: number;
+  gz: string;
+}
+
+const BAZI_STEMS = ['Jia', 'Yi', 'Bing', 'Ding', 'Wu', 'Ji', 'Geng', 'Xin', 'Ren', 'Gui'];
+const BAZI_BRANCHES = [
+  'Zi',
+  'Chou',
+  'Yin',
+  'Mao',
+  'Chen',
+  'Si',
+  'Wu',
+  'Wei',
+  'Shen',
+  'You',
+  'Xu',
+  'Hai',
+];
+const BAZI_STEM_ELEMENTS: BaziElement[] = [
+  'wood',
+  'wood',
+  'fire',
+  'fire',
+  'earth',
+  'earth',
+  'metal',
+  'metal',
+  'water',
+  'water',
+];
+const BAZI_BRANCH_ELEMENTS: BaziElement[] = [
+  'water',
+  'earth',
+  'wood',
+  'wood',
+  'earth',
+  'fire',
+  'fire',
+  'earth',
+  'metal',
+  'metal',
+  'earth',
+  'water',
+];
+const BAZI_GENERATES: Record<BaziElement, BaziElement> = {
+  wood: 'fire',
+  fire: 'earth',
+  earth: 'metal',
+  metal: 'water',
+  water: 'wood',
+};
+const BAZI_CONTROLS: Record<BaziElement, BaziElement> = {
+  wood: 'earth',
+  earth: 'water',
+  water: 'fire',
+  fire: 'metal',
+  metal: 'wood',
+};
+const BAZI_GENERATOR_OF = Object.fromEntries(
+  Object.entries(BAZI_GENERATES).map(([from, to]) => [to, from]),
+) as Record<BaziElement, BaziElement>;
+const BAZI_CONTROLLER_OF = Object.fromEntries(
+  Object.entries(BAZI_CONTROLS).map(([from, to]) => [to, from]),
+) as Record<BaziElement, BaziElement>;
+const BAZI_MONTH_TERMS: readonly [number, number, number][] = [
+  [1, 6, 1],
+  [2, 4, 2],
+  [3, 6, 3],
+  [4, 5, 4],
+  [5, 6, 5],
+  [6, 6, 6],
+  [7, 7, 7],
+  [8, 8, 8],
+  [9, 8, 9],
+  [10, 8, 10],
+  [11, 7, 11],
+  [12, 7, 0],
+];
+
+function baziSolarYear(date: Date): number {
+  return date.getUTCMonth() + 1 > 2 || (date.getUTCMonth() + 1 === 2 && date.getUTCDate() >= 4)
+    ? date.getUTCFullYear()
+    : date.getUTCFullYear() - 1;
+}
+
+function baziDayPillar(date: Date): { stem: number; branch: number } {
+  const index = (julianDayNumber(date) + 49) % 60;
+  return { stem: index % 10, branch: index % 12 };
+}
+
+function baziYearPillar(date: Date): { stem: number; branch: number } {
+  const year = baziSolarYear(date);
+  return { stem: (year - 4) % 10, branch: (year - 4) % 12 };
+}
+
+function baziMonthBranch(date: Date): number {
+  let branch = 0;
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  for (const [termMonth, termDay, termBranch] of BAZI_MONTH_TERMS) {
+    if (month > termMonth || (month === termMonth && day >= termDay)) {
+      branch = termBranch;
+    }
+  }
+  return month === 1 && day < 6 ? 0 : branch;
+}
+
+function baziMonthPillar(date: Date): { stem: number; branch: number } {
+  const yearStem = baziYearPillar(date).stem;
+  const baseYin = (2 + 2 * (yearStem % 5)) % 10;
+  const branch = baziMonthBranch(date);
+  const offset = (branch - 2 + 12) % 12;
+  return { stem: (baseYin + offset) % 10, branch };
+}
+
+function baziHourPillar(dayStem: number, hour = 9): { stem: number; branch: number } {
+  const branch = Math.floor((hour + 1) / 2) % 12;
+  const baseZi = (2 * (dayStem % 5)) % 10;
+  return { stem: (baseZi + branch) % 10, branch };
+}
+
+function baziPillar(stemIndex: number, branchIndex: number): BaziPillar {
+  return {
+    stem: BAZI_STEMS[stemIndex]!,
+    branch: BAZI_BRANCHES[branchIndex]!,
+    stemElement: BAZI_STEM_ELEMENTS[stemIndex]!,
+    branchElement: BAZI_BRANCH_ELEMENTS[branchIndex]!,
+    stemIndex,
+    branchIndex,
+    gz: `${BAZI_STEMS[stemIndex]}-${BAZI_BRANCHES[branchIndex]}`,
+  };
+}
+
+function baziFourPillars(date: Date): {
+  year: BaziPillar;
+  month: BaziPillar;
+  day: BaziPillar;
+  hour: BaziPillar;
+} {
+  const year = baziYearPillar(date);
+  const month = baziMonthPillar(date);
+  const day = baziDayPillar(date);
+  const hour = baziHourPillar(day.stem);
+  return {
+    year: baziPillar(year.stem, year.branch),
+    month: baziPillar(month.stem, month.branch),
+    day: baziPillar(day.stem, day.branch),
+    hour: baziPillar(hour.stem, hour.branch),
+  };
+}
+
+function baziStrengthAndFavorable(pillars: ReturnType<typeof baziFourPillars>): {
+  dayMaster: string;
+  dayMasterElement: BaziElement;
+  strong: boolean;
+  label: string;
+  favorable: BaziElement[];
+  support: number;
+  drain: number;
+} {
+  const dayMasterElement = pillars.day.stemElement;
+  const weighted: Array<{ element: BaziElement; weight: number }> = [];
+  for (const key of ['year', 'month', 'day', 'hour'] as const) {
+    const pillar = pillars[key];
+    weighted.push({ element: pillar.stemElement, weight: 1 });
+    weighted.push({ element: pillar.branchElement, weight: key === 'month' ? 2 : 1 });
+  }
+
+  let support = 0;
+  let drain = 0;
+  for (const item of weighted) {
+    if (item.element === dayMasterElement || BAZI_GENERATES[item.element] === dayMasterElement) {
+      support += item.weight;
+    } else {
+      drain += item.weight;
+    }
+  }
+
+  const strong = support >= drain;
+  const favorable = strong
+    ? [
+        BAZI_GENERATES[dayMasterElement],
+        BAZI_CONTROLS[dayMasterElement],
+        BAZI_CONTROLLER_OF[dayMasterElement],
+      ]
+    : [BAZI_GENERATOR_OF[dayMasterElement], dayMasterElement];
+  return {
+    dayMaster: pillars.day.stem,
+    dayMasterElement,
+    strong,
+    label: strong
+      ? 'strong day master; favors drain/control/exhaust'
+      : 'weak day master; favors resource/peer support',
+    favorable: Array.from(new Set(favorable)).sort(),
+    support,
+    drain,
+  };
+}
+
+function baziYearElement(date: Date): BaziElement {
+  return BAZI_STEM_ELEMENTS[baziYearPillar(date).stem]!;
+}
+
+function baziNullControlOpinion(input: {
+  analyst: AiAnalystCatalogItem;
+  assetId: string;
+  idea: string;
+  bars: readonly PreparedBar[];
+}): AnalystOpinion {
+  const anchorDate = barDate(input.bars[0]!);
+  const currentDate = barDate(input.bars.at(-1)!);
+  const pillars = baziFourPillars(anchorDate);
+  const strength = baziStrengthAndFavorable(pillars);
+  const currentYearElement = baziYearElement(currentDate);
+  const favorable = new Set(strength.favorable);
+  const signal = favorable.has(currentYearElement) ? 'hold' : 'flat';
+  const backtest = runLongFlatBacktest(input.bars, (index) =>
+    favorable.has(baziYearElement(barDate(input.bars[index]!))),
+  );
+  const indicators = baseIndicatorsFromBars(input.bars);
+  const last = input.bars.at(-1)!.close;
+
+  return {
+    analystId: input.analyst.id,
+    analystName: input.analyst.name,
+    originTask: input.analyst.originTask,
+    verdict: 'challenge',
+    confidence: 0.41,
+    thesis: `Bazi is a control / placebo read, not economic evidence. Using the first visible bar (${anchorDate.toISOString().slice(0, 10)}) as Hunch's natal anchor, the day master is ${strength.dayMaster}/${strength.dayMasterElement} and the current year element is ${currentYearElement}, so the null signal says ${signal}.`,
+    whyNow: `Task 27's deterministic Four Pillars calendar is preserved: year rolls at Lichun, the day pillar is pinned to the 2000-01-07 Jia-Zi anchor, and favorable elements are ${strength.favorable.join(', ')} from support=${strength.support} versus drain=${strength.drain}.`,
+    setupEntry: `Do not create a Proposal because this Bazi control agrees. It is a false-positive benchmark for date-derived timing rules.`,
+    riskProtection: `If the Bazi control backtest looks persuasive, treat that as selection-bias risk. Keep real stop protection near ${fmtUsd(last * 0.92)} and require an economic analyst to support the trade.`,
+    invalidation: `The control is invalid as trade support by design; it can only challenge overconfidence in a Grill Idea.`,
+    evidence: [
+      `Task 27 null-control: entry_signal=favorable_year, first visible bar anchor=${anchorDate.toISOString().slice(0, 10)}, current_signal=${signal}.`,
+      `Four Pillars: year=${pillars.year.gz}, month=${pillars.month.gz}, day=${pillars.day.gz}, hour=${pillars.hour.gz}.`,
+      `Bazi backtest: strategy ${fmtPct(backtest.totalReturnPct)} vs buy-and-hold ${fmtPct(backtest.benchmarkReturnPct)}.`,
+      `Original Grill Idea considered: "${input.idea.trim()}".`,
+    ],
+    backtest,
+    sourceFiles: [
+      'Fundamental_analysis_agent/task27_bazi/pipeline/bazi.py',
+      'Fundamental_analysis_agent/task27_bazi/pipeline/signals.py',
+      'Fundamental_analysis_agent/prompts/task27_bazi/bazi_author.md',
+      'Fundamental_analysis_agent/task27_bazi/tests/test_bazi.py',
+    ],
+    indicators,
+  };
+}
+
+const SUIMEI_TWELVE = [
+  'growth',
+  'bath',
+  'cap',
+  'office',
+  'peak',
+  'decline',
+  'sickness',
+  'death',
+  'tomb',
+  'extinction',
+  'womb',
+  'nurture',
+];
+const SUIMEI_THRIVING = new Set(['growth', 'cap', 'office', 'peak']);
+const SUIMEI_WEAK = new Set(['sickness', 'death', 'tomb', 'extinction']);
+const SUIMEI_CHANGSHENG: Record<number, number> = {
+  0: 11,
+  1: 6,
+  2: 2,
+  3: 9,
+  4: 2,
+  5: 9,
+  6: 5,
+  7: 0,
+  8: 8,
+  9: 3,
+};
+
+function baziSexagenaryIndex(stem: number, branch: number): number {
+  for (let index = 0; index < 60; index++) {
+    if (index % 10 === stem && index % 12 === branch) return index;
+  }
+  throw new Error(`Bad sexagenary pair: ${stem}/${branch}`);
+}
+
+function suimeiTwelveFortune(dayStem: number, branch: number): string {
+  const changsheng = SUIMEI_CHANGSHENG[dayStem] ?? 0;
+  const index =
+    dayStem % 2 === 0 ? (branch - changsheng + 12) % 12 : (changsheng - branch + 12) % 12;
+  return SUIMEI_TWELVE[index]!;
+}
+
+function suimeiTenchusatsu(dayStem: number, dayBranch: number): [number, number] {
+  const xun = Math.floor(baziSexagenaryIndex(dayStem, dayBranch) / 10);
+  const first = (10 - 2 * xun + 12) % 12;
+  return [first, (first + 1) % 12];
+}
+
+function suimeiChart(
+  anchorDate: Date,
+  currentDate: Date,
+): {
+  dayMaster: string;
+  dayMasterElement: BaziElement;
+  dayStemIndex: number;
+  voidPair: [number, number];
+  tenchusatsu: string;
+  currentBranch: number;
+  currentFortune: string;
+  inTenchusatsu: boolean;
+} {
+  const pillars = baziFourPillars(anchorDate);
+  const dayStemIndex = pillars.day.stemIndex;
+  const voidPair = suimeiTenchusatsu(dayStemIndex, pillars.day.branchIndex);
+  const currentBranch = baziYearPillar(currentDate).branch;
+  return {
+    dayMaster: pillars.day.stem,
+    dayMasterElement: pillars.day.stemElement,
+    dayStemIndex,
+    voidPair,
+    tenchusatsu: `${BAZI_BRANCHES[voidPair[0]]}-${BAZI_BRANCHES[voidPair[1]]}`,
+    currentBranch,
+    currentFortune: suimeiTwelveFortune(dayStemIndex, currentBranch),
+    inTenchusatsu: voidPair.includes(currentBranch),
+  };
+}
+
+function suimeiNullControlOpinion(input: {
+  analyst: AiAnalystCatalogItem;
+  assetId: string;
+  idea: string;
+  bars: readonly PreparedBar[];
+}): AnalystOpinion {
+  const anchorDate = barDate(input.bars[0]!);
+  const currentDate = barDate(input.bars.at(-1)!);
+  const current = suimeiChart(anchorDate, currentDate);
+  const backtest = runLongFlatBacktest(input.bars, (index) => {
+    const chart = suimeiChart(anchorDate, barDate(input.bars[index]!));
+    return !chart.inTenchusatsu;
+  });
+  const indicators = baseIndicatorsFromBars(input.bars);
+  const last = input.bars.at(-1)!.close;
+  const signal = current.inTenchusatsu ? 'flat' : 'hold';
+
+  return {
+    analystId: input.analyst.id,
+    analystName: input.analyst.name,
+    originTask: input.analyst.originTask,
+    verdict: 'challenge',
+    confidence: 0.4,
+    thesis: `Suimei is a control / placebo read, not economic evidence. Reusing the Bazi calendar from Task 27, the day master is ${current.dayMaster}/${current.dayMasterElement}; the current year branch is ${BAZI_BRANCHES[current.currentBranch]} with twelve fortune ${current.currentFortune}, and tenchusatsu=${current.tenchusatsu}, so the null signal says ${signal}.`,
+    whyNow: `Task 29 reads the same four pillars Japanese-style: twelve fortune is favorable in thriving stages (${Array.from(SUIMEI_THRIVING).join(', ')}) and the avoid_tenchusatsu rule stands aside only in the natal void pair.`,
+    setupEntry: `Do not create a Proposal because this Suimei control agrees. It is useful only as a non-economic timing benchmark.`,
+    riskProtection: `If the Suimei control backtest looks good, suspect false-positive risk. Keep real stop protection near ${fmtUsd(last * 0.92)} and require an economic analyst to support the trade.`,
+    invalidation: `The control is invalid as trade support by design. It can challenge overconfidence, not validate the outside idea.`,
+    evidence: [
+      `Task 29 null-control: entry_signal=avoid_tenchusatsu, tenchusatsu=${current.tenchusatsu}, current_signal=${signal}.`,
+      `Twelve fortune: branch=${BAZI_BRANCHES[current.currentBranch]}, stage=${current.currentFortune}, weak=${SUIMEI_WEAK.has(current.currentFortune) ? 'yes' : 'no'}.`,
+      `Suimei backtest: strategy ${fmtPct(backtest.totalReturnPct)} vs buy-and-hold ${fmtPct(backtest.benchmarkReturnPct)}.`,
+      `Original Grill Idea considered: "${input.idea.trim()}".`,
+    ],
+    backtest,
+    sourceFiles: [
+      'Fundamental_analysis_agent/task29_suimei/pipeline/suimei.py',
+      'Fundamental_analysis_agent/task29_suimei/pipeline/signals.py',
+      'Fundamental_analysis_agent/prompts/task29_suimei/suimei_author.md',
+      'Fundamental_analysis_agent/task29_suimei/tests/test_suimei.py',
+    ],
+    indicators,
+  };
+}
+
+const TIEBAN_STEM_TAIXUAN = [9, 8, 7, 6, 5, 9, 8, 7, 6, 5];
+const TIEBAN_BRANCH_TAIXUAN = [9, 8, 7, 6, 5, 4, 9, 8, 7, 6, 5, 4];
+const TIEBAN_VERDICTS = ['auspicious', 'neutral', 'inauspicious'];
+const TIEBAN_GUA = ['qian', 'dui', 'li', 'zhen', 'xun', 'kan', 'gen', 'kun'];
+
+function tiebanGzNumber(stem: number, branch: number): number {
+  return (TIEBAN_STEM_TAIXUAN[stem] ?? 0) + (TIEBAN_BRANCH_TAIXUAN[branch] ?? 0);
+}
+
+function tiebanMingNumber(anchorDate: Date): number {
+  const pillars = baziFourPillars(anchorDate);
+  return (['year', 'month', 'day', 'hour'] as const).reduce(
+    (sum, key) => sum + tiebanGzNumber(pillars[key].stemIndex, pillars[key].branchIndex),
+    0,
+  );
+}
+
+function tiebanLiunianNumber(mingNumber: number, date: Date): number {
+  const pillar = baziYearPillar(date);
+  return mingNumber + tiebanGzNumber(pillar.stem, pillar.branch);
+}
+
+function tiebanVerdict(verseNumber: number): string {
+  return TIEBAN_VERDICTS[((verseNumber % 3) + 3) % 3]!;
+}
+
+function tiebanNullControlOpinion(input: {
+  analyst: AiAnalystCatalogItem;
+  assetId: string;
+  idea: string;
+  bars: readonly PreparedBar[];
+}): AnalystOpinion {
+  const anchorDate = barDate(input.bars[0]!);
+  const currentDate = barDate(input.bars.at(-1)!);
+  const mingNumber = tiebanMingNumber(anchorDate);
+  const verseNumber = tiebanLiunianNumber(mingNumber, currentDate);
+  const verdict = tiebanVerdict(verseNumber);
+  const signal = verdict === 'inauspicious' ? 'flat' : 'hold';
+  const backtest = runLongFlatBacktest(
+    input.bars,
+    (index) =>
+      tiebanVerdict(tiebanLiunianNumber(mingNumber, barDate(input.bars[index]!))) !==
+      'inauspicious',
+  );
+  const indicators = baseIndicatorsFromBars(input.bars);
+  const last = input.bars.at(-1)!.close;
+
+  return {
+    analystId: input.analyst.id,
+    analystName: input.analyst.name,
+    originTask: input.analyst.originTask,
+    verdict: 'challenge',
+    confidence: 0.39,
+    thesis: `Tieban is a control / placebo read, not economic evidence. The Taixuan count from the first visible bar gives ming_number=${mingNumber}; the current verse is #${verseNumber} with verdict=${verdict}, so the null signal says ${signal}.`,
+    whyNow: `Task 31 is an honest stand-in for an unreproducible iron-plate verse book: each natal stem/branch maps to a Taixuan count, then the current year count produces a verse verdict by mod 3.`,
+    setupEntry: `Do not create a Proposal because this Tieban control agrees. It is a double-placebo timing benchmark, not a market thesis.`,
+    riskProtection: `If the Tieban control backtest looks good, suspect framework false positives. Keep real stop protection near ${fmtUsd(last * 0.92)} and require an economic analyst to support the trade.`,
+    invalidation: `The control is invalid as trade support by design; price cannot validate the verse system.`,
+    evidence: [
+      `Task 31 null-control: entry_signal=avoid_inauspicious, ming_number=${mingNumber}, verse=${verseNumber}, current_signal=${signal}.`,
+      `Taixuan verse verdict=${verdict}, gua=${TIEBAN_GUA[verseNumber % 8]}.`,
+      `Tieban backtest: strategy ${fmtPct(backtest.totalReturnPct)} vs buy-and-hold ${fmtPct(backtest.benchmarkReturnPct)}.`,
+      `Original Grill Idea considered: "${input.idea.trim()}".`,
+    ],
+    backtest,
+    sourceFiles: [
+      'Fundamental_analysis_agent/task31_tieban/pipeline/tieban.py',
+      'Fundamental_analysis_agent/task31_tieban/pipeline/orchestrator.py',
+      'Fundamental_analysis_agent/prompts/task31_tieban/tieban_author.md',
+      'Fundamental_analysis_agent/task31_tieban/tests/test_tieban.py',
     ],
     indicators,
   };
@@ -2841,6 +3409,139 @@ function qimenNullControlOpinion(input: {
   };
 }
 
+const LIUREN_OCCUPY_HOUR_BRANCH = 5;
+
+function tropicalSignApprox(date: Date): number {
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const boundaries: readonly [number, number, number][] = [
+    [1, 20, 10],
+    [2, 19, 11],
+    [3, 21, 0],
+    [4, 20, 1],
+    [5, 21, 2],
+    [6, 21, 3],
+    [7, 23, 4],
+    [8, 23, 5],
+    [9, 23, 6],
+    [10, 23, 7],
+    [11, 22, 8],
+    [12, 22, 9],
+  ];
+  let sign = 9;
+  for (const [boundaryMonth, boundaryDay, boundarySign] of boundaries) {
+    if (month > boundaryMonth || (month === boundaryMonth && day >= boundaryDay)) {
+      sign = boundarySign;
+    }
+  }
+  return sign;
+}
+
+function liurenYueJiangBranch(date: Date): number {
+  return (tropicalSignApprox(date) + 2) % 12;
+}
+
+function liurenYongBranch(date: Date): number {
+  const yueJiang = liurenYueJiangBranch(date);
+  const dayBranch = baziDayPillar(date).branch;
+  return (yueJiang + dayBranch - LIUREN_OCCUPY_HOUR_BRANCH + 12) % 12;
+}
+
+function liurenRelation(
+  dayMasterElement: BaziElement,
+  yongElement: BaziElement,
+): {
+  label: string;
+  good: boolean;
+} {
+  if (dayMasterElement === yongElement) return { label: 'peer harmony', good: true };
+  if (BAZI_GENERATES[yongElement] === dayMasterElement) {
+    return { label: 'useful god generates day master', good: true };
+  }
+  if (BAZI_CONTROLS[dayMasterElement] === yongElement) {
+    return { label: 'day master controls useful god', good: true };
+  }
+  if (BAZI_GENERATES[dayMasterElement] === yongElement) {
+    return { label: 'day master drains into useful god', good: false };
+  }
+  if (BAZI_CONTROLS[yongElement] === dayMasterElement) {
+    return { label: 'useful god controls day master', good: false };
+  }
+  return { label: 'neutral relation', good: false };
+}
+
+function liurenReadings(
+  anchorDate: Date,
+  currentDate: Date,
+): {
+  dayMaster: string;
+  dayMasterElement: BaziElement;
+  yueJiangBranch: number;
+  yongBranch: number;
+  yongElement: BaziElement;
+  relation: string;
+  good: boolean;
+} {
+  const natal = baziFourPillars(anchorDate);
+  const yongBranch = liurenYongBranch(currentDate);
+  const yongElement = BAZI_BRANCH_ELEMENTS[yongBranch]!;
+  const relation = liurenRelation(natal.day.stemElement, yongElement);
+  return {
+    dayMaster: natal.day.stem,
+    dayMasterElement: natal.day.stemElement,
+    yueJiangBranch: liurenYueJiangBranch(currentDate),
+    yongBranch,
+    yongElement,
+    relation: relation.label,
+    good: relation.good,
+  };
+}
+
+function liurenNullControlOpinion(input: {
+  analyst: AiAnalystCatalogItem;
+  assetId: string;
+  idea: string;
+  bars: readonly PreparedBar[];
+}): AnalystOpinion {
+  const anchorDate = barDate(input.bars[0]!);
+  const currentDate = barDate(input.bars.at(-1)!);
+  const current = liurenReadings(anchorDate, currentDate);
+  const backtest = runLongFlatBacktest(
+    input.bars,
+    (index) => liurenReadings(anchorDate, barDate(input.bars[index]!)).good,
+  );
+  const indicators = baseIndicatorsFromBars(input.bars);
+  const last = input.bars.at(-1)!.close;
+  const signal = current.good ? 'hold' : 'flat';
+
+  return {
+    analystId: input.analyst.id,
+    analystName: input.analyst.name,
+    originTask: input.analyst.originTask,
+    verdict: 'challenge',
+    confidence: 0.38,
+    thesis: `Liuren is a control / placebo read, not economic evidence. The simplified yue jiang maps to ${BAZI_BRANCHES[current.yueJiangBranch]}, useful-god branch is ${BAZI_BRANCHES[current.yongBranch]}/${current.yongElement}, relation=${current.relation}, so the null signal says ${signal}.`,
+    whyNow: `Task 33's useful-god relation is ported, but Hunch uses a fixed solar-sign approximation instead of Python ephem for yue jiang. That keeps it deterministic and runnable while limiting it to placebo challenge evidence.`,
+    setupEntry: `Do not create a Proposal because this Liuren control agrees. It exists to expose how a non-economic timing rule can backtest well by chance.`,
+    riskProtection: `If the Liuren control backtest looks good, treat that as false-positive risk. Keep real stop protection near ${fmtUsd(last * 0.92)} and require an economic analyst to support the trade.`,
+    invalidation: `The control is invalid as trade support by design. It can only challenge overconfidence in the Grill Idea.`,
+    evidence: [
+      `Task 33 null-control: entry_signal=yong_supports, yue jiang=${BAZI_BRANCHES[current.yueJiangBranch]}, solar-sign approximation=yes, current_signal=${signal}.`,
+      `Useful-god branch=${BAZI_BRANCHES[current.yongBranch]}, relation=${current.relation}, day_master=${current.dayMaster}/${current.dayMasterElement}.`,
+      `Liuren backtest: strategy ${fmtPct(backtest.totalReturnPct)} vs buy-and-hold ${fmtPct(backtest.benchmarkReturnPct)}.`,
+      `Original Grill Idea considered: "${input.idea.trim()}".`,
+    ],
+    backtest,
+    sourceFiles: [
+      'Fundamental_analysis_agent/task33_liuren/pipeline/liuren.py',
+      'Fundamental_analysis_agent/task33_liuren/pipeline/orchestrator.py',
+      'Fundamental_analysis_agent/prompts/task33_liuren/liuren_author.md',
+      'Fundamental_analysis_agent/task33_liuren/tests/test_liuren.py',
+    ],
+    indicators,
+  };
+}
+
 const TAIYI_PALACES = ['qian', 'li', 'gen', 'zhen', 'xun', 'kun', 'dui', 'kan'];
 
 function taiyiSolarYear(date: Date): number {
@@ -2873,8 +3574,9 @@ function taiyiNullControlOpinion(input: {
 }): AnalystOpinion {
   const currentDate = barDate(input.bars.at(-1)!);
   const counts = taiyiHostGuest(currentDate);
-  const backtest = runLongFlatBacktest(input.bars, (index) =>
-    taiyiHostGuest(barDate(input.bars[index]!)).hostWins,
+  const backtest = runLongFlatBacktest(
+    input.bars,
+    (index) => taiyiHostGuest(barDate(input.bars[index]!)).hostWins,
   );
   const indicators = baseIndicatorsFromBars(input.bars);
   const last = input.bars.at(-1)!.close;
@@ -2999,8 +3701,20 @@ export async function analyzeGrillIdea(input: AnalyzeGrillIdeaInput): Promise<Gr
     if (analyst.id === 'meihua_null_control') {
       return meihuaNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
     }
+    if (analyst.id === 'bazi_null_control') {
+      return baziNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
+    }
+    if (analyst.id === 'suimei_null_control') {
+      return suimeiNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
+    }
+    if (analyst.id === 'tieban_null_control') {
+      return tiebanNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
+    }
     if (analyst.id === 'qimen_null_control') {
       return qimenNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
+    }
+    if (analyst.id === 'liuren_null_control') {
+      return liurenNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });
     }
     if (analyst.id === 'taiyi_null_control') {
       return taiyiNullControlOpinion({ analyst, assetId: asset.assetId, idea, bars });

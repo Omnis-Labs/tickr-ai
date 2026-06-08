@@ -216,7 +216,10 @@ test('Grill returns a Pairs Trading AI Analyst opinion against an auto-selected 
   assert.equal(result.opinions.length, 1);
   assert.equal(result.opinions[0]?.analystId, 'pairs_trading');
   assert.match(result.opinions[0]?.thesis ?? '', /pair|spread|z-score/i);
-  assert.match(result.opinions[0]?.riskProtection ?? '', /short|borrow|relationship|market-neutral/i);
+  assert.match(
+    result.opinions[0]?.riskProtection ?? '',
+    /short|borrow|relationship|market-neutral/i,
+  );
 });
 
 test('Grill returns a Meihua null-control AI Analyst opinion without treating it as trade support', async () => {
@@ -237,6 +240,60 @@ test('Grill returns a Meihua null-control AI Analyst opinion without treating it
   assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 26|null|seed/i);
 });
 
+test('Grill returns a Bazi null-control AI Analyst opinion using the first visible bar as anchor', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because a calendar control says the year is favorable.',
+    analystIds: ['bazi_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.28))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'bazi_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Bazi/i);
+  assert.match(
+    result.opinions[0]?.evidence.join(' ') ?? '',
+    /Task 27|favorable|first visible bar/i,
+  );
+});
+
+test('Grill returns a Suimei null-control AI Analyst opinion reusing the Bazi calendar', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because a Japanese four-pillar control is thriving.',
+    analystIds: ['suimei_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.22))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'suimei_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Suimei/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 29|twelve fortune|tenchusatsu/i);
+});
+
+test('Grill returns a Tieban null-control AI Analyst opinion through the public interface', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because an iron-plate numerology count is favorable.',
+    analystIds: ['tieban_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.2))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'tieban_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Tieban/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 31|verse|Taixuan/i);
+});
+
 test('Grill returns a Qimen null-control AI Analyst opinion through the public interface', async () => {
   const result = await analyzeGrillIdea({
     assetId: 'NVDAx',
@@ -252,6 +309,23 @@ test('Grill returns a Qimen null-control AI Analyst opinion through the public i
   assert.equal(result.opinions[0]?.verdict, 'challenge');
   assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Qimen/i);
   assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 32|gate|null/i);
+});
+
+test('Grill returns a Liuren null-control AI Analyst opinion with the solar-sign gate caveat', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because a Three Styles control supports the useful god.',
+    analystIds: ['liuren_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.18))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'liuren_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Liuren/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 33|yue jiang|solar-sign/i);
 });
 
 test('Grill returns a Taiyi null-control AI Analyst opinion through the public interface', async () => {
