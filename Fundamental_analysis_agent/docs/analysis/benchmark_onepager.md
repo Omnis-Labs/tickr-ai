@@ -101,6 +101,14 @@ The DSR gate is backed by two further tests so diligence can't poke the obvious 
 *Three independent overfitting lenses — selection bias (DSR), backtest-shopping (PBO), regime
 fragility (OOS) — all pointing the same way. That triangulation is the credibility.*
 
+### Factor alpha — beta or skill, the institutional cut ([fama_french.md](fama_french.md))
+
+We also measure alpha the way an allocator does: the intercept of a **Fama–French 5-factor +
+momentum** regression on the timing overlay's active return, with a t-stat. **0 of 348** placebo
+overlays clear a positive t > 2 in the bull (median α = **−7.5%/yr** — sitting out is a drag even
+after the six factors). A real agent must post a *positive, significant* factor-alpha to matter;
+the regression takes any agent return stream as a drop-in.
+
 ---
 
 ## Why this is different from existing trading agents

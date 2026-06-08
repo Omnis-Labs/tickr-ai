@@ -1,0 +1,32 @@
+{
+  "method": "Fama–French 5-factor + momentum alpha on the placebo TIMING overlay (active return vs buy-and-hold)",
+  "factors": [
+    "Mkt-RF",
+    "SMB",
+    "HML",
+    "RMW",
+    "CMA",
+    "MOM"
+  ],
+  "window": {
+    "start": "trailing",
+    "end": "latest"
+  },
+  "n_regressions": 348,
+  "alpha_tstat": {
+    "median": -1.072,
+    "mean": -1.061,
+    "p5": -2.796,
+    "p95": 0.465
+  },
+  "annualised_alpha_pct": {
+    "median": -7.51,
+    "p5": -22.6,
+    "p95": 4.05
+  },
+  "n_significant_abs_t_gt_2": 54,
+  "n_significant_positive": 0,
+  "n_significant_negative": 54,
+  "frac_significant": 0.1552,
+  "interpretation": "Across 348 placebo timing overlays, FF5+MOM alpha t-stats centre at -1.07 (median annualised alpha -7.5%). Of the 54 that reach |t|>2, 54 are significantly NEGATIVE and only 0 positive — i.e. after controlling for market/size/value/profitability/investment/momentum, the divination timing produces no positive alpha; in a bull it is a structural drag (sitting out forfeits the premium). A real agent must show a positive FF-alpha t-stat; the same regression takes any agent return stream as a drop-in."
+}
