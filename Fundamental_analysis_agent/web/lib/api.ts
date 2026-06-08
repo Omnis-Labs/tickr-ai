@@ -1557,3 +1557,26 @@ export interface Task26Job { job_id: string; ticker: string; status: JobStatus; 
 export const createMeihua = (t: string): Promise<Task26Job> => _create("/task26/meihua", t);
 export const getMeihua = (id: string): Promise<Task26Job> => _get(`/task26/meihua/${id}`);
 export const pollMeihua = _poll<Task26Job>(getMeihua);
+
+// ---- Task 27: 八字 Four Pillars (CONTROL / PLACEBO) ----
+export interface Pillar {
+  role: string; gz: string; stem: string; branch: string; stem_elem: string; branch_elem: string; zodiac: string;
+}
+export interface BaziChart {
+  listing_date: string; listing_date_is_data_limit: boolean; pillars: Pillar[];
+  day_master: string; dm_elem: string; strength_label: string; favourable: string[]; element_counts: Record<string, number>;
+}
+export interface BaziSpec {
+  entry_signal: "buy_and_hold" | "favorable_year" | "favorable_month";
+  stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string;
+}
+export interface BaziResult {
+  job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean;
+  chart: BaziChart; reasoning_chain: string[];
+  prices: PricePoint[]; strategy: BaziSpec; backtest: BacktestResult;
+  bazi_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string;
+}
+export interface Task27Job { job_id: string; ticker: string; status: JobStatus; result: BaziResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createBazi = (t: string): Promise<Task27Job> => _create("/task27/bazi", t);
+export const getBazi = (id: string): Promise<Task27Job> => _get(`/task27/bazi/${id}`);
+export const pollBazi = _poll<Task27Job>(getBazi);

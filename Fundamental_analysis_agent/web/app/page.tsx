@@ -403,6 +403,14 @@ export default function HomePage() {
           distribution</span> the real agents are scored against (a poor-man&apos;s Reality Check).</p>
           <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/bazi" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 27</h2>
+            <span className="text-xs text-purple-400 uppercase tracking-wider">八字 Four Pillars · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> Casts the
+          company&apos;s natal chart from its <span className="text-purple-300">listing date</span>, reads the 日主／喜用神, and holds
+          when the current 流年五行 is favourable — the same honest backtest on a worthless signal.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
+        </a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

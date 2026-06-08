@@ -48,6 +48,7 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
     items: [
       { href: "/astro", label: "T25 · Financial astrology" },
       { href: "/meihua", label: "T26 · 梅花易數 I Ching" },
+      { href: "/bazi", label: "T27 · 八字 Four Pillars" },
     ],
   },
 ];
