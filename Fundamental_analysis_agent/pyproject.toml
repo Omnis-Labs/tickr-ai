@@ -30,12 +30,14 @@ dependencies = [
     "yfinance>=0.2",
     "pypdf>=5.0",
     "ephem>=4.1",
+    "lunardate>=0.2",
 ]
 
 [project.optional-dependencies]
-# T28 紫微斗數 uses py-iztro (pulls pythonmonkey, a SpiderMonkey JS runtime). Kept OPTIONAL
-# so a missing/failed native wheel can never block the core image build — T28 imports it
-# lazily and degrades to an "engine unavailable" message if absent.
+# T28 紫微斗數 runs on a pure-Python engine (task28_ziwei/pipeline/ziwei_core.py; only
+# needs lunardate, deploys anywhere). py-iztro is kept dev-only as the ORACLE that
+# ziwei_core was verified against — it pulls pythonmonkey→pminit, which has NO linux
+# wheels, so it must never be a runtime/prod dependency.
 divination = ["py-iztro==0.1.5"]
 dev = [
     "py-iztro==0.1.5",

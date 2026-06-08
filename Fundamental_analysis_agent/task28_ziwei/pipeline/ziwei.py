@@ -39,27 +39,21 @@ class EngineUnavailable(RuntimeError):
 
 
 def build_natal(listing: date) -> dict:
-    """Cast the natal 命盤 via py_iztro. Returns palaces + star→palace map + meta."""
+    """Cast the natal 命盤 via the pure-Python engine (no native deps; verified
+    cell-by-cell against py-iztro). Overlays the natal 四化 (生年天干's transformations)
+    onto the stars for display. Returns palaces + star→palace map + meta."""
     try:
-        from py_iztro import Astro
+        from lunardate import LunarDate
+
+        from task28_ziwei.pipeline import ziwei_core
     except Exception as e:  # noqa: BLE001
-        raise EngineUnavailable(f"py_iztro unavailable: {type(e).__name__}") from e
-    r = Astro().by_solar(f"{listing.year}-{listing.month}-{listing.day}", _HOUR_INDEX, "男", True, "zh-TW")
-    palaces = []
-    star_palace: dict[str, str] = {}
-    for p in r.palaces:
-        majors = [(s.name, getattr(s, "mutagen", "") or "") for s in p.major_stars]
-        minors = [(s.name, getattr(s, "mutagen", "") or "") for s in getattr(p, "minor_stars", [])]
-        for nm, _mut in majors + minors:
-            star_palace[nm] = p.name
-        palaces.append({
-            "name": p.name, "branch": p.earthly_branch, "is_body": bool(getattr(p, "is_body_palace", False)),
-            "stars": [nm + (f"({mut})" if mut else "") for nm, mut in majors] + [nm for nm, _ in minors],
-        })
-    return {
-        "soul": r.soul, "body": r.body, "five_elements_class": r.five_elements_class,
-        "palaces": palaces, "star_palace": star_palace,
-    }
+        raise EngineUnavailable(f"ziwei engine unavailable: {type(e).__name__}") from e
+    natal = ziwei_core.build_chart(listing)
+    ly = LunarDate.fromSolarDate(listing.year, listing.month, listing.day).year
+    natal_hua = {s: HUA[i] for i, s in enumerate(SIHUA.get(B.STEMS[(ly - 4) % 10], []))}
+    for p in natal["palaces"]:
+        p["stars"] = [s + (f"({natal_hua[s]})" if s in natal_hua else "") for s in p["stars"]]
+    return natal
 
 
 def liunian_sihua(d: date) -> tuple[str, list[str]]:

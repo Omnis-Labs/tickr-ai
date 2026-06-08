@@ -53,11 +53,6 @@ COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .
 
-# T28 紫微斗數 engine (py-iztro → pythonmonkey/SpiderMonkey). Best-effort: a failed
-# native-wheel install must NOT block the image — T28 imports it lazily and reports
-# "engine unavailable" if it's missing, while every other agent ships normally.
-RUN pip install "py-iztro==0.1.5" || echo "WARN: py-iztro unavailable — T28 will degrade gracefully"
-
 # Playwright's `--with-deps` runs apt-get install for every shared library
 # the headless Chromium needs (libnss3, libcups2, libxkbcommon0, etc.).
 # Adds ~250 MB to the image (Chromium binary + deps) and ~90 s to the
