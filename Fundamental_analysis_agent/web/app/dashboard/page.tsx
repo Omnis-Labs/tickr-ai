@@ -112,15 +112,18 @@ function NullBandPanel({ band }: { band: NullBand | null }) {
             <div className="text-[10px] text-zinc-500 -translate-x-1/2 mt-0.5 whitespace-nowrap">{t.k} {(t.v as number).toFixed(2)}</div>
           </div>
         ))}
-        {/* real-agent markers — at MEDIAN single-name Sharpe */}
-        {overlay.map(([name, o], i) => (
-          <div key={name} className="absolute" style={{ left: X(o.sharpe_median), top: `${64 + (i % 4) * 17}px` }}>
-            <div className={`w-2.5 h-2.5 rounded-full -translate-x-1/2 ${o.clears_control_p95 ? "bg-emerald-400" : "bg-red-400"}`} />
-            <div className={`text-[10px] -translate-x-1/2 whitespace-nowrap ${o.clears_control_p95 ? "text-emerald-400" : "text-red-400"}`}>
-              {name.split(" ")[0]} {o.sharpe_median.toFixed(2)}
+        {/* real-agent markers — at MEDIAN single-name Sharpe (guard against an older report shape) */}
+        {overlay.map(([name, o], i) => {
+          const med = typeof o.sharpe_median === "number" ? o.sharpe_median : 0;
+          return (
+            <div key={name} className="absolute" style={{ left: X(med), top: `${64 + (i % 4) * 17}px` }}>
+              <div className={`w-2.5 h-2.5 rounded-full -translate-x-1/2 ${o.clears_control_p95 ? "bg-emerald-400" : "bg-red-400"}`} />
+              <div className={`text-[10px] -translate-x-1/2 whitespace-nowrap ${o.clears_control_p95 ? "text-emerald-400" : "text-red-400"}`}>
+                {name.split(" ")[0]} {med.toFixed(2)}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <p className="text-[11px] text-zinc-500 mb-4">
         <span className="text-emerald-400">●</span> clears control p95 &nbsp;
