@@ -165,6 +165,112 @@ test('Grill returns a Cross-Sectional Ranker AI Analyst opinion against a tradab
   assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 21|momentum|rank/i);
 });
 
+test('Grill returns a Portfolio Risk Sizer AI Analyst opinion with target weight context', async () => {
+  const universe = new Map<string, Bar[]>([
+    ['NVDAx', dailyBars(Array.from({ length: 320 }, (_, index) => 100 + index * 1.1))],
+    ['SPYx', dailyBars(Array.from({ length: 320 }, (_, index) => 100 + index * 0.25))],
+    ['QQQx', dailyBars(Array.from({ length: 320 }, (_, index) => 100 + index * 0.45))],
+    ['AAPLx', dailyBars(Array.from({ length: 320 }, (_, index) => 100 + index * 0.65))],
+  ]);
+
+  const required = getRequiredGrillBarAssetIds('NVDAx', ['portfolio_risk_sizer']);
+  assert.ok(required.includes('NVDAx'));
+  assert.ok(required.length >= 3);
+
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx, but only if it deserves portfolio risk budget.',
+    analystIds: ['portfolio_risk_sizer'],
+    barsByAssetId: universe,
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'portfolio_risk_sizer');
+  assert.match(result.opinions[0]?.thesis ?? '', /portfolio|weight|risk/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 10|rebalance|weight/i);
+});
+
+test('Grill returns a Pairs Trading AI Analyst opinion against an auto-selected supported pair', async () => {
+  const n = 320;
+  const base = Array.from({ length: n }, (_, index) => 100 + index * 0.15);
+  const nvda = base.map((value, index) => {
+    if (index >= 250 && index < 270) return value + 9 * (1 - (index - 250) / 20);
+    return value;
+  });
+
+  const required = getRequiredGrillBarAssetIds('NVDAx', ['pairs_trading']);
+  assert.ok(required.includes('NVDAx'));
+  assert.ok(required.some((assetId) => assetId !== 'NVDAx'));
+
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx after it diverged from the mega-cap tech basket.',
+    analystIds: ['pairs_trading'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(nvda)],
+      ['QQQx', dailyBars(base)],
+      ['SPYx', dailyBars(base.map((value) => value * 0.98))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'pairs_trading');
+  assert.match(result.opinions[0]?.thesis ?? '', /pair|spread|z-score/i);
+  assert.match(result.opinions[0]?.riskProtection ?? '', /short|borrow|relationship|market-neutral/i);
+});
+
+test('Grill returns a Meihua null-control AI Analyst opinion without treating it as trade support', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because several unrelated timing models agree.',
+    analystIds: ['meihua_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.3))],
+    ]),
+    now: new Date('2026-06-01T00:00:00.000Z'),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'meihua_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Meihua/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 26|null|seed/i);
+});
+
+test('Grill returns a Qimen null-control AI Analyst opinion through the public interface', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because a timing system says the gate is favorable.',
+    analystIds: ['qimen_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.25))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'qimen_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Qimen/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 32|gate|null/i);
+});
+
+test('Grill returns a Taiyi null-control AI Analyst opinion through the public interface', async () => {
+  const result = await analyzeGrillIdea({
+    assetId: 'NVDAx',
+    idea: 'The idea is to buy NVDAx because a host-versus-guest timing count says so.',
+    analystIds: ['taiyi_null_control'],
+    barsByAssetId: new Map([
+      ['NVDAx', dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.2))],
+    ]),
+  });
+
+  assert.equal(result.opinions.length, 1);
+  assert.equal(result.opinions[0]?.analystId, 'taiyi_null_control');
+  assert.equal(result.opinions[0]?.verdict, 'challenge');
+  assert.match(result.opinions[0]?.thesis ?? '', /control|placebo|Taiyi/i);
+  assert.match(result.opinions[0]?.evidence.join(' ') ?? '', /Task 34|host|guest|null/i);
+});
+
 test('Grill uses a default AI Trading Team of three working analysts', async () => {
   const bars = dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.5));
   const benchmarkBars = dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.2));

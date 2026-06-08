@@ -202,9 +202,14 @@ Additional adapted analysts:
 | Seasonality            | T12         |
 | Overnight Gap          | T13         |
 | Price Anomaly          | T19         |
+| Portfolio Risk Sizer   | T10         |
 | Cross-Sectional Ranker | T21         |
+| Pairs Trading          | T23         |
+| Meihua Null Control    | T26         |
+| Qimen Null Control     | T32         |
+| Taiyi Null Control     | T34         |
 
-Agents that depend on EDGAR, FINRA, 13F, congressional disclosures, VIX feeds, pair inputs, portfolio watchlists, or placebo controls remain out of the catalog until their real data path is reliable in Hunch.
+Agents that depend on EDGAR, FINRA, 13F, congressional disclosures, VIX feeds, reliable listing-date natal charts, or astronomy libraries remain out of the catalog until their real data path is reliable in Hunch. Null-control analysts are visible controls only: they challenge timing coincidences and never support Proposal creation by themselves.
 
 See `docs/grill-ai-analyst-adaptation.md` for the full source-agent candidate list and adaptation decisions.
 

@@ -62,9 +62,9 @@ export default function TeamPage() {
                     {selected ? <Check className="h-4 w-4" /> : analyst.originTask.split(' ')[0]}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                       <span className="text-title-md text-on-surface">{analyst.name}</span>
-                      <span className="rounded-full bg-surface-container px-2.5 py-1 text-label-sm text-on-surface-variant">
+                      <span className="w-fit max-w-full rounded-full bg-surface-container px-2.5 py-1 text-label-sm text-on-surface-variant">
                         {analyst.originTask}
                       </span>
                     </span>
