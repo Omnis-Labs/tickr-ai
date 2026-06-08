@@ -25,7 +25,7 @@
 | 3 | [docs/analysis/task2_report.md](docs/analysis/task2_report.md) | Task 2 同樣形式 |
 | 4 | [docs/VERIFICATION.md](docs/VERIFICATION.md) | 16 節的活文件清單，記錄開發中發現並修復的每個 bug（根因 + 修法，不是「然後我們修好了」） |
 | 5 | [docs/spec/PRODUCTION_HARDENING_ROADMAP.md](docs/spec/PRODUCTION_HARDENING_ROADMAP.md) | 8 週、30 個 PR 的計畫，把它從現狀帶到量化機構可採用的等級。第 4 週的 CI 閘門已落地。 |
-| 6 | [docs/AGENTS.md](docs/AGENTS.md) | 全 29 個 agent 的深入地圖：逐一功能 + 互動／依賴圖 + 共用骨幹 |
+| 6 | [docs/AGENTS.md](docs/AGENTS.md) | 全 31 個 agent 的深入地圖：逐一功能 + 互動／依賴圖 + 共用骨幹 |
 
 接著深入：
 
@@ -48,8 +48,8 @@ task2_10k_extractor/     SEC 10-K 擷取器 — pipeline/（ingest → normalize
                          api/（含 LLM 自由文字輸入解析器）、
                          eval/（7 個產業 20 案例 + iXBRL 前格式）
 task3_strategy/ … task26_meihua/
-                         策略實驗室 — 22 個美股研究 agent + 5 個對照組
-                         （T3–T29）。每個 = pipeline/（資料 → 訊號 →
+                         策略實驗室 — 22 個美股研究 agent + 7 個對照組
+                         （T3–T31）。每個 = pipeline/（資料 → 訊號 →
                          無前視回測）、api/ router、eval/。完整地圖見下方
                          與 docs/AGENTS.md。
 web/                     Next.js 15 前端 — web/app/… 下每個 agent 一頁，
@@ -68,10 +68,10 @@ infra/                   Dockerfile、railway.json、zeabur.json、Procfile、
 
 ---
 
-## 🧭 完整 agent 套件（T1–T29）— 原理與互動關係
+## 🧭 完整 agent 套件（T1–T31）— 原理與互動關係
 
 原本只是兩個評估題（T1 瀏覽器 agent、T2 10-K 擷取器），後來長成一套
-**29 個 agent 的美股研究套件**：24 個訊號／組合 agent + **5 個對照組（placebo）**。
+**31 個 agent 的美股研究套件**：24 個訊號／組合 agent + **7 個對照組（placebo）**。
 深入地圖在 [docs/AGENTS.md](docs/AGENTS.md)；這裡是自足的摘要。
 
 ### 共用設計模式（每個策略 agent 都一樣）
@@ -88,7 +88,7 @@ infra/                   Dockerfile、railway.json、zeabur.json、Procfile、
 1. **無前視執行** — 在第 *i* 根 K 棒「收盤」算出的訊號，在第 *i+1* 根的**開盤**執行；
    來自申報文件的資料以**申報／公布日**為界，而非事件日。LLM 永遠只看得到 as-of 資訊。
 2. **「選擇 ≠ 執行」** — LLM 只從受限的選單中**選擇**（無法透過程式洩漏未來價格）；
-   **執行**是純確定性的 Python。五個對照組（T25/T26/T27/T28/T29）就是證明：它們華麗的 LLM 敘事
+   **執行**是純確定性的 Python。七個對照組（T25–T31）就是證明：它們華麗的 LLM 敘事
    會被算出來，但被引擎**完全忽略**。
 
 ### 工具類（資料蒐集）
@@ -144,6 +144,8 @@ infra/                   Dockerfile、railway.json、zeabur.json、Procfile、
 | **T27** | 八字（四柱） | 以公司**上市日**起命盤，讀日主＋旺衰＋喜用神，當前**流年／流月五行**為喜用時持有。確定性、無前視（錨點：2000-01-07＝甲子日、1984＝甲子年）。印出完整四柱命盤 + 推理鏈。 |
 | **T28** | 紫微斗數（四化飛星） | 以**上市日**排紫微命盤（純 Python 引擎，逐格對照 py-iztro 驗證：十二宮、十四主星、五行局），再以**四化飛星**判運：當年化祿／化權飛入命宮／財帛／官祿則持有，化忌飛入則空手。確定性；流年/流月干支沿用 T27 八字曆。印出 4×4 命盤 + 推理鏈。 |
 | **T29** | 四柱推命（日本） | 同樣干支四柱、日式讀法（京都泰山流）：訊號以**十二運星**（長生→帝旺→絕）與**天中殺／空亡**為主軸（細木数子六星占術之本），逢旺運持有、逢天中殺空手。沿用 T27 干支曆；印出四柱＋各柱十二運星＋藏干。 |
+| **T30** | 七政四餘 | 真正的中華星命：七政（日月＋五星）以 ephem 計算＋四餘（羅睺/計都/月孛/紫炁）。命主＝本命太陽；訊號隨歲星/火星/羅睺之流年躔度。複用 T25 ephem。 |
+| **T31** | 鐵板神數 | 雙重 placebo：真鐵板條文萬言書係祕傳（無公開演算法），故以確定性**太玄數起例**為替身——命數→流年條文編號→吉/平/凶（mod 3）定持有/空手。複用 T27 干支曆。 |
 
 ### 互動關係圖
 
@@ -167,7 +169,7 @@ infra/                   Dockerfile、railway.json、zeabur.json、Procfile、
 **(b) 積木複用 — 共用程式碼，而非整個跑一遍：**
 
 - **T4 的回測引擎 + `_metrics`** 是共同的評分尺 → 被 T5、T6、T7、T8、T9、T11–T16 複用。
-- **通用 `run_factor_backtest`（在 T17）** — 純多、由 `want_long(date)` callable 驅動 → 被 **T18、T19、T20、T22、T24、T25、T26、T27、T28、T29** 複用。
+- **通用 `run_factor_backtest`（在 T17）** — 純多、由 `want_long(date)` callable 驅動 → 被 **T18、T19、T20、T22、T24、T25、T26、T27、T28、T29、T30、T31** 複用。
 - **T10 的 `run_portfolio_backtest`**（多檔、再平衡、計入週轉成本）→ 被 **T21** 複用。
 - **T23** 自帶市場中性回測，但填入 T4 的 `BacktestMetrics`，所以共用 UI 面板照樣能渲染。
 - **T11 的 XBRL `companyfacts` 抓取** → 被 T15（庫藏股）與 T17（品質）複用。
@@ -177,7 +179,7 @@ infra/                   Dockerfile、railway.json、zeabur.json、Procfile、
 **(c) 外部資料依賴圖：**
 
 ```
-價格 (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29
+價格 (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29 T30 T31
    └─ ^VIX / ^VIX3M ....... T20
 SEC EDGAR (申報 / submissions / XBRL)
    ├─ 10-K 文字 ........... T2 → T3 → T5
@@ -189,8 +191,8 @@ SEC EDGAR (申報 / submissions / XBRL)
 SEC SIC code ............... T7（產業 ETF）、產業對應
 FINRA 放空量 ............... T16        NASDAQ 放空餘額 ......... T16
 國會揭露 ................... T22（Quiver/FMP 金鑰，否則免費 House-PTR PDF）
-ephem（離線天文） .......... T25   純日期起卦 ... T26   上市日命盤（firstTradeDate）... T27   純 Python 紫微 ... T28   十二運星/天中殺 ... T29
-(LLM gateway) .............. 每個策略 agent T3–T29
+ephem（離線天文） .......... T25   純日期起卦 ... T26   上市日命盤（firstTradeDate）... T27   純 Python 紫微 ... T28   十二運星/天中殺 ... T29   ephem 七政四餘 ... T30   太玄數 ... T31
+(LLM gateway) .............. 每個策略 agent T3–T31
 ```
 
 整套展示的脈絡：**蒐集 → 多個獨立訊號 → 融合 → 選股並配權成組合**，每一步都無前視、
@@ -234,6 +236,8 @@ ephem（離線天文） .......... T25   純日期起卦 ... T26   上市日命�
 | **T27** 八字 ⚠️ | **什麼都沒有。** 無經濟機制 | 只靠運氣／選擇偏誤 | 對單一精選的 10 倍股做一次命盤，可能僥倖超過虛無門檻 —— 正因如此，誠實的衡量是*分布*而非單次 |
 | **T28** 紫微斗數 ⚠️ | **什麼都沒有。** 無經濟機制 | 只靠運氣 | 套件中最繁複的占卜盤（十二宮、四化飛星）依然是 placebo —— 它的作用是「看起來頭頭是道」卻只跑出虛無分布內的 Sharpe |
 | **T29** 四柱推命 ⚠️ | **什麼都沒有。** 無經濟機制 | 只靠運氣 | 日式十二運星／天中殺只是同一個死訊號的不同*敘事* —— 正好示範換個占卜流派只換了故事、換不出（虛無的）edge |
+| **T30** 七政四餘 ⚠️ | **什麼都沒有。** 無經濟機制 | 只靠運氣 | 真實天文星曆披上命理外衣——天文為真，預測力為零 |
+| **T31** 鐵板神數 ⚠️ | **什麼都沒有**（雙重） | 只靠運氣 | 祕傳系統被化約為確定性數術替身——placebo 疊在無法驗證之上 |
 
 **扣掉一切之後的誠實結論：** 計入成本與發表後衰減，最*站得住腳*的成員是風險溢酬收割者
 （**T10** 分散、**T14**/**T20** 波動擇時）以及少數存活最好的異象（**T8** PEAD、**T17** 品質、

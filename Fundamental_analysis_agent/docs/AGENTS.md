@@ -1,6 +1,6 @@
 # Agent Suite — what each agent does & how they interact
 
-**29 agents**, one repo (24 signals + 5 placebo controls). Two are utilities (browser automation, document extraction); the rest are
+**31 agents**, one repo (24 signals + 7 placebo controls). Two are utilities (browser automation, document extraction); the rest are
 US-stock trading-research agents. This document is the map: per-agent function, then the dependency
 / interaction graph and the shared backbone they all stand on.
 
@@ -11,7 +11,7 @@ US-stock trading-research agents. This document is the map: per-agent function, 
 
 ## 0. The shared design pattern (every strategy agent)
 
-All trading agents (T3–T29, including the five placebo controls) follow the **same contract**, which is the heart of the suite:
+All trading agents (T3–T31, including the seven placebo controls) follow the **same contract**, which is the heart of the suite:
 
 ```
 ticker → gather data (as-of a decision date)
@@ -34,7 +34,7 @@ losses shown not hidden, costs always charged.
 
 ---
 
-## 1. The 29 agents
+## 1. The 31 agents
 
 ### Utilities
 | # | Agent | Input → Output | What it does |
@@ -77,6 +77,8 @@ losses shown not hidden, costs always charged.
 | **T27** | 八字 Four Pillars ⚠️ | natal chart from the **listing/first-trade date** | Reads 日主 + 旺衰 + 喜用神; holds when the current 流年/流月 五行 is favourable to the Day Master. Deterministic, lookahead-free. Pinned to verifiable anchors (2000-01-07=甲子日, 1984=甲子年). Prints the full 命盤 (四柱) + reasoning chain. |
 | **T28** | 紫微斗數 四化飛星 ⚠️ | natal 命盤 from the **listing date** (pure-Python engine) | Casts 12 palaces + 14 stars + 五行局, then trades the **四化飛星**: holds when the year's 化祿/化權 fly into the natal 命宮/財帛/官祿, flat when 化忌 does. Deterministic; 流年/流月 干支 reuse T27's 八字 calendar. Prints the 4×4 命盤 board + reasoning chain. |
 | **T29** | 四柱推命 (日本) ⚠️ | same 干支 from the **listing date**, read Japanese-style | 京都泰山流: signal rides **十二運星** (長生→帝旺→絕 cycle) + **天中殺/空亡** — the axes 細木数子's 六星占術 / 動物占い centre on. Hold in thriving stages / step aside in 天中殺 years. Reuses T27's 干支 calendar; prints 四柱 + per-pillar 十二運星 + 藏干. |
+| **T30** | 七政四餘 ⚠️ | 七政 (日月+五星) via ephem + 四餘 from the **listing date** | Real Chinese horoscopic astrology: 羅睺/計都 (lunar nodes), 月孛 (apogee), 紫炁 (fictitious). 命主=natal Sun; signal rides 歲星/火星/羅睺 transits (benefic / avoid-malefic). Reuses T25's ephem helpers. |
+| **T31** | 鐵板神數 ⚠️ | deterministic 太玄數 起例 over the natal 四柱 | DOUBLE placebo — the real 條文 萬言書 is proprietary/legendary (no public algorithm); stand-in 命數 (太極數) → 流年條文編號 → 吉/平/凶 (mod 3) drives hold/flat. Reuses T27's 干支 calendar. |
 
 In both, the LLM writes the horoscope/卦辭 and the engine IGNORES it — the ultimate test of selection ≠ execution. Flagged `is_control` everywhere; a high Sharpe here means the framework is leaking, not the planets/hexagram working.
 
@@ -120,7 +122,7 @@ runs other agents end-to-end).
   **T5** (technical leg) and **T10** (per-name signal).
 - **The generic `run_factor_backtest` (lives in T17)** — a long-only, stop/exit-aware,
   SPY-benchmarked engine driven by a `want_long(date)` callable — is reused by **T18, T19, T20, T22,
-  T24, T25, T26, T27, T28, T29**, so every event/anomaly/regime/disclosure/contagion gate shares one execution path.
+  T24, T25, T26, T27, T28, T29, T30, T31**, so every event/anomaly/regime/disclosure/contagion gate shares one execution path.
 - **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) is reused by **T21**;
   only the membership differs — T10's comes from per-name signals, T21's from a cross-sectional rank.
 - **T23 has its own market-neutral backtest** (long-short, dollar-neutral) — it can't reuse the
@@ -146,7 +148,7 @@ runs other agents end-to-end).
 
 ### 2d. External data dependency map
 ```
-prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29 T30 T31
    ├─ ^VIX / ^VIX3M ....... T20 (term structure)
    └─ firstTradeDate ...... T27 (listing-date natal chart)
 SEC EDGAR (filings/submissions/XBRL)
@@ -160,8 +162,8 @@ SEC SIC code ............... T7 (sector ETF), and industry mapping
 FINRA regsho short-volume .. T16
 NASDAQ short-interest ...... T16 (bi-monthly days-to-cover)
 Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
-ephem (offline astronomy) .. T25   date-only casting ... T26   pure-Python 紫微 ... T28   十二運星/天中殺 (listing-date) ... T29
-(LLM gateway) .............. every strategy agent T3–T29
+ephem (offline astronomy) .. T25   date-only casting ... T26   pure-Python 紫微 ... T28   十二運星/天中殺 ... T29   ephem 七政四餘 ... T30   太玄數 起例 ... T31
+(LLM gateway) .............. every strategy agent T3–T31
 ```
 
 ---
@@ -221,6 +223,8 @@ its limits.
 | T27 | `/task27/bazi` | `/bazi` | `task27_bazi/` · ⚠️ control |
 | T28 | `/task28/ziwei` | `/ziwei` | `task28_ziwei/` · ⚠️ control |
 | T29 | `/task29/suimei` | `/suimei` | `task29_suimei/` · ⚠️ control |
+| T30 | `/task30/qizheng` | `/qizheng` | `task30_qizheng/` · ⚠️ control |
+| T31 | `/task31/tieban` | `/tieban` | `task31_tieban/` · ⚠️ control |
 
 *A new `taskN_*` package must be registered in four places or the deploy silently rolls back:
 `task1_browser_agent/api/main.py` (router), `infra/Dockerfile` (COPY), and `pyproject.toml`
