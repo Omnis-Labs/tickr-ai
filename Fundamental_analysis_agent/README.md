@@ -479,6 +479,36 @@ python -m task26_meihua.eval.null_distribution --seeds 40 --observe 1.21
 The control arm is labelled `is_control` everywhere and rendered with a purple **PLACEBO**
 banner in the UI so it can never be mistaken for a tradable signal.
 
+### The full 11-control band (and a humbling result)
+
+The suite now ships **11 divination controls** spanning four traditions — Western astrology
+(T25), Chinese 易/命理/星命/三式/數術 (T26 梅花易, T27 八字, T28 紫微, T30 七政四餘, T31 鐵板神數,
+T32 奇門遁甲, T33 大六壬, T34 太乙神數), Japanese 四柱推命 (T29), and Vedic Jyotiṣa (T35). Each
+has a fixed deterministic timing rule, so [`tools/divination_null_band.py`](tools/divination_null_band.py)
+runs **every** control across a 12-ticker panel for free and pools the Sharpes:
+
+```
+divination-control null band (348 draws, 11 systems × 12 names):
+   p50 = 0.47   p90 = 1.33   p95 = 1.42   p99 = 1.72   max = 1.95
+overlay — real agents' best committed-eval Sharpe vs the control p95 (1.42):
+   T19 anomaly 1.42   T20 vix 1.21   T21 ranker 0.65   T23 pairs −0.22   → none clear it
+```
+
+**Read this honestly, because it's the most important number in the repo.** The pooled control
+p95 is **1.42** — *higher* than the single-engine 0.94 above — and none of the real agents'
+committed single-name Sharpes clear it. That is **not** because the divination works; it's
+because raw single-name Sharpe on a megacap panel during a bull run is dominated by the **equity
+premium on whichever names rose** — a worthless rule that happens to stay long NVDA through a 4×
+posts Sharpe ~1.9. This is exactly the multiple-testing / selection-bias trap the controls exist
+to expose: *pick the right ticker and any timing rule "finds" alpha.* It is also precisely why the
+suite benchmarks **alpha vs SPY**, not raw Sharpe, and why a fair test must be like-for-like (same
+instrument, market-relative). The controls don't flatter the real agents — they hold them to a
+brutal, honest bar. Run it:
+
+```bash
+python -m tools.divination_null_band --observe 1.21   # full band + p-value of any Sharpe
+```
+
 ---
 
 ## 🔭 Honest limitations (read before grading)

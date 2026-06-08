@@ -1,0 +1,71 @@
+{
+  "generated_at": "2026-06-08T01:53:34.247752+00:00",
+  "panel": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "JPM",
+    "XOM",
+    "KO",
+    "PG",
+    "WMT",
+    "JNJ"
+  ],
+  "n_draws": 348,
+  "pooled_sharpe": {
+    "p50": 0.47,
+    "p75": 0.89,
+    "p90": 1.33,
+    "p95": 1.42,
+    "p99": 1.721,
+    "max": 1.95
+  },
+  "sharpe_p95_threshold": 1.42,
+  "by_system_mean_sharpe": {
+    "T25 astrology": 0.665,
+    "T26 梅花易": -0.017,
+    "T27 八字": 0.831,
+    "T28 紫微": 0.587,
+    "T29 四柱推命": 0.73,
+    "T30 七政四餘": 0.674,
+    "T31 鐵板神數": 0.58,
+    "T32 奇門遁甲": 0.341,
+    "T33 大六壬": 0.264,
+    "T34 太乙神數": 0.973,
+    "T35 Jyotiṣa": 0.739
+  },
+  "by_system_max_sharpe": {
+    "T25 astrology": 1.64,
+    "T26 梅花易": 1.33,
+    "T27 八字": 1.73,
+    "T28 紫微": 1.95,
+    "T29 四柱推命": 1.77,
+    "T30 七政四餘": 1.89,
+    "T31 鐵板神數": 1.42,
+    "T32 奇門遁甲": 0.97,
+    "T33 大六壬": 1.25,
+    "T34 太乙神數": 1.5,
+    "T35 Jyotiṣa": 1.5
+  },
+  "real_agent_overlay": {
+    "T19 anomaly": {
+      "best_sharpe": 1.42,
+      "clears_control_p95": false
+    },
+    "T20 vix": {
+      "best_sharpe": 1.21,
+      "clears_control_p95": false
+    },
+    "T21 ranker": {
+      "best_sharpe": 0.65,
+      "clears_control_p95": false
+    },
+    "T23 pairs": {
+      "best_sharpe": -0.22,
+      "clears_control_p95": false
+    }
+  }
+}
