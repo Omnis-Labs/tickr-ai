@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 _PANEL = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "JPM", "XOM", "KO", "PG", "WMT", "JNJ"]
 _LOOKBACK = 365 * 3
 _MIN_BARS = 250
-_REPORT = Path(__file__).resolve().parents[1] / "docs" / "analysis" / "divination_null_band.json"
+_REPORT = Path(__file__).resolve().parents[1] / "shared" / "reports" / "divination_null_band.json"
 
 
 def _percentile(vals: list[float], p: float) -> float:

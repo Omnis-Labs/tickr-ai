@@ -5,11 +5,13 @@ import {
   Capabilities,
   CostSummary,
   EvalReport,
+  NullBand,
   RecentJob,
   Task2Capabilities,
   getCapabilities,
   getCostSummary,
   getEvalReport,
+  getNullBand,
   getRecentJobs,
   getTask2Capabilities,
 } from "@/lib/api";
@@ -69,12 +71,83 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   );
 }
 
+// Divination-control null band: 11 placebo systems' Sharpes vs the real agents.
+function NullBandPanel({ band }: { band: NullBand | null }) {
+  if (!band) return <Section title="Divination-control null band" hint="loading…"><p className="text-xs text-zinc-500">…</p></Section>;
+  if (!band.available) {
+    return <Section title="Divination-control null band" hint="not generated">
+      <p className="text-xs text-zinc-500">Run <code>python -m tools.divination_null_band</code>. {band.reason}</p></Section>;
+  }
+  const lo = -1.0, hi = 2.2;                          // Sharpe axis
+  const X = (s: number) => `${((Math.max(lo, Math.min(hi, s)) - lo) / (hi - lo)) * 100}%`;
+  const p = band.pooled_sharpe || {};
+  const p95 = band.sharpe_p95_threshold ?? p.p95 ?? 0;
+  const systems = Object.entries(band.by_system_max_sharpe || {});
+  const overlay = Object.entries(band.real_agent_overlay || {});
+  const ticks = [
+    { k: "p50", v: p.p50, c: "border-zinc-500" }, { k: "p90", v: p.p90, c: "border-zinc-400" },
+    { k: "p95", v: p95, c: "border-amber-400" }, { k: "p99", v: p.p99, c: "border-zinc-400" },
+    { k: "max", v: p.max, c: "border-red-400" },
+  ].filter((t) => typeof t.v === "number");
+  return (
+    <Section title="Divination-control null band — real agents vs 11 placebo systems"
+      hint={`${band.n_draws} draws · ${(band.panel || []).length} names · p95 Sharpe ${p95}`}>
+      <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
+        11 worthless divination systems run through the identical lookahead-free backtest. The pooled band is the
+        Sharpe you get from date-keyed timing + the equity premium. A real agent inside the band is indistinguishable
+        from divination. (Raw single-name Sharpe is inflated by the equity premium on whichever names rose — which is
+        why the suite scores <span className="text-zinc-300">alpha vs SPY</span>, not raw Sharpe.)
+      </p>
+      {/* axis */}
+      <div className="relative h-24 mb-2">
+        {/* shaded band p50→p95 */}
+        <div className="absolute top-8 h-3 bg-purple-900/40 border-y border-purple-800"
+          style={{ left: X(p.p50 ?? lo), width: `calc(${X(p95)} - ${X(p.p50 ?? lo)})` }} />
+        {/* full track */}
+        <div className="absolute top-[38px] left-0 right-0 h-px bg-zinc-800" />
+        {/* percentile ticks */}
+        {ticks.map((t) => (
+          <div key={t.k} className="absolute" style={{ left: X(t.v as number), top: "12px" }}>
+            <div className={`w-0 h-10 border-l ${t.c}`} />
+            <div className="text-[10px] text-zinc-500 -translate-x-1/2 mt-0.5 whitespace-nowrap">{t.k} {(t.v as number).toFixed(2)}</div>
+          </div>
+        ))}
+        {/* real-agent markers */}
+        {overlay.map(([name, o], i) => (
+          <div key={name} className="absolute" style={{ left: X(o.best_sharpe), top: i % 2 ? "62px" : "0px" }}>
+            <div className={`w-2.5 h-2.5 rounded-full -translate-x-1/2 ${o.clears_control_p95 ? "bg-emerald-400" : "bg-red-400"}`} />
+            <div className={`text-[10px] -translate-x-1/2 whitespace-nowrap ${o.clears_control_p95 ? "text-emerald-400" : "text-red-400"}`}>
+              {name.split(" ")[0]} {o.best_sharpe.toFixed(2)}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-zinc-500 mb-4">
+        <span className="text-emerald-400">●</span> clears control p95 &nbsp;
+        <span className="text-red-400">●</span> inside the band (indistinguishable from a placebo) &nbsp;·&nbsp;
+        <span className="text-purple-300">▮</span> p50→p95 control band
+      </p>
+      {/* per-system max Sharpe bars */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+        {systems.map(([s, v]) => (
+          <div key={s} className="flex items-center gap-2 text-xs">
+            <span className="w-28 shrink-0 text-zinc-400 truncate">{s}</span>
+            <div className="flex-1 h-2 bg-zinc-900 rounded"><div className="h-2 rounded bg-purple-700" style={{ width: `${Math.min(100, (v / 2.0) * 100)}%` }} /></div>
+            <span className="w-10 text-right tabular-nums text-zinc-300">{v.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export default function DashboardPage() {
   const [evalReport, setEvalReport] = useState<EvalReport | null>(null);
   const [cost, setCost] = useState<CostSummary | null>(null);
   const [recent, setRecent] = useState<RecentJob[]>([]);
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [task2Caps, setTask2Caps] = useState<Task2Capabilities | null>(null);
+  const [nullBand, setNullBand] = useState<NullBand | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,6 +166,8 @@ export default function DashboardPage() {
         setTask2Caps(t2cap);
       })
       .catch((e) => setErr(String(e)));
+    // independent fetch so a missing band never breaks the rest of the dashboard
+    getNullBand().then(setNullBand).catch(() => setNullBand({ available: false }));
   }, []);
 
   if (err) {
@@ -146,6 +221,9 @@ export default function DashboardPage() {
           hint={cost ? `${cost.total_calls} LLM calls all-time` : undefined}
         />
       </div>
+
+      {/* ---------- Divination-control null band ---------- */}
+      <NullBandPanel band={nullBand} />
 
       {/* ---------- Eval cases ---------- */}
       <Section

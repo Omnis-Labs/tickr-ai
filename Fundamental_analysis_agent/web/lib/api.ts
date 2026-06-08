@@ -167,6 +167,24 @@ export async function getCostSummary(): Promise<CostSummary> {
   return res.json();
 }
 
+// ---- divination-control null band (11 placebo systems vs the real agents) ----
+export interface NullBand {
+  available: boolean;
+  reason?: string;
+  n_draws?: number;
+  panel?: string[];
+  pooled_sharpe?: Record<string, number>;
+  sharpe_p95_threshold?: number;
+  by_system_mean_sharpe?: Record<string, number>;
+  by_system_max_sharpe?: Record<string, number>;
+  real_agent_overlay?: Record<string, { best_sharpe: number; clears_control_p95: boolean }>;
+}
+export async function getNullBand(): Promise<NullBand> {
+  const res = await fetch(`${API_BASE}/task1/dashboard/divination-null-band`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`getNullBand failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getRecentJobs(limit = 10): Promise<RecentJob[]> {
   const res = await fetch(`${API_BASE}/task1/dashboard/recent-jobs?limit=${limit}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`getRecentJobs failed: ${res.status}`);

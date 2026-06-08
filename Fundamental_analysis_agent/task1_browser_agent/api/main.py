@@ -72,7 +72,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.13.0")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.13.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -170,6 +170,8 @@ async def capabilities() -> dict[str, object]:
 EVAL_REPORT_PATH = (
     Path(__file__).resolve().parents[1] / "eval" / "report.json"
 )
+# Pre-computed divination-control null band (committed; shipped in the image via shared/).
+NULL_BAND_PATH = Path(__file__).resolve().parents[2] / "shared" / "reports" / "divination_null_band.json"
 EVAL_JOBS_DIR = Path(__file__).resolve().parents[1] / "eval" / "jobs"
 ARTIFACTS_DIR = Path(settings.artifact_dir).resolve()
 
@@ -215,6 +217,22 @@ async def dashboard_recent_jobs(limit: int = 10) -> list[dict]:
         }
         for j in jobs
     ]
+
+
+@app.get("/task1/dashboard/divination-null-band")
+async def dashboard_divination_null_band() -> dict:
+    """The pre-computed divination-control null band (11 placebo systems × a ticker panel)
+    + the real-agent Sharpe overlay. Read from the committed report; regenerate with
+    `python -m tools.divination_null_band`."""
+    if not NULL_BAND_PATH.exists():
+        return {"available": False, "reason": "run `python -m tools.divination_null_band`"}
+    try:
+        data = json.loads(NULL_BAND_PATH.read_text(encoding="utf-8"))
+        data["available"] = True
+        return data
+    except Exception as e:  # noqa: BLE001
+        logger.exception("dashboard_null_band_read_failed", error=str(e))
+        return {"available": False, "reason": f"could not parse report: {e}"}
 
 
 @app.post("/task1/jobs", response_model=Task1Job)
