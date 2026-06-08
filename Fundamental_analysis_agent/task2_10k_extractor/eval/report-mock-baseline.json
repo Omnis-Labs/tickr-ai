@@ -1,0 +1,141 @@
+{
+  "backend": "mock",
+  "note": "Mock-LLM baseline for the CI regression gate (like-to-like with CI). The real-LLM baseline lives in report.json; mock cannot run L3 recovery so its pass_rate is structurally lower and that is expected.",
+  "metrics": {
+    "n_cases": 20,
+    "n_pass": 10,
+    "n_quarantined": 7,
+    "pass_rate": 0.5,
+    "cost_p50": 0.0,
+    "cost_p95": 0.0,
+    "duration_p50_ms": 7522.5,
+    "duration_p95_ms": 26062.100000000002,
+    "mean_confidence": 0.50108,
+    "mean_coverage": 0.9
+  },
+  "cases": [
+    {
+      "id": "aapl-2023",
+      "passed": false,
+      "failure_reasons": [
+        "confidence 0.515 < min 0.85"
+      ]
+    },
+    {
+      "id": "msft-2023",
+      "passed": false,
+      "failure_reasons": [
+        "confidence 0.515 < min 0.85"
+      ]
+    },
+    {
+      "id": "invalid-url-graceful-fail",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "aapl-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "msft-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "goog-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "meta-2025",
+      "passed": false,
+      "failure_reasons": [
+        "duration 40751ms > cap 30000ms"
+      ]
+    },
+    {
+      "id": "jpm-2025",
+      "passed": false,
+      "failure_reasons": [
+        "quarantined: ['1 item(s) out of canonical order', '2 required item(s) below expected min length', 'core item 7 (MD&A) truncated \u2014 1147 < 5000 chars', 'core item 8 (Financial Statements) truncated \u2014 59 < 2000 chars']",
+        "duration 34034ms > cap 30000ms"
+      ]
+    },
+    {
+      "id": "bac-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "xom-2025",
+      "passed": false,
+      "failure_reasons": [
+        "quarantined: ['3 item(s) out of canonical order', '1 required item(s) below expected min length', 'core item 7 (MD&A) truncated \u2014 1572 < 5000 chars']"
+      ]
+    },
+    {
+      "id": "cvx-2025",
+      "passed": false,
+      "failure_reasons": [
+        "quarantined: ['2 item(s) out of canonical order', '1 required item(s) below expected min length', 'core item 7 (MD&A) truncated \u2014 872 < 5000 chars']"
+      ]
+    },
+    {
+      "id": "wmt-2026",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "tgt-2026",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "pfe-2025",
+      "passed": false,
+      "failure_reasons": [
+        "quarantined: ['3 item(s) out of canonical order', '1 required item(s) below expected min length', 'core item 7 (MD&A) truncated \u2014 99 < 5000 chars']"
+      ]
+    },
+    {
+      "id": "jnj-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "spg-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "ba-2025",
+      "passed": true,
+      "failure_reasons": []
+    },
+    {
+      "id": "aapl-2015",
+      "passed": false,
+      "failure_reasons": [
+        "confidence 0.268 < min 0.5",
+        "quarantined: ['1 item(s) out of canonical order']"
+      ]
+    },
+    {
+      "id": "msft-2015",
+      "passed": false,
+      "failure_reasons": [
+        "required item '8' missing",
+        "quarantined: ['core item 8 (Financial Statements) missing']"
+      ]
+    },
+    {
+      "id": "jpm-2015",
+      "passed": false,
+      "failure_reasons": [
+        "quarantined: ['2 item(s) out of canonical order', '1 required item(s) below expected min length', 'core item 7 (MD&A) truncated \u2014 402 < 5000 chars']"
+      ]
+    }
+  ]
+}

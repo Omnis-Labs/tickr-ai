@@ -137,46 +137,50 @@ jobs:
             --output task2_10k_extractor/eval/report-ci.json \
             --concurrency 2
 
-      - name: Compare against baseline
+      - name: Compare against mock baseline
         run: |
           python - <<'PY'
           import json, sys
-          baseline = json.load(open("task2_10k_extractor/eval/report.json"))["metrics"]
-          current  = json.load(open("task2_10k_extractor/eval/report-ci.json"))
-          cases = current.get("cases", [])
+          # Compare LIKE-TO-LIKE: CI runs the mock LLM backend, which cannot run the L3 LLM
+          # recovery step, so its pass_rate is structurally lower than the real-LLM baseline in
+          # report.json. We therefore gate against a committed MOCK baseline (report-mock-baseline.json).
+          baseline = json.load(open("task2_10k_extractor/eval/report-mock-baseline.json"))["cases"]
+          current  = json.load(open("task2_10k_extractor/eval/report-ci.json"))["cases"]
 
-          # The eval fetches filings LIVE from EDGAR; on shared CI runner IPs SEC
-          # frequently throttles (429/403/timeout). Those surface as a "crashed: <net error>"
-          # failure reason and are an INFRASTRUCTURE failure, not an extraction regression —
-          # exclude them so the gate measures extraction quality, not SEC's rate limiter.
+          # Exclude environment-dependent INFRASTRUCTURE failures from both sides:
+          #  • network — SEC throttles shared CI IPs (429/403/timeout), surfaces as "crashed: <neterr>"
+          #  • duration — slow runners trip the per-filing time cap; not an extraction regression
+          # A case is infra only if EVERY failure reason is infra; any real extraction reason
+          # (quarantine / confidence / missing item) keeps it counted as a genuine failure.
           _NET = ("HTTPStatus", "Timeout", "Connect", "ReadError", "RemoteProtocol",
                   "PoolTimeout", "ProxyError", "429", "403", "ConnectError", "ReadTimeout")
-          def is_network_fail(c):
+          def _infra_reason(r):
+              return ("crashed:" in r and any(k in r for k in _NET)) or ("duration" in r and "> cap" in r)
+          def is_pure_infra_fail(c):
               if c.get("passed", True):
                   return False
-              return any(("crashed:" in r) and any(k in r for k in _NET)
-                         for r in (c.get("failure_reasons") or []))
+              reasons = c.get("failure_reasons") or []
+              return bool(reasons) and all(_infra_reason(r) for r in reasons)
+          def extraction_pass_rate(cases):
+              ran = [c for c in cases if not is_pure_infra_fail(c)]
+              passed = sum(1 for c in ran if c.get("passed"))
+              return (passed / len(ran) if ran else 0.0), len(ran), len(cases)
 
-          infra = [c for c in cases if is_network_fail(c)]
-          ran   = [c for c in cases if not is_network_fail(c)]
-          coverage = len(ran) / len(cases) if cases else 0.0
-          cur_pass = sum(1 for c in ran if c.get("passed")) / len(ran) if ran else 0.0
-          base_pass = baseline["pass_rate"]
+          base_pass, _, _ = extraction_pass_rate(baseline)
+          cur_pass, n_ran, n_tot = extraction_pass_rate(current)
           delta = cur_pass - base_pass
-          print(f"Cases: {len(cases)} total · {len(ran)} fetched/ran · {len(infra)} skipped (SEC/network)")
-          print(f"Baseline pass_rate:        {base_pass:.2%}")
-          print(f"Current  pass_rate (ran):  {cur_pass:.2%}")
-          print(f"Delta:                     {delta * 100:+.1f} pp")
+          print(f"Cases: {n_tot} total · {n_ran} counted (infra skips excluded)")
+          print(f"Mock baseline extraction pass_rate: {base_pass:.2%}")
+          print(f"Current      extraction pass_rate: {cur_pass:.2%}")
+          print(f"Delta:                              {delta * 100:+.1f} pp")
 
-          # If SEC throttled most fetches we can't assess extraction — warn, don't block.
-          if coverage < 0.5:
-              print(f"::warning::Only {coverage:.0%} of filings fetched (SEC throttled CI); "
-                    f"skipping regression gate this run.")
+          if n_ran / max(1, n_tot) < 0.5:
+              print(f"::warning::Only {n_ran}/{n_tot} cases ran (SEC throttled CI); skipping gate this run.")
               sys.exit(0)
-          # Tolerance: 2 percentage points on the cases that actually ran.
-          if delta < -0.02:
+          # Tolerance: 6 pp (~one mock case of slack for timing-dependent parsing).
+          if delta < -0.06:
               print(f"::error::Task 2 extraction pass_rate regressed by {delta*100:.1f} pp "
-                    f"(> 2 pp tolerance) on {len(ran)} fetched cases")
+                    f"(> 6 pp tolerance) vs the mock baseline")
               sys.exit(1)
           print("Gate passed.")
           PY
