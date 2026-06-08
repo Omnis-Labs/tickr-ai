@@ -1,0 +1,93 @@
+{
+  "method": "Capacity & turnover — measured turnover + ADV/√-impact capacity estimate",
+  "params": {
+    "participation_cap": 0.1,
+    "impact_threshold_bps": 50.0
+  },
+  "turnover": {
+    "trades_per_year_median": 3.34,
+    "avg_holding_days_median": 33.0,
+    "exposure_pct_median": 55.1
+  },
+  "capacity": {
+    "median_adv_usd_m": 3468.7,
+    "median_capacity_10pct_adv_usd_m": 346.9,
+    "median_aum_for_50bps_impact_usd_m": 302.2,
+    "panel_total_capacity_10pct_adv_usd_b": 7.78
+  },
+  "per_name": {
+    "AAPL": {
+      "adv_usd_m": 10423.9,
+      "daily_vol_pct": 1.63,
+      "capacity_10pct_adv_usd_m": 1042.4,
+      "aum_for_50bps_impact_usd_m": 982.9
+    },
+    "MSFT": {
+      "adv_usd_m": 8645.2,
+      "daily_vol_pct": 1.51,
+      "capacity_10pct_adv_usd_m": 864.5,
+      "aum_for_50bps_impact_usd_m": 946.8
+    },
+    "NVDA": {
+      "adv_usd_m": 30497.3,
+      "daily_vol_pct": 2.96,
+      "capacity_10pct_adv_usd_m": 3049.7,
+      "aum_for_50bps_impact_usd_m": 871.9
+    },
+    "AMZN": {
+      "adv_usd_m": 7791.0,
+      "daily_vol_pct": 1.96,
+      "capacity_10pct_adv_usd_m": 779.1,
+      "aum_for_50bps_impact_usd_m": 508.7
+    },
+    "GOOGL": {
+      "adv_usd_m": 5029.7,
+      "daily_vol_pct": 1.87,
+      "capacity_10pct_adv_usd_m": 503.0,
+      "aum_for_50bps_impact_usd_m": 358.2
+    },
+    "META": {
+      "adv_usd_m": 7337.3,
+      "daily_vol_pct": 2.28,
+      "capacity_10pct_adv_usd_m": 733.7,
+      "aum_for_50bps_impact_usd_m": 351.6
+    },
+    "JPM": {
+      "adv_usd_m": 1907.7,
+      "daily_vol_pct": 1.43,
+      "capacity_10pct_adv_usd_m": 190.8,
+      "aum_for_50bps_impact_usd_m": 232.2
+    },
+    "XOM": {
+      "adv_usd_m": 1705.6,
+      "daily_vol_pct": 1.45,
+      "capacity_10pct_adv_usd_m": 170.6,
+      "aum_for_50bps_impact_usd_m": 203.0
+    },
+    "KO": {
+      "adv_usd_m": 892.3,
+      "daily_vol_pct": 0.98,
+      "capacity_10pct_adv_usd_m": 89.2,
+      "aum_for_50bps_impact_usd_m": 232.9
+    },
+    "PG": {
+      "adv_usd_m": 1036.2,
+      "daily_vol_pct": 1.09,
+      "capacity_10pct_adv_usd_m": 103.6,
+      "aum_for_50bps_impact_usd_m": 217.0
+    },
+    "WMT": {
+      "adv_usd_m": 1309.6,
+      "daily_vol_pct": 1.37,
+      "capacity_10pct_adv_usd_m": 131.0,
+      "aum_for_50bps_impact_usd_m": 173.9
+    },
+    "JNJ": {
+      "adv_usd_m": 1207.4,
+      "daily_vol_pct": 1.09,
+      "capacity_10pct_adv_usd_m": 120.7,
+      "aum_for_50bps_impact_usd_m": 252.8
+    }
+  },
+  "interpretation": "Median turnover is 3.3 trades/yr with an average holding period of ~33 days — low-frequency, so transaction costs and capacity are not the binding constraint. Trading only mega-caps (median ADV $3.5B/day), a single name absorbs ~$347M at a 10%-ADV cap and ~$302M before one-way impact hits 50 bps; across the panel that is $7.8B of capacity. The edge (if any) scales — it is not a capacity-limited HFT trick."
+}

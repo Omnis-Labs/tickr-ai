@@ -109,6 +109,13 @@ overlays clear a positive t > 2 in the bull (median α = **−7.5%/yr** — sitt
 after the six factors). A real agent must post a *positive, significant* factor-alpha to matter;
 the regression takes any agent return stream as a drop-in.
 
+### Capacity & turnover — does it scale? ([capacity.md](capacity.md))
+
+Low-frequency by design: **~3.3 trades/yr**, ~1-month holding, mega-caps only ($3.5B median ADV).
+A single name absorbs **$347M** at a 10%-of-ADV cap; the **panel carries ~$7.8B** of capacity. Any
+edge that survives the gates is a high-capacity, institutionally-sizeable one — not a capacity-1 HFT
+anomaly that evaporates past a few million.
+
 ---
 
 ## Why this is different from existing trading agents
