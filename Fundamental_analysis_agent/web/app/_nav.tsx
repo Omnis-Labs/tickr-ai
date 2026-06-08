@@ -97,7 +97,7 @@ export default function NavLinks() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute top-full left-0 mt-3 z-50 w-[min(92vw,720px)] rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4">
+          <div className="absolute top-full left-0 mt-3 z-50 w-[min(92vw,720px)] max-h-[78vh] overflow-y-auto overscroll-contain rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-xl grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4 items-start">
             {GROUPS.map((g) => (
               <div key={g.title}>
                 <div className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2">{g.title}</div>
