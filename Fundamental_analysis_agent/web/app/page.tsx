@@ -443,6 +443,22 @@ export default function HomePage() {
           natal 四柱 stands in — 命數 → 流年條文 → 吉凶 drives hold/flat. Worthless by design, twice over.</p>
           <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div>
         </a>
+        <a href="/qimen" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 32</h2><span className="text-xs text-purple-400 uppercase tracking-wider">奇門遁甲 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> One of the 三式 — 八門九宮 起局; hold on a 三吉門, flat on a 凶門. Worthless by design.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div></a>
+        <a href="/liuren" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 33</h2><span className="text-xs text-purple-400 uppercase tracking-wider">大六壬 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> One of the 三式 — 月將加時 → 用神; hold when it 生扶 the 日主, flat when it 剋洩. Worthless by design.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div></a>
+        <a href="/taiyi" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 34</h2><span className="text-xs text-purple-400 uppercase tracking-wider">太乙神數 · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> The third 式 — 太乙積年 → 主算 vs 客算; hold when 主勝, flat when 客勝. Worthless by design.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div></a>
+        <a href="/jyotish" className="group block border border-purple-900/60 rounded-md p-5 hover:border-purple-700 hover:bg-purple-950/10 transition-colors md:col-span-2">
+          <div className="flex items-baseline gap-2"><h2 className="text-lg font-semibold">Task 35</h2><span className="text-xs text-purple-400 uppercase tracking-wider">Jyotiṣa (Vedic) · Control</span></div>
+          <p className="text-sm text-zinc-400 mt-2 leading-relaxed"><span className="text-purple-300">Placebo arm.</span> Sidereal Vedic astrology — 9 grahas (tropical − Lahiri ayanāṃśa) + the <span className="text-purple-300">Vimśottarī Mahādaśā</span> (the exact 120-yr period cycle); hold in a benefic daśā. Worthless by design.</p>
+          <div className="text-xs text-purple-400 mt-3 group-hover:underline">Try it →</div></a>
       </section>
 
       <section className="border border-zinc-800 rounded-md p-5">

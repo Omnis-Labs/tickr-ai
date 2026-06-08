@@ -53,6 +53,10 @@ const GROUPS: { title: string; items: { href: string; label: string }[] }[] = [
       { href: "/suimei", label: "T29 · 四柱推命 (日)" },
       { href: "/qizheng", label: "T30 · 七政四餘" },
       { href: "/tieban", label: "T31 · 鐵板神數" },
+      { href: "/qimen", label: "T32 · 奇門遁甲" },
+      { href: "/liuren", label: "T33 · 大六壬" },
+      { href: "/taiyi", label: "T34 · 太乙神數" },
+      { href: "/jyotish", label: "T35 · Jyotiṣa (Vedic)" },
     ],
   },
 ];

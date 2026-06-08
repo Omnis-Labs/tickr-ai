@@ -1671,3 +1671,41 @@ export interface Task31Job { job_id: string; ticker: string; status: JobStatus; 
 export const createTieban = (t: string): Promise<Task31Job> => _create("/task31/tieban", t);
 export const getTieban = (id: string): Promise<Task31Job> => _get(`/task31/tieban/${id}`);
 export const pollTieban = _poll<Task31Job>(getTieban);
+
+// ---- Task 32: 奇門遁甲 (CONTROL / PLACEBO) ----
+export interface GatePalace { palace: string; gate: string; cls: string; }
+export interface QimenChart { listing_date: string; listing_date_is_data_limit: boolean; dun: string; ju: string; active_gate: string; gate_class: string; layout: GatePalace[]; }
+export interface QimenSpec { entry_signal: "buy_and_hold" | "auspicious_gate" | "avoid_ill_gate"; stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string; }
+export interface QimenResult { job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean; chart: QimenChart; reasoning_chain: string[]; prices: PricePoint[]; strategy: QimenSpec; backtest: BacktestResult; qimen_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string; }
+export interface Task32Job { job_id: string; ticker: string; status: JobStatus; result: QimenResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createQimen = (t: string): Promise<Task32Job> => _create("/task32/qimen", t);
+export const getQimen = (id: string): Promise<Task32Job> => _get(`/task32/qimen/${id}`);
+export const pollQimen = _poll<Task32Job>(getQimen);
+
+// ---- Task 33: 大六壬 (CONTROL / PLACEBO) ----
+export interface LiurenChart { listing_date: string; listing_date_is_data_limit: boolean; day_master: string; yue_jiang: string; occupy_hour: string; yong_branch: string; relation: string; }
+export interface LiurenSpec { entry_signal: "buy_and_hold" | "yong_supports" | "avoid_ke"; stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string; }
+export interface LiurenResult { job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean; chart: LiurenChart; reasoning_chain: string[]; prices: PricePoint[]; strategy: LiurenSpec; backtest: BacktestResult; liuren_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string; }
+export interface Task33Job { job_id: string; ticker: string; status: JobStatus; result: LiurenResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createLiuren = (t: string): Promise<Task33Job> => _create("/task33/liuren", t);
+export const getLiuren = (id: string): Promise<Task33Job> => _get(`/task33/liuren/${id}`);
+export const pollLiuren = _poll<Task33Job>(getLiuren);
+
+// ---- Task 34: 太乙神數 (CONTROL / PLACEBO) ----
+export interface TaiyiChart { listing_date: string; listing_date_is_data_limit: boolean; accumulated_years: number; taiyi_palace: string; host_count: number; guest_count: number; verdict: string; }
+export interface TaiyiSpec { entry_signal: "buy_and_hold" | "host_prevails" | "avoid_guest_win"; stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string; }
+export interface TaiyiResult { job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean; chart: TaiyiChart; reasoning_chain: string[]; prices: PricePoint[]; strategy: TaiyiSpec; backtest: BacktestResult; taiyi_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string; }
+export interface Task34Job { job_id: string; ticker: string; status: JobStatus; result: TaiyiResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createTaiyi = (t: string): Promise<Task34Job> => _create("/task34/taiyi", t);
+export const getTaiyi = (id: string): Promise<Task34Job> => _get(`/task34/taiyi/${id}`);
+export const pollTaiyi = _poll<Task34Job>(getTaiyi);
+
+// ---- Task 35: Jyotiṣa Vedic astrology (CONTROL / PLACEBO) ----
+export interface Graha { name: string; sidereal_lon: number; rashi: string; }
+export interface JyotishChart { listing_date: string; listing_date_is_data_limit: boolean; grahas: Graha[]; moon_nakshatra: string; moon_rashi: string; mahadasha_lord: string; dasha_nature: string; ayanamsa_deg: number; }
+export interface JyotishSpec { entry_signal: "buy_and_hold" | "benefic_dasha" | "avoid_malefic_dasha"; stop_loss_pct: number; stance: "bullish" | "neutral" | "cautious"; thesis: string; rationale: string; }
+export interface JyotishResult { job_id: string; ticker: string; company_name: string | null; as_of_date: string; is_control: boolean; chart: JyotishChart; reasoning_chain: string[]; prices: PricePoint[]; strategy: JyotishSpec; backtest: BacktestResult; jyotish_readings: Record<string, number | string>; caveats: string[]; cost_usd: number; created_at: string; }
+export interface Task35Job { job_id: string; ticker: string; status: JobStatus; result: JyotishResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export const createJyotish = (t: string): Promise<Task35Job> => _create("/task35/jyotish", t);
+export const getJyotish = (id: string): Promise<Task35Job> => _get(`/task35/jyotish/${id}`);
+export const pollJyotish = _poll<Task35Job>(getJyotish);

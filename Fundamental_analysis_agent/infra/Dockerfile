@@ -52,6 +52,10 @@ COPY task28_ziwei/ task28_ziwei/
 COPY task29_suimei/ task29_suimei/
 COPY task30_qizheng/ task30_qizheng/
 COPY task31_tieban/ task31_tieban/
+COPY task32_qimen/ task32_qimen/
+COPY task33_liuren/ task33_liuren/
+COPY task34_taiyi/ task34_taiyi/
+COPY task35_jyotish/ task35_jyotish/
 COPY prompts/ prompts/
 
 RUN pip install --upgrade pip && pip install -e .
