@@ -1,0 +1,75 @@
+{
+  "method": "Probability of Backtest Overfitting — CSCV (Bailey/López de Prado, 2014)",
+  "universe": "11 placebo-control trials (system × signal × ticker)",
+  "window": {
+    "start": "trailing",
+    "end": "latest"
+  },
+  "n_strategies": 338,
+  "n_weeks": 156,
+  "n_chunks": 16,
+  "pbo_timing_per_ticker_median": 0.5176,
+  "pbo_timing_per_ticker": {
+    "AAPL": {
+      "pbo": 0.5424,
+      "n_strategies": 28
+    },
+    "MSFT": {
+      "pbo": 0.5643,
+      "n_strategies": 29
+    },
+    "NVDA": {
+      "pbo": 0.5538,
+      "n_strategies": 29
+    },
+    "AMZN": {
+      "pbo": 0.619,
+      "n_strategies": 27
+    },
+    "GOOGL": {
+      "pbo": 0.4718,
+      "n_strategies": 26
+    },
+    "META": {
+      "pbo": 0.7108,
+      "n_strategies": 29
+    },
+    "JPM": {
+      "pbo": 0.3761,
+      "n_strategies": 29
+    },
+    "XOM": {
+      "pbo": 0.4399,
+      "n_strategies": 28
+    },
+    "KO": {
+      "pbo": 0.5176,
+      "n_strategies": 28
+    },
+    "PG": {
+      "pbo": 0.3698,
+      "n_strategies": 28
+    },
+    "WMT": {
+      "pbo": 0.1796,
+      "n_strategies": 29
+    },
+    "JNJ": {
+      "pbo": 0.101,
+      "n_strategies": 28
+    }
+  },
+  "pbo_pooled_raw_returns": {
+    "pbo": 0.3754,
+    "n_splits": 12870,
+    "logit_mean": 0.21,
+    "oos_minus_is_sharpe_mean": -0.2788
+  },
+  "pbo_pooled_excess_vs_market": {
+    "pbo": 0.1844,
+    "n_splits": 12870,
+    "logit_mean": 1.3531,
+    "oos_minus_is_sharpe_mean": -0.2454
+  },
+  "interpretation": "Headline — PER-TICKER timing PBO (median across names) = 0.5176. With the stock held fixed so only the divination timing rule varies, selecting the in-sample-best timing rule lands below the OOS median ~52% of the time — the ≈0.5 coin-flip that confirms no persistent timing skill. The POOLED cross-name PBO looks lower (raw 0.3754, excess 0.1844) only because picking the name that won (e.g. NVDA) persists across the whole bull — that is selection/momentum, not skill, and is exactly the confound per-ticker PBO removes."
+}

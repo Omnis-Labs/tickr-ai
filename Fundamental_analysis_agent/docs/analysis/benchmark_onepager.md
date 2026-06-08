@@ -88,6 +88,19 @@ visible. *On single-name Sharpe, none of our own agents clear the bar either* �
 per-agent skill verdict lives inside each agent's own eval, judged on lookahead invariants + alpha
 vs its own benchmark; this table is the suite-level honesty check.)
 
+### Robustness pack — overfitting closed from three sides
+
+The DSR gate is backed by two further tests so diligence can't poke the obvious holes:
+
+| Test | Question | Result |
+|---|---|---|
+| **Out-of-sample regime** ([oos_regime.md](oos_regime.md)) | Does the bar hold in a tape we didn't fit? | Placebo Sharpe p50 **flips +0.47 (bull) → −0.59 (2022 bear)**; alpha-vs-SPY flips **−58% → +5%**. The noise floor is regime-dependent — so the gate is re-estimated per regime, never hard-coded. |
+| **Prob. of Backtest Overfitting** ([pbo.md](pbo.md)) | Does the *selection* survive OOS? | Per-ticker timing **PBO = 0.52** (coin-flip → no timing skill). Pooled PBO looks better (0.18) only via NVDA name-persistence — a confound we identify and remove. |
+| **Deflated Sharpe** (above) | Is the Sharpe beyond the best of N flukes? | **0/8** agents clear DSR > 0.95. |
+
+*Three independent overfitting lenses — selection bias (DSR), backtest-shopping (PBO), regime
+fragility (OOS) — all pointing the same way. That triangulation is the credibility.*
+
 ---
 
 ## Why this is different from existing trading agents

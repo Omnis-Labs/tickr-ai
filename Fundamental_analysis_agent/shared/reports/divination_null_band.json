@@ -1,5 +1,9 @@
 {
-  "generated_at": "2026-06-08T16:53:31.164092+00:00",
+  "generated_at": "2026-06-08T17:47:59.043002+00:00",
+  "window": {
+    "start": "trailing",
+    "end": "latest"
+  },
   "panel": [
     "AAPL",
     "MSFT",

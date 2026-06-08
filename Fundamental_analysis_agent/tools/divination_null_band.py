@@ -128,7 +128,10 @@ def _control_signals(listing: date, dates: list[date]):
                           for s in ("benefic_dasha", "avoid_malefic_dasha")]
 
 
-async def compute(tickers: list[str]) -> dict:
+async def compute(tickers: list[str], start_date: date | None = None, end_date: date | None = None) -> dict:
+    """Run every placebo control over the panel and pool the Sharpes. With start_date/end_date
+    set, the window is pinned to an explicit regime (e.g. the 2022 bear) for OOS testing;
+    otherwise it is the trailing _LOOKBACK to the latest bar (the default in-sample bull)."""
     await init_db()
     spy = await asyncio.to_thread(fetch_prices, "SPY")
     pooled: list[float] = []
@@ -140,10 +143,13 @@ async def compute(tickers: list[str]) -> dict:
             prices = await asyncio.to_thread(fetch_prices, tk)
         except Exception:  # noqa: BLE001
             continue
+        if end_date is not None:
+            prices = [p for p in prices if p.date <= end_date]
         if len(prices) < _MIN_BARS:
             continue
         as_of = prices[-1].date
-        start = max(prices[0].date, as_of - timedelta(days=_LOOKBACK))
+        start = start_date if start_date is not None else max(prices[0].date, as_of - timedelta(days=_LOOKBACK))
+        start = max(start, prices[0].date)
         dates = [p.date for p in prices if p.date >= start]
         bar_counts.append(len(dates))
         listing = await asyncio.to_thread(_listing, tk, prices[0].date)
@@ -163,6 +169,7 @@ async def compute(tickers: list[str]) -> dict:
     pctls = [50, 75, 90, 95, 99]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "window": {"start": start_date.isoformat() if start_date else "trailing", "end": end_date.isoformat() if end_date else "latest"},
         "panel": tickers, "n_draws": len(pooled),
         "pooled_sharpe": {f"p{p}": round(_percentile(pooled, p), 3) for p in pctls} | {"max": round(max(pooled), 3) if pooled else 0.0},
         "sharpe_p95_threshold": round(_percentile(pooled, 95), 3),
@@ -219,10 +226,14 @@ async def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", default=",".join(_PANEL))
     ap.add_argument("--observe", type=float, default=None)
+    ap.add_argument("--start", default=None, help="window start YYYY-MM-DD (OOS regime test)")
+    ap.add_argument("--end", default=None, help="window end YYYY-MM-DD (OOS regime test)")
     ap.add_argument("--output", default=str(_REPORT))
     args = ap.parse_args(argv)
     configure_logging()
-    rep = await compute([t.strip().upper() for t in args.tickers.split(",") if t.strip()])
+    sd = date.fromisoformat(args.start) if args.start else None
+    ed = date.fromisoformat(args.end) if args.end else None
+    rep = await compute([t.strip().upper() for t in args.tickers.split(",") if t.strip()], start_date=sd, end_date=ed)
     thr = rep["sharpe_p95_threshold"]
     rep["real_agent_overlay"] = _real_overlay(thr)
     if args.observe is not None:
