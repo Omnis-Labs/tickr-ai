@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Keep app-level env files in sync with the root .env before local servers boot.
+# Keep workspace env files in sync with the root .env before local servers boot.
 
 set -euo pipefail
 
@@ -7,6 +7,7 @@ ROOT_ENV=".env"
 TARGETS=(
   "apps/web/.env"
   "apps/ws-server/.env"
+  "packages/db/.env"
 )
 STALE_TARGETS=(
   "apps/web/.env.local"

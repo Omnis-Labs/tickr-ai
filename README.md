@@ -116,7 +116,7 @@ hunch-it/
 | `pnpm dev:ws`            | Run the ws-server only                                                                    |
 | `pnpm build`             | Build all workspaces                                                                      |
 | `pnpm typecheck`         | Type-check all workspaces                                                                 |
-| `pnpm db:up`             | Run the postgres preflight only (start container, wait healthy)                           |
+| `pnpm db:up`             | Sync local env files, then run the postgres preflight only (start container, wait healthy) |
 | `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)                       |
 | `pnpm db:generate`       | Generate the Prisma client                                                                |
 | `pnpm db:push`           | Push the Prisma schema to the database                                                    |
