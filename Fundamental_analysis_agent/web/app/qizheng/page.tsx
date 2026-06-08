@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createQizheng, pollQizheng, Task30Job, QizhengResult, QizhengStar } from "@/lib/api";
 import { CandlestickChart, EquityChart } from "./Charts";
+import { QizhengChart } from "./QizhengChart";
 import { Backtest, Caveats, Readings } from "../_components/panels";
 
 const STANCE: Record<string, string> = {
@@ -77,6 +78,8 @@ export default function QizhengPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="border border-zinc-800 rounded-md p-4 space-y-2">
               <h3 className="text-sm font-semibold text-zinc-200">星盤 — 上市 {c.listing_date}{c.listing_date_is_data_limit && <span className="text-[10px] text-amber-400"> （資料起點）</span>} · 命主 {c.ming_zhu_sign}</h3>
+              <QizhengChart seven={c.seven} siyu={c.siyu} mingZhuSign={c.ming_zhu_sign} />
+              <p className="text-[10px] text-zinc-500">吉曜 <span className="text-emerald-400">金 木</span> · 凶曜 <span className="text-red-400">火 羅 計</span>/<span className="text-orange-400">土</span> · 四餘 <span className="text-violet-300">孛 炁</span> · 命主宮金底</p>
               <div className="grid grid-cols-2 gap-x-4">
                 <table className="w-full text-xs"><thead><tr className="text-zinc-500 text-left"><th className="pb-1">七政</th><th></th><th></th></tr></thead><tbody className="text-zinc-300">{c.seven.map((s) => <StarRow key={s.name} s={s} />)}</tbody></table>
                 <table className="w-full text-xs"><thead><tr className="text-zinc-500 text-left"><th className="pb-1">四餘</th><th></th><th></th></tr></thead><tbody className="text-zinc-300">{c.siyu.map((s) => <StarRow key={s.name} s={s} />)}</tbody></table>
