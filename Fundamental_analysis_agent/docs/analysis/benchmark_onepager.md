@@ -80,6 +80,8 @@ A real agent is credible only if its **DSR > 0.95** (it beats the best-of-348 fl
 | T23 pairs | −0.54 | 0.18 | 0.00 | — |
 | | | | | **0 / 8** |
 
+![PSR→DSR collapse](deflated_sharpe.svg)
+
 Read the vix row: its Sharpe of 1.11 looks publishable (PSR vs 0 = **0.97**), but once you **deflate
 for having searched 348 strategies, the DSR drops to 0.11** — the multiple-testing haircut, made
 visible. *On single-name Sharpe, none of our own agents clear the bar either* — and we say so. (The
