@@ -47,9 +47,9 @@ task2_10k_extractor/     SEC 10-K extractor — pipeline/ (ingest → normalize 
                          L1 → L2 → L3 → confidence → calibration),
                          api/ (with LLM-powered free-text input parser),
                          eval/ (20 cases over 7 industries + pre-iXBRL)
-task3_strategy/ … task31_tieban/
-                         The Strategy Lab — 22 US-stock research agents + 7 placebo
-                         controls (T3–T31). Each = pipeline/ (data → signal →
+task3_strategy/ … task35_jyotish/
+                         The Strategy Lab — 22 US-stock research agents + 11 placebo
+                         controls (T3–T35). Each = pipeline/ (data → signal →
                          lookahead-free backtest), api/ router, eval/. See the full
                          map below and in docs/AGENTS.md.
 web/                     Next.js 15 frontend — a page per agent under web/app/…,
@@ -68,10 +68,10 @@ infra/                   Dockerfile, railway.json, zeabur.json, Procfile,
 
 ---
 
-## 🧭 The full agent suite (T1–T31) — principles & how they interact
+## 🧭 The full agent suite (T1–T35) — principles & how they interact
 
 What began as the two review tasks (T1 browser agent, T2 10-K extractor) grew into a
-**31-agent US-stock research suite**: 24 signal/portfolio agents + **7 placebo controls**.
+**35-agent US-stock research suite**: 24 signal/portfolio agents + **11 placebo controls**.
 The deep-dive map is [docs/AGENTS.md](docs/AGENTS.md); this is the self-contained summary.
 
 ### The shared design pattern (every strategy agent)
@@ -90,7 +90,7 @@ Two invariants make it trustworthy:
    event date. The LLM only ever sees as-of information.
 2. **Selection ≠ execution** — the LLM *selects* from a constrained menu (it can't leak future
    prices through code); the *execution* is pure deterministic Python. The placebo controls
-   (T25–T31) are the proof: their florid LLM narrative is computed but **ignored** by the engine.
+   (T25–T35) are the proof: their florid LLM narrative is computed but **ignored** by the engine.
 
 ### Utilities (data gathering)
 
@@ -167,7 +167,7 @@ Two invariants make it trustworthy:
 **(b) Building-block reuse — shared code, not full runs:**
 
 - **T4's backtest engine + `_metrics`** is the common scoring ruler → reused by T5, T6, T7, T8, T9, T11–T16.
-- **The generic `run_factor_backtest` (in T17)** — long-only, driven by a `want_long(date)` callable → reused by **T18, T19, T20, T22, T24, T25, T26, T27, T28, T29, T30, T31**.
+- **The generic `run_factor_backtest` (in T17)** — long-only, driven by a `want_long(date)` callable → reused by **T18, T19, T20, T22, T24, T25, T26, T27, T28, T29, T30, T31, T32, T33, T34, T35**.
 - **T10's `run_portfolio_backtest`** (multi-name, rebalancing, turnover-costed) → reused by **T21**.
 - **T23** keeps its own market-neutral backtest but fills T4's `BacktestMetrics` so the shared UI panel renders it.
 - **T11's XBRL `companyfacts` fetch** → reused by T15 (buyback) and T17 (quality).
@@ -177,7 +177,7 @@ Two invariants make it trustworthy:
 **(c) External data dependency map:**
 
 ```
-prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29 T30 T31
+prices (yfinance→Tiingo) ── T3 T4 T5 T6 T7 T8 T9 T10 T11 T12 T13 T14 T15 T16 T19 T20 T21 T22 T23 T24 T25 T26 T27 T28 T29 T30 T31 T35
    └─ ^VIX / ^VIX3M ....... T20
 SEC EDGAR (filings / submissions / XBRL)
    ├─ 10-K text ........... T2 → T3 → T5
@@ -189,8 +189,8 @@ SEC EDGAR (filings / submissions / XBRL)
 SEC SIC code ............... T7 (sector ETF), industry mapping
 FINRA short-volume ......... T16        NASDAQ short-interest ... T16
 Congress disclosures ....... T22 (Quiver/FMP key, else free House-PTR PDFs)
-ephem (offline astronomy) .. T25   date-only casting ... T26   firstTradeDate natal ... T27   pure-Python 紫微 ... T28   十二運星/天中殺 ... T29   ephem 七政四餘 ... T30   太玄數 ... T31
-(LLM gateway) .............. every strategy agent T3–T31
+ephem (offline astronomy) .. T25   date-only casting ... T26   firstTradeDate natal ... T27   pure-Python 紫微 ... T28   十二運星/天中殺 ... T29   ephem 七政四餘 ... T30   太玄數 ... T31   三式 ... T32 T33 T34   Vimśottarī (ephem) ... T35
+(LLM gateway) .............. every strategy agent T3–T35
 ```
 
 The progression the suite demonstrates: **gather → many independent signals → fuse → select & size
@@ -238,6 +238,10 @@ cut the cost of gathering data.
 | **T29** 四柱推命 ⚠️ | **Nothing.** No economic mechanism | only by luck | the Japanese 十二運星/天中殺 reading is a different *narrative* over the same dead signal — a useful demo that swapping divination schools changes the story but not the (null) edge |
 | **T30** 七政四餘 ⚠️ | **Nothing.** No economic mechanism | only by luck | real ephemeris positions dressed as fortune — astronomically genuine, predictively void |
 | **T31** 鐵板神數 ⚠️ | **Nothing** (twice) | only by luck | a proprietary/legendary system reduced to a deterministic numerology stand-in — placebo on top of unverifiable |
+| **T32** 奇門遁甲 ⚠️ | **Nothing.** | only by luck | a 三式 board reduced to a gate-of-the-day lookup — elaborate ritual, null edge |
+| **T33** 大六壬 ⚠️ | **Nothing.** | only by luck | 用神 五行 vs 日主 — same dead numerology, new vocabulary |
+| **T34** 太乙神數 ⚠️ | **Nothing.** | only by luck | host-vs-guest counts from 積年 arithmetic — imperial-grade theatre, zero signal |
+| **T35** Jyotiṣa ⚠️ | **Nothing.** | only by luck | the most computable control (exact Vimśottarī daśā) — and still a placebo; precision ≠ predictive power |
 
 **The honest net-of-everything read:** after costs and post-publication decay, the most *defensible*
 members are the risk-premium harvesters (**T10** diversification, **T14**/**T20** vol-timing) and the
