@@ -11,13 +11,14 @@ interface NavItem {
   icon: string;
 }
 
-// Three signed-in surfaces. The marketing `/` is absent — AppShell hides
+// Four signed-in surfaces. The marketing `/` is absent — AppShell hides
 // BottomNav there anyway. "Home" routes to /desk because that's the real
 // home for a logged-in user; / is just the auth gate.
 const navItems: NavItem[] = [
   { name: 'Home', href: '/desk', icon: 'home' },
+  { name: 'Grill', href: '/grill', icon: 'local_fire_department' },
+  { name: 'Team', href: '/team', icon: 'groups' },
   { name: 'Portfolio', href: '/portfolio', icon: 'account_balance_wallet' },
-  { name: 'Settings', href: '/settings', icon: 'settings' },
 ];
 
 export function BottomNav() {
@@ -25,7 +26,7 @@ export function BottomNav() {
 
   return (
     <div className="fixed bottom-0 w-full px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] z-50 pointer-events-none flex justify-center">
-      <nav 
+      <nav
         className="flex items-center justify-between bg-surface rounded-full p-2 w-full max-w-[400px] pointer-events-auto h-[var(--spacing-nav-height,64px)] shadow-floating"
       >
         {navItems.map((item) => {
@@ -50,7 +51,7 @@ export function BottomNav() {
                   }}
                 />
               )}
-              
+
               <motion.span
                 whileTap={{ scale: 0.9 }}
                 className={cn(

@@ -52,17 +52,18 @@ type MarketFocusVertical =
 
 Important fields:
 
-| Field                                                 | Notes                                                                       |
-| ----------------------------------------------------- | --------------------------------------------------------------------------- |
-| `ticker`                                              | Canonical `AssetId`; column name is legacy.                                 |
-| `action`                                              | `BUY` for entry proposals; `SELL` for thesis-invalidation exit proposals.   |
-| `suggestedSizeUsd`                                    | Suggested USDC notional.                                                    |
-| `suggestedTriggerPrice`                               | Synthetic trigger price watched by ws-server.                               |
-| `suggestedTakeProfitPrice` / `suggestedStopLossPrice` | Initial exit protection prices.                                             |
-| `reasoning`                                           | `{ what_changed, why_this_trade, why_fits_mandate }`.                       |
-| `positionImpact`                                      | `{ weight_before, weight_after, cash_after, sector_before, sector_after }`. |
-| `thesisTags`                                          | BUY-time structured thesis tags used by the env-gated thesis monitor.       |
-| `origin`                                              | `SIGNAL_ENGINE` or `DEV_TOOLS`.                                             |
+| Field                                                 | Notes                                                                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `ticker`                                              | Canonical `AssetId`; column name is legacy.                                                           |
+| `action`                                              | `BUY` for entry proposals; `SELL` for thesis-invalidation exit proposals.                             |
+| `suggestedSizeUsd`                                    | Suggested USDC notional.                                                                              |
+| `suggestedTriggerPrice`                               | Synthetic trigger price watched by ws-server.                                                         |
+| `suggestedTakeProfitPrice` / `suggestedStopLossPrice` | Initial exit protection prices.                                                                       |
+| `reasoning`                                           | `{ what_changed, why_this_trade, why_fits_mandate }`.                                                 |
+| `positionImpact`                                      | `{ weight_before, weight_after, cash_after, sector_before, sector_after }`.                           |
+| `thesisTags`                                          | BUY-time structured thesis tags used by the env-gated thesis monitor.                                 |
+| `origin`                                              | `SIGNAL_ENGINE`, `DEV_TOOLS`, or `GRILL`.                                                             |
+| `originContext`                                       | Optional source context. Grill proposals store the original Grill Idea and selected analyst ids here. |
 
 Lifecycle:
 

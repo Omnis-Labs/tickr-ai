@@ -43,6 +43,12 @@ const shortCurrency = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
 });
 
+function grillIdeaFromContext(originContext: unknown): string | null {
+  if (!originContext || typeof originContext !== 'object') return null;
+  const value = (originContext as { grillIdea?: unknown }).grillIdea;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
 export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: ProposalModalProps) {
   const { publicKey } = useWallet();
   const router = useRouter();
@@ -149,6 +155,8 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
   const insufficient = portfolioReady && sizeNum > cashNum;
   const isExpired = remainMs != null && remainMs <= 0;
   const isReadOnly = proposal.status !== 'ACTIVE' || isExpired;
+  const grillIdea =
+    proposal.origin === 'GRILL' ? grillIdeaFromContext(proposal.originContext) : null;
   const skipNeedsDetail = skipReason === 'OTHER' && skipDetail.trim().length === 0;
   const orderDisabled = executing || isReadOnly || sizeNum <= 0 || insufficient;
   const skipConfirmDisabled = executing || isReadOnly || skipProposal.isPending || skipNeedsDetail;
@@ -330,6 +338,18 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
             ))}
           </div>
         </section>
+
+        {grillIdea && (
+          <section className="rounded-lg bg-surface p-5 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-title-md text-on-surface">Grill Idea</h2>
+              <span className="rounded-full bg-accent-container px-3 py-1 text-label-sm text-on-accent-container">
+                Grill
+              </span>
+            </div>
+            <p className="text-body-md leading-6 text-on-surface-variant">{grillIdea}</p>
+          </section>
+        )}
 
         <section className="rounded-lg bg-surface p-5 shadow-soft">
           <div className="mb-4 flex items-center justify-between">

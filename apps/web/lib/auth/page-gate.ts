@@ -8,11 +8,13 @@ interface PageGateSession {
 
 const READY_ONLY_PREFIXES = [
   '/desk',
+  '/grill',
   '/portfolio',
   '/positions',
   '/proposals',
   '/settings',
   '/signals',
+  '/team',
 ];
 
 function normalizePath(rawPathname: string): string {

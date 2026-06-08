@@ -49,6 +49,7 @@ export interface SerializedProposalForClient {
   positionId: string | null;
   triggeringTag: string | null;
   origin: string;
+  originContext: unknown;
   status: string;
   expiresAt: string;
   createdAt: string;
@@ -75,6 +76,7 @@ export function serializeProposalForClient(proposal: Proposal): SerializedPropos
     positionId: proposal.positionId,
     triggeringTag: proposal.triggeringTag,
     origin: proposal.origin,
+    originContext: proposal.originContext,
     status: proposal.status,
     expiresAt: proposal.expiresAt.toISOString(),
     createdAt: proposal.createdAt.toISOString(),

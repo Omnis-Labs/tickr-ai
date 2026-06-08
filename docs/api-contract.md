@@ -82,6 +82,65 @@ Response `404`: Proposal not found or not owned by user.
 
 ---
 
+### Grill
+
+**`POST /api/grill/analyze`** — Run the selected AI Trading Team against a Grill Idea.
+
+Request:
+
+```json
+{
+  "assetId": "NVDAx",
+  "idea": "A creator says NVDAx is a buy after the breakout.",
+  "analystIds": ["technical", "relative_strength", "volatility_regime"]
+}
+```
+
+`analystIds` is optional. If omitted, Grill uses the default three-analyst team.
+
+Response `200`:
+
+```json
+{
+  "analysis": {
+    "assetId": "NVDAx",
+    "idea": "A creator says NVDAx is a buy after the breakout.",
+    "asOf": "ISO8601",
+    "opinions": []
+  }
+}
+```
+
+---
+
+**`POST /api/grill/proposals`** — Create one BUY Proposal from a Grill Idea.
+
+The server reruns Grill analysis, requires at least one supporting Analyst Opinion, reads wallet USDC for sizing, and calls shared `ProposalCreation`.
+
+Side effects:
+
+- Creates `Proposal.origin = GRILL`.
+- Stores `{ grillIdea, analystIds }` in `Proposal.originContext`.
+- Uses wallet-aware sizing and mandate drawdown handling from `ProposalCreation`.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "proposal": {},
+  "analysis": {},
+  "telemetry": {
+    "latestPrice": 123.45,
+    "priceAgeSeconds": 12
+  }
+}
+```
+
+Response `409`: No selected analyst supports creating a Proposal.
+
+---
+
 **`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
 This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy signer access or falls back to `trigger:hit` tap-to-execute.

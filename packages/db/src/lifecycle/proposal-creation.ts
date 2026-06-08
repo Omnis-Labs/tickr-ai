@@ -36,6 +36,7 @@ export interface CreateBuyProposalForUserInput {
   mandate: ProposalCreationMandate;
   positionImpact: ProposalCreationPositionImpact;
   origin?: ProposalOrigin;
+  originContext?: Prisma.InputJsonValue;
   now?: Date;
   sizeUsd?: number;
   sizeRationale?: string;
@@ -201,6 +202,7 @@ export function buildBuyProposalCreateData(
       macd: input.analysis.indicators.macd,
     }),
     origin: input.origin ?? 'SIGNAL_ENGINE',
+    originContext: input.originContext,
     status: 'ACTIVE',
     expiresAt: new Date(now.getTime() + ttlMin * 60_000),
   };

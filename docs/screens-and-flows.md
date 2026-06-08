@@ -156,6 +156,60 @@ Prominently displayed when the user's wallet balance is zero. Accessible via a s
 
 ---
 
+## Screen: Grill
+
+Primary nav surface where a signed-in user brings an outside trade idea and a required supported asset.
+
+Inputs:
+
+| Field        | Notes                                                                     |
+| ------------ | ------------------------------------------------------------------------- |
+| Asset        | Required canonical `AssetId` from the supported signal asset registry.    |
+| Grill Idea   | User-supplied outside trade idea.                                         |
+| Analyst team | The currently selected AI Trading Team from Team. Defaults to 3 analysts. |
+
+Output:
+
+- One Analyst Opinion card per selected working AI Analyst.
+- Each card shows thesis, why now, entry view, protection, and what would make the idea wrong.
+- The user can create one Proposal only when at least one analyst supports turning the idea into a disciplined BUY setup.
+
+Proposal creation:
+
+- `POST /api/grill/proposals` reruns the Grill analysis server-side.
+- Uses existing `ProposalCreation` and wallet-aware USDC sizing.
+- Writes `Proposal.origin = GRILL`.
+- Stores the original Grill Idea and selected analyst ids in `Proposal.originContext`.
+
+---
+
+## Screen: Team
+
+Primary nav surface where the user selects up to six working AI Analysts.
+
+Default AI Trading Team:
+
+| Analyst           | Source task |
+| ----------------- | ----------- |
+| Technical Tape    | T4          |
+| Relative Strength | T7          |
+| Volatility Regime | T14         |
+
+Additional adapted analysts:
+
+| Analyst                | Source task |
+| ---------------------- | ----------- |
+| Seasonality            | T12         |
+| Overnight Gap          | T13         |
+| Price Anomaly          | T19         |
+| Cross-Sectional Ranker | T21         |
+
+Agents that depend on EDGAR, FINRA, 13F, congressional disclosures, VIX feeds, pair inputs, portfolio watchlists, or placebo controls remain out of the catalog until their real data path is reliable in Hunch.
+
+See `docs/grill-ai-analyst-adaptation.md` for the full source-agent candidate list and adaptation decisions.
+
+---
+
 ## Screen: Proposal Detail
 
 Opened by tapping "Review" on a proposal card.

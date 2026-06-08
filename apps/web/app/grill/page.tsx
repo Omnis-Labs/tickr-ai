@@ -1,0 +1,238 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { ArrowRight, FlameKindling, LoaderCircle, UsersRound } from 'lucide-react';
+import { getSignalAssets } from '@hunch-it/shared';
+import { TopAppBar } from '@/components/shell/top-app-bar';
+import { Button } from '@/components/ui/button';
+import { useAuthedFetch } from '@/lib/auth/fetch';
+import type { AnalystOpinion, GrillAnalysisResult } from '@/lib/grill/analysis';
+import { useAiTradingTeam } from '@/lib/grill/team-client';
+import { cn } from '@/lib/utils';
+
+const assets = getSignalAssets();
+
+export default function GrillPage() {
+  const router = useRouter();
+  const authedFetch = useAuthedFetch();
+  const { selectedIds, selectedAnalysts } = useAiTradingTeam();
+  const [assetId, setAssetId] = useState(() => assets[0]?.assetId ?? 'NVDAx');
+  const [idea, setIdea] = useState('');
+  const [analysis, setAnalysis] = useState<GrillAnalysisResult | null>(null);
+  const [busy, setBusy] = useState<'analysis' | 'proposal' | null>(null);
+
+  const supportingOpinions = useMemo(
+    () => analysis?.opinions.filter((opinion) => opinion.verdict === 'support') ?? [],
+    [analysis],
+  );
+  const canCreateProposal = !!analysis && supportingOpinions.length > 0 && busy !== 'proposal';
+
+  async function runAnalysis() {
+    setBusy('analysis');
+    setAnalysis(null);
+    try {
+      const res = await authedFetch('/api/grill/analyze', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId, idea, analystIds: selectedIds }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        analysis?: GrillAnalysisResult;
+        error?: string;
+      };
+      if (!res.ok || !body.analysis) throw new Error(body.error ?? `Grill failed (${res.status})`);
+      setAnalysis(body.analysis);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createProposal() {
+    if (!analysis) return;
+    setBusy('proposal');
+    try {
+      const res = await authedFetch('/api/grill/proposals', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assetId, idea: analysis.idea, analystIds: selectedIds }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        proposal?: { id: string };
+        error?: string;
+      };
+      if (!res.ok || !body.proposal?.id)
+        throw new Error(body.error ?? `Proposal failed (${res.status})`);
+      toast.success('Proposal created from Grill.');
+      router.push(`/proposals/${body.proposal.id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      <TopAppBar
+        title="Grill"
+        rightAction={
+          <Link
+            href="/team"
+            aria-label="AI Trading Team"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-transform active:scale-[0.97]"
+          >
+            <UsersRound className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        }
+      />
+
+      <main className="mx-auto flex w-full max-w-md flex-col gap-[14px] px-5 pb-36 pt-4">
+        <section className="rounded-lg bg-accent p-5 text-on-accent shadow-soft">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-label-md text-primary/70">Trade idea</p>
+              <h1 className="mt-1 text-headline-md text-primary">Grill</h1>
+            </div>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface/80 text-primary">
+              <FlameKindling className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
+          <p className="text-body-md leading-6 text-primary/80">
+            {selectedAnalysts.map((analyst) => analyst.name).join(' · ')}
+          </p>
+        </section>
+
+        <section className="rounded-lg bg-surface p-5 shadow-soft">
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-2">
+              <span className="text-label-md text-on-surface-variant">Asset</span>
+              <select
+                value={assetId}
+                onChange={(event) => setAssetId(event.target.value)}
+                className="h-12 rounded-full bg-surface-container px-4 text-label-lg text-primary outline-none ring-1 ring-outline-variant focus:ring-2 focus:ring-primary"
+              >
+                {assets.map((asset) => (
+                  <option key={asset.assetId} value={asset.assetId}>
+                    {asset.displaySymbol} · {asset.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-2">
+              <span className="text-label-md text-on-surface-variant">Grill Idea</span>
+              <textarea
+                value={idea}
+                onChange={(event) => setIdea(event.target.value)}
+                rows={5}
+                maxLength={1_000}
+                placeholder="NVDAx breakout after a strong guidance raise..."
+                className="min-h-[132px] resize-none rounded-lg bg-surface-container px-4 py-3 text-body-md leading-6 text-on-surface outline-none ring-1 ring-outline-variant placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary"
+              />
+            </label>
+
+            <Button
+              variant="accent"
+              className="h-12 w-full gap-2"
+              disabled={busy !== null || idea.trim().length < 8}
+              onClick={() => void runAnalysis()}
+            >
+              {busy === 'analysis' ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              )}
+              Run team
+            </Button>
+          </div>
+        </section>
+
+        {analysis && (
+          <>
+            <section className="flex flex-col gap-[14px]">
+              {analysis.opinions.map((opinion) => (
+                <OpinionCard key={opinion.analystId} opinion={opinion} />
+              ))}
+            </section>
+
+            <section className="rounded-lg bg-surface p-5 shadow-soft">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-title-md text-on-surface">Proposal</h2>
+                  <p className="mt-1 text-body-sm text-on-surface-variant">
+                    {supportingOpinions.length > 0
+                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support creating one.`
+                      : 'No analyst supports creating one.'}
+                  </p>
+                </div>
+                <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
+                  {analysis.assetId}
+                </span>
+              </div>
+              <Button
+                variant="accent"
+                className="h-12 w-full gap-2"
+                disabled={!canCreateProposal}
+                onClick={() => void createProposal()}
+              >
+                {busy === 'proposal' && (
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                )}
+                Create Proposal
+              </Button>
+            </section>
+          </>
+        )}
+      </main>
+    </>
+  );
+}
+
+function OpinionCard({ opinion }: { opinion: AnalystOpinion }) {
+  const tone = {
+    support: 'bg-positive-container text-positive',
+    challenge: 'bg-tertiary-container text-on-tertiary-container',
+    reject: 'bg-negative-container text-negative',
+  }[opinion.verdict];
+
+  return (
+    <article className="rounded-lg bg-surface p-5 shadow-soft">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className={cn('rounded-full px-2.5 py-1 text-label-sm', tone)}>
+              {opinion.verdict}
+            </span>
+            <span className="rounded-full bg-surface-container px-2.5 py-1 text-label-sm text-on-surface-variant">
+              {(opinion.confidence * 100).toFixed(0)}%
+            </span>
+          </div>
+          <h2 className="text-title-lg text-on-surface">{opinion.analystName}</h2>
+          <p className="mt-1 text-body-sm text-on-surface-variant">{opinion.originTask}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <OpinionSection label="Thesis" body={opinion.thesis} />
+        <OpinionSection label="Why now" body={opinion.whyNow} />
+        <OpinionSection label="Entry view" body={opinion.setupEntry} />
+        <OpinionSection label="Protection" body={opinion.riskProtection} />
+        <OpinionSection label="Wrong if" body={opinion.invalidation} />
+      </div>
+    </article>
+  );
+}
+
+function OpinionSection({ label, body }: { label: string; body: string }) {
+  return (
+    <section>
+      <p className="text-label-sm text-on-surface-variant">{label}</p>
+      <p className="mt-1 text-body-md leading-6 text-on-surface">{body}</p>
+    </section>
+  );
+}

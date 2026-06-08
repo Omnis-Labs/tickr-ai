@@ -86,6 +86,10 @@ model Proposal {
   /// password-gated dev-tools surface. Dev-only actions prove lineage through
   /// this field before emitting trigger events.
   origin                   ProposalOrigin @default(SIGNAL_ENGINE)
+  /// Optional durable context for non-signal proposal sources. Grill proposals
+  /// store the original Grill Idea and selected analyst ids here so the Proposal
+  /// keeps its lineage after transient Analyst Opinions disappear.
+  originContext            Json?
   status                   ProposalStatus  @default(ACTIVE)
   expiresAt                DateTime
   createdAt                DateTime        @default(now())
@@ -239,6 +243,7 @@ enum ProposalOutcome {
 enum ProposalOrigin {
   SIGNAL_ENGINE
   DEV_TOOLS
+  GRILL
 }
 
 enum SkipReason {

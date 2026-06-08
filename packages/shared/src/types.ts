@@ -53,7 +53,7 @@ export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
 export const ProposalOutcomeSchema = z.enum(['WIN', 'LOSS', 'NEUTRAL']);
 export type ProposalOutcome = z.infer<typeof ProposalOutcomeSchema>;
 
-export const ProposalOriginSchema = z.enum(['SIGNAL_ENGINE', 'DEV_TOOLS']);
+export const ProposalOriginSchema = z.enum(['SIGNAL_ENGINE', 'DEV_TOOLS', 'GRILL']);
 export type ProposalOrigin = z.infer<typeof ProposalOriginSchema>;
 
 export const SkipReasonSchema = z.enum([
@@ -134,6 +134,7 @@ export const ProposalSchema = z.object({
   positionId: z.string().nullable().optional(),
   triggeringTag: z.string().nullable().optional(),
   origin: ProposalOriginSchema.default('SIGNAL_ENGINE'),
+  originContext: z.unknown().nullable().optional(),
   status: ProposalStatusSchema,
   expiresAt: z.string(),
   createdAt: z.string(),

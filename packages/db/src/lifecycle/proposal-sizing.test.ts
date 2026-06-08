@@ -77,3 +77,33 @@ test('ProposalCreation returns null when no USDC can size the proposal', () => {
 
   assert.equal(data, null);
 });
+
+test('ProposalCreation preserves Grill origin and original Grill Idea context', () => {
+  const data = buildBuyProposalCreateData({
+    userId: 'user-1',
+    analysis,
+    mandate: {
+      holdingPeriod: '1-2 weeks',
+      maxTradeSizeUsd: 500,
+      maxDrawdown: 0.05,
+    },
+    positionImpact: {
+      totalUsd: 100,
+      cashUsd: 100,
+      assetExposureUsd: 0,
+      verticalExposureUsd: 0,
+    },
+    origin: 'GRILL',
+    originContext: {
+      grillIdea: 'A creator says NVDAx is a buy after the breakout.',
+      analystIds: ['technical'],
+    },
+  });
+
+  assert.ok(data);
+  assert.equal(data.origin, 'GRILL');
+  assert.deepEqual(data.originContext, {
+    grillIdea: 'A creator says NVDAx is a buy after the breakout.',
+    analystIds: ['technical'],
+  });
+});

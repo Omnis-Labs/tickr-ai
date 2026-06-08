@@ -10,7 +10,7 @@ The system is frozen on the **synthetic-trigger** architecture (ADR-0001). Read 
 
 ### Mandate
 
-The four trading constraints captured at setup: `holdingPeriod`, `maxDrawdown`, `maxTradeSize`, `marketFocus`. Stored in the `Mandate` table (one per `User`). The presence of a `Mandate` row is the **only** signal that a user is "set up"; there is no separate onboarding flag.
+The user's core trading constraints captured at setup: `holdingPeriod`, `maxDrawdown`, `maxTradeSize`, `marketFocus`. Stored in the `Mandate` table (one per `User`). The presence of a `Mandate` row is the **only** signal that a user is "set up"; there is no separate onboarding flag. In the current Grill direction, the user's AI Trading Team may live alongside the Mandate as a preference, but it does not change the Mandate's risk constraints.
 
 ### SessionGate
 
@@ -25,6 +25,30 @@ Two entrypoints: `resolveSession(req)` for API routes (Bearer token), `resolveSe
 ### Proposal
 
 A personalized BUY recommendation produced by the signal pipeline. Snapshotted into a `Proposal` row with suggested size / trigger / TP / SL / expiry / reasoning; expiry follows the mandate-based lifetime and is not shortened by exchange close.
+
+### AI Analyst
+
+A user-selectable investment viewpoint with its own technique, data lens, and trading style. AI Analysts do not place Orders or act autonomously; they help turn a market setup or user-supplied trade idea into Analyst Opinions that can support, challenge, or reject the idea.
+
+### AI Analyst Catalog
+
+The set of AI Analysts Hunch exposes for the user to add to their AI Trading Team. The catalog may draw from existing research agents when their technique can be made to work on Hunch Tradable Assets and Hunch data sources; research agents that cannot produce reliable Analyst Opinions in the Hunch product context should stay out of the catalog until adapted.
+
+### AI Trading Team
+
+The user's chosen set of up to six AI Analysts. The AI Trading Team can contain multiple AI Analysts at once, so a trade idea or market setup can be evaluated from several viewpoints before the user decides whether to create one Proposal. In the current product direction, Team is a primary signed-in surface alongside Home, Grill, and Portfolio rather than a required onboarding step.
+
+### Grill
+
+The signed-in surface where a user brings an outside trade idea from a friend, creator, social feed, or market move and asks their AI Trading Team to challenge it. Grill shows each selected AI Analyst's Opinion without collapsing the debate into a final verdict; the user decides whether to turn the idea into one Proposal.
+
+### Grill Idea
+
+The user-supplied trade idea entered in Grill. When the user creates a Proposal from Grill, the Proposal should retain that original Grill Idea as its context, while the transient Analyst Opinions do not need to be preserved.
+
+### Analyst Opinion
+
+One AI Analyst's visible read on a trade idea or market setup during Grill. Analyst Opinions may disagree with each other, and that disagreement is part of the user's decision-making moment; they are not separate Proposals and do not need to be preserved after the user leaves the Grill result.
 
 ### Signal
 

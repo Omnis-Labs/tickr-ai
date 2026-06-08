@@ -1,4 +1,4 @@
-import { Prisma } from '../../generated/prisma/index.js';
+import { Prisma, type ProposalOrigin } from '../../generated/prisma/index.js';
 import { prisma } from '../client.js';
 
 type Tx = Prisma.TransactionClient;
@@ -7,7 +7,7 @@ export async function expireActiveProposals(
   client: Tx | typeof prisma,
   input: {
     userId?: string;
-    origin?: 'SIGNAL_ENGINE' | 'DEV_TOOLS';
+    origin?: ProposalOrigin;
     now?: Date;
   } = {},
 ): Promise<number> {
