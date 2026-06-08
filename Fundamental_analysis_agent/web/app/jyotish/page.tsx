@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createJyotish, pollJyotish, Task35Job, Graha } from "@/lib/api";
 import { CandlestickChart, EquityChart } from "./Charts";
+import { RashiChart } from "./RashiChart";
 import { Backtest, Caveats, Readings } from "../_components/panels";
 
 const STANCE: Record<string, string> = { bullish: "text-emerald-400 border-emerald-700 bg-emerald-950/30", neutral: "text-zinc-300 border-zinc-700 bg-zinc-900", cautious: "text-amber-400 border-amber-700 bg-amber-950/30" };
@@ -42,6 +43,7 @@ export default function JyotishPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="border border-zinc-800 rounded-md p-4 space-y-2">
             <h3 className="text-sm font-semibold text-zinc-200">Rāśi chart (sidereal) — listing {c.listing_date}{c.listing_date_is_data_limit && <span className="text-[10px] text-amber-400"> (data limit)</span>}</h3>
+            <RashiChart grahas={c.grahas} moonRashi={c.moon_rashi} dashaLord={c.mahadasha_lord} />
             <table className="w-full text-xs"><thead className="text-zinc-500 text-left"><tr><th className="py-1 pr-3">Graha</th><th className="pr-3 text-right">Sidereal °</th><th>Rāśi</th></tr></thead>
               <tbody className="text-zinc-300">{c.grahas.map((g: Graha) => <tr key={g.name} className="border-t border-zinc-900"><td className="py-1 pr-3 font-medium">{g.name}</td><td className="pr-3 text-right tabular-nums">{g.sidereal_lon.toFixed(1)}</td><td>{g.rashi}</td></tr>)}</tbody></table>
             <div className="text-xs text-zinc-400 pt-1">Moon: <span className="text-zinc-200">{c.moon_nakshatra}</span> nakṣatra · {c.moon_rashi} · Mahādaśā <span className={c.dasha_nature === "benefic" ? "text-emerald-400" : "text-red-400"}>{c.mahadasha_lord} ({c.dasha_nature})</span></div>
