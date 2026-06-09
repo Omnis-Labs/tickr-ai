@@ -420,7 +420,7 @@ flowchart TD
     L --> M[ws-server detects cash + mandate → generates BUY proposals]
     M --> N[User reviews proposal → adjusts → Accept]
     N --> O[Synthetic BUY trigger Order → Position BUY_PENDING]
-    O --> P[Price trigger]
+    O --> P[Pyth wake-up + executable Ultra quote]
     P --> P1{Auto-execute triggers live?}
     P1 -- Yes --> Q[ws-server executes Ultra → trade:filled]
     P1 -- No --> R[trigger:hit toast → tap Execute]
@@ -453,7 +453,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[ws-server detects BUY trigger] --> B{Privy delegated wallet live?}
+    A[ws-server detects executable BUY trigger] --> B{Privy delegated wallet live?}
     B -- Yes --> C[ws-server claims Order; Position BUY_PENDING → ENTERING]
     B -- No --> D[Emit trigger:hit; user taps Execute]
     D --> E[Client claims Order; Position BUY_PENDING → ENTERING]
@@ -469,7 +469,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[ws-server detects TP/SL trigger] --> B{Privy delegated wallet live?}
+    A[ws-server detects executable TP/SL trigger] --> B{Privy delegated wallet live?}
     B -- Yes --> C[ws-server claims exit Order; Position ACTIVE → CLOSING]
     B -- No --> D[Emit trigger:hit; user taps Execute]
     D --> E[Client claims exit Order; Position ACTIVE → CLOSING]

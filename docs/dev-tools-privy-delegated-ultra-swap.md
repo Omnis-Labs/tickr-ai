@@ -7,7 +7,7 @@ This document covers the `/dev-tools` harness for executing a synthetic Order fr
 - Lives behind `/dev-tools` and `ENABLE_DEV_TOOLS=true`.
 - Executes only owned Orders that came from `DEV_TOOLS` proposals.
 - Uses Privy signer access and `PRIVY_WALLET_AUTHORIZATION_PRIVATE_KEY`.
-- Exercises the same delegated Ultra Module that production ws-server uses when a trigger hits and the configured signer is attached.
+- Exercises the same delegated Ultra Module that production ws-server uses when an Executable Trigger is available and the configured signer is attached.
 
 ## Privy Setup
 

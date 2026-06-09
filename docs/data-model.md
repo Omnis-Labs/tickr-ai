@@ -87,7 +87,7 @@ BUY_PENDING -> ACTIVE -> CLOSED
 
 ### Order
 
-`Order` is a synthetic trigger or close intent. Synthetic orders have `jupiterOrderId = null`; ws-server watches Pyth and either auto-executes through Privy signer access or emits `trigger:hit` fallback when conditions match.
+`Order` is a synthetic trigger or close intent. Synthetic orders have `jupiterOrderId = null`; ws-server watches Pyth as a wake-up band, confirms triggerability with a fresh Jupiter Ultra executable price, and only then auto-executes through Privy signer access or emits `trigger:hit` fallback.
 
 Kinds:
 
@@ -201,6 +201,6 @@ Owned outputs:
 
 ## Data Sync
 
-The Proposal Generator reads wallet balances on-chain to calculate portfolio context. The synthetic trigger monitor reads Pyth every poll cycle for open synthetic Orders. If Auto-execute triggers is live, ws-server executes the Jupiter Ultra swap through Privy signer access and settles with PositionLifecycle. Otherwise it emits `trigger:hit`; the browser executes the Jupiter Ultra swap and then settles DB state through `/api/orders/[id]/execute`.
+The Proposal Generator reads wallet balances on-chain to calculate portfolio context. The synthetic trigger monitor reads Pyth every poll cycle for open synthetic Orders, then asks Jupiter Ultra for an executable quote when Pyth enters the wake-up band. If the executable price satisfies the Order condition and Auto-execute triggers is live, ws-server executes the Jupiter Ultra swap through Privy signer access and settles with PositionLifecycle. Otherwise it emits `trigger:hit`; the browser executes the Jupiter Ultra swap and then settles DB state through `/api/orders/[id]/execute`.
 
 Back-evaluation is env-gated and writes `evaluatedAt`, `priceAfter`, `pctChange`, and `outcome` after the 1-hour mark when benchmark data is available.

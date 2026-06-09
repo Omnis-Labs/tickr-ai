@@ -12,7 +12,7 @@ The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In t
 
 1. **Market Scanner** — monitor all supported assets for trading opportunities
 2. **Proposal Generator** — convert Base Market Analysis into personalized BUY proposals per user
-3. **Trigger Monitor** — poll Pyth for OPEN synthetic Orders, auto-execute when delegation is live, or emit `trigger:hit` fallback
+3. **Trigger Monitor** — poll Pyth for OPEN synthetic Orders, quote Jupiter Ultra for executable triggerability, then auto-execute when delegation is live or emit `trigger:hit` fallback
 4. **Back-Evaluator** — score proposal quality after the fact (env-gated)
 
 The pipeline is asset-native. Every signalable item is a canonical `AssetId` from the Asset Universe in `packages/shared/src/assets.ts` such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`. Equity-like signals use xStock-native Pyth feeds such as `Crypto.AAPLX/USD`; Hunch does not recognize bare US equity symbols and does not fall back to underlying equity feeds.
@@ -146,12 +146,12 @@ Runs every 30 seconds in the ws-server.
 
 1. Query all synthetic Orders with `status = OPEN`
 2. Fetch current Pyth price for each asset id
-3. Check trigger condition:
-   - BUY: current price within 0.5% of trigger
-   - TP: current price >= trigger price
-   - SL: current price <= trigger price
-4. Hand the trigger to TriggerExecutionDispatch. It tries the shared `@hunch-it/execution` Delegated Execution Runtime first.
-5. If Delegated Execution settles, emit `trade:filled`; otherwise emit `trigger:hit` only for fallback-safe outcomes. The browser performs tap-to-execute: execution claim, Jupiter Ultra `/order`, Privy user signature, Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` to settle DB state.
+3. Treat Pyth as a cheap wake-up band:
+   - BUY/SL wake when Pyth is within 0.5% above trigger
+   - TP wakes when Pyth is within 0.5% below trigger
+4. Fetch a fresh Jupiter Ultra `/order` quote and evaluate the executable price against the actual Order condition.
+5. Hand only executable triggers to TriggerExecutionDispatch. It tries the shared `@hunch-it/execution` Delegated Execution Runtime first.
+6. If Delegated Execution settles, emit `trade:filled`; otherwise emit `trigger:hit` only for fallback-safe outcomes after the executable quote passes. The browser performs tap-to-execute: execution claim, Jupiter Ultra `/order`, Privy user signature, Jupiter Ultra `/execute`, then `POST /api/orders/[id]/execute` to settle DB state.
 
 The monitor is intentionally idempotent: fallback may re-emit the same OPEN Order every poll until the user executes, cancels, or the Order is filled. Delegated execution claims the Order before signing, so repeated polls and stale toasts cannot start a second swap after the first execution path owns the trigger.
 

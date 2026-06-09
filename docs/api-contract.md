@@ -143,7 +143,7 @@ Response `409`: No selected analyst supports creating a Proposal.
 
 **`POST /api/orders`** — Accept a BUY proposal into synthetic trigger state.
 
-This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When the trigger later hits, ws-server either auto-executes through Privy signer access or falls back to `trigger:hit` tap-to-execute.
+This is the primary "Approve" endpoint for BUY proposals. It creates a `Position(BUY_PENDING)` and an `Order(BUY_TRIGGER, OPEN, jupiterOrderId=null)`. It does not call Jupiter, sign a transaction, or lock USDC. When Pyth wakes the trigger and a fresh Jupiter Ultra quote satisfies the Order condition, ws-server either auto-executes through Privy signer access or falls back to `trigger:hit` tap-to-execute.
 
 Request:
 
@@ -423,7 +423,7 @@ socket.on('auth:error', { reason: string });
 | ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `signal:new`       | Legacy Signal object                                                                                             | Legacy signal modal path                                    |
 | `proposal:new`     | Full Proposal object                                                                                             | New BUY or SELL proposal generated for this user            |
-| `trigger:hit`      | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`      | Synthetic trigger matched and needs tap-to-execute fallback |
+| `trigger:hit`      | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, executablePriceUsd, executableTokenAmount, executableUsdValue, executablePremiumVsCurrentPricePct, executablePremiumVsTriggerPricePct, sizeUsd, tokenAmount }` | Executable Trigger needs tap-to-execute fallback |
 | `trade:filled`     | `{ orderId, positionId, ticker, kind, side, executionMode, executionPrice, tokenAmount, usdValue, txSignature }` | Trigger filled, usually by delegated execution              |
 | `position:updated` | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`                                          | Position state changed                                      |
 | `pong`             | `{ timestamp }`                                                                                                  | Heartbeat response                                          |
@@ -474,7 +474,7 @@ No Jupiter request happens here.
 
 ### Tap-to-Execute Trigger Fill
 
-This is the fallback when Auto-execute triggers is off, Privy signer access is not live, or delegated execution fails before `/execute` is attempted. When the ws-server emits `trigger:hit` and the user taps Execute:
+This is the fallback when Auto-execute triggers is off, Privy signer access is not live, or delegated execution fails before `/execute` is attempted. ws-server emits `trigger:hit` only after Pyth wakes the Order and a fresh Jupiter Ultra quote satisfies the Order condition. When the user taps Execute:
 
 1. `POST /api/orders/[id]/execution-claim` atomically claims `OPEN → PENDING`.
 2. Browser prepares the swap amount. BUY spends USDC. SELL reads the wallet's matching mint balance across both classic SPL Token (`Tokenkeg...`) and Token-2022 (`TokenzQd...`) accounts, then caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -492,7 +492,7 @@ This is the fallback when Auto-execute triggers is off, Privy signer access is n
 
 ### Delegated Trigger Fill
 
-When a trigger hits and Privy signer access is live:
+When an Executable Trigger is available and Privy signer access is live:
 
 1. ws-server resolves the user's Privy delegated wallet and signer readiness at execution time using the shared readiness Module.
 2. ws-server prepares the same Jupiter Ultra swap plan used by tap-to-execute. BUY spends USDC. SELL reads the wallet's matching mint balance across both token programs and caps the submitted raw amount at the lesser of the Order's `tokenAmount` and the wallet balance.
@@ -503,7 +503,7 @@ When a trigger hits and Privy signer access is live:
 7. If Jupiter returns a signature, ws-server settles through the same PositionLifecycle functions used by `POST /api/orders/[id]/execute`.
 8. On success, ws-server emits `trade:filled`.
 
-If delegation, server signing readiness, or balance is unavailable, TriggerExecutionDispatch emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, TriggerExecutionDispatch may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
+If delegation, server signing readiness, or balance is unavailable after the executable quote passes, TriggerExecutionDispatch emits `trigger:hit` and lets the normal fallback path handle execution. If a transient Privy/Jupiter runtime error happens before `/execute` is attempted, TriggerExecutionDispatch may apply a short delegated runtime cooldown and then falls back. If `/execute` is attempted but no signature is returned, or if Jupiter returns a signature but DB settlement fails, ws-server keeps the execution claim locked for reconciliation and does not emit a manual fallback because a second swap could double-fill.
 
 ### BUY Fill Settlement
 

@@ -67,11 +67,11 @@ SELECT id, kind, status, "triggerPriceUsd" FROM "Order" ORDER BY "createdAt" DES
 
 ### 6. Trigger-monitor handles a price hit
 
-Open `/desk` and wait for the trigger condition, or use `/dev-tools` to force trigger the owned dev order. In normal runtime the ws-server polls Pyth every 30 s.
+Open `/desk` and wait for the executable trigger condition, or use `/dev-tools` to force-check the owned dev order. In normal runtime the ws-server polls Pyth every 30 s, then confirms triggerability with a fresh Jupiter Ultra quote.
 
-With **Auto-execute triggers** off or unavailable, you should see a sticky `trigger:hit` toast. With **Auto-execute triggers** on and Privy delegation live, ws-server should execute the swap from the server and the client should receive a `trade:filled` notification instead of an Execute prompt.
+With **Auto-execute triggers** off or unavailable, you should see a sticky `trigger:hit` toast only after the Ultra executable price satisfies the Order condition. With **Auto-execute triggers** on and Privy delegation live, ws-server should execute the swap from the server and the client should receive a `trade:filled` notification instead of an Execute prompt.
 
-**What's being verified**: `apps/ws-server/src/orders/trigger-monitor.ts` selects OPEN synthetic Orders and checks Pyth. `TriggerExecutionDispatch` then routes the trigger to the shared Delegated Execution Runtime or emits `trigger:hit` to the user's Socket.IO room for fallback. A plain fallback toast does **not** mutate DB. The fallback toast can fire repeatedly (every poll) until the user executes — that's intentional idempotent re-firing.
+**What's being verified**: `apps/ws-server/src/orders/trigger-monitor.ts` selects OPEN synthetic Orders, uses Pyth as the wake-up band, and then uses Jupiter Ultra executable price as the final triggerability source of truth. `TriggerExecutionDispatch` then routes the Executable Trigger to the shared Delegated Execution Runtime or emits `trigger:hit` to the user's Socket.IO room for fallback. A plain fallback toast does **not** mutate DB. The fallback toast can fire repeatedly (every poll) until the user executes — that's intentional idempotent re-firing.
 
 ### 7. Executing the BUY trigger fills the order, activates the position, arms TP+SL
 

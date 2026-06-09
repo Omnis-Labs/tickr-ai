@@ -43,7 +43,7 @@ Hunch's MWP proves one promise: **a user sets their investment mandate, deposits
 - **PWA** (single interface with manifest + service worker, no native app)
 - **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
 - **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
-- **Synthetic trigger execution**: ws-server watches Pyth, then either auto-executes through Privy signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
+- **Synthetic trigger execution**: ws-server watches Pyth as a wake-up band, confirms triggerability with Jupiter Ultra executable price, then either auto-executes through Privy signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
 - **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
 - **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to produce Base Market Analysis; shared ProposalCreation turns that into personalized BUY proposals per user mandate
 - **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
@@ -112,7 +112,7 @@ Tokenized ETF xStocks follow the same `*x` convention (`SPYx`, `QQQx`).
 - [ ] User can adjust size, trigger price, TP, SL
 - [ ] User can skip and provide a reason
 - [ ] User can accept a synthetic BUY trigger Order
-- [ ] `trigger:hit` toast lets the user tap Execute when Auto-execute triggers is off or unavailable
+- [ ] `trigger:hit` toast lets the user tap Execute when Auto-execute triggers is off or unavailable and the Ultra executable price satisfies the Order condition
 - [ ] Auto-execute triggers can be enabled/revoked from Settings and fills BUY/TP/SL triggers without a browser tab open
 - [ ] Jupiter Ultra `/order` + Privy user signature + `/execute` fills the BUY
 - [ ] BUY fill creates automatic TP/SL synthetic exit Orders
