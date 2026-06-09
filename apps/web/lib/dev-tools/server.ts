@@ -12,8 +12,8 @@ import {
   evaluateSignalDataFreshness,
   getUltraOrderProblem,
   requireAsset,
+  triggerHitPayloadFromEvidence,
   type Bar,
-  type TriggerExecutionEvidence,
   type TriggerHitPayload,
   type TriggerWakePayload,
 } from '@hunch-it/shared';
@@ -81,20 +81,6 @@ type IndicatorSet = {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
-}
-
-function triggerHitPayloadFromEvidence(
-  payload: TriggerWakePayload,
-  evidence: TriggerExecutionEvidence,
-): TriggerHitPayload {
-  return {
-    ...payload,
-    executablePriceUsd: evidence.executionPrice,
-    executableTokenAmount: evidence.tokenAmount,
-    executableUsdValue: evidence.usdValue,
-    executablePremiumVsCurrentPricePct: evidence.premiumVsCurrentPricePct,
-    executablePremiumVsTriggerPricePct: evidence.premiumVsTriggerPricePct,
-  };
 }
 
 function ema(values: number[], period: number): number[] {

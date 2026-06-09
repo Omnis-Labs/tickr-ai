@@ -1,5 +1,5 @@
 import { USDC_DECIMALS, USDC_MINT } from './constants.js';
-import type { TriggerWakePayload } from './types.js';
+import type { TriggerHitPayload, TriggerWakePayload } from './types.js';
 
 export type TriggerUltraSwapSide = 'BUY' | 'SELL';
 
@@ -193,6 +193,20 @@ export function triggerExecutionEvidence(input: {
     ),
     jupiterRequestId: redactExecutionIdentifier(input.jupiterRequestId),
     txSignature: redactExecutionIdentifier(input.txSignature),
+  };
+}
+
+export function triggerHitPayloadFromEvidence(
+  payload: TriggerWakePayload,
+  evidence: TriggerExecutionEvidence,
+): TriggerHitPayload {
+  return {
+    ...payload,
+    executablePriceUsd: evidence.executionPrice,
+    executableTokenAmount: evidence.tokenAmount,
+    executableUsdValue: evidence.usdValue,
+    executablePremiumVsCurrentPricePct: evidence.premiumVsCurrentPricePct,
+    executablePremiumVsTriggerPricePct: evidence.premiumVsTriggerPricePct,
   };
 }
 

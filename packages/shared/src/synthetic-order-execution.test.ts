@@ -13,6 +13,7 @@ import {
   settlementAmountsForTrigger,
   submittedInputRawForBalance,
   triggerExecutionEvidence,
+  triggerHitPayloadFromEvidence,
 } from './synthetic-order-execution.js';
 
 const buyPayload: TriggerWakePayload = {
@@ -130,6 +131,25 @@ test('triggerExecutionEvidence records BUY mark premium and redacted execution i
       txSignature: 'sign...cdef',
     },
   );
+});
+
+test('triggerHitPayloadFromEvidence turns executable evidence into an action payload', () => {
+  const evidence = triggerExecutionEvidence({
+    payload: buyPayload,
+    inAmount: '25000000',
+    outAmount: '25000000',
+    decimals: 8,
+    jupiterRequestId: 'request-1',
+  });
+
+  assert.deepEqual(triggerHitPayloadFromEvidence(buyPayload, evidence), {
+    ...buyPayload,
+    executablePriceUsd: 100,
+    executableTokenAmount: 0.25,
+    executableUsdValue: 25,
+    executablePremiumVsCurrentPricePct: 0,
+    executablePremiumVsTriggerPricePct: 0,
+  });
 });
 
 test('executableTriggerDecision waits when Ultra BUY price is above the trigger', () => {

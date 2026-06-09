@@ -173,6 +173,7 @@ export {
   settlementAmountsForTrigger,
   submittedInputRawForBalance,
   triggerExecutionEvidence,
+  triggerHitPayloadFromEvidence,
   redactExecutionIdentifier,
 } from './synthetic-order-execution.js';
 export type {

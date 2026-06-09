@@ -19,8 +19,8 @@ import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   pythWakeUpBandHit,
+  triggerHitPayloadFromEvidence,
   type ExecutableTriggerDecision,
-  type TriggerExecutionEvidence,
   type TriggerHitPayload,
   type TriggerWakePayload,
 } from '@hunch-it/shared';
@@ -97,20 +97,6 @@ function buildPayload(
     currentPriceUsd,
     sizeUsd: order.sizeUsd.toNumber(),
     tokenAmount: order.tokenAmount?.toNumber() ?? null,
-  };
-}
-
-function withExecutableQuote(
-  payload: TriggerWakePayload,
-  evidence: TriggerExecutionEvidence,
-): TriggerHitPayload {
-  return {
-    ...payload,
-    executablePriceUsd: evidence.executionPrice,
-    executableTokenAmount: evidence.tokenAmount,
-    executableUsdValue: evidence.usdValue,
-    executablePremiumVsCurrentPricePct: evidence.premiumVsCurrentPricePct,
-    executablePremiumVsTriggerPricePct: evidence.premiumVsTriggerPricePct,
   };
 }
 
@@ -204,7 +190,7 @@ export async function runTriggerMonitor(
         continue;
       }
 
-      const triggerablePayload = withExecutableQuote(payload, quote.executionEvidence);
+      const triggerablePayload = triggerHitPayloadFromEvidence(payload, quote.executionEvidence);
       summary.hits++;
       const dispatch = await dispatchTriggeredOrderExecution({
         io,
