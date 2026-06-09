@@ -29,9 +29,15 @@ function DesktopNav({ pathname }: { pathname: string }) {
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] bg-background px-5 py-5 lg:flex lg:flex-col">
       <Link
         href="/desk"
-        className="mb-6 inline-flex h-12 items-center rounded-full bg-surface px-4 text-title-md font-semibold shadow-micro"
+        aria-label="Go to Home"
+        className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-colors hover:bg-surface-container"
       >
-        Hunch It<span className="text-on-surface-variant">.</span>
+        <span
+          className="material-symbols-outlined text-[22px] [font-variation-settings:'FILL'_1]"
+          aria-hidden="true"
+        >
+          home
+        </span>
       </Link>
 
       <nav

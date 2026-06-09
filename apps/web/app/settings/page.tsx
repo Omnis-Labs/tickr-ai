@@ -90,155 +90,159 @@ export default function SettingsPage() {
     <>
       <TopAppBar title="Settings" />
 
-      <main className="mx-auto grid w-full max-w-md gap-6 px-5 py-6 pb-24 lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:px-8 lg:pb-10">
-        <Section icon={<UserRound className="h-5 w-5" />} title="Account">
-          {!connected ? (
-            <p className="text-body-md text-on-surface-variant">Not signed in.</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
-                  Wallet
-                </span>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-body-md text-on-surface truncate">
-                    {address ? shorten(address) : 'Not connected'}
+      <main className="mx-auto grid w-full max-w-md gap-[14px] px-5 py-6 pb-24 lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.95fr)] lg:items-start lg:gap-6 lg:px-8 lg:pb-10">
+        <div className="flex flex-col gap-[14px] lg:gap-6">
+          <Section icon={<UserRound className="h-5 w-5" />} title="Account">
+            {!connected ? (
+              <p className="text-body-md text-on-surface-variant">Not signed in.</p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                    Wallet
                   </span>
-                  {address && (
-                    <button
-                      type="button"
-                      onClick={() => void handleCopy()}
-                      aria-label={
-                        copyStatus === 'copied' ? 'Wallet address copied' : 'Copy wallet address'
-                      }
-                      className="w-11 h-11 rounded-full bg-surface-container-low text-primary flex items-center justify-center active:scale-[0.95] transition-transform hover:bg-surface-container-high"
-                    >
-                      {copyStatus === 'copied' ? (
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                      ) : (
-                        <Clipboard className="h-4 w-4" aria-hidden="true" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-              {connected && (
-                <button
-                  type="button"
-                  onClick={() => void logout()}
-                  className="self-start flex h-11 items-center gap-2 rounded-full px-3 text-label-md text-error transition-colors hover:bg-error-container"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </button>
-              )}
-            </div>
-          )}
-        </Section>
-
-        <AutoExecuteTriggersCard />
-
-        <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
-          {isPortfolioLoading ? (
-            <SkeletonRows rows={2} />
-          ) : portfolioQuery.isError ? (
-            <InlineError
-              message="Could not load positions."
-              onRetry={() => void portfolioQuery.refetch()}
-            />
-          ) : (
-            <>
-              <Row label="Active positions">
-                <span className="tabular-nums">{portfolioSummary.positionsCount}</span>
-              </Row>
-              <div className="h-px bg-divider my-3" />
-              <Row label="Total value">
-                <span className="text-primary tabular-nums">
-                  $
-                  {portfolioSummary.positionsValue.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </Row>
-            </>
-          )}
-        </Section>
-
-        <Section
-          icon={<SlidersHorizontal className="h-5 w-5" />}
-          title="Your Mandate"
-          right={
-            mandate ? (
-              <Link
-                href="/mandate"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary shadow-micro transition-colors active:scale-[0.97] hover:bg-surface-container-high"
-              >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
-                Edit mandate
-              </Link>
-            ) : null
-          }
-        >
-          {isLoading ? (
-            <SkeletonRows rows={4} />
-          ) : mandateQuery.isError ? (
-            <InlineError
-              message="Could not load your mandate."
-              onRetry={() => void mandateQuery.refetch()}
-            />
-          ) : !mandate ? (
-            <div>
-              <p className="text-body-md text-on-surface-variant mb-3">
-                {appNarrativeCopy.mandateMissing}
-              </p>
-              <Link
-                href="/mandate"
-                className="inline-flex items-center justify-center bg-primary text-on-primary rounded-full h-11 px-5 text-label-lg active:scale-[0.97] transition-transform"
-              >
-                Set up mandate
-              </Link>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <Row label="Holding period">
-                {HOLDING_PERIOD_OPTIONS.find((o) => o.value === mandate.holdingPeriod)?.label ??
-                  mandate.holdingPeriod}
-              </Row>
-              <Row label="Max drawdown">
-                {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ??
-                  'Custom'}
-              </Row>
-              <Row label="Max trade size">
-                <span className="tabular-nums">${mandate.maxTradeSize.toFixed(2)}</span>
-              </Row>
-              <div className="flex flex-col gap-2">
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
-                  Market focus
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {verticalLabels.length === 0 && (
-                    <span className="text-body-sm text-on-surface-variant">—</span>
-                  )}
-                  {verticalLabels.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-container-low text-label-sm text-primary"
-                    >
-                      {tag}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-mono text-body-md text-on-surface">
+                      {address ? shorten(address) : 'Not connected'}
                     </span>
-                  ))}
+                    {address && (
+                      <button
+                        type="button"
+                        onClick={() => void handleCopy()}
+                        aria-label={
+                          copyStatus === 'copied' ? 'Wallet address copied' : 'Copy wallet address'
+                        }
+                        className="flex h-11 w-11 items-center justify-center rounded-full bg-surface-container-low text-primary transition-transform active:scale-[0.95] hover:bg-surface-container-high"
+                      >
+                        {copyStatus === 'copied' ? (
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <Clipboard className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {connected && (
+                  <button
+                    type="button"
+                    onClick={() => void logout()}
+                    className="flex h-11 items-center gap-2 self-start rounded-full px-3 text-label-md text-error transition-colors hover:bg-error-container"
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                    Sign out
+                  </button>
+                )}
               </div>
-              <p className="text-body-sm text-on-surface-variant pt-3 mt-1 border-t border-divider">
-                Editing the mandate marks every active proposal as expired. Hunch It regenerates
-                against the new parameters on its next cycle.
-              </p>
-            </div>
-          )}
-        </Section>
+            )}
+          </Section>
 
-        <CloseAllPositionsCard />
+          <Section icon={<BriefcaseBusiness className="h-5 w-5" />} title="Positions Overview">
+            {isPortfolioLoading ? (
+              <SkeletonRows rows={2} />
+            ) : portfolioQuery.isError ? (
+              <InlineError
+                message="Could not load positions."
+                onRetry={() => void portfolioQuery.refetch()}
+              />
+            ) : (
+              <>
+                <Row label="Active positions">
+                  <span className="tabular-nums">{portfolioSummary.positionsCount}</span>
+                </Row>
+                <div className="my-3 h-px bg-divider" />
+                <Row label="Total value">
+                  <span className="tabular-nums text-primary">
+                    $
+                    {portfolioSummary.positionsValue.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </Row>
+              </>
+            )}
+          </Section>
+
+          <CloseAllPositionsCard />
+        </div>
+
+        <div className="flex flex-col gap-[14px] lg:gap-6">
+          <AutoExecuteTriggersCard />
+
+          <Section
+            icon={<SlidersHorizontal className="h-5 w-5" />}
+            title="Your Mandate"
+            right={
+              mandate ? (
+                <Link
+                  href="/mandate"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary shadow-micro transition-colors active:scale-[0.97] hover:bg-surface-container-high"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  Edit mandate
+                </Link>
+              ) : null
+            }
+          >
+            {isLoading ? (
+              <SkeletonRows rows={4} />
+            ) : mandateQuery.isError ? (
+              <InlineError
+                message="Could not load your mandate."
+                onRetry={() => void mandateQuery.refetch()}
+              />
+            ) : !mandate ? (
+              <div>
+                <p className="mb-3 text-body-md text-on-surface-variant">
+                  {appNarrativeCopy.mandateMissing}
+                </p>
+                <Link
+                  href="/mandate"
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-label-lg text-on-primary transition-transform active:scale-[0.97]"
+                >
+                  Set up mandate
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <Row label="Holding period">
+                  {HOLDING_PERIOD_OPTIONS.find((o) => o.value === mandate.holdingPeriod)?.label ??
+                    mandate.holdingPeriod}
+                </Row>
+                <Row label="Max drawdown">
+                  {MAX_DRAWDOWN_OPTIONS.find((o) => o.value === mandate.maxDrawdown)?.label ??
+                    'Custom'}
+                </Row>
+                <Row label="Max trade size">
+                  <span className="tabular-nums">${mandate.maxTradeSize.toFixed(2)}</span>
+                </Row>
+                <div className="flex flex-col gap-2">
+                  <span className="text-label-sm uppercase tracking-wider text-on-surface-variant">
+                    Market focus
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {verticalLabels.length === 0 && (
+                      <span className="text-body-sm text-on-surface-variant">—</span>
+                    )}
+                    {verticalLabels.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full bg-surface-container-low px-2.5 py-1 text-label-sm text-primary"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-1 border-t border-divider pt-3 text-body-sm text-on-surface-variant">
+                  Editing the mandate marks every active proposal as expired. Hunch It regenerates
+                  against the new parameters on its next cycle.
+                </p>
+              </div>
+            )}
+          </Section>
+        </div>
       </main>
     </>
   );
@@ -618,8 +622,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-surface rounded-lg p-5 shadow-micro">
-      <header className="flex items-center justify-between mb-4">
+    <section className="rounded-lg bg-surface p-5 shadow-soft">
+      <header className="mb-4 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container text-primary"
