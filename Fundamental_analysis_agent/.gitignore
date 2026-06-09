@@ -62,3 +62,7 @@ logs/
 
 # FinanceBench PDF/text cache (large, regenerable)
 tools/.cache/
+
+# Private local notes — never commit / mirror
+*.private.md
+**/*.private.*
