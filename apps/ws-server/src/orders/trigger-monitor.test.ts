@@ -170,6 +170,37 @@ test('runTriggerMonitor falls back to trigger:hit when delegation is unavailable
   assert.equal(events[0]?.event, WsServerEvents.TriggerHit);
 });
 
+test('runTriggerMonitor suppresses manual fallback when delegated execution quote waits', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
+    delegatedExecutor: async ({ payload }) => {
+      const decision = executableTriggerDecision({
+        payload,
+        inAmount: '25000000',
+        outAmount: '20000000',
+        decimals: 8,
+      });
+      if (decision.kind !== 'waiting') {
+        throw new Error('test quote should wait');
+      }
+      return {
+        kind: 'quoteWaiting',
+        orderId: payload.orderId,
+        reason: decision.reason,
+        executionEvidence: decision.executionEvidence,
+      };
+    },
+  });
+
+  assert.equal(summary.hits, 1);
+  assert.equal(summary.delegatedSuppressed, 1);
+  assert.equal(events.length, 0);
+});
+
 test('runTriggerMonitor suppresses manual fallback after unreleased pre-broadcast failure', async () => {
   clearDelegatedExecutionCooldownForTests();
   const { io, events } = ioRecorder();

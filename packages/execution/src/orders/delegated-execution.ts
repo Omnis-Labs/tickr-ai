@@ -1,10 +1,12 @@
 import { Connection, PublicKey } from '@solana/web3.js';
 import {
   buildTriggerUltraSwapPlan,
+  executableTriggerDecision,
   getAssetById,
   parseRpcUrls,
   triggerExecutionEvidence,
   submittedInputRawForBalance,
+  type ExecutableTriggerWaitReason,
   type TriggerExecutionEvidence,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
@@ -41,6 +43,12 @@ export type DelegatedTriggerExecutionOutcome =
     }
   | { kind: 'alreadyHandled'; orderId: string; reason: string }
   | { kind: 'alreadyExecuting'; orderId: string; reason: string }
+  | {
+      kind: 'quoteWaiting';
+      orderId: string;
+      reason: ExecutableTriggerWaitReason;
+      executionEvidence: TriggerExecutionEvidence;
+    }
   | { kind: 'notAvailable'; orderId: string; reason: string; detail?: unknown }
   | {
       kind: 'preBroadcastFailed';
@@ -314,6 +322,42 @@ export async function tryExecuteDelegatedTriggerOrder(
         };
       }
       throw new Error(problem.message);
+    }
+
+    const quoteDecision = executableTriggerDecision({
+      payload: input.payload,
+      inAmount: order.inAmount,
+      outAmount: order.outAmount,
+      decimals: asset.decimals,
+      jupiterRequestId: order.requestId,
+    });
+    if (quoteDecision.kind === 'waiting') {
+      const released = await deps
+        .releaseOrderExecutionClaim({
+          userId: input.userId,
+          orderId: input.payload.orderId,
+        })
+        .then((result) => result.status === 'success')
+        .catch(() => false);
+      if (!released) {
+        return {
+          kind: 'preBroadcastFailed',
+          orderId: input.payload.orderId,
+          reason: 'executable_quote_release_failed',
+          shouldCooldown: false,
+          released,
+          detail: {
+            quoteReason: quoteDecision.reason,
+            executionPrice: quoteDecision.executionEvidence.executionPrice,
+          },
+        };
+      }
+      return {
+        kind: 'quoteWaiting',
+        orderId: input.payload.orderId,
+        reason: quoteDecision.reason,
+        executionEvidence: quoteDecision.executionEvidence,
+      };
     }
 
     signedTransaction = await deps.signDelegatedSolanaTransaction({

@@ -65,8 +65,8 @@ function buildDeps(overrides: Partial<DelegatedExecutionDeps> = {}): DelegatedEx
       requestId: 'request-1',
       transaction: 'unsigned-tx',
       inAmount: '25000000',
-      outAmount: '100000',
-      otherAmountThreshold: '99000',
+      outAmount: '25000000',
+      otherAmountThreshold: '24750000',
       priceImpactPct: '0',
     }),
     getUltraOrderProblem: () => null,
@@ -196,4 +196,54 @@ test('delegated execution settled outcome includes trigger execution evidence', 
     jupiterRequestId: 'requ...cdef',
     txSignature: 'sign...cdef',
   });
+});
+
+test('delegated execution releases claim and waits when Ultra BUY price is above trigger', async () => {
+  let releases = 0;
+  let signs = 0;
+  let executes = 0;
+  const deps = buildDeps({
+    requestUltraOrder: async () => ({
+      requestId: 'request-1',
+      transaction: 'unsigned-tx',
+      inAmount: '25000000',
+      outAmount: '200000',
+      otherAmountThreshold: '190000',
+      priceImpactPct: '0',
+    }),
+    releaseOrderExecutionClaim: async () => {
+      releases += 1;
+      return {
+        status: 'success',
+        data: {
+          orderId: 'order-1',
+          positionId: 'position-1',
+          orderStatus: 'OPEN',
+          positionStatus: 'BUY_PENDING',
+        },
+      };
+    },
+    signDelegatedSolanaTransaction: async () => {
+      signs += 1;
+      throw new Error('sign should not run when executable quote waits');
+    },
+    executeUltraOrder: async () => {
+      executes += 1;
+      throw new Error('execute should not run when executable quote waits');
+    },
+  });
+
+  const outcome = await tryExecuteDelegatedTriggerOrder(
+    { userId: 'user-1', walletAddress: 'wallet-1', payload },
+    deps,
+  );
+
+  if (outcome.kind !== 'quoteWaiting') {
+    assert.fail(`expected quoteWaiting, got ${outcome.kind}`);
+  }
+  assert.equal(outcome.reason, 'buy_price_above_trigger');
+  assert.equal(outcome.executionEvidence.executionPrice, 125);
+  assert.equal(releases, 1);
+  assert.equal(signs, 0);
+  assert.equal(executes, 0);
 });

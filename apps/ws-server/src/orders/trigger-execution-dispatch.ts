@@ -100,6 +100,15 @@ export async function dispatchTriggeredOrderExecution(input: {
     return { kind: 'delegatedSuppressed' };
   }
 
+  if (outcome.kind === 'quoteWaiting') {
+    console.info('[delegated-execution] executable quote waiting', {
+      orderId: outcome.orderId,
+      reason: outcome.reason,
+      executionEvidence: sanitizeExecutionEvidence(outcome.executionEvidence),
+    });
+    return { kind: 'delegatedSuppressed' };
+  }
+
   if (outcome.kind === 'notAvailable') {
     emitTriggerHit(input.io, input.walletAddress, input.payload);
     return { kind: 'delegatedFallback' };
