@@ -277,15 +277,18 @@ export function NotificationClient() {
       if (inflightTriggers.current.has(payload.orderId)) return;
 
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
+      const executablePrice = payload.executablePriceUsd ?? payload.currentPriceUsd;
+      const executableLabel = `Executable $${executablePrice.toFixed(2)}`;
+      const markLabel = `Pyth $${payload.currentPriceUsd.toFixed(2)}`;
       const triggerLabel =
         payload.kind === 'BUY_TRIGGER'
-          ? `Trigger $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`
-          : `${payload.kind === 'TAKE_PROFIT' ? 'TP' : 'SL'} $${payload.triggerPriceUsd.toFixed(2)} hit. Tap to execute.`;
+          ? `Trigger $${payload.triggerPriceUsd.toFixed(2)} met by ${executableLabel}; ${markLabel}.`
+          : `${payload.kind === 'TAKE_PROFIT' ? 'TP' : 'SL'} $${payload.triggerPriceUsd.toFixed(2)} met by ${executableLabel}; ${markLabel}.`;
       emitTriggerDiagnostic({
         id: `${payload.orderId}:trigger-hit:${Date.now()}`,
         section: 'orders',
         step: 'trigger.hit',
-        summary: `${payload.kind} ${payload.ticker} trigger toast shown at $${payload.currentPriceUsd.toFixed(2)}.`,
+        summary: `${payload.kind} ${payload.ticker} trigger toast shown at executable $${executablePrice.toFixed(2)}.`,
         severity: 'info',
         diagnostics: [
           {
@@ -302,7 +305,7 @@ export function NotificationClient() {
       toast.dismiss(`${payload.orderId}:error`);
       toast.dismiss(`${payload.orderId}:settle-error`);
       toast.dismiss(`${payload.orderId}:executing`);
-      toast(`${verb} ${payload.ticker} @ $${payload.currentPriceUsd.toFixed(2)}`, {
+      toast(`${verb} ${payload.ticker} @ $${executablePrice.toFixed(2)}`, {
         id: payload.orderId,
         description: triggerLabel,
         duration: Infinity,

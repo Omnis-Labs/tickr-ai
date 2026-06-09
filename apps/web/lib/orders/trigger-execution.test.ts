@@ -156,3 +156,58 @@ test('executeTriggerOrder diagnostics include BUY execution economics without fu
     totalValue: 25,
   });
 });
+
+test('executeTriggerOrder releases the claim when the actual BUY quote is above trigger', async () => {
+  let released = 0;
+  let settleCalls = 0;
+  const emitted: ClientDiagnosticInput[] = [];
+
+  const outcome = await executeTriggerOrder(
+    { payload: buyPayload, mint: 'mint-spyx', decimals: 8, startedAt: 0 },
+    {
+      authedFetch: async (input, init) => {
+        if (String(input).endsWith('/execution-claim') && init?.method === 'POST') {
+          return okJson({ ok: true });
+        }
+        if (String(input).endsWith('/execution-claim') && init?.method === 'DELETE') {
+          released += 1;
+          return okJson({ ok: true });
+        }
+        if (String(input).endsWith('/execute')) {
+          settleCalls += 1;
+        }
+        return new Response(JSON.stringify({ error: 'unexpected request' }), { status: 500 });
+      },
+      swap: async (args) => {
+        assert.equal(typeof args.quoteGuard, 'function');
+        args.quoteGuard?.({
+          order: {
+            requestId: 'request-1',
+            transaction: 'unsigned-tx',
+            inAmount: '25000000',
+            outAmount: '20000000',
+            otherAmountThreshold: '19000000',
+            priceImpactPct: '0',
+          },
+          inputMint: 'usdc-mint',
+          outputMint: 'mint-spyx',
+          amount: '25000000',
+        });
+        throw new Error('quote guard should throw');
+      },
+      emitDiagnostic: (input) => {
+        emitted.push(input);
+      },
+    },
+  );
+
+  assert.deepEqual(outcome, {
+    kind: 'preBroadcastFailed',
+    message: 'executable_quote_waiting:buy_price_above_trigger:125.000000',
+    released: true,
+  });
+  assert.equal(released, 1);
+  assert.equal(settleCalls, 0);
+  assert.equal(emitted.at(-1)?.step, 'trigger.executeSwap');
+  assert.equal(emitted.at(-1)?.severity, 'error');
+});

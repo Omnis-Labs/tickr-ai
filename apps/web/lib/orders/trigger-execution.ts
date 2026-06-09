@@ -1,4 +1,8 @@
-import { triggerExecutionEvidence, type TriggerHitPayload } from '@hunch-it/shared';
+import {
+  executableTriggerDecision,
+  triggerExecutionEvidence,
+  type TriggerHitPayload,
+} from '@hunch-it/shared';
 import {
   compactDiagnosticError,
   decodeSolanaError,
@@ -67,6 +71,11 @@ export function triggerDiagnosticPayload(
     decimals,
     triggerPriceUsd: payload.triggerPriceUsd,
     currentPriceUsd: payload.currentPriceUsd,
+    executablePriceUsd: payload.executablePriceUsd ?? null,
+    executableTokenAmount: payload.executableTokenAmount ?? null,
+    executableUsdValue: payload.executableUsdValue ?? null,
+    executablePremiumVsCurrentPricePct: payload.executablePremiumVsCurrentPricePct ?? null,
+    executablePremiumVsTriggerPricePct: payload.executablePremiumVsTriggerPricePct ?? null,
     sizeUsd: payload.sizeUsd,
     tokenAmount: payload.tokenAmount ?? null,
   };
@@ -101,6 +110,20 @@ function errorDetail(err: unknown): Record<string, unknown> {
 }
 
 function swapArgsForTrigger(payload: TriggerHitPayload, mint: string, decimals: number): SwapArgs {
+  const quoteGuard: SwapArgs['quoteGuard'] = ({ order }) => {
+    const decision = executableTriggerDecision({
+      payload,
+      inAmount: order.inAmount,
+      outAmount: order.outAmount,
+      decimals,
+      jupiterRequestId: order.requestId,
+    });
+    if (decision.kind === 'waiting') {
+      throw new Error(
+        `executable_quote_waiting:${decision.reason}:${decision.executionEvidence.executionPrice.toFixed(6)}`,
+      );
+    }
+  };
   const diagnostics = { source: 'trigger-toast', mode: 'probes' } as const;
   if (payload.kind === 'BUY_TRIGGER') {
     return {
@@ -109,6 +132,7 @@ function swapArgsForTrigger(payload: TriggerHitPayload, mint: string, decimals: 
       xStockDecimals: decimals,
       usdAmount: payload.sizeUsd,
       diagnostics,
+      quoteGuard,
     };
   }
 
@@ -122,6 +146,7 @@ function swapArgsForTrigger(payload: TriggerHitPayload, mint: string, decimals: 
       xStockDecimals: decimals,
       tokenAmount: payload.tokenAmount,
       diagnostics,
+      quoteGuard,
     };
   }
 
@@ -131,6 +156,7 @@ function swapArgsForTrigger(payload: TriggerHitPayload, mint: string, decimals: 
     xStockDecimals: decimals,
     sellAll: true,
     diagnostics,
+    quoteGuard,
   };
 }
 

@@ -128,6 +128,13 @@ export interface SwapResult {
 
 export type JupiterSwapPhase = 'prepare' | 'balance' | 'order' | 'deserialize' | 'sign' | 'execute';
 
+export interface SwapQuoteGuardInput {
+  order: UltraOrderResponse;
+  inputMint: string;
+  outputMint: string;
+  amount: string;
+}
+
 export type JupiterSwapLoading = 'order' | 'sign' | 'execute' | null;
 
 export interface JupiterUltraSwapDeps {
@@ -218,6 +225,7 @@ interface SellAmountArgs {
 }
 export type SwapArgs = (BuyArgs | SellAllArgs | SellAmountArgs) & {
   diagnostics?: SwapDiagnosticsOptions;
+  quoteGuard?: (input: SwapQuoteGuardInput) => void;
 };
 
 function errorMessage(err: unknown): string {
@@ -634,6 +642,12 @@ export async function executeJupiterUltraSwap(
     debug.otherAmountThreshold = order.otherAmountThreshold;
     debug.priceImpactPct = order.priceImpactPct;
     deps.onOrder?.(order);
+    args.quoteGuard?.({
+      order,
+      inputMint,
+      outputMint,
+      amount,
+    });
 
     setPhase('deserialize');
     setLoading('sign');
