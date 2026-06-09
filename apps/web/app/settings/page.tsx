@@ -231,8 +231,8 @@ export default function SettingsPage() {
                 </div>
               </div>
               <p className="text-body-sm text-on-surface-variant pt-3 mt-1 border-t border-divider">
-                Editing the mandate marks every active proposal as expired and the engine
-                regenerates against the new parameters on its next cycle.
+                Editing the mandate marks every active proposal as expired. Hunch It regenerates
+                against the new parameters on its next cycle.
               </p>
             </div>
           )}

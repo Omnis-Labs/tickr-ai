@@ -30,13 +30,13 @@ export default function DeskPage() {
       <TopAppBar
         title="Home"
         leftAction={
-          <div className="w-9 h-9 rounded-full bg-surface-container-high overflow-hidden" />
+          <div className="h-9 w-9 overflow-hidden rounded-full bg-surface-container-high lg:hidden" />
         }
         rightAction={
           <Link
             href="/settings"
             aria-label="Settings"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-transform active:scale-[0.97]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-transform active:scale-[0.97] lg:hidden"
           >
             <span className="material-symbols-outlined text-[22px]">settings</span>
           </Link>

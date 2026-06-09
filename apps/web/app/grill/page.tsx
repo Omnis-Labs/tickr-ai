@@ -29,6 +29,7 @@ export default function GrillPage() {
     () => analysis?.opinions.filter((opinion) => opinion.verdict === 'support') ?? [],
     [analysis],
   );
+  const hasAnalysis = analysis !== null;
   const canCreateProposal = !!analysis && supportingOpinions.length > 0 && busy !== 'proposal';
 
   async function runAnalysis() {
@@ -92,8 +93,15 @@ export default function GrillPage() {
         }
       />
 
-      <main className="mx-auto grid w-full max-w-md gap-[14px] px-5 pb-36 pt-4 lg:max-w-6xl lg:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:px-8 lg:pb-10">
-        <div className="flex flex-col gap-[14px] lg:sticky lg:top-24">
+      <main
+        className={cn(
+          'mx-auto grid w-full max-w-md gap-[14px] px-5 pb-36 pt-4 lg:items-start lg:gap-6 lg:px-8 lg:pb-10',
+          hasAnalysis
+            ? 'lg:max-w-6xl lg:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.15fr)]'
+            : 'lg:max-w-[520px] lg:grid-cols-1',
+        )}
+      >
+        <div className={cn('flex flex-col gap-[14px]', hasAnalysis && 'lg:sticky lg:top-24')}>
           <section className="rounded-lg bg-accent p-5 text-on-accent shadow-soft">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
@@ -153,44 +161,42 @@ export default function GrillPage() {
           </section>
         </div>
 
-        <div className="flex flex-col gap-[14px]">
-          {analysis && (
-            <>
-              <section className="flex flex-col gap-[14px]">
-                {analysis.opinions.map((opinion) => (
-                  <OpinionCard key={opinion.analystId} opinion={opinion} />
-                ))}
-              </section>
+        {analysis && (
+          <div className="flex flex-col gap-[14px]">
+            <section className="flex flex-col gap-[14px]">
+              {analysis.opinions.map((opinion) => (
+                <OpinionCard key={opinion.analystId} opinion={opinion} />
+              ))}
+            </section>
 
-              <section className="rounded-lg bg-surface p-5 shadow-soft">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-title-md text-on-surface">Proposal</h2>
-                    <p className="mt-1 text-body-sm text-on-surface-variant">
-                      {supportingOpinions.length > 0
-                        ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
-                        : 'No analyst supports creating one.'}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
-                    {analysis.assetId}
-                  </span>
+            <section className="rounded-lg bg-surface p-5 shadow-soft">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-title-md text-on-surface">Proposal</h2>
+                  <p className="mt-1 text-body-sm text-on-surface-variant">
+                    {supportingOpinions.length > 0
+                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
+                      : 'No analyst supports creating one.'}
+                  </p>
                 </div>
-                <Button
-                  variant="accent"
-                  className="h-12 w-full gap-2"
-                  disabled={!canCreateProposal}
-                  onClick={() => void createProposal()}
-                >
-                  {busy === 'proposal' && (
-                    <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  )}
-                  Create Proposal
-                </Button>
-              </section>
-            </>
-          )}
-        </div>
+                <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
+                  {analysis.assetId}
+                </span>
+              </div>
+              <Button
+                variant="accent"
+                className="h-12 w-full gap-2"
+                disabled={!canCreateProposal}
+                onClick={() => void createProposal()}
+              >
+                {busy === 'proposal' && (
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                )}
+                Create Proposal
+              </Button>
+            </section>
+          </div>
+        )}
       </main>
     </>
   );

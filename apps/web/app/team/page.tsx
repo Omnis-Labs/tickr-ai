@@ -49,7 +49,7 @@ export default function TeamPage() {
                 disabled={disabled}
                 className={cn(
                   'rounded-lg bg-surface p-5 text-left shadow-soft transition-transform active:scale-[0.99] disabled:opacity-[0.38]',
-                  selected && 'ring-2 ring-primary',
+                  selected && 'ring-1 ring-primary/70',
                 )}
               >
                 <div className="flex items-start gap-3">
