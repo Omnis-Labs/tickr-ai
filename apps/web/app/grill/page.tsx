@@ -6,10 +6,12 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, FlameKindling, LoaderCircle, UsersRound } from 'lucide-react';
 import { getSignalAssets } from '@hunch-it/shared';
+import { GrillResultPanel } from '@/components/grill/grill-result-panel';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { Button } from '@/components/ui/button';
 import { useAuthedFetch } from '@/lib/auth/fetch';
-import type { AnalystOpinion, GrillAnalysisResult } from '@/lib/grill/analysis';
+import type { GrillAnalysisResult } from '@/lib/grill/analysis';
+import { buildGrillResultPresentation, canCreateGrillProposal } from '@/lib/grill/result-summary';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
 import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
@@ -25,12 +27,12 @@ export default function GrillPage() {
   const [analysis, setAnalysis] = useState<GrillAnalysisResult | null>(null);
   const [busy, setBusy] = useState<'analysis' | 'proposal' | null>(null);
 
-  const supportingOpinions = useMemo(
-    () => analysis?.opinions.filter((opinion) => opinion.verdict === 'support') ?? [],
+  const resultPresentation = useMemo(
+    () => (analysis ? buildGrillResultPresentation(analysis) : null),
     [analysis],
   );
   const hasAnalysis = analysis !== null;
-  const canCreateProposal = !!analysis && supportingOpinions.length > 0 && busy !== 'proposal';
+  const canCreateProposal = canCreateGrillProposal(analysis, busy);
 
   async function runAnalysis() {
     setBusy('analysis');
@@ -161,87 +163,16 @@ export default function GrillPage() {
           </section>
         </div>
 
-        {analysis && (
-          <div className="flex flex-col gap-[14px]">
-            <section className="flex flex-col gap-[14px]">
-              {analysis.opinions.map((opinion) => (
-                <OpinionCard key={opinion.analystId} opinion={opinion} />
-              ))}
-            </section>
-
-            <section className="rounded-lg bg-surface p-5 shadow-soft">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-title-md text-on-surface">Proposal</h2>
-                  <p className="mt-1 text-body-sm text-on-surface-variant">
-                    {supportingOpinions.length > 0
-                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
-                      : 'No analyst supports creating one.'}
-                  </p>
-                </div>
-                <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
-                  {analysis.assetId}
-                </span>
-              </div>
-              <Button
-                variant="accent"
-                className="h-12 w-full gap-2"
-                disabled={!canCreateProposal}
-                onClick={() => void createProposal()}
-              >
-                {busy === 'proposal' && (
-                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-                )}
-                Create Proposal
-              </Button>
-            </section>
-          </div>
+        {analysis && resultPresentation && (
+          <GrillResultPanel
+            analysis={analysis}
+            presentation={resultPresentation}
+            canCreateProposal={canCreateProposal}
+            busy={busy}
+            onCreateProposal={createProposal}
+          />
         )}
       </main>
     </>
-  );
-}
-
-function OpinionCard({ opinion }: { opinion: AnalystOpinion }) {
-  const tone = {
-    support: 'bg-positive-container text-positive',
-    challenge: 'bg-tertiary-container text-on-tertiary-container',
-    reject: 'bg-negative-container text-negative',
-  }[opinion.verdict];
-
-  return (
-    <article className="rounded-lg bg-surface p-5 shadow-soft">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className={cn('rounded-full px-2.5 py-1 text-label-sm', tone)}>
-              {opinion.verdict}
-            </span>
-            <span className="rounded-full bg-surface-container px-2.5 py-1 text-label-sm text-on-surface-variant">
-              {(opinion.confidence * 100).toFixed(0)}%
-            </span>
-          </div>
-          <h2 className="text-title-lg text-on-surface">{opinion.analystName}</h2>
-          <p className="mt-1 text-body-sm text-on-surface-variant">{opinion.originTask}</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <OpinionSection label="Thesis" body={opinion.thesis} />
-        <OpinionSection label="Why now" body={opinion.whyNow} />
-        <OpinionSection label="Entry view" body={opinion.setupEntry} />
-        <OpinionSection label="Protection" body={opinion.riskProtection} />
-        <OpinionSection label="Wrong if" body={opinion.invalidation} />
-      </div>
-    </article>
-  );
-}
-
-function OpinionSection({ label, body }: { label: string; body: string }) {
-  return (
-    <section>
-      <p className="text-label-sm text-on-surface-variant">{label}</p>
-      <p className="mt-1 text-body-md leading-6 text-on-surface">{body}</p>
-    </section>
   );
 }
