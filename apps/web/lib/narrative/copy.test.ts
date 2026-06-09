@@ -3,6 +3,7 @@ import test from 'node:test';
 import { appNarrativeCopy, landingNarrativeCopy } from './copy';
 
 test('landing narrative copy presents vibe trades as disciplined proposals', () => {
+  assert.equal(landingNarrativeCopy.heroTitle, 'Got a hunch?');
   assert.match(landingNarrativeCopy.heroBody, /Gen Z already invests by vibe/);
   assert.match(landingNarrativeCopy.heroBody, /disciplined proposal/);
   assert.match(landingNarrativeCopy.productPromise, /friends, creators, social feeds, or market moves/);

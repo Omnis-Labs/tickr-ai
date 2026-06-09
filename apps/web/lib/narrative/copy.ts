@@ -1,5 +1,5 @@
 export const landingNarrativeCopy = {
-  heroTitle: 'Vibe trade. Disciplined proposal.',
+  heroTitle: 'Got a hunch?',
   heroBody:
     'Gen Z already invests by vibe. Hunch It turns each vibe trade into a disciplined proposal the user controls.',
   productPromise:
