@@ -278,7 +278,7 @@ export function NotificationClient() {
       if (inflightTriggers.current.has(payload.orderId)) return;
 
       const verb = payload.kind === 'BUY_TRIGGER' ? 'BUY' : 'SELL';
-      const executablePrice = payload.executablePriceUsd ?? payload.currentPriceUsd;
+      const executablePrice = payload.executablePriceUsd;
       const executableLabel = `Executable $${executablePrice.toFixed(2)}`;
       const markLabel = `Pyth $${payload.currentPriceUsd.toFixed(2)}`;
       const triggerLabel =

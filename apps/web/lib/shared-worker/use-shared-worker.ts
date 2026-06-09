@@ -13,6 +13,7 @@ import {
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { parseTriggerHitSocketPayload } from './socket-payloads';
 
 export const BROADCAST_CHANNEL = 'hunch-it';
 
@@ -106,8 +107,13 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
     socket.on(WsServerEvents.ProposalNew, (proposal: Proposal) => {
       onProposalRef.current?.(proposal);
     });
-    socket.on(WsServerEvents.TriggerHit, (payload: TriggerHitPayload) => {
-      onTriggerHitRef.current?.(payload);
+    socket.on(WsServerEvents.TriggerHit, (payload: unknown) => {
+      const parsed = parseTriggerHitSocketPayload(payload);
+      if (!parsed) {
+        console.warn('[ws] ignored invalid trigger:hit payload');
+        return;
+      }
+      onTriggerHitRef.current?.(parsed);
     });
     socket.on(WsServerEvents.TradeFilled, (payload: TradeFilledPayload) => {
       onTradeFilledRef.current?.(payload);
