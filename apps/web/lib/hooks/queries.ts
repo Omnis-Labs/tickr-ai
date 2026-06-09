@@ -5,6 +5,7 @@ import type { Mandate, Proposal } from '@hunch-it/shared';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { PortfolioPosition } from '@/lib/portfolio/holdings';
 import { normalizeProposalForClient, normalizeProposalsForClient } from '@/lib/proposals/normalize';
+import { useProtectedQueryEnabled } from './protected-query';
 
 /**
  * Centralised TanStack Query reads. Pages just call these — they don't have
@@ -27,6 +28,7 @@ export const QK = {
 // ── Proposals ───────────────────────────────────────────────────────────
 export function useProposals() {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled();
   return useQuery<{ proposals: Proposal[] }>({
     queryKey: QK.proposals(),
     queryFn: async () => {
@@ -36,12 +38,13 @@ export function useProposals() {
       return { proposals: normalizeProposalsForClient(json.proposals ?? []) };
     },
     refetchInterval: 30_000,
-    enabled: true,
+    enabled,
   });
 }
 
 export function useProposal(id: string | null | undefined) {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled(!!id);
   return useQuery<{ proposal: Proposal | null }>({
     queryKey: id ? QK.proposal(id) : ['proposal', 'null'],
     queryFn: async () => {
@@ -51,7 +54,7 @@ export function useProposal(id: string | null | undefined) {
       const json = (await r.json()) as { proposal?: unknown };
       return { proposal: normalizeProposalForClient(json.proposal) };
     },
-    enabled: !!id,
+    enabled,
   });
 }
 
@@ -69,6 +72,7 @@ interface PositionRow {
 
 export function usePositions() {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled();
   return useQuery<{ positions: PositionRow[] }>({
     queryKey: QK.positions(),
     queryFn: async () => {
@@ -77,6 +81,7 @@ export function usePositions() {
       return r.json();
     },
     refetchInterval: 15_000,
+    enabled,
   });
 }
 
@@ -111,9 +116,10 @@ interface PositionDetailRow {
  */
 export function usePosition(id: string | undefined) {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled(!!id);
   return useQuery<PositionDetailRow | null>({
     queryKey: id ? QK.position(id) : ['position', 'null'],
-    enabled: !!id,
+    enabled,
     queryFn: async () => {
       if (!id) return null;
       const r = await authedFetch(`/api/positions/${id}`);
@@ -141,6 +147,7 @@ interface OrderRow {
 
 export function useOpenOrders() {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled();
   return useQuery<{ orders: OrderRow[] }>({
     queryKey: QK.orders(),
     queryFn: async () => {
@@ -149,12 +156,14 @@ export function useOpenOrders() {
       return r.json();
     },
     refetchInterval: 20_000,
+    enabled,
   });
 }
 
 // ── Mandate ─────────────────────────────────────────────────────────────
 export function useMandate() {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled();
   return useQuery<{ mandate: Mandate | null }>({
     queryKey: QK.mandate(),
     queryFn: async () => {
@@ -162,6 +171,7 @@ export function useMandate() {
       if (!r.ok) return { mandate: null };
       return r.json();
     },
+    enabled,
   });
 }
 
@@ -186,6 +196,7 @@ export interface PortfolioResponse {
 
 export function usePortfolio() {
   const authedFetch = useAuthedFetch();
+  const enabled = useProtectedQueryEnabled();
   return useQuery<PortfolioResponse>({
     queryKey: QK.portfolio(),
     queryFn: async () => {
@@ -200,5 +211,6 @@ export function usePortfolio() {
       return r.json();
     },
     refetchInterval: 15_000,
+    enabled,
   });
 }
