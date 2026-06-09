@@ -4,6 +4,8 @@ import type { TriggerHitPayload } from './types.js';
 import {
   buildTriggerUltraSwapPlan,
   closePositionExecutionEvidence,
+  executableTriggerDecision,
+  pythWakeUpBandHit,
   settlementAmountsForTrigger,
   submittedInputRawForBalance,
   triggerExecutionEvidence,
@@ -108,6 +110,77 @@ test('triggerExecutionEvidence records BUY mark premium and redacted execution i
       txSignature: 'sign...cdef',
     },
   );
+});
+
+test('executableTriggerDecision waits when Ultra BUY price is above the trigger', () => {
+  const decision = executableTriggerDecision({
+    payload: {
+      ...buyPayload,
+      triggerPriceUsd: 100,
+      currentPriceUsd: 100.4,
+      sizeUsd: 25,
+    },
+    inAmount: '25000000',
+    outAmount: '20000000',
+    decimals: 8,
+  });
+
+  assert.equal(decision.kind, 'waiting');
+  assert.equal(decision.reason, 'buy_price_above_trigger');
+  assert.equal(decision.executionEvidence.executionPrice, 125);
+});
+
+test('pythWakeUpBandHit uses Pyth as a cheap wake-up band', () => {
+  assert.equal(
+    pythWakeUpBandHit({ kind: 'BUY_TRIGGER', triggerPriceUsd: 100, currentPriceUsd: 100.5 }),
+    true,
+  );
+  assert.equal(
+    pythWakeUpBandHit({ kind: 'BUY_TRIGGER', triggerPriceUsd: 100, currentPriceUsd: 100.51 }),
+    false,
+  );
+  assert.equal(
+    pythWakeUpBandHit({ kind: 'TAKE_PROFIT', triggerPriceUsd: 100, currentPriceUsd: 99.5 }),
+    true,
+  );
+  assert.equal(
+    pythWakeUpBandHit({ kind: 'STOP_LOSS', triggerPriceUsd: 100, currentPriceUsd: 100.5 }),
+    true,
+  );
+});
+
+test('executableTriggerDecision applies TAKE_PROFIT and STOP_LOSS sell conditions', () => {
+  const takeProfit = executableTriggerDecision({
+    payload: {
+      ...buyPayload,
+      kind: 'TAKE_PROFIT',
+      side: 'SELL',
+      triggerPriceUsd: 120,
+      tokenAmount: 0.2,
+    },
+    inAmount: '20000000',
+    outAmount: '23800000',
+    decimals: 8,
+  });
+  const stopLoss = executableTriggerDecision({
+    payload: {
+      ...buyPayload,
+      kind: 'STOP_LOSS',
+      side: 'SELL',
+      triggerPriceUsd: 90,
+      tokenAmount: 0.2,
+    },
+    inAmount: '20000000',
+    outAmount: '18200000',
+    decimals: 8,
+  });
+
+  assert.equal(takeProfit.kind, 'waiting');
+  assert.equal(takeProfit.reason, 'take_profit_price_below_trigger');
+  assert.equal(takeProfit.executionEvidence.executionPrice, 119);
+  assert.equal(stopLoss.kind, 'waiting');
+  assert.equal(stopLoss.reason, 'stop_loss_price_above_trigger');
+  assert.ok(Math.abs(stopLoss.executionEvidence.executionPrice - 91) < 1e-9);
 });
 
 test('closePositionExecutionEvidence records position-scoped sell amount', () => {

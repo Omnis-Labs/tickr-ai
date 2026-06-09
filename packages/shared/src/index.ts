@@ -166,6 +166,8 @@ export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';
 export {
   buildTriggerUltraSwapPlan,
   closePositionExecutionEvidence,
+  executableTriggerDecision,
+  pythWakeUpBandHit,
   settlementAmountsForTrigger,
   submittedInputRawForBalance,
   triggerExecutionEvidence,
@@ -173,6 +175,8 @@ export {
 } from './synthetic-order-execution.js';
 export type {
   ClosePositionExecutionEvidence,
+  ExecutableTriggerDecision,
+  ExecutableTriggerWaitReason,
   TriggerExecutionEvidence,
   TriggerSettlementAmounts,
   TriggerUltraSwapPlan,

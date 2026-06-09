@@ -56,6 +56,42 @@ export interface ClosePositionExecutionEvidence {
   cancelledExitOrderIds: string[];
 }
 
+export type ExecutableTriggerWaitReason =
+  | 'buy_price_above_trigger'
+  | 'take_profit_price_below_trigger'
+  | 'stop_loss_price_above_trigger';
+
+export type ExecutableTriggerDecision =
+  | {
+      kind: 'triggerable';
+      executionEvidence: TriggerExecutionEvidence;
+    }
+  | {
+      kind: 'waiting';
+      reason: ExecutableTriggerWaitReason;
+      executionEvidence: TriggerExecutionEvidence;
+    };
+
+export function pythWakeUpBandHit(input: {
+  kind: TriggerHitPayload['kind'];
+  triggerPriceUsd: number | null | undefined;
+  currentPriceUsd: number;
+}): boolean {
+  const trigger = input.triggerPriceUsd;
+  if (trigger == null || !Number.isFinite(trigger) || trigger <= 0) return false;
+  const epsilon = 1e-9;
+
+  if (input.kind === 'TAKE_PROFIT') {
+    return input.currentPriceUsd + epsilon >= trigger * 0.995;
+  }
+
+  if (input.kind === 'BUY_TRIGGER' || input.kind === 'STOP_LOSS') {
+    return input.currentPriceUsd <= trigger * 1.005 + epsilon;
+  }
+
+  return false;
+}
+
 export function buildTriggerUltraSwapPlan(
   payload: TriggerHitPayload,
   decimals: number,
@@ -158,6 +194,35 @@ export function triggerExecutionEvidence(input: {
     jupiterRequestId: redactExecutionIdentifier(input.jupiterRequestId),
     txSignature: redactExecutionIdentifier(input.txSignature),
   };
+}
+
+export function executableTriggerDecision(input: {
+  payload: TriggerHitPayload;
+  inAmount: string;
+  outAmount: string;
+  decimals: number;
+  jupiterRequestId?: string | null;
+  txSignature?: string | null;
+}): ExecutableTriggerDecision {
+  const executionEvidence = triggerExecutionEvidence(input);
+  const price = executionEvidence.executionPrice;
+  const trigger = input.payload.triggerPriceUsd;
+
+  if (input.payload.kind === 'BUY_TRIGGER') {
+    return price <= trigger
+      ? { kind: 'triggerable', executionEvidence }
+      : { kind: 'waiting', reason: 'buy_price_above_trigger', executionEvidence };
+  }
+
+  if (input.payload.kind === 'TAKE_PROFIT') {
+    return price >= trigger
+      ? { kind: 'triggerable', executionEvidence }
+      : { kind: 'waiting', reason: 'take_profit_price_below_trigger', executionEvidence };
+  }
+
+  return price <= trigger
+    ? { kind: 'triggerable', executionEvidence }
+    : { kind: 'waiting', reason: 'stop_loss_price_above_trigger', executionEvidence };
 }
 
 export function closePositionExecutionEvidence(input: {
