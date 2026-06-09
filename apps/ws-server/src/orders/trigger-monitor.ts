@@ -1,17 +1,14 @@
 // Price-trigger monitor for Synthetic Orders.
 //
-// On Approve we persist the Order intent in our DB with no jupiterOrderId,
-// and this monitor watches Pyth every ~30s. When a trigger condition fires,
-// it first tries opt-in Delegated Execution. If that is unavailable or fails
-// before broadcast, it emits `trigger:hit` to the user's room so the existing
-// tap-to-execute fallback can run.
+// On Approve we persist the Order intent in our DB with no jupiterOrderId.
+// This monitor watches Pyth as a cheap wake-up band, then asks Jupiter Ultra
+// for the executable price. Only an executable quote that satisfies the
+// Order's actual trigger condition becomes actionable.
 //
 // Conditions:
-//   TAKE_PROFIT  → fire when current ≥ triggerPriceUsd
-//   STOP_LOSS    → fire when current ≤ triggerPriceUsd
-//   BUY_TRIGGER  → fire when current is within 0.5% of triggerPriceUsd
-//                  (we don't store direction; the tolerance band
-//                   catches both limit-buy on dip and breakout-above)
+//   BUY_TRIGGER  → wake when Pyth ≤ trigger * 1.005; trigger when Ultra BUY ≤ trigger
+//   TAKE_PROFIT  → wake when Pyth ≥ trigger * 0.995; trigger when Ultra SELL ≥ trigger
+//   STOP_LOSS    → wake when Pyth ≤ trigger * 1.005; trigger when Ultra SELL ≤ trigger
 //
 // Without Delegated Execution, we don't change Order.status here — the order
 // stays OPEN and the user's Execute click flips it to FILLED + writes a Trade
@@ -20,8 +17,17 @@
 
 import type { PrismaClient } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
-import { type TriggerHitPayload } from '@hunch-it/shared';
+import {
+  pythWakeUpBandHit,
+  type ExecutableTriggerDecision,
+  type TriggerExecutionEvidence,
+  type TriggerHitPayload,
+} from '@hunch-it/shared';
 import { getLatestPrices } from '../pyth/index.js';
+import {
+  quoteExecutableTrigger as defaultQuoteExecutableTrigger,
+  type QuoteExecutableTrigger,
+} from './executable-trigger-quote.js';
 import {
   clearDelegatedExecutionCooldownForTests,
   dispatchTriggeredOrderExecution,
@@ -33,31 +39,35 @@ export interface TriggerMonitorSummary {
   polledOrders: number;
   uniqueTickers: number;
   hits: number;
+  quoteWaiting: number;
+  quoteFailures: number;
   delegatedSettled: number;
   delegatedFallbacks: number;
   delegatedSuppressed: number;
   delegatedFailures: number;
 }
 
-const BUY_TOLERANCE = 0.005; // 0.5%
 type PriceFetcher = typeof getLatestPrices;
 
-function shouldFire(
+function shouldWakeUp(
   order: {
     kind: string;
     triggerPriceUsd: { toNumber: () => number } | null;
   },
   currentPriceUsd: number,
 ): boolean {
-  const trigger = order.triggerPriceUsd?.toNumber();
-  if (trigger == null || !Number.isFinite(trigger) || trigger <= 0) return false;
-
-  if (order.kind === 'TAKE_PROFIT') return currentPriceUsd >= trigger;
-  if (order.kind === 'STOP_LOSS') return currentPriceUsd <= trigger;
-  if (order.kind === 'BUY_TRIGGER') {
-    return Math.abs(currentPriceUsd - trigger) / trigger < BUY_TOLERANCE;
+  if (
+    order.kind !== 'BUY_TRIGGER' &&
+    order.kind !== 'TAKE_PROFIT' &&
+    order.kind !== 'STOP_LOSS'
+  ) {
+    return false;
   }
-  return false;
+  return pythWakeUpBandHit({
+    kind: order.kind,
+    triggerPriceUsd: order.triggerPriceUsd?.toNumber(),
+    currentPriceUsd,
+  });
 }
 
 function buildPayload(
@@ -89,12 +99,27 @@ function buildPayload(
   };
 }
 
+function withExecutableQuote(
+  payload: TriggerHitPayload,
+  evidence: TriggerExecutionEvidence,
+): TriggerHitPayload {
+  return {
+    ...payload,
+    executablePriceUsd: evidence.executionPrice,
+    executableTokenAmount: evidence.tokenAmount,
+    executableUsdValue: evidence.usdValue,
+    executablePremiumVsCurrentPricePct: evidence.premiumVsCurrentPricePct,
+    executablePremiumVsTriggerPricePct: evidence.premiumVsTriggerPricePct,
+  };
+}
+
 export async function runTriggerMonitor(
   prisma: PrismaClient,
   io: IoServer,
   deps: {
     delegatedExecutor?: DelegatedExecutor;
     priceFetcher?: PriceFetcher;
+    quoteExecutableTrigger?: QuoteExecutableTrigger;
     nowMs?: () => number;
     delegatedRuntimeCooldownMs?: number;
   } = {},
@@ -113,6 +138,8 @@ export async function runTriggerMonitor(
     polledOrders: open.length,
     uniqueTickers: 0,
     hits: 0,
+    quoteWaiting: 0,
+    quoteFailures: 0,
     delegatedSettled: 0,
     delegatedFallbacks: 0,
     delegatedSuppressed: 0,
@@ -132,6 +159,7 @@ export async function runTriggerMonitor(
 
   const assetIds = Array.from(byTicker.keys());
   const prices = await (deps.priceFetcher ?? getLatestPrices)(assetIds);
+  const quoteExecutableTrigger = deps.quoteExecutableTrigger ?? defaultQuoteExecutableTrigger;
 
   for (const [ticker, orders] of byTicker) {
     const snap = prices.get(ticker);
@@ -140,16 +168,48 @@ export async function runTriggerMonitor(
 
     for (const order of orders) {
       if (!order.user) continue;
-      if (!shouldFire(order, currentPriceUsd)) continue;
+      if (!shouldWakeUp(order, currentPriceUsd)) continue;
       const payload = buildPayload(order, currentPriceUsd);
       if (!payload) continue;
 
+      let quote: ExecutableTriggerDecision;
+      try {
+        quote = await quoteExecutableTrigger({
+          walletAddress: order.user.walletAddress,
+          payload,
+        });
+      } catch (err) {
+        summary.quoteFailures++;
+        console.warn('[trigger-monitor] executable quote failed', {
+          orderId: order.id,
+          ticker,
+          kind: order.kind,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+        continue;
+      }
+
+      if (quote.kind === 'waiting') {
+        summary.quoteWaiting++;
+        console.info('[trigger-monitor] executable quote waiting', {
+          orderId: order.id,
+          ticker,
+          kind: order.kind,
+          reason: quote.reason,
+          triggerPriceUsd: payload.triggerPriceUsd,
+          currentPriceUsd: payload.currentPriceUsd,
+          executablePriceUsd: quote.executionEvidence.executionPrice,
+        });
+        continue;
+      }
+
+      const triggerablePayload = withExecutableQuote(payload, quote.executionEvidence);
       summary.hits++;
       const dispatch = await dispatchTriggeredOrderExecution({
         io,
         userId: order.userId,
         walletAddress: order.user.walletAddress,
-        payload,
+        payload: triggerablePayload,
         delegatedExecutor: deps.delegatedExecutor,
         nowMs: deps.nowMs?.() ?? Date.now(),
         delegatedRuntimeCooldownMs: deps.delegatedRuntimeCooldownMs,

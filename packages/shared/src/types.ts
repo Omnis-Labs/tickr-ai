@@ -298,6 +298,11 @@ export const TriggerHitPayloadSchema = z.object({
   side: z.enum(['BUY', 'SELL']),
   triggerPriceUsd: z.number(),
   currentPriceUsd: z.number(),
+  executablePriceUsd: z.number().optional(),
+  executableTokenAmount: z.number().optional(),
+  executableUsdValue: z.number().optional(),
+  executablePremiumVsCurrentPricePct: z.number().nullable().optional(),
+  executablePremiumVsTriggerPricePct: z.number().nullable().optional(),
   sizeUsd: z.number(),
   /** xStock units to sell (TP/SL) or buy (BUY_TRIGGER, usually null —
    *  BUY size is dollar-denominated via sizeUsd). Nullable so callers

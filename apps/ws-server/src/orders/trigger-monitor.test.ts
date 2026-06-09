@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { PrismaClient } from '@hunch-it/db';
-import { WsServerEvents, type PriceSnapshot } from '@hunch-it/shared';
+import {
+  executableTriggerDecision,
+  WsServerEvents,
+  type PriceSnapshot,
+} from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
 import { clearDelegatedExecutionCooldownForTests, runTriggerMonitor } from './trigger-monitor.js';
 
@@ -51,12 +55,49 @@ async function priceFetcher(): Promise<Map<string, PriceSnapshot>> {
   return new Map([['AAPLx', { ticker: 'AAPLx', price: 100, confidence: 0.01, publishTime: 1 }]]);
 }
 
+async function triggerableQuote({ payload }: { payload: Parameters<typeof executableTriggerDecision>[0]['payload'] }) {
+  return executableTriggerDecision({
+    payload,
+    inAmount: '25000000',
+    outAmount: '25000000',
+    decimals: 8,
+  });
+}
+
+test('runTriggerMonitor keeps an order open when Pyth wakes it but Ultra BUY price is above trigger', async () => {
+  clearDelegatedExecutionCooldownForTests();
+  const { io, events } = ioRecorder();
+  let delegatedCalls = 0;
+
+  const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
+    priceFetcher: async () =>
+      new Map([['AAPLx', { ticker: 'AAPLx', price: 100.4, confidence: 0.01, publishTime: 1 }]]),
+    quoteExecutableTrigger: async ({ payload }) =>
+      executableTriggerDecision({
+        payload,
+        inAmount: '25000000',
+        outAmount: '20000000',
+        decimals: 8,
+      }),
+    delegatedExecutor: async () => {
+      delegatedCalls += 1;
+      throw new Error('delegated execution should not run while executable price waits');
+    },
+  });
+
+  assert.equal(summary.hits, 0);
+  assert.equal(summary.quoteWaiting, 1);
+  assert.equal(delegatedCalls, 0);
+  assert.equal(events.length, 0);
+});
+
 test('runTriggerMonitor emits trade:filled after delegated execution settles', async () => {
   clearDelegatedExecutionCooldownForTests();
   const { io, events } = ioRecorder();
 
   const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     delegatedExecutor: async ({ payload }) => ({
       kind: 'settled',
       orderId: payload.orderId,
@@ -115,6 +156,7 @@ test('runTriggerMonitor falls back to trigger:hit when delegation is unavailable
 
   const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     delegatedExecutor: async ({ payload }) => ({
       kind: 'notAvailable',
       orderId: payload.orderId,
@@ -134,6 +176,7 @@ test('runTriggerMonitor suppresses manual fallback after unreleased pre-broadcas
 
   const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     delegatedExecutor: async ({ payload }) => ({
       kind: 'preBroadcastFailed',
       orderId: payload.orderId,
@@ -154,6 +197,7 @@ test('runTriggerMonitor suppresses manual fallback after ambiguous Ultra execute
 
   const summary = await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     delegatedExecutor: async ({ payload }) => ({
       kind: 'broadcastUnknown',
       orderId: payload.orderId,
@@ -174,6 +218,7 @@ test('runTriggerMonitor uses manual fallback during delegated runtime cooldown',
 
   await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     nowMs: () => 1_000,
     delegatedRuntimeCooldownMs: 60_000,
     delegatedExecutor: async ({ payload }) => {
@@ -190,6 +235,7 @@ test('runTriggerMonitor uses manual fallback during delegated runtime cooldown',
 
   await runTriggerMonitor(prismaWithOrders([openOrder()]), io, {
     priceFetcher,
+    quoteExecutableTrigger: triggerableQuote,
     nowMs: () => 2_000,
     delegatedRuntimeCooldownMs: 60_000,
     delegatedExecutor: async () => {
