@@ -121,9 +121,8 @@ export default function WithdrawPage() {
 
   const cashUsd = portfolioQuery.data?.cashUsd ?? 0;
   const solBalance = portfolioQuery.data?.solBalance ?? 0;
-  const assetBalanceLabel = asset === 'USDC'
-    ? `${formatUsdc(cashUsd)} USDC`
-    : `${formatSol(solBalance)} SOL`;
+  const assetBalanceLabel =
+    asset === 'USDC' ? `${formatUsdc(cashUsd)} USDC` : `${formatSol(solBalance)} SOL`;
 
   const feeReadyLabel = useMemo(() => {
     if (isLowSolForFees(solBalance)) return 'Add SOL before sending';
@@ -301,7 +300,7 @@ export default function WithdrawPage() {
         }
       />
 
-      <main className="px-5 py-6 pb-28 max-w-md mx-auto">
+      <main className="mx-auto w-full max-w-md px-5 py-6 pb-28 lg:max-w-3xl lg:px-8 lg:pb-10">
         {!wallet.connected ? (
           <section className="bg-surface rounded-lg p-6 shadow-soft flex flex-col items-center text-center">
             <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mb-3">
@@ -360,7 +359,9 @@ export default function WithdrawPage() {
                 <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-label-md text-on-surface-variant">Available</p>
-                    <p className="text-title-md text-on-surface tabular-nums">{assetBalanceLabel}</p>
+                    <p className="text-title-md text-on-surface tabular-nums">
+                      {assetBalanceLabel}
+                    </p>
                   </div>
                   <p className="text-body-sm text-on-surface-variant text-right">
                     {ASSETS[asset].helper}
@@ -475,9 +476,7 @@ export default function WithdrawPage() {
               </div>
             </motion.section>
 
-            {prepared && !result && isSyncingBalance && (
-              <BalanceSyncCard prepared={prepared} />
-            )}
+            {prepared && !result && isSyncingBalance && <BalanceSyncCard prepared={prepared} />}
 
             {prepared && !result && !isSyncingBalance && (
               <ReviewCard

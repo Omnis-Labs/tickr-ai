@@ -90,7 +90,7 @@ export default function SettingsPage() {
     <>
       <TopAppBar title="Settings" />
 
-      <main className="px-5 py-6 pb-24 max-w-md mx-auto flex flex-col gap-6">
+      <main className="mx-auto grid w-full max-w-md gap-6 px-5 py-6 pb-24 lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:px-8 lg:pb-10">
         <Section icon={<UserRound className="h-5 w-5" />} title="Account">
           {!connected ? (
             <p className="text-body-md text-on-surface-variant">Not signed in.</p>

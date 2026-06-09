@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import {
-  getAssetById,
-  type Proposal,
-  type SkipReason,
-} from '@hunch-it/shared';
+import { getAssetById, type Proposal, type SkipReason } from '@hunch-it/shared';
 import { useRouter } from 'next/navigation';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { Button } from '@/components/ui/button';
@@ -111,7 +107,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     return (
       <>
         <TopAppBar title="Proposal" leftAction={<BackIconButton onBack={onBack} />} />
-        <main className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-md flex-col justify-center px-5 pb-24 pt-6">
+        <main className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-md flex-col justify-center px-5 pb-24 pt-6 lg:max-w-3xl lg:px-8">
           <section className="rounded-lg bg-surface p-5 text-center shadow-soft">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-surface-container text-primary">
               <span className="material-symbols-outlined text-[24px]">search_off</span>
@@ -140,7 +136,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     return (
       <>
         <TopAppBar title="Proposal" leftAction={<BackIconButton onBack={onBack} />} />
-        <main className="mx-auto w-full max-w-md px-5 pb-28 pt-6">
+        <main className="mx-auto w-full max-w-md px-5 pb-28 pt-6 lg:max-w-4xl lg:px-8 lg:pb-10">
           <SellProposalView proposal={proposal} onClose={onDecision} />
         </main>
       </>
@@ -200,9 +196,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
       return;
     }
     if (!meta.mint) {
-      toast.error(
-        `${meta.displaySymbol} mint is empty. Check packages/shared/src/assets.ts.`,
-      );
+      toast.error(`${meta.displaySymbol} mint is empty. Check packages/shared/src/assets.ts.`);
       return;
     }
 
@@ -275,7 +269,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
     <>
       <TopAppBar title="Proposal" leftAction={<BackIconButton onBack={onBack} />} />
 
-      <main className="mx-auto flex w-full max-w-md flex-col gap-[14px] px-5 pb-36 pt-4">
+      <main className="mx-auto grid w-full max-w-md gap-[14px] px-5 pb-36 pt-4 lg:max-w-5xl lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start lg:gap-6 lg:px-8 lg:pb-28">
         {isReadOnly && (
           <div className="rounded-lg bg-tertiary-container px-4 py-3 text-body-sm text-on-tertiary-container">
             This proposal is no longer active. You can review it, but order submission is disabled.
@@ -425,7 +419,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
 
       <footer className="fixed inset-x-0 bottom-0 z-50 border-t border-divider bg-background/95 px-5 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         {skipOpen ? (
-          <div className="mx-auto grid w-full max-w-md grid-cols-[0.95fr_1.25fr] gap-2">
+          <div className="mx-auto grid w-full max-w-md grid-cols-[0.95fr_1.25fr] gap-2 lg:max-w-5xl lg:grid-cols-[180px_220px] lg:justify-end">
             <Button
               variant="surface"
               className="h-12 px-3 text-label-md"
@@ -445,7 +439,7 @@ export function ProposalModal({ proposal, fallbackId, onBack, onDecision }: Prop
             </Button>
           </div>
         ) : (
-          <div className="mx-auto grid w-full max-w-md grid-cols-[0.75fr_0.9fr_1.35fr] gap-2">
+          <div className="mx-auto grid w-full max-w-md grid-cols-[0.75fr_0.9fr_1.35fr] gap-2 lg:max-w-5xl lg:grid-cols-[140px_140px_220px] lg:justify-end">
             <Button
               variant="surface"
               className="h-12 gap-1 px-2 text-label-md"

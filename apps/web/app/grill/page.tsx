@@ -92,103 +92,105 @@ export default function GrillPage() {
         }
       />
 
-      <main className="mx-auto flex w-full max-w-md flex-col gap-[14px] px-5 pb-36 pt-4">
-        <section className="rounded-lg bg-accent p-5 text-on-accent shadow-soft">
-          <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-label-md text-primary/70">Trade idea</p>
-              <h1 className="mt-1 text-headline-md text-primary">Grill</h1>
-            </div>
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface/80 text-primary">
-              <FlameKindling className="h-4 w-4" aria-hidden="true" />
-            </span>
-          </div>
-          <p className="text-body-md leading-6 text-primary/80">
-            {appNarrativeCopy.grillIntro}
-          </p>
-        </section>
-
-        <section className="rounded-lg bg-surface p-5 shadow-soft">
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-2">
-              <span className="text-label-md text-on-surface-variant">Asset</span>
-              <select
-                value={assetId}
-                onChange={(event) => setAssetId(event.target.value)}
-                className="h-12 rounded-full bg-surface-container px-4 text-label-lg text-primary outline-none ring-1 ring-outline-variant focus:ring-2 focus:ring-primary"
-              >
-                {assets.map((asset) => (
-                  <option key={asset.assetId} value={asset.assetId}>
-                    {asset.displaySymbol} · {asset.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-2">
-              <span className="text-label-md text-on-surface-variant">Trade idea</span>
-              <textarea
-                value={idea}
-                onChange={(event) => setIdea(event.target.value)}
-                rows={5}
-                maxLength={1_000}
-                placeholder={appNarrativeCopy.grillPlaceholder}
-                className="min-h-[132px] resize-none rounded-lg bg-surface-container px-4 py-3 text-body-md leading-6 text-on-surface outline-none ring-1 ring-outline-variant placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary"
-              />
-            </label>
-
-            <Button
-              variant="accent"
-              className="h-12 w-full gap-2"
-              disabled={busy !== null || idea.trim().length < 8}
-              onClick={() => void runAnalysis()}
-            >
-              {busy === 'analysis' ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              )}
-              Vet idea
-            </Button>
-          </div>
-        </section>
-
-        {analysis && (
-          <>
-            <section className="flex flex-col gap-[14px]">
-              {analysis.opinions.map((opinion) => (
-                <OpinionCard key={opinion.analystId} opinion={opinion} />
-              ))}
-            </section>
-
-            <section className="rounded-lg bg-surface p-5 shadow-soft">
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-title-md text-on-surface">Proposal</h2>
-                  <p className="mt-1 text-body-sm text-on-surface-variant">
-                    {supportingOpinions.length > 0
-                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
-                      : 'No analyst supports creating one.'}
-                  </p>
-                </div>
-                <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
-                  {analysis.assetId}
-                </span>
+      <main className="mx-auto grid w-full max-w-md gap-[14px] px-5 pb-36 pt-4 lg:max-w-6xl lg:grid-cols-[minmax(360px,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:px-8 lg:pb-10">
+        <div className="flex flex-col gap-[14px] lg:sticky lg:top-24">
+          <section className="rounded-lg bg-accent p-5 text-on-accent shadow-soft">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-label-md text-primary/70">Trade idea</p>
+                <h1 className="mt-1 text-headline-md text-primary">Grill</h1>
               </div>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface/80 text-primary">
+                <FlameKindling className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </div>
+            <p className="text-body-md leading-6 text-primary/80">{appNarrativeCopy.grillIntro}</p>
+          </section>
+
+          <section className="rounded-lg bg-surface p-5 shadow-soft">
+            <div className="flex flex-col gap-4">
+              <label className="flex flex-col gap-2">
+                <span className="text-label-md text-on-surface-variant">Asset</span>
+                <select
+                  value={assetId}
+                  onChange={(event) => setAssetId(event.target.value)}
+                  className="h-12 rounded-full bg-surface-container px-4 text-label-lg text-primary outline-none ring-1 ring-outline-variant focus:ring-2 focus:ring-primary"
+                >
+                  {assets.map((asset) => (
+                    <option key={asset.assetId} value={asset.assetId}>
+                      {asset.displaySymbol} · {asset.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-label-md text-on-surface-variant">Trade idea</span>
+                <textarea
+                  value={idea}
+                  onChange={(event) => setIdea(event.target.value)}
+                  rows={5}
+                  maxLength={1_000}
+                  placeholder={appNarrativeCopy.grillPlaceholder}
+                  className="min-h-[132px] resize-none rounded-lg bg-surface-container px-4 py-3 text-body-md leading-6 text-on-surface outline-none ring-1 ring-outline-variant placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary"
+                />
+              </label>
+
               <Button
                 variant="accent"
                 className="h-12 w-full gap-2"
-                disabled={!canCreateProposal}
-                onClick={() => void createProposal()}
+                disabled={busy !== null || idea.trim().length < 8}
+                onClick={() => void runAnalysis()}
               >
-                {busy === 'proposal' && (
+                {busy === 'analysis' ? (
                   <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 )}
-                Create Proposal
+                Vet idea
               </Button>
-            </section>
-          </>
-        )}
+            </div>
+          </section>
+        </div>
+
+        <div className="flex flex-col gap-[14px]">
+          {analysis && (
+            <>
+              <section className="flex flex-col gap-[14px]">
+                {analysis.opinions.map((opinion) => (
+                  <OpinionCard key={opinion.analystId} opinion={opinion} />
+                ))}
+              </section>
+
+              <section className="rounded-lg bg-surface p-5 shadow-soft">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-title-md text-on-surface">Proposal</h2>
+                    <p className="mt-1 text-body-sm text-on-surface-variant">
+                      {supportingOpinions.length > 0
+                        ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
+                        : 'No analyst supports creating one.'}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-surface-container px-3 py-1 text-label-sm text-on-surface-variant">
+                    {analysis.assetId}
+                  </span>
+                </div>
+                <Button
+                  variant="accent"
+                  className="h-12 w-full gap-2"
+                  disabled={!canCreateProposal}
+                  onClick={() => void createProposal()}
+                >
+                  {busy === 'proposal' && (
+                    <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  )}
+                  Create Proposal
+                </Button>
+              </section>
+            </>
+          )}
+        </div>
       </main>
     </>
   );

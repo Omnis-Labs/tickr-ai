@@ -66,13 +66,7 @@ export default function MandatePage() {
   }
 
   const canSubmit = useMemo(() => {
-    return (
-      !isNaN(tradeSize) &&
-      tradeSize >= 10 &&
-      marketFocus.length > 0 &&
-      connected &&
-      !loading
-    );
+    return !isNaN(tradeSize) && tradeSize >= 10 && marketFocus.length > 0 && connected && !loading;
   }, [tradeSize, marketFocus, connected, loading]);
 
   async function submit() {
@@ -131,7 +125,7 @@ export default function MandatePage() {
         }
       />
 
-      <main className="flex flex-col gap-4 px-5 pt-4 pb-32 max-w-md mx-auto">
+      <main className="mx-auto grid w-full max-w-md gap-4 px-5 pt-4 pb-32 lg:max-w-4xl lg:grid-cols-2 lg:items-start lg:px-8">
         <Card icon="schedule" title="Holding period" delay={0}>
           <div className="grid grid-cols-2 gap-2">
             {HOLDING_PERIOD_OPTIONS.map((opt) => (
@@ -218,18 +212,20 @@ export default function MandatePage() {
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-6 bg-gradient-to-t from-background via-background/85 to-transparent z-30">
-        <div className="max-w-md mx-auto">
+        <div className="mx-auto max-w-md lg:flex lg:max-w-4xl lg:justify-end">
           <button
             type="button"
             disabled={!canSubmit}
             onClick={() => void submit()}
-            className="flex items-center justify-center gap-2 w-full h-14 rounded-full bg-accent text-on-accent text-title-md shadow-floating active:scale-[0.98] transition-transform disabled:opacity-50 disabled:active:scale-100"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-accent text-title-md text-on-accent shadow-floating transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 lg:w-auto lg:min-w-[220px] lg:px-8"
           >
             {loading ? 'Saving…' : submitted ? 'Save changes' : 'Start Desk'}
             <span className="material-symbols-outlined">arrow_forward</span>
           </button>
           {!connected && (
-            <p className="mt-2 text-center text-body-sm text-on-surface-variant">Connect a wallet to save.</p>
+            <p className="mt-2 text-center text-body-sm text-on-surface-variant">
+              Connect a wallet to save.
+            </p>
           )}
         </div>
       </div>

@@ -45,8 +45,7 @@ export default function PositionDetailPage() {
   // bar since the API returns DB state only.
   const livePositionQuery = usePosition(params?.id);
   const livePosition = livePositionQuery.data ?? null;
-  const liveMarkPrice =
-    bars.length > 0 ? (bars[bars.length - 1]?.close ?? null) : null;
+  const liveMarkPrice = bars.length > 0 ? (bars[bars.length - 1]?.close ?? null) : null;
 
   // Per ADR-0001: OPEN TP/SL Order rows are the canonical source of
   // truth for active protection prices. Position.currentTp/SlPrice
@@ -55,15 +54,11 @@ export default function PositionDetailPage() {
   // Orders may not exist yet (BUY_PENDING) or have been CANCELLED
   // (CLOSED).
   const liveDerivedTp = useMemo(() => {
-    const tp = livePosition?.orders?.find(
-      (o) => o.kind === 'TAKE_PROFIT' && o.status === 'OPEN',
-    );
+    const tp = livePosition?.orders?.find((o) => o.kind === 'TAKE_PROFIT' && o.status === 'OPEN');
     return tp?.triggerPriceUsd ?? null;
   }, [livePosition?.orders]);
   const liveDerivedSl = useMemo(() => {
-    const sl = livePosition?.orders?.find(
-      (o) => o.kind === 'STOP_LOSS' && o.status === 'OPEN',
-    );
+    const sl = livePosition?.orders?.find((o) => o.kind === 'STOP_LOSS' && o.status === 'OPEN');
     return sl?.triggerPriceUsd ?? null;
   }, [livePosition?.orders]);
 
@@ -74,12 +69,7 @@ export default function PositionDetailPage() {
       proposalId: null,
       ticker: livePosition.ticker,
       mint: livePosition.mint,
-      state: livePosition.state as
-        | 'BUY_PENDING'
-        | 'ENTERING'
-        | 'ACTIVE'
-        | 'CLOSING'
-        | 'CLOSED',
+      state: livePosition.state as 'BUY_PENDING' | 'ENTERING' | 'ACTIVE' | 'CLOSING' | 'CLOSED',
       tokenAmount: livePosition.tokenAmount,
       entryPrice: livePosition.entryPrice,
       totalCost: livePosition.totalCost,
@@ -142,10 +132,12 @@ export default function PositionDetailPage() {
             </button>
           }
         />
-        <main className="px-5 py-8 max-w-md mx-auto pb-24">
+        <main className="mx-auto w-full max-w-md px-5 py-8 pb-24 lg:max-w-3xl lg:px-8 lg:pb-10">
           <div className="bg-surface rounded-lg p-6 shadow-soft text-center">
             <div className="w-12 h-12 mx-auto rounded-full bg-surface-container flex items-center justify-center mb-3">
-              <span className="material-symbols-outlined text-on-surface-variant text-[24px]">help</span>
+              <span className="material-symbols-outlined text-on-surface-variant text-[24px]">
+                help
+              </span>
             </div>
             <p className="text-title-md text-primary">Position not found</p>
             <p className="text-body-sm text-on-surface-variant mt-1">
@@ -267,17 +259,19 @@ export default function PositionDetailPage() {
         }
       />
 
-      <main className="px-5 py-6 pb-32 max-w-md mx-auto flex flex-col gap-6">
+      <main className="mx-auto grid w-full max-w-md gap-6 px-5 py-6 pb-32 lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:px-8 lg:pb-10">
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-surface rounded-lg p-5 shadow-soft flex flex-col items-center text-center"
+          className="bg-surface rounded-lg p-5 shadow-soft flex flex-col items-center text-center lg:col-span-2"
         >
           <div className="flex items-center gap-3 mb-3">
             <div className="w-12 h-12 rounded-full bg-surface-dim flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-[24px]">memory</span>
             </div>
-            <span className={`px-3 py-1 rounded-full text-label-md font-semibold ${badge.bg} ${badge.text}`}>
+            <span
+              className={`px-3 py-1 rounded-full text-label-md font-semibold ${badge.bg} ${badge.text}`}
+            >
               {badge.label}
             </span>
           </div>
@@ -299,7 +293,9 @@ export default function PositionDetailPage() {
           {position.state === 'CLOSED' && position.realizedPnl != null && (
             <div
               className={`mt-3 px-3 py-1 rounded-full text-label-sm font-semibold ${
-                position.realizedPnl >= 0 ? 'bg-positive/20 text-positive' : 'bg-negative/20 text-negative'
+                position.realizedPnl >= 0
+                  ? 'bg-positive/20 text-positive'
+                  : 'bg-negative/20 text-negative'
               }`}
             >
               Realized: {position.realizedPnl >= 0 ? '+' : ''}${position.realizedPnl.toFixed(2)}
@@ -312,7 +308,11 @@ export default function PositionDetailPage() {
         )}
 
         {bars.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-surface rounded-lg p-5 shadow-soft">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-surface rounded-lg p-5 shadow-soft"
+          >
             <h3 className="text-title-lg text-on-surface mb-3">Price history</h3>
             <MiniChart
               bars={bars}
@@ -349,7 +349,8 @@ export default function PositionDetailPage() {
           <div className="bg-surface rounded-lg p-5 shadow-soft">
             <h3 className="text-title-lg text-on-surface mb-2">About</h3>
             <p className="text-body-md text-on-surface-variant leading-relaxed">
-              {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades against USDC via Jupiter; underlying exposure is held by the issuer.
+              {position.ticker} is the on-chain representation of {meta.name} on Solana. Trades
+              against USDC via Jupiter; underlying exposure is held by the issuer.
             </p>
           </div>
         )}

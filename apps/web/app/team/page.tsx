@@ -14,7 +14,7 @@ export default function TeamPage() {
     <>
       <TopAppBar title="Team" />
 
-      <main className="mx-auto flex w-full max-w-md flex-col gap-[14px] px-5 pb-28 pt-4">
+      <main className="mx-auto flex w-full max-w-md flex-col gap-[14px] px-5 pb-28 pt-4 lg:max-w-6xl lg:px-8 lg:pb-10">
         <section className="rounded-lg bg-accent p-5 text-on-accent shadow-soft">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
@@ -37,7 +37,7 @@ export default function TeamPage() {
           </p>
         </section>
 
-        <section className="flex flex-col gap-[14px]">
+        <section className="grid gap-[14px] lg:grid-cols-2">
           {AI_ANALYST_CATALOG.map((analyst) => {
             const selected = selectedIds.includes(analyst.id);
             const disabled = !selected && selectedIds.length >= maxTeamSize;
