@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowRight, FlameKindling, LoaderCircle, UsersRound } from 'lucide-react';
 import { getSignalAssets } from '@hunch-it/shared';
@@ -11,7 +11,7 @@ import { TopAppBar } from '@/components/shell/top-app-bar';
 import { Button } from '@/components/ui/button';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { GrillAnalysisResult } from '@/lib/grill/analysis';
-import { buildGrillResultPresentation, canCreateGrillProposal } from '@/lib/grill/result-summary';
+import { buildGrillProposalRequest } from '@/lib/grill/proposal-policy';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
 import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
@@ -27,12 +27,7 @@ export default function GrillPage() {
   const [analysis, setAnalysis] = useState<GrillAnalysisResult | null>(null);
   const [busy, setBusy] = useState<'analysis' | 'proposal' | null>(null);
 
-  const resultPresentation = useMemo(
-    () => (analysis ? buildGrillResultPresentation(analysis) : null),
-    [analysis],
-  );
   const hasAnalysis = analysis !== null;
-  const canCreateProposal = canCreateGrillProposal(analysis, busy);
 
   async function runAnalysis() {
     setBusy('analysis');
@@ -60,10 +55,11 @@ export default function GrillPage() {
     if (!analysis) return;
     setBusy('proposal');
     try {
+      const proposalRequest = buildGrillProposalRequest(analysis);
       const res = await authedFetch('/api/grill/proposals', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ assetId, idea: analysis.idea, analystIds: selectedIds }),
+        body: JSON.stringify(proposalRequest),
       });
       const body = (await res.json().catch(() => ({}))) as {
         proposal?: { id: string };
@@ -163,11 +159,9 @@ export default function GrillPage() {
           </section>
         </div>
 
-        {analysis && resultPresentation && (
+        {analysis && (
           <GrillResultPanel
             analysis={analysis}
-            presentation={resultPresentation}
-            canCreateProposal={canCreateProposal}
             busy={busy}
             onCreateProposal={createProposal}
           />

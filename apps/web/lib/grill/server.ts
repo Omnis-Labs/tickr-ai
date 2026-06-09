@@ -17,10 +17,10 @@ import {
   AI_ANALYST_CATALOG,
   MAX_AI_TRADING_TEAM_SIZE,
   analyzeGrillIdea,
-  buildGrillProposalAnalysis,
   getRequiredGrillBarAssetIds,
   type GrillAnalysisResult,
 } from './analysis';
+import { buildGrillProposalAnalysis } from './proposal-policy';
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
 const SIGNAL_ASSET_IDS = new Set(getSignalAssets().map((asset) => asset.assetId));
@@ -121,9 +121,7 @@ export async function createGrillProposal(input: GrillRequest & { userId: string
     latestPrice: latestSnap.price,
   });
   if (!analysis) {
-    const err = new Error('no_supporting_analyst_opinion');
-    err.name = 'NoSupportingAnalystOpinionError';
-    throw err;
+    throw new Error('grill_proposal_not_actionable');
   }
 
   const availableUsdc = await readUsdcBalance(user.walletAddress, {

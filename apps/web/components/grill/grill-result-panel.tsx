@@ -12,15 +12,17 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AnalystOpinion, AnalystVerdict, GrillAnalysisResult } from '@/lib/grill/analysis';
-import type { GrillResultPresentation } from '@/lib/grill/result-summary';
+import { canCreateGrillProposal } from '@/lib/grill/proposal-policy';
+import {
+  buildGrillResultPresentation,
+  type GrillResultPresentation,
+} from '@/lib/grill/result-summary';
 import { cn } from '@/lib/utils';
 
 type GrillBusyState = 'analysis' | 'proposal' | null;
 
 interface GrillResultPanelProps {
   analysis: GrillAnalysisResult;
-  presentation: GrillResultPresentation;
-  canCreateProposal: boolean;
   busy: GrillBusyState;
   onCreateProposal: () => void | Promise<void>;
 }
@@ -62,11 +64,12 @@ const verdictOrder: AnalystVerdict[] = ['support', 'challenge', 'reject'];
 
 export function GrillResultPanel({
   analysis,
-  presentation,
-  canCreateProposal,
   busy,
   onCreateProposal,
 }: GrillResultPanelProps) {
+  const presentation = buildGrillResultPresentation(analysis);
+  const canCreateProposal = canCreateGrillProposal(analysis, busy);
+
   return (
     <div className="flex flex-col gap-[14px]">
       <ResultSummaryCard presentation={presentation} />

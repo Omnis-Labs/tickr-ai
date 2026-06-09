@@ -2,7 +2,6 @@ import {
   getAssetById,
   getSignalAssets,
   type Bar,
-  type BaseMarketAnalysis,
   type BaseMarketIndicators,
 } from '@hunch-it/shared';
 
@@ -2100,7 +2099,7 @@ function runPortfolioSizingBacktest(input: {
   const warmup = Math.min(Math.max(input.spec.volLookbackDays, step), Math.floor(nDays / 4));
   let cash = 1;
   let values = new Map(names.map((assetId) => [assetId, 0]));
-  let benchmarkValues = new Map(names.map((assetId) => [assetId, 1 / names.length]));
+  const benchmarkValues = new Map(names.map((assetId) => [assetId, 1 / names.length]));
   let nRebalances = 0;
   let turnoverTotal = 0;
   let investedDays = 0;
@@ -3727,27 +3726,5 @@ export async function analyzeGrillIdea(input: AnalyzeGrillIdeaInput): Promise<Gr
     idea,
     asOf: (input.now ?? new Date()).toISOString(),
     opinions,
-  };
-}
-
-export function buildGrillProposalAnalysis(input: {
-  result: GrillAnalysisResult;
-  latestPrice?: number;
-}): BaseMarketAnalysis | null {
-  const lead = input.result.opinions.find((opinion) => opinion.verdict === 'support');
-  if (!lead) return null;
-  const priceAtAnalysis = input.latestPrice ?? lead.indicators.ma20;
-  return {
-    assetId: input.result.assetId,
-    action: 'BUY',
-    confidence: Math.max(0.7, Math.min(0.9, lead.confidence)),
-    rationale: `[Grill] ${lead.thesis}`,
-    what_changed: `Grill Idea: ${input.result.idea}`,
-    why_this_trade: lead.setupEntry,
-    priceAtAnalysis,
-    suggestedTriggerPrice: priceAtAnalysis * 0.997,
-    suggestedTakeProfitPrice: priceAtAnalysis * 1.04,
-    suggestedStopLossPrice: priceAtAnalysis * 0.94,
-    indicators: lead.indicators,
   };
 }

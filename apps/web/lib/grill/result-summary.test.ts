@@ -1,59 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AnalystOpinion, AnalystVerdict, GrillAnalysisResult } from './analysis.js';
-import {
-  buildGrillResultPresentation,
-  canCreateGrillProposal,
-  getGrillVerdictCounts,
-} from './result-summary.js';
+import type { AnalystVerdict } from './analysis.js';
+import { buildGrillResultPresentation, getGrillVerdictCounts } from './result-summary.js';
 
-function opinion(verdict: AnalystVerdict, analystId: string = verdict): AnalystOpinion {
-  return {
-    analystId,
-    analystName: `${verdict} analyst`,
-    originTask: 'Task view',
-    verdict,
-    confidence: 0.72,
-    thesis: `${verdict} thesis`,
-    whyNow: `${verdict} timing`,
-    setupEntry: `${verdict} entry`,
-    riskProtection: `${verdict} protection`,
-    invalidation: `${verdict} invalidation`,
-    evidence: [],
-    backtest: {
-      totalReturnPct: 0,
-      benchmarkReturnPct: 0,
-      excessReturnPct: 0,
-      maxDrawdownPct: 0,
-      nTrades: 0,
-      exposurePct: 0,
-    },
-    sourceFiles: [],
-    indicators: {
-      rsi: 50,
-      macd: { macd: 0, signal: 0, histogram: 0 },
-      ma20: 100,
-      ma50: 100,
-    },
-  };
+function opinion(verdict: AnalystVerdict): { verdict: AnalystVerdict } {
+  return { verdict };
 }
 
-function analysis(opinions: AnalystOpinion[]): GrillAnalysisResult {
-  return {
-    assetId: 'NVDAx',
-    idea: 'Buy NVDAx if the tape confirms the move.',
-    asOf: '2026-06-09T00:00:00.000Z',
-    opinions,
-  };
+function analysis(opinions: { verdict: AnalystVerdict }[]): {
+  opinions: { verdict: AnalystVerdict }[];
+} {
+  return { opinions };
 }
 
 test('Grill result presentation summarizes analyst perspectives without turning them into a final verdict', () => {
   const result = buildGrillResultPresentation(
-    analysis([
-      opinion('support', 'technical'),
-      opinion('challenge', 'relative-strength'),
-      opinion('reject', 'volatility'),
-    ]),
+    analysis([opinion('support'), opinion('challenge'), opinion('reject')]),
   );
 
   assert.deepEqual(result.counts, {
@@ -67,12 +29,10 @@ test('Grill result presentation summarizes analyst perspectives without turning 
   assert.doesNotMatch(result.guidance, /final verdict/i);
 });
 
-test('Grill proposal creation stays available when no analyst supports the idea', () => {
-  const noSupport = analysis([opinion('challenge', 'relative-strength'), opinion('reject')]);
+test('Grill result presentation uses create-anyway copy when no analyst supports the idea', () => {
+  const noSupport = analysis([opinion('challenge'), opinion('reject')]);
   const result = buildGrillResultPresentation(noSupport);
 
-  assert.equal(canCreateGrillProposal(noSupport, null), true);
-  assert.equal(canCreateGrillProposal(noSupport, 'proposal'), false);
   assert.equal(result.proposalActionLabel, 'Create proposal anyway');
   assert.match(result.proposalBody, /No analyst supports this idea/i);
   assert.match(result.proposalBody, /still create a proposal anyway/i);
@@ -82,8 +42,6 @@ test('Grill proposal creation uses the normal label when at least one analyst su
   const supported = analysis([opinion('support'), opinion('challenge')]);
   const result = buildGrillResultPresentation(supported);
 
-  assert.equal(canCreateGrillProposal(supported, null), true);
-  assert.equal(canCreateGrillProposal(null, null), false);
   assert.equal(result.proposalActionLabel, 'Create proposal');
   assert.match(result.proposalBody, /supports? turning this into one proposal/i);
 });

@@ -23,9 +23,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const status =
-      err instanceof Error && err.name === 'NoSupportingAnalystOpinionError' ? 409 : 400;
     console.warn('[grill] proposal create failed', err);
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

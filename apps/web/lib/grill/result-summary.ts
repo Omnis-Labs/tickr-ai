@@ -1,4 +1,4 @@
-import type { AnalystOpinion, AnalystVerdict, GrillAnalysisResult } from './analysis';
+import type { AnalystOpinion, AnalystVerdict } from './analysis';
 
 export interface GrillVerdictCounts extends Record<AnalystVerdict, number> {
   total: number;
@@ -12,7 +12,9 @@ export interface GrillResultPresentation {
   proposalBody: string;
 }
 
-type ProposalBusyState = 'analysis' | 'proposal' | null;
+interface GrillResultSummaryInput {
+  opinions: readonly Pick<AnalystOpinion, 'verdict'>[];
+}
 
 export function getGrillVerdictCounts(
   opinions: readonly Pick<AnalystOpinion, 'verdict'>[],
@@ -32,7 +34,7 @@ export function getGrillVerdictCounts(
 }
 
 export function buildGrillResultPresentation(
-  analysis: Pick<GrillAnalysisResult, 'opinions'>,
+  analysis: GrillResultSummaryInput,
 ): GrillResultPresentation {
   const counts = getGrillVerdictCounts(analysis.opinions);
   const supportViews = `${counts.support} analyst view${counts.support === 1 ? '' : 's'}`;
@@ -49,11 +51,4 @@ export function buildGrillResultPresentation(
       ? `${supportViews} ${supportVerb} turning this into one proposal. You can still edit size, trigger, and risk controls before approving.`
       : 'No analyst supports this idea. You can still create a proposal anyway and review size, trigger, and risk controls before approving.',
   };
-}
-
-export function canCreateGrillProposal(
-  analysis: GrillAnalysisResult | null,
-  busy: ProposalBusyState,
-): boolean {
-  return analysis !== null && busy !== 'proposal';
 }
