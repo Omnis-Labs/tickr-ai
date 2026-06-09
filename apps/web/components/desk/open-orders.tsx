@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getAssetById } from '@hunch-it/shared';
 import { useOpenOrders } from '@/lib/hooks/queries';
+import { shouldShowDeskSectionLoading } from '@/lib/desk/loading-state';
 
 /**
  * Live open-orders widget for /desk. Reads useOpenOrders() (TanStack
@@ -12,19 +13,24 @@ import { useOpenOrders } from '@/lib/hooks/queries';
  */
 export function OpenOrders() {
   const router = useRouter();
-  const { data, isLoading, error } = useOpenOrders();
+  const { data, isLoading, isPending, error } = useOpenOrders();
+  const loading = shouldShowDeskSectionLoading({
+    isLoading,
+    isPending,
+    hasError: !!error,
+  });
   const orders = data?.orders ?? [];
 
   return (
-    <motion.section 
+    <motion.section
       className="mt-8 flex flex-col gap-4"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
     >
       <h3 className="text-title-lg text-primary mb-2">Open Orders</h3>
-      
-      {isLoading ? (
+
+      {loading ? (
         <div className="bg-surface rounded-lg p-4 h-[120px] animate-pulse shadow-micro" />
       ) : error ? (
         <div className="bg-surface rounded-lg p-6 shadow-micro flex flex-col items-center justify-center text-center">
@@ -46,21 +52,43 @@ export function OpenOrders() {
             <span className="material-symbols-outlined text-primary text-[24px]">receipt_long</span>
           </div>
           <p className="text-title-md text-primary">No open orders</p>
-          <p className="text-body-sm text-on-surface-variant mt-1">Orders will appear here after executing a proposal.</p>
+          <p className="text-body-sm text-on-surface-variant mt-1">
+            Orders will appear here after executing a proposal.
+          </p>
         </div>
       ) : (
         <div className="bg-surface rounded-lg p-4 shadow-micro flex flex-col gap-4">
           {orders.map((order, i) => {
-            const kindLabel = order.kind === 'TAKE_PROFIT' ? 'TP' : order.kind === 'STOP_LOSS' ? 'SL' : order.kind === 'BUY_TRIGGER' ? 'BUY' : order.kind;
-            const kindColor = order.kind === 'TAKE_PROFIT' ? 'text-positive' : order.kind === 'STOP_LOSS' ? 'text-negative' : 'text-on-surface';
-            const icon = order.kind === 'BUY_TRIGGER' ? 'shopping_cart' : order.kind === 'TAKE_PROFIT' ? 'trending_up' : order.kind === 'STOP_LOSS' ? 'trending_down' : 'swap_vert';
+            const kindLabel =
+              order.kind === 'TAKE_PROFIT'
+                ? 'TP'
+                : order.kind === 'STOP_LOSS'
+                  ? 'SL'
+                  : order.kind === 'BUY_TRIGGER'
+                    ? 'BUY'
+                    : order.kind;
+            const kindColor =
+              order.kind === 'TAKE_PROFIT'
+                ? 'text-positive'
+                : order.kind === 'STOP_LOSS'
+                  ? 'text-negative'
+                  : 'text-on-surface';
+            const icon =
+              order.kind === 'BUY_TRIGGER'
+                ? 'shopping_cart'
+                : order.kind === 'TAKE_PROFIT'
+                  ? 'trending_up'
+                  : order.kind === 'STOP_LOSS'
+                    ? 'trending_down'
+                    : 'swap_vert';
             const asset = getAssetById(order.ticker);
             const ticker = asset?.displaySymbol ?? order.ticker;
             const assetName = asset?.name ?? null;
             const priceText = `$${order.sizeUsd.toLocaleString()}${
               order.triggerPriceUsd != null ? ` @ $${order.triggerPriceUsd.toLocaleString()}` : ''
             }`;
-            const editLeg = order.kind === 'TAKE_PROFIT' ? 'tp' : order.kind === 'STOP_LOSS' ? 'sl' : null;
+            const editLeg =
+              order.kind === 'TAKE_PROFIT' ? 'tp' : order.kind === 'STOP_LOSS' ? 'sl' : null;
             const isEditable = editLeg != null && order.status === 'OPEN';
             return (
               <div
@@ -74,16 +102,15 @@ export function OpenOrders() {
                   <div className="min-w-0">
                     <div className="mb-0.5 flex min-w-0 items-center gap-2">
                       <span className="truncate text-label-lg text-on-surface">{ticker}</span>
-                      <span className={`text-label-md font-bold ${kindColor}`}>
-                        {kindLabel}
-                      </span>
+                      <span className={`text-label-md font-bold ${kindColor}`}>{kindLabel}</span>
                     </div>
                     <div className="truncate text-body-sm text-on-surface-variant">
-                      {assetName ? `${assetName} - ` : ''}{priceText}
+                      {assetName ? `${assetName} - ` : ''}
+                      {priceText}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="bg-surface-container text-on-surface text-label-sm px-2 py-1 rounded-full">
                     {order.status}

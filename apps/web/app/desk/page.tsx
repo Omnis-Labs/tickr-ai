@@ -11,13 +11,19 @@ import { PortfolioReadiness } from '@/components/desk/portfolio-readiness';
 import { PanicCloseAll } from '@/components/desk/panic-close-all';
 import { HoldingsList } from '@/components/portfolio/holdings-list';
 import { usePortfolio } from '@/lib/hooks/queries';
+import { shouldShowDeskPortfolioLoading } from '@/lib/desk/loading-state';
 import { derivePortfolioSummary } from '@/lib/portfolio/summary';
 
 export default function DeskPage() {
   const portfolioQuery = usePortfolio();
 
-  const isLoading = portfolioQuery.isLoading;
   const portfolioError = portfolioQuery.error;
+  const isLoading = shouldShowDeskPortfolioLoading({
+    isLoading: portfolioQuery.isLoading,
+    isPending: portfolioQuery.isPending,
+    hasData: portfolioQuery.data !== undefined,
+    hasError: !!portfolioError,
+  });
 
   const summary = useMemo(() => derivePortfolioSummary(portfolioQuery.data), [portfolioQuery.data]);
   const hasCash = summary.hasCash;

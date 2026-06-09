@@ -10,6 +10,7 @@ import { useProposalsStore } from '@/lib/store/proposals';
 import { fmtUsd } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
 import { appNarrativeCopy } from '@/lib/narrative/copy';
+import { shouldShowDeskSectionLoading } from '@/lib/desk/loading-state';
 
 function timeUntil(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -27,7 +28,12 @@ function timeUntil(expiresAt: string): string {
  *     `proposal:new` stream (wins on tie since it's fresher)
  */
 export function ProposalsFeed() {
-  const { data, isLoading, error } = useProposals();
+  const { data, isLoading, isPending, error } = useProposals();
+  const loading = shouldShowDeskSectionLoading({
+    isLoading,
+    isPending,
+    hasError: !!error,
+  });
   const order = useProposalsStore((s) => s.order);
   const proposalsById = useProposalsStore((s) => s.proposalsById);
 
@@ -58,7 +64,7 @@ export function ProposalsFeed() {
     >
       <h3 className="mb-4 text-title-lg text-primary">Proposals</h3>
 
-      {isLoading ? (
+      {loading ? (
         <div className="flex flex-col gap-4">
           <div className="bg-surface rounded-lg p-5 h-[180px] animate-pulse shadow-micro" />
           <div className="bg-surface rounded-lg p-4 h-[140px] animate-pulse shadow-micro" />

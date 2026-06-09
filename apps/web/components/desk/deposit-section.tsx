@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useWallet } from '@/lib/wallet/use-wallet';
+import { depositAddressState } from '@/lib/desk/deposit-address-state';
 
 export function DepositSection() {
-  const { address } = useWallet();
+  const { ready, connected, address } = useWallet();
   const [copied, setCopied] = useState(false);
+  const addressState = depositAddressState({ ready, connected, address });
 
-  const truncateAddress = (addr: string) =>
-    `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   const handleCopy = () => {
     if (!address) return;
@@ -37,7 +38,12 @@ export function DepositSection() {
           Copy your Solana wallet address. Only send Solana USDC or SOL to this address.
         </p>
 
-        {address ? (
+        {addressState === 'loading' ? (
+          <div className="w-full flex items-center justify-between bg-surface-container-low rounded-full p-2 pl-4 border border-outline-variant animate-pulse">
+            <div className="h-5 w-32 rounded bg-surface-container" />
+            <div className="h-9 w-20 rounded-full bg-surface-container" />
+          </div>
+        ) : addressState === 'address' && address ? (
           <div className="w-full flex flex-col gap-3">
             <div className="flex items-center justify-between bg-surface-container-low rounded-full p-2 pl-4 border border-outline-variant">
               <span className="text-label-lg text-on-surface font-mono">
@@ -56,15 +62,21 @@ export function DepositSection() {
             </div>
             <div className="w-full border-t border-divider pt-3 text-left flex flex-col gap-2">
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">payments</span>
+                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">
+                  payments
+                </span>
                 <p className="text-body-sm text-on-surface-variant">
-                  <span className="text-label-md text-on-surface">USDC</span> funds trades and withdrawals.
+                  <span className="text-label-md text-on-surface">USDC</span> funds trades and
+                  withdrawals.
                 </p>
               </div>
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">bolt</span>
+                <span className="material-symbols-outlined text-[18px] text-primary mt-0.5">
+                  bolt
+                </span>
                 <p className="text-body-sm text-on-surface-variant">
-                  <span className="text-label-md text-on-surface">SOL</span> is required for fees and withdrawals.
+                  <span className="text-label-md text-on-surface">SOL</span> is required for fees
+                  and withdrawals.
                 </p>
               </div>
             </div>

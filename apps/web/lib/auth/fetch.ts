@@ -60,7 +60,10 @@ export function useAuthedFetch() {
       }
       const res = await fetch(input, { ...init, headers });
       if (res.status === 401) {
-        maybeRedirectOnUnauthorized(typeof input === 'string' ? input : input.toString(), sentAuthorization);
+        maybeRedirectOnUnauthorized(
+          typeof input === 'string' ? input : input.toString(),
+          sentAuthorization,
+        );
       }
       return res;
     },

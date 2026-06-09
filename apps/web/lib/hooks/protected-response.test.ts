@@ -15,7 +15,8 @@ test('protected JSON reads return parsed data for successful responses', async (
 
 test('protected JSON reads reject non-OK responses instead of returning empty data', async () => {
   await assert.rejects(
-    () => readProtectedJson(new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })),
+    () =>
+      readProtectedJson(new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' })),
     (error) =>
       error instanceof ProtectedReadError &&
       error.status === 401 &&
