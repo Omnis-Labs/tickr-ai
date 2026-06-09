@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { landingNarrativeCopy } from '@/lib/narrative/copy';
 
 const PROPOSALS = [
   {
@@ -13,7 +14,7 @@ const PROPOSALS = [
     tp: '+8%',
     sl: '−5%',
     reasoning:
-      'Earnings momentum breaking overhead resistance. Tech sector rotation confirms strength.',
+      'Creator thesis checks out only if momentum holds above the trigger. Risk is capped before entry.',
   },
   {
     ticker: 'AAPLx',
@@ -23,7 +24,7 @@ const PROPOSALS = [
     tp: '+6%',
     sl: '−4%',
     reasoning:
-      'Services revenue inflecting, holiday cycle setting up. Mandate fits 2 to 8 week horizon.',
+      'Friend idea becomes a defined entry, size, take-profit, stop-loss, and invalidation.',
   },
   {
     ticker: 'ETH',
@@ -32,7 +33,7 @@ const PROPOSALS = [
     trigger: '$418.80',
     tp: '+7%',
     sl: '−5%',
-    reasoning: 'Liquidity and trend breadth improved across majors. Sized for 24/7 crypto volatility.',
+    reasoning: 'Social-feed setup is vetted against liquidity, breadth, and 24/7 crypto volatility.',
   },
   {
     ticker: 'TSLAx',
@@ -42,7 +43,7 @@ const PROPOSALS = [
     tp: '+10%',
     sl: '−6%',
     reasoning:
-      'Delivery print de-risked, energy storage growing fast. Sized down for higher volatility.',
+      'Market move gets translated into one proposal, not a blind follow from the feed.',
   },
   {
     ticker: 'wBTC',
@@ -52,7 +53,7 @@ const PROPOSALS = [
     tp: '+12%',
     sl: '−7%',
     reasoning:
-      'BTC beta is leading the session while xStocks are quiet. Fits a daytime Asia signal window.',
+      'Analysts agree the setup is early enough to review, with a clear wrong-if condition.',
   },
 ] as const;
 
@@ -83,7 +84,7 @@ export function ProposalStack() {
             /
           </span>
           <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
-            A real proposal
+            Disciplined proposal
           </span>
         </div>
         <span className="rounded-full bg-surface-container px-3 py-1 font-mono text-label-md text-on-surface-variant">
@@ -100,14 +101,12 @@ export function ProposalStack() {
               lineHeight: 1.04,
             }}
           >
-            Sized to your book.
+            One proposal.
             <br />
-            Reasoned in plain English.
+            Seven answers.
           </h3>
           <p className="max-w-[44ch] text-body-lg text-on-surface-variant sm:text-[17px] sm:leading-[1.55]">
-            Each proposal arrives as a complete strategy: a single tradable token, sized against your
-            mandate, a trigger price, take-profit, stop-loss, and a short reason you can
-            sanity-check before you tap.
+            {landingNarrativeCopy.proposalSummary}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <span className="font-mono text-label-md text-on-surface-variant">

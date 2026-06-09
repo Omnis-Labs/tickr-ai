@@ -9,6 +9,7 @@ import { normalizeProposalForClient } from '@/lib/proposals/normalize';
 import { useProposalsStore } from '@/lib/store/proposals';
 import { fmtUsd } from '@/lib/utils/fmt';
 import { useMemo } from 'react';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 
 function timeUntil(expiresAt: string): string {
   const diff = new Date(expiresAt).getTime() - Date.now();
@@ -55,7 +56,7 @@ export function ProposalsFeed() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
     >
-      <h3 className="text-title-lg text-primary mb-2">Action Required</h3>
+      <h3 className="text-title-lg text-primary mb-2">Proposals</h3>
 
       {isLoading ? (
         <div className="flex flex-col gap-4">
@@ -77,7 +78,7 @@ export function ProposalsFeed() {
           </div>
           <p className="text-title-md text-primary">Desk is clear.</p>
           <p className="text-body-sm text-on-surface-variant mt-1">
-            No pending proposals at this time.
+            {appNarrativeCopy.clearDesk}
           </p>
         </div>
       ) : (

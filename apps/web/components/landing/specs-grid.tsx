@@ -2,31 +2,32 @@
 
 import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
+import { proposalChecklist } from '@/lib/narrative/copy';
 
 const SPECS = [
   {
-    label: 'Tokenized stocks',
-    body: 'xStocks via Backed Finance. 25+ US tickers and ETFs settled on Solana, redeemable 1 to 1 with shares held in an EU regulated vault.',
+    label: 'AI Analysts',
+    body: 'Choose analysts that fit your style. Each watches different data sources and uses a different trading technique.',
   },
   {
-    label: 'Pricing',
-    body: 'Pyth Network real-time feeds, sub-second updates, the same oracle the rest of the chain trusts.',
+    label: 'Bring your idea',
+    body: 'Start from friends, creators, social feeds, or a market move, then ask your team to challenge the claim.',
   },
   {
-    label: 'Execution',
-    body: 'Jupiter Ultra swaps, MEV-aware routing, every transaction signed by your wallet at the moment of tap.',
+    label: 'Market watch',
+    body: 'Analysts can also watch the market and send proposals when a setup fits your mandate.',
   },
   {
-    label: 'Custody',
-    body: 'Self-custodial via Privy embedded wallet. Keys stay with you; recoverable via email or socials, transferable to your own wallet at any time.',
+    label: 'Proposal controls',
+    body: proposalChecklist.join(', ') + '.',
   },
   {
-    label: 'Strategy',
-    body: 'Take-profit and stop-loss arm in the same step as the buy. One cancels the other when the trade resolves, so a fill never leaves you exposed.',
+    label: 'Execution path',
+    body: 'Approve only after review. Synthetic orders watch the trigger, then tap-to-execute or Auto-execute triggers can handle the fill.',
   },
   {
-    label: 'Open source',
-    body: 'AGPL-3.0. The engine, the synthetic-trigger architecture, and the proposal pipeline are all readable in a browser tab.',
+    label: 'Self-custody',
+    body: 'Your wallet stays yours. Hunch It proposes; you review, edit, approve, or skip.',
   },
 ] as const;
 
@@ -46,7 +47,7 @@ export function SpecsGrid() {
           /
         </span>
         <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
-          Built on, not behind
+          What Hunch It does
         </span>
       </div>
 
@@ -61,7 +62,7 @@ export function SpecsGrid() {
           lineHeight: 1.02,
         }}
       >
-        Your wallet. Your mandate. Your edge.
+        From should I follow this to one proposal.
       </motion.h2>
 
       <motion.p
@@ -70,8 +71,8 @@ export function SpecsGrid() {
         transition={{ duration: 0.7, ease: easeOutQuart, delay: 0.12 }}
         className="mb-24 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[19px] sm:leading-[1.5]"
       >
-        Permissionless by design, open to anyone, anywhere on Earth. No accreditation gate, no
-        approved-jurisdictions list, no broker between you and the trade.
+        Gen Z hears trades from friends and creators. Hunch It helps verify the claim and fill in
+        the details before the user becomes exit liquidity.
       </motion.p>
 
       <div className="grid grid-cols-1 gap-x-16 gap-y-12 sm:grid-cols-2">

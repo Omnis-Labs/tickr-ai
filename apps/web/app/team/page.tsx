@@ -4,6 +4,7 @@ import { Check, RotateCcw } from 'lucide-react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { AI_ANALYST_CATALOG } from '@/lib/grill/analysis';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
 
 export default function TeamPage() {
@@ -32,7 +33,7 @@ export default function TeamPage() {
             </button>
           </div>
           <p className="max-w-[65ch] text-body-md leading-6 text-primary/80">
-            Selected analysts for Grill.
+            {appNarrativeCopy.teamIntro}
           </p>
         </section>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { landingNarrativeCopy } from '@/lib/narrative/copy';
 
 const LINKS: Array<{
   group: string;
@@ -11,7 +12,7 @@ const LINKS: Array<{
     items: [
       { label: 'Sign in', href: '/login' },
       { label: 'How it works', href: '#mechanic' },
-      { label: 'Built on, not behind', href: '#why-us' },
+      { label: 'What Hunch It does', href: '#why-us' },
     ],
   },
   {
@@ -42,7 +43,7 @@ export function Footer() {
             Hunch It<span className="text-on-surface-variant">.</span>
           </div>
           <p className="mt-3 max-w-[28ch] text-body-md text-on-surface-variant">
-            Trade on your terms.
+            {landingNarrativeCopy.footerLine}
           </p>
         </div>
 

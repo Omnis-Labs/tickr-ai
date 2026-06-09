@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 
 interface PortfolioReadinessProps {
   isLoading: boolean;
@@ -34,7 +35,7 @@ const readinessConfig: Record<ReadinessState, {
   ready: {
     icon: 'check_circle',
     title: 'Ready for proposals',
-    subtitle: 'Your USDC is available. Proposals will appear when signals are detected.',
+    subtitle: appNarrativeCopy.readyForProposals,
     showDeposit: false,
   },
   'add-usdc': {

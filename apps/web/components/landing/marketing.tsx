@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useWallet } from '@/lib/wallet/use-wallet';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { landingNarrativeCopy } from '@/lib/narrative/copy';
 import { HeroLight } from './hero-light';
 import { MechanicSection } from './mechanic-section';
 import { ProposalStack } from './proposal-stack';
@@ -65,9 +66,9 @@ export function LandingMarketing() {
             fontSize: 'clamp(56px, 13vw, 168px)',
             lineHeight: 0.92,
           }}
-          aria-label="Trust your hunch."
+          aria-label={landingNarrativeCopy.heroTitle}
         >
-          Trust your hunch
+          {landingNarrativeCopy.heroTitle}
           <motion.span
             aria-hidden
             className="ml-[0.04em] inline-block rounded-full bg-accent align-baseline"
@@ -92,8 +93,7 @@ export function LandingMarketing() {
         </h1>
 
         <p className="mt-10 max-w-[58ch] text-body-lg text-on-surface-variant sm:text-[18px] sm:leading-[1.55]">
-          An AI quant analyst proposes trades sized to your mandate, with take-profit and stop-loss
-          pre-armed. Tap once to execute. Trade on your terms.
+          {landingNarrativeCopy.productPromise}
         </p>
 
         <div className="mt-10 flex items-center gap-5">

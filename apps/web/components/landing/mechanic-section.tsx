@@ -7,24 +7,25 @@ import {
   type Variants,
 } from 'framer-motion';
 import { useRef } from 'react';
+import { landingNarrativeCopy } from '@/lib/narrative/copy';
 
 const STEPS = [
   {
     n: '01',
-    title: 'Set your mandate.',
-    body: 'Tell the engine your holding period, drawdown tolerance, max trade size, and the markets you actually care about. Every proposal is sized to these constraints, never around them.',
+    title: 'Bring the hunch.',
+    body: landingNarrativeCopy.howItWorks[0],
     mock: 'mandate',
   },
   {
     n: '02',
-    title: 'Receive a proposal.',
-    body: 'When momentum, volume, and macro line up, you get a single proposal sized to your mandate, priced against the tape, and reasoned in plain language. Not a chart wall, one trade.',
+    title: 'Pick your analysts.',
+    body: landingNarrativeCopy.howItWorks[1],
     mock: 'proposal',
   },
   {
     n: '03',
-    title: 'Tap to execute.',
-    body: 'Approve and the BUY trigger places automatically. Take-profit and stop-loss arm in the same step, so the exit is set before you walk away. One cancels the other when the trade resolves.',
+    title: 'Control the proposal.',
+    body: landingNarrativeCopy.proposalSummary,
     mock: 'execute',
   },
 ] as const;
@@ -45,7 +46,7 @@ export function MechanicSection() {
           /
         </span>
         <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
-          The mechanic
+          How Hunch It works
         </span>
       </div>
 
@@ -107,9 +108,9 @@ function Step({
 function MandateMock({ active }: { active: boolean }) {
   const reduce = useReducedMotion();
   const items: Array<{ label: string; value: string; fill: number }> = [
-    { label: 'Holding period', value: '2 to 8 weeks', fill: 0.55 },
-    { label: 'Max drawdown', value: '15%', fill: 0.15 },
-    { label: 'Max trade size', value: '5% of book', fill: 0.05 },
+    { label: 'Source', value: 'Creator post', fill: 0.55 },
+    { label: 'Concern', value: 'Late entry', fill: 0.35 },
+    { label: 'Goal', value: 'Clear setup', fill: 0.72 },
   ];
 
   const containerVariants: Variants = {
@@ -138,7 +139,7 @@ function MandateMock({ active }: { active: boolean }) {
     >
       <div className="mb-6 flex items-center justify-between">
         <span className="font-mono text-label-sm uppercase tracking-[0.18em] text-on-surface-variant">
-          Mandate
+          Trade idea
         </span>
         <span className="rounded-full bg-accent-soft px-2.5 py-0.5 font-mono text-label-sm text-on-accent">
           ACTIVE
@@ -168,10 +169,10 @@ function MandateMock({ active }: { active: boolean }) {
 
         <motion.div variants={rowVariants}>
           <div className="mb-2 text-body-md text-on-surface-variant">
-            Markets
+            Analysts
           </div>
           <div className="flex flex-wrap gap-2">
-            {['US tech', 'Tokenized ETFs', 'Bluechip crypto'].map((m) => (
+            {['Momentum', 'Fundamental', 'Risk'].map((m) => (
               <span
                 key={m}
                 className="rounded-full bg-surface-container px-3 py-1 text-label-md text-on-background"
@@ -216,7 +217,7 @@ function ProposalMock({ active }: { active: boolean }) {
         <div className="mb-1 font-mono text-[44px] font-semibold leading-none tracking-[-0.03em]">
           2.4<span className="text-[28px] opacity-60">%</span>
         </div>
-        <div className="text-body-md opacity-70">of book sized to mandate</div>
+        <div className="text-body-md opacity-70">of book, sized for the proposal</div>
       </motion.div>
 
       <motion.svg

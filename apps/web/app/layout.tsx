@@ -8,7 +8,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Hunch It',
-  description: 'AI trading signals for tokenized US stocks on Solana',
+  description: 'Turn vibe trades into disciplined proposals with AI analysts you choose',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

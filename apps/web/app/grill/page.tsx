@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { AnalystOpinion, GrillAnalysisResult } from '@/lib/grill/analysis';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
 
 const assets = getSignalAssets();
@@ -18,7 +19,7 @@ const assets = getSignalAssets();
 export default function GrillPage() {
   const router = useRouter();
   const authedFetch = useAuthedFetch();
-  const { selectedIds, selectedAnalysts } = useAiTradingTeam();
+  const { selectedIds } = useAiTradingTeam();
   const [assetId, setAssetId] = useState(() => assets[0]?.assetId ?? 'NVDAx');
   const [idea, setIdea] = useState('');
   const [analysis, setAnalysis] = useState<GrillAnalysisResult | null>(null);
@@ -103,7 +104,7 @@ export default function GrillPage() {
             </span>
           </div>
           <p className="text-body-md leading-6 text-primary/80">
-            {selectedAnalysts.map((analyst) => analyst.name).join(' · ')}
+            {appNarrativeCopy.grillIntro}
           </p>
         </section>
 
@@ -125,13 +126,13 @@ export default function GrillPage() {
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-label-md text-on-surface-variant">Grill Idea</span>
+              <span className="text-label-md text-on-surface-variant">Trade idea</span>
               <textarea
                 value={idea}
                 onChange={(event) => setIdea(event.target.value)}
                 rows={5}
                 maxLength={1_000}
-                placeholder="NVDAx breakout after a strong guidance raise..."
+                placeholder={appNarrativeCopy.grillPlaceholder}
                 className="min-h-[132px] resize-none rounded-lg bg-surface-container px-4 py-3 text-body-md leading-6 text-on-surface outline-none ring-1 ring-outline-variant placeholder:text-on-surface-variant/70 focus:ring-2 focus:ring-primary"
               />
             </label>
@@ -147,7 +148,7 @@ export default function GrillPage() {
               ) : (
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               )}
-              Run team
+              Vet idea
             </Button>
           </div>
         </section>
@@ -166,7 +167,7 @@ export default function GrillPage() {
                   <h2 className="text-title-md text-on-surface">Proposal</h2>
                   <p className="mt-1 text-body-sm text-on-surface-variant">
                     {supportingOpinions.length > 0
-                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support creating one.`
+                      ? `${supportingOpinions.length} analyst view${supportingOpinions.length === 1 ? '' : 's'} support turning this into one disciplined proposal.`
                       : 'No analyst supports creating one.'}
                   </p>
                 </div>

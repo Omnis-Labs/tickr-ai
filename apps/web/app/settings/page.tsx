@@ -37,6 +37,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import { useRuntime } from '@/lib/runtime/use-runtime';
 import { useMandate, usePortfolio } from '@/lib/hooks/queries';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { derivePortfolioSummary } from '@/lib/portfolio/summary';
 import { cn } from '@/lib/utils';
 
@@ -189,7 +190,7 @@ export default function SettingsPage() {
           ) : !mandate ? (
             <div>
               <p className="text-body-md text-on-surface-variant mb-3">
-                No mandate yet. Without a mandate the signal engine doesn't generate proposals.
+                {appNarrativeCopy.mandateMissing}
               </p>
               <Link
                 href="/mandate"
