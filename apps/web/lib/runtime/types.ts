@@ -57,6 +57,7 @@ export interface Runtime {
   /** Cancel exits + market-sell + server persist. */
   closePosition(args: {
     positionId: string;
+    ticker?: string | null;
     meta: RuntimeMeta;
     /** Mark price retained for callers that need a fallback when the swap
      *  output cannot produce an execution price. */

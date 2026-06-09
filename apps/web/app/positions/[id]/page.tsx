@@ -234,6 +234,7 @@ export default function PositionDetailPage() {
       }
       await runtime.closePosition({
         positionId: position.id,
+        ticker: position.ticker,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: position.markPrice,
         // Sell exactly the position size — avoids sweeping unrelated

@@ -1,5 +1,11 @@
 import type { Server as IoServer } from 'socket.io';
-import { type TradeFilledPayload, type TriggerHitPayload, WsServerEvents } from '@hunch-it/shared';
+import {
+  redactExecutionIdentifier,
+  type TradeFilledPayload,
+  type TriggerExecutionEvidence,
+  type TriggerHitPayload,
+  WsServerEvents,
+} from '@hunch-it/shared';
 import {
   tryExecuteDelegatedTriggerOrder,
   type DelegatedTriggerExecutionOutcome,
@@ -32,6 +38,18 @@ function emitTradeFilled(io: IoServer, walletAddress: string, payload: TradeFill
   io.to(`user:${walletAddress}`).emit(WsServerEvents.TradeFilled, payload);
 }
 
+function sanitizeExecutionEvidence(
+  evidence: TriggerExecutionEvidence,
+): TriggerExecutionEvidence {
+  return {
+    ...evidence,
+    orderId: redactExecutionIdentifier(evidence.orderId) ?? evidence.orderId,
+    positionId: redactExecutionIdentifier(evidence.positionId) ?? evidence.positionId,
+    jupiterRequestId: redactExecutionIdentifier(evidence.jupiterRequestId),
+    txSignature: redactExecutionIdentifier(evidence.txSignature),
+  };
+}
+
 export async function dispatchTriggeredOrderExecution(input: {
   io: IoServer;
   userId: string;
@@ -56,6 +74,13 @@ export async function dispatchTriggeredOrderExecution(input: {
   });
 
   if (outcome.kind === 'settled') {
+    console.info('[delegated-execution] settled', {
+      orderId: outcome.orderId,
+      positionId: outcome.positionId,
+      ticker: outcome.ticker,
+      orderKind: outcome.orderKind,
+      executionEvidence: sanitizeExecutionEvidence(outcome.executionEvidence),
+    });
     emitTradeFilled(input.io, input.walletAddress, {
       orderId: outcome.orderId,
       positionId: outcome.positionId,

@@ -37,6 +37,7 @@ import {
   decodeSolanaError as decodeClientSolanaError,
   emitDevDiagnostic,
   getDevDiagnostics,
+  sanitizeDiagnosticValue,
   subscribeDevDiagnostics,
   type ClientDiagnosticEvent,
   type DiagnosticStatus,
@@ -224,9 +225,6 @@ const LOG_LABELS: Record<LogSection, string> = {
 
 const MAX_LOG_ENTRIES_PER_SECTION = 20;
 const MAX_LOG_STRING_CHARS = 420;
-const MAX_LOG_ARRAY_ITEMS = 5;
-const MAX_LOG_OBJECT_KEYS = 28;
-const MAX_LOG_DEPTH = 4;
 const MAX_COPY_CHARS = 32_000;
 const DELEGATED_ACCESS_TIMEOUT_MS = 45_000;
 const STALE_SIGNER_ENV_ERROR = 'stale_privy_authorization_signer_client_env';
@@ -269,43 +267,6 @@ function stringify(value: unknown): string {
 function truncateText(value: string, max = MAX_LOG_STRING_CHARS): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max)}... [truncated ${value.length - max} chars]`;
-}
-
-function redactLongField(key: string, value: string): string {
-  if (!/(^|\.)(transaction|signedTransaction|serializedTransaction|rawTransaction)$/i.test(key)) {
-    return truncateText(value);
-  }
-  if (value.length <= 24) return value;
-  return `[redacted ${value.length} chars, ${value.slice(0, 8)}...${value.slice(-8)}]`;
-}
-
-function sanitizeForLog(value: unknown, key = 'value', depth = 0): unknown {
-  if (value == null) return value;
-  if (typeof value === 'string') return redactLongField(key, value);
-  if (typeof value === 'number' || typeof value === 'boolean') return value;
-  if (typeof value === 'bigint') return `${value.toString()}n`;
-  if (value instanceof Error) return compactErrorObject(value);
-  if (Array.isArray(value)) {
-    const sample = value
-      .slice(0, MAX_LOG_ARRAY_ITEMS)
-      .map((item, index) => sanitizeForLog(item, `${key}[${index}]`, depth + 1));
-    if (value.length <= MAX_LOG_ARRAY_ITEMS) return sample;
-    return { count: value.length, sample, truncated: value.length - MAX_LOG_ARRAY_ITEMS };
-  }
-  if (typeof value === 'object') {
-    if (depth >= MAX_LOG_DEPTH) return '[object depth truncated]';
-    const record = value as Record<string, unknown>;
-    const keys = Object.keys(record);
-    const out: Record<string, unknown> = {};
-    for (const childKey of keys.slice(0, MAX_LOG_OBJECT_KEYS)) {
-      out[childKey] = sanitizeForLog(record[childKey], childKey, depth + 1);
-    }
-    if (keys.length > MAX_LOG_OBJECT_KEYS) {
-      out.__truncatedKeys = keys.length - MAX_LOG_OBJECT_KEYS;
-    }
-    return out;
-  }
-  return String(value);
 }
 
 interface DecodedSolanaError {
@@ -353,7 +314,7 @@ function compactErrorObject(err: unknown): unknown {
       decodedSolanaError,
     };
   }
-  return sanitizeForLog(err);
+  return sanitizeDiagnosticValue(err);
 }
 
 function logErrorDetail(err: unknown): unknown {
@@ -373,7 +334,7 @@ function logErrorDetail(err: unknown): unknown {
       name: err.name,
       message: truncateText(err.message, 900),
       status: record.status,
-      detail: sanitizeForLog(record.detail),
+      detail: sanitizeDiagnosticValue(record.detail),
       decodedSolanaError: decodeSolanaError(err.message),
     };
   }
@@ -382,7 +343,7 @@ function logErrorDetail(err: unknown): unknown {
 
 function summarizeDevState(value: unknown): unknown {
   const state = value as Partial<DevState> | null;
-  if (!state || typeof state !== 'object') return sanitizeForLog(value);
+  if (!state || typeof state !== 'object') return sanitizeDiagnosticValue(value);
   const proposals = state.proposals ?? [];
   const orders = state.orders ?? [];
   const positions = state.positions ?? [];
@@ -417,7 +378,7 @@ function summarizeDevState(value: unknown): unknown {
 
 function compactResponseForStep(step: string, response: unknown): unknown {
   if (step === 'state.refresh') return summarizeDevState(response);
-  return sanitizeForLog(response);
+  return sanitizeDiagnosticValue(response);
 }
 
 function isSwapDebugLike(value: unknown): value is JupiterSwapDebug {
@@ -937,7 +898,7 @@ export function DevToolsClient() {
       try {
         const response = await fn();
         const diagnostics = buildDiagnostics(step, response);
-        const entryPayload = sanitizeForLog(payload);
+        const entryPayload = sanitizeDiagnosticValue(payload);
         const entryResponse = compactResponseForStep(step, response);
         const entry: LogEntry = {
           section,
@@ -963,7 +924,7 @@ export function DevToolsClient() {
       } catch (err) {
         const errorDetail = logErrorDetail(err);
         const diagnostics = buildDiagnostics(step, undefined, errorDetail);
-        const entryPayload = sanitizeForLog(payload);
+        const entryPayload = sanitizeDiagnosticValue(payload);
         const entry: LogEntry = {
           section,
           timestamp: new Date().toISOString(),
@@ -1577,6 +1538,7 @@ export function DevToolsClient() {
         async () => {
           return runtime.closePosition({
             positionId: selectedPosition.id,
+            ticker: selectedPosition.ticker,
             meta: { mint: meta.mint, decimals: meta.decimals },
             fallbackMarkPrice: selectedPosition.entryPrice,
             tokenAmount: selectedPosition.tokenAmount,

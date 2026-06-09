@@ -3,8 +3,9 @@ import {
   buildTriggerUltraSwapPlan,
   getAssetById,
   parseRpcUrls,
-  settlementAmountsForTrigger,
+  triggerExecutionEvidence,
   submittedInputRawForBalance,
+  type TriggerExecutionEvidence,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
 import {
@@ -36,6 +37,7 @@ export type DelegatedTriggerExecutionOutcome =
       executionPrice: number;
       tokenAmount: number;
       usdValue: number;
+      executionEvidence: TriggerExecutionEvidence;
     }
   | { kind: 'alreadyHandled'; orderId: string; reason: string }
   | { kind: 'alreadyExecuting'; orderId: string; reason: string }
@@ -164,6 +166,7 @@ async function settleOrder(
     signature: string;
     executionPrice: number;
     tokenAmount: number;
+    executionEvidence: TriggerExecutionEvidence;
   },
   deps: Pick<DelegatedExecutionDeps, 'confirmBuyFill' | 'confirmExitFill'>,
 ): Promise<DelegatedTriggerExecutionOutcome> {
@@ -202,7 +205,8 @@ async function settleOrder(
     signature: input.signature,
     executionPrice: input.executionPrice,
     tokenAmount: input.tokenAmount,
-    usdValue: input.executionPrice * input.tokenAmount,
+    usdValue: input.executionEvidence.usdValue,
+    executionEvidence: input.executionEvidence,
   };
 }
 
@@ -330,19 +334,22 @@ export async function tryExecuteDelegatedTriggerOrder(
     }
     signature = exec.signature;
 
-    const settlement = settlementAmountsForTrigger({
+    const executionEvidence = triggerExecutionEvidence({
       payload: input.payload,
       inAmount: order.inAmount,
       outAmount: order.outAmount,
       decimals: asset.decimals,
+      jupiterRequestId: order.requestId,
+      txSignature: signature,
     });
     return settleOrder(
       {
         userId: input.userId,
         payload: input.payload,
         signature,
-        executionPrice: settlement.executionPrice,
-        tokenAmount: settlement.tokenAmount,
+        executionPrice: executionEvidence.executionPrice,
+        tokenAmount: executionEvidence.tokenAmount,
+        executionEvidence,
       },
       deps,
     );

@@ -64,6 +64,7 @@ export function PanicCloseAll({ positions }: Props) {
       try {
         await runtime.closePosition({
           positionId: p.id,
+          ticker: p.ticker,
           meta: { mint: meta.mint, decimals: meta.decimals },
           fallbackMarkPrice: p.entryPrice,
           tokenAmount: p.tokenAmount,

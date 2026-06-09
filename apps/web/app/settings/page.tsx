@@ -497,6 +497,7 @@ function CloseAllPositionsCard() {
     if (!meta?.mint) throw new Error(`${p.ticker} mint not configured`);
     await runtime.closePosition({
       positionId: p.id,
+      ticker: p.ticker,
       meta: { mint: meta.mint, decimals: meta.decimals },
       fallbackMarkPrice: p.markPrice,
       tokenAmount: p.tokenAmount,

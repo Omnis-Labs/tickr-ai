@@ -62,7 +62,7 @@ function truncateText(value: string, max = MAX_STRING_CHARS): string {
 
 function redactLongField(key: string, value: string): string {
   if (
-    !/(^|\.)(transaction|signedTransaction|serializedTransaction|rawTransaction|accessToken|authorization)$/i.test(
+    !/(^|\.)(transaction|signedTransaction|serializedTransaction|rawTransaction|signature|txSignature|accessToken|authorization|walletAddress|address|privyWalletId|ownerId)$/i.test(
       key,
     )
   ) {

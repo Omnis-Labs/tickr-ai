@@ -1,4 +1,4 @@
-import { settlementAmountsForTrigger, type TriggerHitPayload } from '@hunch-it/shared';
+import { triggerExecutionEvidence, type TriggerHitPayload } from '@hunch-it/shared';
 import {
   compactDiagnosticError,
   decodeSolanaError,
@@ -6,6 +6,7 @@ import {
 } from '@/lib/dev-tools/client-diagnostics';
 import { JupiterSwapError, type SwapArgs, type SwapResult } from '@/lib/jupiter/ultra-swap';
 import { diagnosticsFromSwapDebug } from '@/lib/jupiter/swap-diagnostics';
+import { readPortfolioSummaryEvidence } from '@/lib/portfolio/diagnostics';
 import {
   claimOrderExecution,
   isOrderAlreadyExecuting,
@@ -170,12 +171,15 @@ export async function executeTriggerOrder(
     }
     swapBroadcast = true;
 
-    const { executionPrice, tokenAmount, usdValue } = settlementAmountsForTrigger({
+    const executionEvidence = triggerExecutionEvidence({
       payload,
       inAmount: result.inputAmount,
       outAmount: result.outputAmount,
       decimals,
+      jupiterRequestId: result.order.requestId,
+      txSignature: result.exec.signature ?? null,
     });
+    const { executionPrice, tokenAmount, usdValue } = executionEvidence;
 
     const settle = await authedFetch(`/api/orders/${payload.orderId}/execute`, {
       method: 'POST',
@@ -190,6 +194,7 @@ export async function executeTriggerOrder(
       const body = (await settle.json().catch(() => ({}))) as { error?: string };
       throw new Error(body.error ?? `settle ${settle.status}`);
     }
+    const portfolioSummary = await readPortfolioSummaryEvidence(authedFetch);
 
     emitDiagnostic({
       id: `${payload.orderId}:trigger-settled:${Date.now()}`,
@@ -205,6 +210,8 @@ export async function executeTriggerOrder(
         diagnostics: result.debug,
         executionPrice,
         tokenAmount,
+        executionEvidence,
+        portfolioSummary,
       },
     });
 

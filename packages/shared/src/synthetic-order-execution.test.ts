@@ -3,8 +3,10 @@ import test from 'node:test';
 import type { TriggerHitPayload } from './types.js';
 import {
   buildTriggerUltraSwapPlan,
+  closePositionExecutionEvidence,
   settlementAmountsForTrigger,
   submittedInputRawForBalance,
+  triggerExecutionEvidence,
 } from './synthetic-order-execution.js';
 
 const buyPayload: TriggerHitPayload = {
@@ -71,6 +73,79 @@ test('settlementAmountsForTrigger derives execution price from Ultra amounts', (
       executionPrice: 125,
       tokenAmount: 0.2,
       usdValue: 25,
+    },
+  );
+});
+
+test('triggerExecutionEvidence records BUY mark premium and redacted execution identifiers', () => {
+  assert.deepEqual(
+    triggerExecutionEvidence({
+      payload: buyPayload,
+      inAmount: '25000000',
+      outAmount: '20000000',
+      decimals: 8,
+      jupiterRequestId: 'request-1234567890abcdef',
+      txSignature: 'signature-1234567890abcdef',
+    }),
+    {
+      orderId: 'order-1',
+      positionId: 'position-1',
+      ticker: 'AAPLx',
+      kind: 'BUY_TRIGGER',
+      side: 'BUY',
+      triggerPriceUsd: 100,
+      currentPriceUsd: 100,
+      sizeUsd: 25,
+      ultraInAmount: '25000000',
+      ultraOutAmount: '20000000',
+      decimals: 8,
+      executionPrice: 125,
+      tokenAmount: 0.2,
+      usdValue: 25,
+      premiumVsCurrentPricePct: 25,
+      premiumVsTriggerPricePct: 25,
+      jupiterRequestId: 'requ...cdef',
+      txSignature: 'sign...cdef',
+    },
+  );
+});
+
+test('closePositionExecutionEvidence records position-scoped sell amount', () => {
+  assert.deepEqual(
+    closePositionExecutionEvidence({
+      positionId: 'position-1',
+      ticker: 'SPYx',
+      decimals: 8,
+      requestedTokenAmount: 0.2,
+      requestedRawAmount: '20000000',
+      walletRawAmount: '40000000',
+      submittedRawAmount: '20000000',
+      ultraInAmount: '20000000',
+      ultraOutAmount: '24000000',
+      jupiterRequestId: 'request-1234567890abcdef',
+      txSignature: 'signature-1234567890abcdef',
+      closeOrderId: 'close-order-1234567890abcdef',
+      cancelledExitOrderIds: ['take-profit-1234567890abcdef', 'stop-loss-1234567890abcdef'],
+    }),
+    {
+      positionId: 'position-1',
+      ticker: 'SPYx',
+      positionScope: 'position_token_amount',
+      decimals: 8,
+      requestedTokenAmount: 0.2,
+      requestedRawAmount: '20000000',
+      walletRawAmount: '40000000',
+      submittedRawAmount: '20000000',
+      ultraInAmount: '20000000',
+      ultraOutAmount: '24000000',
+      submittedTokenAmount: 0.2,
+      tokenAmount: 0.2,
+      usdValue: 24,
+      executionPrice: 120,
+      jupiterRequestId: 'requ...cdef',
+      txSignature: 'sign...cdef',
+      closeOrderId: 'clos...cdef',
+      cancelledExitOrderIds: ['take...cdef', 'stop...cdef'],
     },
   );
 });

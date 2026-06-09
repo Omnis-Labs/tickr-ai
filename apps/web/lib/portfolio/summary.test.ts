@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { portfolioSummaryEvidence } from './diagnostics';
 import { buildPortfolioSummary, derivePortfolioSummary } from './summary';
 
 test('derivePortfolioSummary centralizes portfolio header math', () => {
@@ -137,4 +138,32 @@ test('portfolio summary shows pending buys without double-counting cash', () => 
   assert.equal(summary.totalValue.toFixed(2), '19.23');
   assert.equal(summary.positionsCount, 1);
   assert.equal(summary.closablePositions.length, 1);
+});
+
+test('portfolioSummaryEvidence exposes the compact post-action diagnostic snapshot', () => {
+  const snapshot = portfolioSummaryEvidence({
+    cashUsd: 5,
+    positions: [
+      {
+        id: 'position-1',
+        ticker: 'SPYx',
+        tokenAmount: 0.2,
+        avgCost: 125,
+        markPrice: 100,
+        pnl: -5,
+        state: 'ACTIVE',
+      },
+    ],
+    pnl: { realized: -1, unrealized: -5 },
+  });
+
+  assert.deepEqual(snapshot, {
+    cashUsd: 5,
+    activePositions: 1,
+    realizedPnl: -1,
+    unrealizedPnl: -5,
+    totalPnl: -6,
+    positionsValue: 20,
+    totalValue: 25,
+  });
 });

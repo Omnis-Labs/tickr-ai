@@ -21,6 +21,7 @@ import {
   parseRpcUrls,
   type DelegatedExecutionReadinessStatus,
   type DelegatedExecutionResolvedWallet,
+  type TriggerExecutionEvidence,
   type TriggerUltraSwapPlan,
   type TriggerHitPayload,
 } from '@hunch-it/shared';
@@ -95,6 +96,7 @@ export interface DevPrivyDelegatedUltraSwapResult {
     executionPrice: number;
     tokenAmount: number;
     usdValue: number;
+    executionEvidence: TriggerExecutionEvidence;
     settlement: unknown;
   };
 }
@@ -484,6 +486,7 @@ export async function runPrivyDelegatedUltraSwapDevTool(
       executionPrice: outcome.executionPrice,
       tokenAmount: outcome.tokenAmount,
       usdValue: outcome.usdValue,
+      executionEvidence: outcome.executionEvidence,
       settlement: outcome,
     },
   };

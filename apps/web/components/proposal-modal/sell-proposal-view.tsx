@@ -103,6 +103,7 @@ export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
       const tokenAmount = livePositionQuery.data?.tokenAmount ?? null;
       const result = await runtime.closePosition({
         positionId: proposal.positionId,
+        ticker: proposal.ticker,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: proposal.priceAtProposal,
         tokenAmount,
