@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthedFetch } from '@/lib/auth/fetch';
+import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { useWallet } from '@/lib/wallet/use-wallet';
 
 /**
@@ -98,7 +99,7 @@ function LoginShell({ sessionExpired, onLogin }: { sessionExpired: boolean; onLo
         >
           <h1 className="text-display-lg text-on-background">Hunch It</h1>
           <p className="max-w-[280px] text-body-lg text-on-surface-variant">
-            Set your mandate. Get BUY proposals. Execute with one tap.
+            {appNarrativeCopy.loginIntro}
           </p>
           {sessionExpired && (
             <div className="mt-2 rounded-lg border border-tertiary/40 bg-tertiary/10 px-3 py-2 text-body-sm text-on-surface">

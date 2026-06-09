@@ -24,6 +24,8 @@ export const proposalChecklist = [
 ] as const;
 
 export const appNarrativeCopy = {
+  loginIntro:
+    'Turn trade ideas from friends, creators, and feeds into disciplined proposals with AI analysts you choose.',
   grillIntro:
     'Bring a hunch from a friend, creator, social feed, or market move. Your AI Trading Team challenges it before you create one proposal.',
   grillPlaceholder:
