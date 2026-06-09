@@ -51,12 +51,12 @@ export function ProposalsFeed() {
 
   return (
     <motion.section
-      className="mt-8 flex flex-col gap-4"
+      className="mt-8 flex flex-col gap-4 lg:mt-0"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
     >
-      <h3 className="text-title-lg text-primary mb-2">Proposals</h3>
+      <h3 className="mb-4 text-title-lg text-primary">Proposals</h3>
 
       {isLoading ? (
         <div className="flex flex-col gap-4">
@@ -77,9 +77,7 @@ export function ProposalsFeed() {
             <span className="material-symbols-outlined text-primary text-[24px]">task_alt</span>
           </div>
           <p className="text-title-md text-primary">Desk is clear.</p>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            {appNarrativeCopy.clearDesk}
-          </p>
+          <p className="text-body-sm text-on-surface-variant mt-1">{appNarrativeCopy.clearDesk}</p>
         </div>
       ) : (
         <>
