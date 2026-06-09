@@ -6,6 +6,7 @@ import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { PortfolioPosition } from '@/lib/portfolio/holdings';
 import { normalizeProposalForClient, normalizeProposalsForClient } from '@/lib/proposals/normalize';
 import { useProtectedQueryEnabled } from './protected-query';
+import { readProtectedJson } from './protected-response';
 
 /**
  * Centralised TanStack Query reads. Pages just call these — they don't have
@@ -33,8 +34,7 @@ export function useProposals() {
     queryKey: QK.proposals(),
     queryFn: async () => {
       const r = await authedFetch('/api/proposals');
-      if (!r.ok) return { proposals: [] };
-      const json = (await r.json()) as { proposals?: unknown[] };
+      const json = await readProtectedJson<{ proposals?: unknown[] }>(r);
       return { proposals: normalizeProposalsForClient(json.proposals ?? []) };
     },
     refetchInterval: 30_000,
@@ -50,8 +50,8 @@ export function useProposal(id: string | null | undefined) {
     queryFn: async () => {
       if (!id) return { proposal: null };
       const r = await authedFetch(`/api/proposals/${id}`);
-      if (!r.ok) return { proposal: null };
-      const json = (await r.json()) as { proposal?: unknown };
+      if (r.status === 404) return { proposal: null };
+      const json = await readProtectedJson<{ proposal?: unknown }>(r);
       return { proposal: normalizeProposalForClient(json.proposal) };
     },
     enabled,
@@ -77,8 +77,7 @@ export function usePositions() {
     queryKey: QK.positions(),
     queryFn: async () => {
       const r = await authedFetch('/api/positions');
-      if (!r.ok) return { positions: [] };
-      return r.json();
+      return readProtectedJson<{ positions: PositionRow[] }>(r);
     },
     refetchInterval: 15_000,
     enabled,
@@ -111,8 +110,8 @@ interface PositionDetailRow {
 }
 
 /**
- * Single-position detail. 404 / unauthorized return null so the page can
- * show "Position not found" without throwing.
+ * Single-position detail. 404 returns null so the page can show "Position
+ * not found" without throwing.
  */
 export function usePosition(id: string | undefined) {
   const authedFetch = useAuthedFetch();
@@ -123,8 +122,8 @@ export function usePosition(id: string | undefined) {
     queryFn: async () => {
       if (!id) return null;
       const r = await authedFetch(`/api/positions/${id}`);
-      if (!r.ok) return null;
-      const j = (await r.json()) as { position?: PositionDetailRow };
+      if (r.status === 404) return null;
+      const j = await readProtectedJson<{ position?: PositionDetailRow }>(r);
       return j.position ?? null;
     },
     refetchInterval: 20_000,
@@ -152,8 +151,7 @@ export function useOpenOrders() {
     queryKey: QK.orders(),
     queryFn: async () => {
       const r = await authedFetch('/api/orders');
-      if (!r.ok) return { orders: [] };
-      return r.json();
+      return readProtectedJson<{ orders: OrderRow[] }>(r);
     },
     refetchInterval: 20_000,
     enabled,
@@ -168,8 +166,7 @@ export function useMandate() {
     queryKey: QK.mandate(),
     queryFn: async () => {
       const r = await authedFetch('/api/mandates');
-      if (!r.ok) return { mandate: null };
-      return r.json();
+      return readProtectedJson<{ mandate: Mandate | null }>(r);
     },
     enabled,
   });
@@ -201,14 +198,7 @@ export function usePortfolio() {
     queryKey: QK.portfolio(),
     queryFn: async () => {
       const r = await authedFetch('/api/portfolio');
-      if (!r.ok) {
-        return {
-          positions: [],
-          trades: [],
-          pnl: { realized: 0, unrealized: 0 },
-        } satisfies PortfolioResponse;
-      }
-      return r.json();
+      return readProtectedJson<PortfolioResponse>(r);
     },
     refetchInterval: 15_000,
     enabled,
