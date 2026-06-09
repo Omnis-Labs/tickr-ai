@@ -125,10 +125,11 @@ export function NotificationClient() {
     [pushOrderHint, qc],
   );
 
-  // Tap-to-execute for synthetic xStock triggers. The ws-server's price
-  // monitor emits trigger:hit when an OPEN order's condition matches Pyth;
-  // we surface a sticky toast and run the Ultra swap on tap, then settle
-  // via /api/orders/[id]/execute. Idempotent: same orderId may re-fire
+  // Tap-to-execute for synthetic xStock triggers. The ws-server emits
+  // trigger:hit only after Pyth wakes the Order and a fresh Ultra quote
+  // satisfies the executable trigger condition. We surface a sticky toast
+  // and run the Ultra swap on tap, then settle via /api/orders/[id]/execute.
+  // Idempotent: same orderId may re-fire
   // while the user deliberates, but `id: orderId` on the toast de-dupes
   // and inflightTriggers blocks a concurrent second swap.
   const runTriggerExecute = useCallback(

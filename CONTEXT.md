@@ -107,9 +107,9 @@ Approved crypto mints:
 
 A row in the `Order` table that the server tracks and later fills through delegated execution or tap-to-execute fallback. Synthetic Orders never represent an external conditional order; `jupiterOrderId` is a vestigial nullable column and stays `null`. Four kinds:
 
-- `BUY_TRIGGER` — fire when current price is within 0.5 % of `triggerPriceUsd`.
-- `TAKE_PROFIT` — fire when current price ≥ `triggerPriceUsd`.
-- `STOP_LOSS` — fire when current price ≤ `triggerPriceUsd`.
+- `BUY_TRIGGER` — wake when Pyth is at or below `triggerPriceUsd * 1.005`, then fire only when the fresh Ultra BUY executable price is at or below `triggerPriceUsd`.
+- `TAKE_PROFIT` — wake when Pyth is at or above `triggerPriceUsd * 0.995`, then fire only when the fresh Ultra SELL executable price is at or above `triggerPriceUsd`.
+- `STOP_LOSS` — wake when Pyth is at or below `triggerPriceUsd * 1.005`, then fire only when the fresh Ultra SELL executable price is at or below `triggerPriceUsd`.
 - `CLOSE_SWAP` — currently unused; reserved for future user-initiated market close.
 
 Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the execution adapter is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
@@ -130,9 +130,13 @@ A historical row recording a fill. Always paired with an `Order` and a `Position
 
 The durable in-app inbox for a User's production Hunch events, shown from every signed-in surface; it stores read/unread state but does not imply remote push delivery.
 
+### Executable Trigger
+
+The trigger policy for Synthetic Orders. Pyth is only a cheap wake-up band; it does not make an Order actionable by itself. When Pyth wakes an Order, Hunch fetches a fresh Jupiter Ultra `/order` quote and uses the quote-derived executable price as the final source of truth for triggerability. Manual tap-to-execute and Delegated Execution both use this semantics. If Ultra does not satisfy the Order's actual price condition, the Order stays open and no actionable Execute toast is shown.
+
 ### trigger:hit
 
-The Socket.IO event emitted by `apps/ws-server` when a Synthetic Order's price condition matches Pyth and the user needs tap-to-execute fallback. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, sizeUsd, tokenAmount }`. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the Order is executed or cancelled.
+The Socket.IO event emitted by `apps/ws-server` when a Synthetic Order has passed the Executable Trigger policy and the user needs tap-to-execute fallback. Carries `{ orderId, ticker, mint, kind, triggerPriceUsd, currentPriceUsd, executablePriceUsd, sizeUsd, tokenAmount }` plus optional executable quote details. Notification-only — does **not** mutate DB. Re-fires every poll cycle until the Order is executed or cancelled.
 
 ### tap-to-execute
 
@@ -168,7 +172,7 @@ The frontend Module that owns tap-to-execute fallback semantics after a `trigger
 
 ### TriggerExecutionDispatch
 
-The ws-server Module in `apps/ws-server/src/orders/trigger-execution-dispatch.ts` that owns what happens after a Synthetic Order trigger is detected: try Delegated Execution, emit `trade:filled`, emit fallback `trigger:hit`, suppress already-owned work, or retain the claim for reconciliation. `trigger-monitor.ts` owns price polling and trigger detection, not execution outcome policy.
+The ws-server Module in `apps/ws-server/src/orders/trigger-execution-dispatch.ts` that owns what happens after an Executable Trigger is detected: try Delegated Execution, emit `trade:filled`, emit fallback `trigger:hit`, suppress already-owned work, or retain the claim for reconciliation. `trigger-monitor.ts` owns Pyth wake-up polling plus executable quote gating; dispatch owns execution outcome policy.
 
 ### ClientDiagnosticsLog
 
