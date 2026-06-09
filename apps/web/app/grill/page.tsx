@@ -86,7 +86,7 @@ export default function GrillPage() {
           <Link
             href="/team"
             aria-label="AI Trading Team"
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-transform active:scale-[0.97]"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-surface text-primary shadow-micro transition-transform active:scale-[0.97] lg:hidden"
           >
             <UsersRound className="h-4 w-4" aria-hidden="true" />
           </Link>
