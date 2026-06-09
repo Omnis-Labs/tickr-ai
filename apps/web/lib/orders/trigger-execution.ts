@@ -1,7 +1,7 @@
 import {
   executableTriggerDecision,
   triggerExecutionEvidence,
-  type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import {
   compactDiagnosticError,
@@ -24,7 +24,7 @@ type TriggerSwap = (args: SwapArgs) => Promise<SwapResult>;
 type TriggerDiagnosticEmitter = (input: ClientDiagnosticInput) => void;
 
 export interface TriggerExecutionInput {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   mint: string;
   decimals: number;
   startedAt?: number;
@@ -57,7 +57,7 @@ function shortId(value: string): string {
 }
 
 export function triggerDiagnosticPayload(
-  payload: TriggerHitPayload,
+  payload: TriggerWakePayload,
   mint: string,
   decimals: number,
 ): Record<string, unknown> {
@@ -71,11 +71,18 @@ export function triggerDiagnosticPayload(
     decimals,
     triggerPriceUsd: payload.triggerPriceUsd,
     currentPriceUsd: payload.currentPriceUsd,
-    executablePriceUsd: payload.executablePriceUsd ?? null,
-    executableTokenAmount: payload.executableTokenAmount ?? null,
-    executableUsdValue: payload.executableUsdValue ?? null,
-    executablePremiumVsCurrentPricePct: payload.executablePremiumVsCurrentPricePct ?? null,
-    executablePremiumVsTriggerPricePct: payload.executablePremiumVsTriggerPricePct ?? null,
+    executablePriceUsd: 'executablePriceUsd' in payload ? payload.executablePriceUsd : null,
+    executableTokenAmount:
+      'executableTokenAmount' in payload ? payload.executableTokenAmount : null,
+    executableUsdValue: 'executableUsdValue' in payload ? payload.executableUsdValue : null,
+    executablePremiumVsCurrentPricePct:
+      'executablePremiumVsCurrentPricePct' in payload
+        ? payload.executablePremiumVsCurrentPricePct
+        : null,
+    executablePremiumVsTriggerPricePct:
+      'executablePremiumVsTriggerPricePct' in payload
+        ? payload.executablePremiumVsTriggerPricePct
+        : null,
     sizeUsd: payload.sizeUsd,
     tokenAmount: payload.tokenAmount ?? null,
   };
@@ -109,7 +116,7 @@ function errorDetail(err: unknown): Record<string, unknown> {
   return { message: String(err) };
 }
 
-function swapArgsForTrigger(payload: TriggerHitPayload, mint: string, decimals: number): SwapArgs {
+function swapArgsForTrigger(payload: TriggerWakePayload, mint: string, decimals: number): SwapArgs {
   const quoteGuard: SwapArgs['quoteGuard'] = ({ order }) => {
     const decision = executableTriggerDecision({
       payload,

@@ -24,6 +24,7 @@ import {
   type TriggerExecutionEvidence,
   type TriggerUltraSwapPlan,
   type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import type { AuthContext } from '@/lib/auth/context';
 import { submittedInputRawForBalance } from './privy-delegated-ultra-swap-amounts';
@@ -267,7 +268,7 @@ async function resolvePrivyWallet(input: {
 }
 
 async function prepareInputBalance(input: {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   decimals: number;
   walletAddress: string;
 }): Promise<{ plan: SwapPlan; balance: InputBalanceCheck }> {

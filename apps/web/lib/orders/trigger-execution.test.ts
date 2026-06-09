@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { TriggerHitPayload } from '@hunch-it/shared';
+import type { TriggerWakePayload } from '@hunch-it/shared';
 import type { SwapResult } from '@/lib/jupiter/ultra-swap';
 import type { ClientDiagnosticInput } from '@/lib/dev-tools/client-diagnostics';
 import { executeTriggerOrder } from './trigger-execution';
 
-const buyPayload: TriggerHitPayload = {
+const buyPayload: TriggerWakePayload = {
   orderId: 'order-1',
   positionId: 'position-1',
   ticker: 'SPYx',

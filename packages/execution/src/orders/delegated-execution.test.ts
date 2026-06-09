@@ -15,6 +15,11 @@ const payload: TriggerHitPayload = {
   side: 'BUY',
   triggerPriceUsd: 100,
   currentPriceUsd: 100,
+  executablePriceUsd: 100,
+  executableTokenAmount: 0.25,
+  executableUsdValue: 25,
+  executablePremiumVsCurrentPricePct: 0,
+  executablePremiumVsTriggerPricePct: 0,
   sizeUsd: 25,
   tokenAmount: null,
 };

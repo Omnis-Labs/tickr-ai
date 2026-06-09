@@ -57,6 +57,7 @@ export {
   TradeStatusSchema,
   TradeFilledPayloadSchema,
   TriggerHitPayloadSchema,
+  TriggerWakePayloadSchema,
   WsClientEvents,
   WsServerEvents,
 } from './types.js';
@@ -75,6 +76,7 @@ export type {
   TradeStatus,
   TradeFilledPayload,
   TriggerHitPayload,
+  TriggerWakePayload,
 } from './types.js';
 
 // ── constants ────────────────────────────────────────────────────────────

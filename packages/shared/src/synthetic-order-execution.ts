@@ -1,5 +1,5 @@
 import { USDC_DECIMALS, USDC_MINT } from './constants.js';
-import type { TriggerHitPayload } from './types.js';
+import type { TriggerWakePayload } from './types.js';
 
 export type TriggerUltraSwapSide = 'BUY' | 'SELL';
 
@@ -21,8 +21,8 @@ export interface TriggerExecutionEvidence extends TriggerSettlementAmounts {
   orderId: string;
   positionId: string;
   ticker: string;
-  kind: TriggerHitPayload['kind'];
-  side: TriggerHitPayload['side'];
+  kind: TriggerWakePayload['kind'];
+  side: TriggerWakePayload['side'];
   triggerPriceUsd: number;
   currentPriceUsd: number;
   sizeUsd: number;
@@ -73,7 +73,7 @@ export type ExecutableTriggerDecision =
     };
 
 export function pythWakeUpBandHit(input: {
-  kind: TriggerHitPayload['kind'];
+  kind: TriggerWakePayload['kind'];
   triggerPriceUsd: number | null | undefined;
   currentPriceUsd: number;
 }): boolean {
@@ -93,7 +93,7 @@ export function pythWakeUpBandHit(input: {
 }
 
 export function buildTriggerUltraSwapPlan(
-  payload: TriggerHitPayload,
+  payload: TriggerWakePayload,
   decimals: number,
 ): TriggerUltraSwapPlan {
   if (payload.kind === 'BUY_TRIGGER') {
@@ -131,7 +131,7 @@ export function submittedInputRawForBalance(input: {
 }
 
 export function settlementAmountsForTrigger(input: {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   inAmount: string;
   outAmount: string;
   decimals: number;
@@ -161,7 +161,7 @@ function priceDeltaPct(executionPrice: number, referencePrice: number): number |
 }
 
 export function triggerExecutionEvidence(input: {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   inAmount: string;
   outAmount: string;
   decimals: number;
@@ -197,7 +197,7 @@ export function triggerExecutionEvidence(input: {
 }
 
 export function executableTriggerDecision(input: {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   inAmount: string;
   outAmount: string;
   decimals: number;

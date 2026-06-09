@@ -3,14 +3,19 @@ import 'server-only';
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
 import { createBuyProposalForUser, suggestBuyProposalSizeUsd } from '@hunch-it/db';
+import { prepareInputAmount, requestUltraOrder } from '@hunch-it/execution';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
   PYTH_BENCHMARKS_BASE,
   buildBaseMarketAnalysis,
+  executableTriggerDecision,
   evaluateSignalDataFreshness,
+  getUltraOrderProblem,
   requireAsset,
   type Bar,
+  type TriggerExecutionEvidence,
   type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
@@ -76,6 +81,20 @@ type IndicatorSet = {
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+function triggerHitPayloadFromEvidence(
+  payload: TriggerWakePayload,
+  evidence: TriggerExecutionEvidence,
+): TriggerHitPayload {
+  return {
+    ...payload,
+    executablePriceUsd: evidence.executionPrice,
+    executableTokenAmount: evidence.tokenAmount,
+    executableUsdValue: evidence.usdValue,
+    executablePremiumVsCurrentPricePct: evidence.premiumVsCurrentPricePct,
+    executablePremiumVsTriggerPricePct: evidence.premiumVsTriggerPricePct,
+  };
 }
 
 function ema(values: number[], period: number): number[] {
@@ -552,21 +571,50 @@ export async function buildOwnedDevTriggerPayload(input: {
 
   const currentPriceMap = await getCurrentPrices([order.position.ticker]);
   const currentPriceUsd = currentPriceMap.get(order.position.ticker) ?? trigger;
+  const walletAddress = order.user.walletAddress;
+  const wakePayload: TriggerWakePayload = {
+    orderId: order.id,
+    positionId: order.positionId,
+    ticker: order.position.ticker,
+    mint: order.position.mint,
+    kind: order.kind,
+    side: order.side === 'BUY' ? 'BUY' : 'SELL',
+    triggerPriceUsd: trigger,
+    currentPriceUsd,
+    sizeUsd: order.sizeUsd.toNumber(),
+    tokenAmount: order.tokenAmount?.toNumber() ?? null,
+  };
+  const asset = requireAsset(wakePayload.ticker);
+  const plan = await prepareInputAmount({
+    payload: wakePayload,
+    decimals: asset.decimals,
+    walletAddress,
+  });
+  const ultraOrder = await requestUltraOrder({
+    inputMint: plan.inputMint,
+    outputMint: plan.outputMint,
+    amount: plan.amount,
+    taker: walletAddress,
+  });
+  const problem = getUltraOrderProblem(ultraOrder);
+  if (problem) throw new Error(problem.message);
+
+  const decision = executableTriggerDecision({
+    payload: wakePayload,
+    inAmount: ultraOrder.inAmount,
+    outAmount: ultraOrder.outAmount,
+    decimals: asset.decimals,
+    jupiterRequestId: ultraOrder.requestId,
+  });
+  if (decision.kind === 'waiting') {
+    throw new Error(
+      `executable_quote_waiting:${decision.reason}:${decision.executionEvidence.executionPrice.toFixed(6)}`,
+    );
+  }
 
   return {
-    walletAddress: order.user.walletAddress,
-    payload: {
-      orderId: order.id,
-      positionId: order.positionId,
-      ticker: order.position.ticker,
-      mint: order.position.mint,
-      kind: order.kind,
-      side: order.side === 'BUY' ? 'BUY' : 'SELL',
-      triggerPriceUsd: trigger,
-      currentPriceUsd,
-      sizeUsd: order.sizeUsd.toNumber(),
-      tokenAmount: order.tokenAmount?.toNumber() ?? null,
-    },
+    walletAddress,
+    payload: triggerHitPayloadFromEvidence(wakePayload, decision.executionEvidence),
   };
 }
 

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { TriggerHitPayload } from './types.js';
+import {
+  TriggerHitPayloadSchema,
+  TriggerWakePayloadSchema,
+  type TriggerWakePayload,
+} from './types.js';
 import {
   buildTriggerUltraSwapPlan,
   closePositionExecutionEvidence,
@@ -11,7 +15,7 @@ import {
   triggerExecutionEvidence,
 } from './synthetic-order-execution.js';
 
-const buyPayload: TriggerHitPayload = {
+const buyPayload: TriggerWakePayload = {
   orderId: 'order-1',
   positionId: 'position-1',
   ticker: 'AAPLx',
@@ -35,7 +39,7 @@ test('buildTriggerUltraSwapPlan builds BUY plans in USDC raw units', () => {
 });
 
 test('buildTriggerUltraSwapPlan builds exact-token SELL plans', () => {
-  const sellPayload: TriggerHitPayload = {
+  const sellPayload: TriggerWakePayload = {
     ...buyPayload,
     kind: 'TAKE_PROFIT',
     side: 'SELL',
@@ -50,6 +54,22 @@ test('buildTriggerUltraSwapPlan builds exact-token SELL plans', () => {
     side: 'SELL',
     decimals: 8,
   });
+});
+
+test('trigger:hit payload requires executable quote fields while wake payload does not', () => {
+  assert.equal(TriggerWakePayloadSchema.safeParse(buyPayload).success, true);
+  assert.equal(TriggerHitPayloadSchema.safeParse(buyPayload).success, false);
+  assert.equal(
+    TriggerHitPayloadSchema.safeParse({
+      ...buyPayload,
+      executablePriceUsd: 100,
+      executableTokenAmount: 0.25,
+      executableUsdValue: 25,
+      executablePremiumVsCurrentPricePct: 0,
+      executablePremiumVsTriggerPricePct: 0,
+    }).success,
+    true,
+  );
 });
 
 test('submittedInputRawForBalance caps SELL but requires full BUY funding', () => {

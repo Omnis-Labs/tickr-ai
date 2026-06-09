@@ -285,11 +285,9 @@ export const ApprovalDecisionPayloadSchema = z.object({
 });
 export type ApprovalDecisionPayload = z.infer<typeof ApprovalDecisionPayloadSchema>;
 
-// ws-server → tab. Fired by trigger-monitor when an OPEN synthetic order
-// matches its condition against Pyth and delegated execution is unavailable.
-// Payload is everything the tap-to-execute UI needs to build the Ultra swap
-// without another round-trip.
-export const TriggerHitPayloadSchema = z.object({
+// Internal Synthetic Order wake-up payload. This is the Pyth-side candidate
+// shape before a fresh Ultra quote proves the Order is actually triggerable.
+export const TriggerWakePayloadSchema = z.object({
   orderId: z.string(),
   positionId: z.string(),
   ticker: z.string(), // assetId, e.g. "GOOGLx"
@@ -298,11 +296,6 @@ export const TriggerHitPayloadSchema = z.object({
   side: z.enum(['BUY', 'SELL']),
   triggerPriceUsd: z.number(),
   currentPriceUsd: z.number(),
-  executablePriceUsd: z.number().optional(),
-  executableTokenAmount: z.number().optional(),
-  executableUsdValue: z.number().optional(),
-  executablePremiumVsCurrentPricePct: z.number().nullable().optional(),
-  executablePremiumVsTriggerPricePct: z.number().nullable().optional(),
   sizeUsd: z.number(),
   /** xStock units to sell (TP/SL) or buy (BUY_TRIGGER, usually null —
    *  BUY size is dollar-denominated via sizeUsd). Nullable so callers
@@ -311,6 +304,18 @@ export const TriggerHitPayloadSchema = z.object({
    *  row written at BUY-fill time so the close sells exactly the
    *  position's tokens, not the full wallet balance. */
   tokenAmount: z.number().nullable().optional(),
+});
+export type TriggerWakePayload = z.infer<typeof TriggerWakePayloadSchema>;
+
+// ws-server → tab. Fired only after the Executable Trigger policy passes.
+// Payload is everything the tap-to-execute UI needs to show the real
+// executable price and build the Ultra swap without another round-trip.
+export const TriggerHitPayloadSchema = TriggerWakePayloadSchema.extend({
+  executablePriceUsd: z.number(),
+  executableTokenAmount: z.number(),
+  executableUsdValue: z.number(),
+  executablePremiumVsCurrentPricePct: z.number().nullable(),
+  executablePremiumVsTriggerPricePct: z.number().nullable(),
 });
 export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;
 

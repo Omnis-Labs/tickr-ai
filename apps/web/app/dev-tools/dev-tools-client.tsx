@@ -24,6 +24,7 @@ import {
   getSignalAssets,
   type Proposal,
   type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import { useAuthedFetch } from '@/lib/auth/fetch';
@@ -749,7 +750,7 @@ function stagedDevProposal(proposals: Proposal[], nowMs = Date.now()): Proposal 
   return proposals.find((p) => isLiveProposal(p, nowMs)) ?? null;
 }
 
-function triggerPayloadFromDevOrder(order: DevOrder): TriggerHitPayload {
+function triggerPayloadFromDevOrder(order: DevOrder): TriggerWakePayload {
   if (order.triggerPriceUsd == null) {
     throw new Error('Selected order has no trigger price.');
   }

@@ -9,6 +9,7 @@ import {
   type ExecutableTriggerWaitReason,
   type TriggerExecutionEvidence,
   type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import {
   claimOrderExecution as claimOrderExecutionDb,
@@ -107,7 +108,7 @@ function classifyClaimConflict(reason: string, orderId: string): DelegatedTrigge
 }
 
 export async function prepareInputAmount(input: {
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
   decimals: number;
   walletAddress: string;
 }): Promise<TriggerUltraSwapPlan> {

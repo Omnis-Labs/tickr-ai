@@ -22,6 +22,7 @@ import {
   type ExecutableTriggerDecision,
   type TriggerExecutionEvidence,
   type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import { getLatestPrices } from '../pyth/index.js';
 import {
@@ -82,7 +83,7 @@ function buildPayload(
     position: { ticker: string; mint: string };
   },
   currentPriceUsd: number,
-): TriggerHitPayload | null {
+): TriggerWakePayload | null {
   const trigger = order.triggerPriceUsd?.toNumber();
   if (!trigger) return null;
   return {
@@ -100,7 +101,7 @@ function buildPayload(
 }
 
 function withExecutableQuote(
-  payload: TriggerHitPayload,
+  payload: TriggerWakePayload,
   evidence: TriggerExecutionEvidence,
 ): TriggerHitPayload {
   return {

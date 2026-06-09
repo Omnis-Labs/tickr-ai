@@ -3,18 +3,18 @@ import {
   getAssetById,
   getUltraOrderProblem,
   type ExecutableTriggerDecision,
-  type TriggerHitPayload,
+  type TriggerWakePayload,
 } from '@hunch-it/shared';
 import { prepareInputAmount, requestUltraOrder } from '@hunch-it/execution';
 
 export type QuoteExecutableTrigger = (input: {
   walletAddress: string;
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
 }) => Promise<ExecutableTriggerDecision>;
 
 export async function quoteExecutableTrigger(input: {
   walletAddress: string;
-  payload: TriggerHitPayload;
+  payload: TriggerWakePayload;
 }): Promise<ExecutableTriggerDecision> {
   const asset = getAssetById(input.payload.ticker);
   if (!asset) {
