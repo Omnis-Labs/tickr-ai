@@ -1,4 +1,4 @@
-# Hunch — API Contract
+# Hunch It — API Contract
 
 > REST API endpoints with request/response schemas, WebSocket event contract, Jupiter execution flows, and state transition rules.
 
@@ -115,7 +115,7 @@ Response `200`:
 
 **`POST /api/grill/proposals`** — Create one BUY Proposal from a Grill Idea.
 
-The server reruns Grill analysis, requires at least one supporting Analyst Opinion, reads wallet USDC for sizing, and calls shared `ProposalCreation`.
+The server reruns Grill analysis, reads fresh Pyth price data and wallet USDC for sizing, then calls shared `ProposalCreation`. A supporting Analyst Opinion is preferred; if no analyst supports the idea, the proposal anchors on the strongest caution and marks the rationale as created anyway.
 
 Side effects:
 
@@ -137,7 +137,7 @@ Response `200`:
 }
 ```
 
-Response `409`: No selected analyst supports creating a Proposal.
+Response `400`: Invalid payload, missing Mandate, stale/missing Pyth price, missing USDC sizing data, or no actionable Grill analysis.
 
 ---
 
@@ -419,14 +419,14 @@ socket.on('auth:error', { reason: string });
 
 ### Server to Client
 
-| Event              | Payload                                                                                                          | Description                                                 |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `signal:new`       | Legacy Signal object                                                                                             | Legacy signal modal path                                    |
-| `proposal:new`     | Full Proposal object                                                                                             | New BUY or SELL proposal generated for this user            |
+| Event              | Payload                                                                                                                                                                                                                                            | Description                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `signal:new`       | Legacy Signal object                                                                                                                                                                                                                               | Legacy signal modal path                         |
+| `proposal:new`     | Full Proposal object                                                                                                                                                                                                                               | New BUY or SELL proposal generated for this user |
 | `trigger:hit`      | `{ orderId, positionId, ticker, mint, kind, side, triggerPriceUsd, currentPriceUsd, executablePriceUsd, executableTokenAmount, executableUsdValue, executablePremiumVsCurrentPricePct, executablePremiumVsTriggerPricePct, sizeUsd, tokenAmount }` | Executable Trigger needs tap-to-execute fallback |
-| `trade:filled`     | `{ orderId, positionId, ticker, kind, side, executionMode, executionPrice, tokenAmount, usdValue, txSignature }` | Trigger filled, usually by delegated execution              |
-| `position:updated` | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`                                          | Position state changed                                      |
-| `pong`             | `{ timestamp }`                                                                                                  | Heartbeat response                                          |
+| `trade:filled`     | `{ orderId, positionId, ticker, kind, side, executionMode, executionPrice, tokenAmount, usdValue, txSignature }`                                                                                                                                   | Trigger filled, usually by delegated execution   |
+| `position:updated` | `{ positionId, state, currentTpPrice?, currentSlPrice?, realizedPnl? }`                                                                                                                                                                            | Position state changed                           |
+| `pong`             | `{ timestamp }`                                                                                                                                                                                                                                    | Heartbeat response                               |
 
 **Frontend behavior on `position:updated`**: Refetch `GET /api/positions/[id]` and `GET /api/portfolio` for complete updated data.
 **Frontend behavior on `trade:filled`**: Dismiss stale trigger prompts, show a fill notification, and refetch orders, positions, the filled position, and portfolio state.

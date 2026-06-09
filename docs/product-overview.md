@@ -1,127 +1,120 @@
-# Hunch — Product Overview
+# Hunch It — Product Overview
 
-> AI trading signals with synthetic trigger swaps for xStocks and crypto on Solana. Users define an investment mandate, receive personalized BUY proposals (with take-profit and stop-loss), execute trigger Orders through Jupiter Ultra with tap-to-execute or opt-in Auto-execute triggers, and get automatic exit protection on every position.
+> Gen Z already invests by vibe. Hunch It turns each vibe trade into a disciplined proposal.
 >
-> Domain: app domain | v1.3 | 2026-04-27
+> Hunch It helps Gen Z investors turn trade ideas from friends, creators, social feeds, or market moves into disciplined trade proposals using AI analysts they choose for their style.
+>
+> Domain: app domain | alpha
 
 ---
 
-## What Hunch Does
+## What Hunch It Does
 
-Hunch turns market movements into clear, personalized, actionable trade proposals. Every proposal is tailored to the individual user's investment mandate and current portfolio. Users review, adjust parameters if needed, then accept a synthetic Order. When price hits, they can execute with one tap or opt into non-custodial Auto-execute triggers. After a BUY order fills, the system automatically places take-profit and stop-loss orders to protect the position.
+Hunch It turns "should I follow this trade idea?" into a disciplined proposal the user can review, edit, approve, or skip.
 
-The entire experience runs as a PWA with an embedded Solana wallet (via Privy). No app store download, no external wallet setup required.
+It works in two ways:
 
-## The Core Loop
+1. Users can bring trade ideas from friends, creators, or social feeds and have them vetted by AI analysts they choose.
+2. Users can choose AI analysts that watch the market and send new proposals.
 
+Both paths end in one disciplined proposal the user controls.
+
+Every proposal should answer:
+
+- What is the thesis?
+- Why now?
+- What is the entry or trigger?
+- How big should the position be?
+- Where should the user take profit?
+- Where should the user cut the loss?
+- What would make the trade wrong?
+
+## Current Product Status
+
+Hunch It is an alpha PWA with Privy auth, embedded Solana wallet support, synthetic-trigger execution, and proposal review flows. The current signed-in navigation is Home, Grill, Team, and Portfolio, with Settings, Proposal Detail, Position Detail, Withdraw, and `/dev-tools` available from those flows.
+
+The current product has two proposal paths:
+
+1. **Grill:** the user chooses a supported asset, pastes a trade idea from a friend, creator, social feed, or market move, and runs the selected AI Trading Team against it. Grill shows each Analyst Opinion, then can create one BUY Proposal with `origin = GRILL`.
+2. **Market watch:** the ws-server can scan supported markets, build Base Market Analysis, and fan out BUY Proposals to eligible users. This is currently opt-in with `ENABLE_SIGNAL_LOOP=true`.
+
+Mandate setup remains required. It supplies the user's holding period, max drawdown, max trade size, and market focus for sizing and risk controls. The AI Trading Team lives alongside the Mandate as a product preference.
+
+## Core Loop
+
+```text
+Login → Mandate Setup → Home / Grill / Team
+  → Review disciplined BUY Proposal
+  → Approve synthetic BUY trigger Order or Skip
+  → ws-server waits for executable trigger
+    → Auto-execute triggers fills through delegated Privy signer access, or
+    → trigger:hit toast lets the user tap Execute
+  → BUY fill activates Position and arms TP/SL synthetic Orders
+  → TP/SL, manual close, or skip/ignore resolves the strategy
 ```
-Login → Mandate Setup → Home → Review BUY Proposal → Accept Synthetic Order
-→ Price Trigger → Auto-execute or Tap Execute → Jupiter Ultra /execute → TP/SL Protected
-→ Adjust TP/SL or Close Position
-```
 
-## Minimum Wowable Product (MWP) Definition
-
-Hunch's MWP proves one promise: **a user sets their investment mandate, deposits USDC, and Hunch converts market events combined with the user's actual portfolio into a clear, personalized, immediately executable BUY proposal that automatically protects the position after entry.**
-
-### Four conditions that must be true
-
-1. **Proposals are personalized.** They reference the user's mandate, cash balance, existing positions, P&L, and sector exposure. Alice and Bob can receive different proposals for the same asset.
-
-2. **Proposals are actionable.** Each proposal includes: asset, suggested size, trigger price, take-profit price, stop-loss price, expiry, and three-part reasoning (what changed, why this trade, why it fits your mandate). Users can adjust parameters before executing.
-
-3. **Execution has built-in protection.** After a BUY fills, the system automatically creates TP and SL synthetic exit Orders. One-Cancels-Other (OCO) behavior: when one side fills, the system cancels the other.
-
-4. **The trust path is complete.** Users always know that funds stay in their wallet, Auto-execute triggers is a revocable delegated ability rather than custody, what state each synthetic Order is in, and what state each Position is in.
-
----
-
-## Scope
+## Current Scope
 
 ### What We Build
 
-- **PWA** (single interface with manifest + service worker, no native app)
-- **Privy auth** (email / Google / Apple / external wallet) with auto-created embedded Solana wallet
-- **4 core trading screens** (Mandate Setup → Home → Proposal Detail → Position Detail) plus Landing/Login and Settings
-- **Synthetic trigger execution**: ws-server watches Pyth as a wake-up band, confirms triggerability with Jupiter Ultra executable price, then either auto-executes through Privy signer access or emits `trigger:hit` so the user can tap Execute to run the same Jupiter Ultra swap
-- **Automatic TP/SL**: system creates synthetic exit Orders after BUY fills, with OCO behavior
-- **Signal Engine**: independent backend (ws-server) using asset-native Pyth price feeds + technical indicators + Gemini to produce Base Market Analysis; shared ProposalCreation turns that into personalized BUY proposals per user mandate
-- **Price charts**: Pyth Benchmarks historical data + Lightweight Charts rendering
-- **PostgreSQL** for persistence: mandates, positions, proposals, trades, orders
-- **Supported assets**: Jupiter-listed xStocks/tokenized ETFs + crypto (`wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`)
-- **Back-evaluation**: automated proposal quality scoring 1 hour after generation
+- **PWA** with Next.js App Router, manifest, and service worker.
+- **Privy auth** with email / Google / Apple / external wallet support and auto-created embedded Solana wallet.
+- **AI Trading Team** selection of up to six AI Analysts. Current selection is stored in browser local storage.
+- **Grill** for user-supplied trade ideas and visible Analyst Opinions.
+- **Home / Desk** for portfolio summary, proposal feed, open synthetic Orders, and deposit prompts.
+- **Proposal Detail** for reviewing thesis, timing, entry/trigger, size, TP, SL, invalidation, and position impact.
+- **Synthetic trigger execution** through DB Orders, Pyth wake-up checks, Jupiter Ultra executable quotes, tap-to-execute fallback, and opt-in Auto-execute triggers.
+- **Automatic TP/SL** after BUY fills, with OCO sibling cancellation when an exit fills.
+- **Signal Engine** in `apps/ws-server`: trigger monitoring is always on; live proposal generation, back-evaluation, and thesis monitoring are env-gated.
+- **Price charts** from Pyth Benchmarks historical data.
+- **PostgreSQL** for mandates, proposals, positions, orders, trades, and skips.
 
-### What We Explicitly Exclude
-
-| Item                                   | Reason                                                                                                                                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Manual trading                         | All trades originate from proposals. This is the product differentiator.                                                                                            |
-| Autonomous selling                     | Thesis-invalidation and manual close stay user action. TP/SL can auto-execute only when the user has opted into Auto-execute triggers.                              |
-| Partial sells                          | v1 simplification: SELL always closes the full position.                                                                                                            |
-| Life Credit (borrow against positions) | v2                                                                                                                                                                  |
-| Integrator swap fees                   | v2                                                                                                                                                                  |
-| Remote push notifications              | PWA web push is unreliable on iOS. In-session browser desktop notifications (via HTML5 Notification API) ARE included when the app has an active tab/Shared Worker. |
-| Fiat onramp                            | Users must bring their own USDC on Solana                                                                                                                           |
-| Custodial execution                    | Hunch does not custody assets or run external trigger orders; delegated execution is Privy wallet access that users can revoke anytime                              |
-| Historical performance charts          | v1 shows current state only                                                                                                                                         |
-| Multi-language                         | English only                                                                                                                                                        |
-| Leaderboard                            | v2                                                                                                                                                                  |
-| External cache layer                   | PostgreSQL plus in-process runtime state only                                                                                                                       |
-
----
-
-## Supported Assets
+### Supported Proposal Assets
 
 USDC is the base currency. All prices, trades, and P&L are denominated in USDC.
 
-### xStocks
+Current supported proposal assets are:
 
-Issued by Backed Finance, traded via Jupiter on Solana. Hunch displays and stores the xStock symbol (`AAPLx`, `NVDAx`, etc.), not the underlying US equity ticker.
+- xStocks / tokenized ETF xStocks: `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx`
+- Crypto: `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, `HYPE`
 
-### Tokenized ETFs
+`SOL` is wallet fee balance only. Hunch It does not recommend it as a Position.
 
-Tokenized ETF xStocks follow the same `*x` convention (`SPYx`, `QQQx`).
+### What We Explicitly Exclude
 
-### Crypto
-
-| AssetId | Solana Representation      |
-| ------- | -------------------------- |
-| wBTC    | Wrapped BTC                |
-| ETH     | Portal ETH                 |
-| BNB     | Portal BNB                 |
-| wXRP    | Wrapped XRP                |
-| TRX     | TRX                        |
-| HYPE    | HYPE                       |
-| USDC    | Native SPL (base currency) |
-
-`SOL` is wallet fee balance only. Hunch does not recommend it as a Position.
-
----
+| Item                                   | Reason                                                                                                                  |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Manual trading                         | Trades originate from proposals. This is the product differentiator.                                                    |
+| Custodial execution                    | Hunch It does not custody assets or place external trigger orders.                                                      |
+| External conditional order APIs        | Runtime uses synthetic DB Orders plus Jupiter Ultra swaps.                                                              |
+| Partial sells                          | v1 simplification: exits close the full Position.                                                                       |
+| Fiat onramp                            | Users must bring their own USDC on Solana.                                                                              |
+| Remote push notifications              | Current notifications are in-session browser notifications only.                                                        |
+| Server-persisted AI Trading Team       | Current Team selection is a browser preference.                                                                         |
+| Fully autonomous discretionary trading | Auto-execute triggers only executes user-approved synthetic Orders; users still approve the original disciplined setup. |
+| Life Credit / borrowing                | Future product area.                                                                                                    |
+| Integrator swap fees                   | Future product area.                                                                                                    |
+| Multi-language                         | English only.                                                                                                           |
 
 ## MWP Completeness Checklist
 
-- [ ] User understands the product promise before logging in
-- [ ] User can log in and receive a Solana wallet
-- [ ] User can create a mandate
-- [ ] User can edit their mandate later
-- [ ] Home clearly shows deposit status
-- [ ] Home clearly shows portfolio state
-- [ ] Hunch generates at least one personalized BUY proposal that references mandate + portfolio
-- [ ] Proposal Detail explains the recommendation in user-specific terms
-- [ ] Proposal includes TP/SL exit conditions
-- [ ] User can adjust size, trigger price, TP, SL
-- [ ] User can skip and provide a reason
-- [ ] User can accept a synthetic BUY trigger Order
-- [ ] `trigger:hit` toast lets the user tap Execute when Auto-execute triggers is off or unavailable and the Ultra executable price satisfies the Order condition
-- [ ] Auto-execute triggers can be enabled/revoked from Settings and fills BUY/TP/SL triggers without a browser tab open
-- [ ] Jupiter Ultra `/order` + Privy user signature + `/execute` fills the BUY
-- [ ] BUY fill creates automatic TP/SL synthetic exit Orders
-- [ ] TP/SL fill triggers automatic cancellation of the other side (OCO)
-- [ ] User can adjust TP/SL on Position Detail
-- [ ] User can manually Close Position (market price, full sell)
-- [ ] User can cancel a BUY pending order
-- [ ] Open Orders shows all pending orders (BUY / TP / SL)
-- [ ] User always sees order status
-- [ ] Portfolio updates after order fills
-- [ ] Mandate change invalidates old proposals
-- [ ] Error handling never creates a dead end
+- [x] User understands the product promise before logging in.
+- [x] User can log in and receive a Solana wallet.
+- [x] User can create a Mandate.
+- [x] User can select an AI Trading Team in the browser.
+- [x] User can bring a trade idea to Grill and see Analyst Opinions.
+- [x] Grill can create one BUY Proposal from a completed review.
+- [x] Proposal Detail shows editable size, trigger, TP, and SL.
+- [x] User can approve a synthetic BUY trigger Order.
+- [x] User can skip a proposal.
+- [x] Trigger monitor checks Pyth and confirms executable price with Jupiter Ultra.
+- [x] Tap-to-execute fallback can fill a trigger through Jupiter Ultra.
+- [x] Auto-execute triggers can fill BUY/TP/SL triggers when Privy delegation is live.
+- [x] BUY fill creates automatic TP/SL synthetic exit Orders.
+- [x] TP/SL fill cancels the sibling Order and closes the Position.
+- [x] User can manually Close Position.
+- [x] User can cancel a BUY pending Order.
+- [x] Portfolio shows cash, holdings, realized P&L, and unrealized P&L.
+- [ ] Server-persisted AI Trading Team preferences.
+- [ ] Market-watch proposal generation enabled by default.
+- [ ] Production readiness beyond small real-fund testing.

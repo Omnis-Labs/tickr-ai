@@ -1,4 +1,4 @@
-# Hunch — Screens & Flows
+# Hunch It — Screens & Flows
 
 > Screen specifications, user flows, state machines, and error handling. This is the primary reference for frontend engineers and designers.
 >
@@ -60,7 +60,7 @@ Multi-select. Users choose verticals (not individual tickers).
 
 **Crypto**: wBTC, ETH, BNB, wXRP, TRX, HYPE
 
-Selecting "No preference" means all assets can generate proposals.
+Selecting "No preference" means all currently supported proposal assets can generate proposals.
 
 ### CTA
 
@@ -116,7 +116,7 @@ Each card:
 | Element        | Example                                 |
 | -------------- | --------------------------------------- |
 | Action badge   | `BUY` (green)                           |
-| Ticker + Name  | TSMx · Taiwan Semiconductor             |
+| Ticker + Name  | NVDAx · NVIDIA xStock                   |
 | Suggested Size | $400                                    |
 | TP / SL        | TP $195 / SL $168                       |
 | Expires in     | 2h 15m                                  |
@@ -124,7 +124,7 @@ Each card:
 
 **Rationale must be quantitative and specific:**
 
-> "TSMx -4.2% on sector rotation. 12% below 20-day avg. Portfolio has 0% semis vs mandate."
+> "NVDAx -4.2% on sector rotation. 12% below 20-day avg. Portfolio has 0% semis vs mandate."
 
 Card CTA: **Review** → opens Proposal Detail.
 
@@ -172,7 +172,7 @@ Output:
 
 - One Analyst Opinion card per selected working AI Analyst.
 - Each card shows thesis, why now, entry view, protection, and what would make the idea wrong.
-- The user can create one Proposal only when at least one analyst supports turning the idea into a disciplined BUY setup.
+- The user can create one Proposal after a completed Grill review. Supporting opinions are preferred; if no analyst supports the idea, the proposal anchors on the strongest caution and marks the rationale as created anyway.
 
 Proposal creation:
 
@@ -234,11 +234,11 @@ Opened by tapping "Review" on a proposal card.
 
 ### Header
 
-| Element          | Example                     |
-| ---------------- | --------------------------- |
-| Action           | `BUY`                       |
-| Ticker + Name    | TSMx · Taiwan Semiconductor |
-| Expiry countdown | Expires in 2h 15m           |
+| Element          | Example               |
+| ---------------- | --------------------- |
+| Action           | `BUY`                 |
+| Ticker + Name    | NVDAx · NVIDIA xStock |
+| Expiry countdown | Expires in 2h 15m     |
 
 ### Price Chart
 
@@ -417,8 +417,11 @@ flowchart TD
     I --> J[$0 portfolio, Desk is clear, Deposit shown]
     J --> K[User deposits USDC + SOL from external source]
     K --> L[Portfolio updates with USDC balance]
-    L --> M[ws-server detects cash + mandate → generates BUY proposals]
-    M --> N[User reviews proposal → adjusts → Accept]
+    L --> T[User can choose AI Trading Team]
+    T --> G1[User can Grill an outside trade idea]
+    L --> M[ws-server can generate BUY proposals when signal loop is enabled]
+    G1 --> N[User reviews proposal → adjusts → Accept]
+    M --> N
     N --> O[Synthetic BUY trigger Order → Position BUY_PENDING]
     O --> P[Pyth wake-up + executable Ultra quote]
     P --> P1{Auto-execute triggers live?}

@@ -1,4 +1,4 @@
-# Hunch — Data Model
+# Hunch It — Data Model
 
 > Prisma schema, canonical asset ids, JSON field shapes, and data synchronization notes.
 >
@@ -164,7 +164,7 @@ getSignalAssetIdsForVerticals(verticalIds);
 
 ## Signal Data
 
-Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.
+Hunch It may generate a proposal only when the asset's signal data is fresh for that asset class.
 
 - Latest prices come from Pyth Hermes using `Asset.pythFeedId`.
 - Historical bars come from Pyth Benchmarks using `Asset.pythSymbol`.
@@ -176,7 +176,7 @@ Hunch may generate a proposal only when the asset's signal data is fresh for tha
 
 ## Proposal Creation
 
-`packages/db/src/lifecycle/proposal-creation.ts` owns BUY Proposal row construction for live signal generation and `/dev-tools`.
+`packages/db/src/lifecycle/proposal-creation.ts` owns BUY Proposal row construction for live signal generation, Grill proposal creation, and `/dev-tools`.
 
 Inputs:
 
@@ -195,7 +195,7 @@ Owned outputs:
 - `thesisTags`
 - `expiresAt`
 
-`/dev-tools` uses the same wallet-aware sizing Module as live signal generation so local test proposals stay close to real execution. Proposal Lab may display the computed size in its LLM prompt, but `ProposalCreation` remains the owner of `suggestedSizeUsd`.
+Grill and `/dev-tools` use the same wallet-aware sizing Module as live signal generation so user-supplied and local test proposals stay close to real execution. Proposal Lab may display the computed size in its LLM prompt, but `ProposalCreation` remains the owner of `suggestedSizeUsd`.
 
 ---
 

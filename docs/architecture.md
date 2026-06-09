@@ -1,4 +1,4 @@
-# Hunch — Architecture
+# Hunch It — Architecture
 
 > System architecture, monorepo structure, tech stack, infrastructure, and realtime communication design.
 
@@ -18,7 +18,7 @@ hunch-it/
 
 **apps/web**: Next.js PWA frontend. Handles all user-facing UI and exposes REST API routes under `/api/*`.
 
-**apps/ws-server**: Standalone Node.js backend. Responsible for Base Market Analysis, proposal fan-out, WebSocket realtime push, back-evaluation, and synthetic trigger monitoring.
+**apps/ws-server**: Standalone Node.js backend. Responsible for Base Market Analysis, proposal fan-out, WebSocket realtime push, back-evaluation, thesis monitoring, and synthetic trigger monitoring. Trigger monitoring is always on in the default runtime; proposal generation and evaluator jobs are env-gated.
 
 **packages/shared**: Zod schemas, asset registry (static TypeScript), and type definitions shared between both apps.
 
@@ -34,12 +34,12 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 │                    Next.js 15 PWA                             │
 │                                                              │
 │  ┌──────────┐  ┌────────────┐  ┌──────────┐  ┌───────────┐ │
-│  │ Mandate  │  │    Home    │  │ Proposal │  │ Position  │ │
-│  │  Setup   │→ │            │→ │  Detail  │  │  Detail   │ │
+│  │ Mandate  │  │ Home/Grill │  │ Proposal │  │ Position  │ │
+│  │  Setup   │→ │   /Team    │→ │  Detail  │→ │  Detail   │ │
 │  └──────────┘  └────────────┘  └──────────┘  └───────────┘ │
 │                                                              │
 │  REST API Routes (/api/*)                                    │
-│  mandates | proposals | trades | orders | portfolio | bars   │
+│  mandates | grill | proposals | trades | orders | portfolio │
 └──────┬──────────┬──────────┬──────────┬─────────────────────┘
        │          │          │          │
   Socket.IO   Jupiter     Privy     Solana     Pyth
@@ -86,7 +86,7 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Animation              | Magic UI + Motion (Framer Motion)                                                                                    |
 | State Management       | Zustand (client state) + TanStack Query (server state)                                                               |
 | Auth + Wallet          | Privy (email / Google / Apple / optional external wallet; embedded Solana wallet for in-app execution)               |
-| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra sponsored swaps: user signs the taker slot, Jupiter `/execute` relays     |
+| Order Execution        | Synthetic DB trigger Orders + Jupiter Ultra sponsored swaps: user signs the taker slot, Jupiter `/execute` relays    |
 | Price Data             | Pyth Hermes (live) + Pyth Benchmarks (historical candles)                                                            |
 | Chart Rendering        | Lightweight Charts (TradingView open-source)                                                                         |
 | On-chain Data          | Solana RPC (@solana/web3.js)                                                                                         |
@@ -96,19 +96,19 @@ Both apps connect to the same PostgreSQL database (self-managed, running in Dock
 | Database               | PostgreSQL 15 (self-managed, in Docker on the prod VM)                                                               |
 | ORM                    | Prisma                                                                                                               |
 | Schema Validation      | Zod                                                                                                                  |
-| Asset Universe         | Static TypeScript whitelist (`packages/shared/src/assets.ts`) with derived signal eligibility and mandate matching    |
+| Asset Universe         | Static TypeScript whitelist (`packages/shared/src/assets.ts`) with derived signal eligibility and mandate matching   |
 | PWA                    | manifest.json + Service Worker (offline fallback page only; all trading, pricing, and auth features require network) |
 
 ---
 
 ## Infrastructure (GCP)
 
-| Component                      | Deployment                | Notes                                                   |
-| ------------------------------ | ------------------------- | ------------------------------------------------------- |
-| Frontend (apps/web)            | GCP VM + Docker           | Next.js container                                       |
-| Signal Engine (apps/ws-server) | GCP VM + Docker           | Long-running Node.js process with WebSocket connections |
-| Database                       | PostgreSQL 15 in Docker   | Single instance on the prod VM; apps connect via the docker-compose network |
-| DNS                            | External A records        | Public app and websocket domains route to the reverse proxy |
+| Component                      | Deployment              | Notes                                                                       |
+| ------------------------------ | ----------------------- | --------------------------------------------------------------------------- |
+| Frontend (apps/web)            | GCP VM + Docker         | Next.js container                                                           |
+| Signal Engine (apps/ws-server) | GCP VM + Docker         | Long-running Node.js process with WebSocket connections                     |
+| Database                       | PostgreSQL 15 in Docker | Single instance on the prod VM; apps connect via the docker-compose network |
+| DNS                            | External A records      | Public app and websocket domains route to the reverse proxy                 |
 
 Both apps/web and ws-server are packaged as Docker images and deployed on the same GCP VM. Environment variables (API keys, DB credentials) are configured in `/opt/hunchit/.env` on the VM.
 
@@ -141,6 +141,7 @@ For frontend implementation, read alongside:
 1. **screens-and-flows.md** — Screen specs, user flows, error states
 2. **api-contract.md** — REST endpoints with request/response contracts
 3. **data-model.md** — Data model, Asset Universe and ProposalCreation structure
+4. **narrative.md** — Canonical public narrative wording
 
 ---
 

@@ -1,4 +1,4 @@
-# Hunch — Signal Engine
+# Hunch It — Signal Engine
 
 > Base market analysis, proposal fan-out, sizing logic, LLM cost control, synthetic trigger monitoring, and back-evaluation.
 >
@@ -15,9 +15,9 @@ The Signal Engine runs in `apps/ws-server` as a standalone Node.js process. In t
 3. **Trigger Monitor** — poll Pyth for OPEN synthetic Orders, quote Jupiter Ultra for executable triggerability, then auto-execute when delegation is live or emit `trigger:hit` fallback
 4. **Back-Evaluator** — score proposal quality after the fact (env-gated)
 
-The pipeline is asset-native. Every signalable item is a canonical `AssetId` from the Asset Universe in `packages/shared/src/assets.ts` such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`. Equity-like signals use xStock-native Pyth feeds such as `Crypto.AAPLX/USD`; Hunch does not recognize bare US equity symbols and does not fall back to underlying equity feeds.
+The pipeline is asset-native. Every signalable item is a canonical `AssetId` from the Asset Universe in `packages/shared/src/assets.ts` such as `AAPLx`, `NVDAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, or `HYPE`. Equity-like signals use xStock-native Pyth feeds such as `Crypto.AAPLX/USD`; Hunch It does not recognize bare US equity symbols and does not fall back to underlying equity feeds.
 
-The canonical proposal rule is: **Hunch may generate a proposal only when the asset's signal data is fresh for that asset class.** Freshness is data-driven using Pyth publish time through `evaluateSignalDataFreshness`; there is no US market-hours gate.
+The canonical proposal rule is: **Hunch It may generate a proposal only when the asset's signal data is fresh for that asset class.** Freshness is data-driven using Pyth publish time through `evaluateSignalDataFreshness`; there is no US market-hours gate.
 
 The Signal Engine seam is intentionally narrow: `AssetId + Signal Data -> Base Market Analysis`. It owns Pyth/Gemini/indicator work in `apps/ws-server/src/signals/base-analysis.ts`, but it does not own mandate personalization, `/dev-tools`, order acceptance, or PositionLifecycle.
 
@@ -132,7 +132,7 @@ const suggestedStopLossPrice =
 
 ## Sizing Logic
 
-The Signal Engine determines signal quality. `ProposalCreation` determines proposal sizing. Current production sizing is wallet-aware: default proposal size is 20% of the user's available USDC, rounded up to the next $5 increment; if that target is below $5, Hunch uses up to $5; the result is capped by both wallet USDC and the user's `maxTradeSize`. If wallet USDC or max trade size is zero, no BUY proposal is created.
+The Signal Engine determines signal quality. `ProposalCreation` determines proposal sizing. Current production sizing is wallet-aware: default proposal size is 20% of the user's available USDC, rounded up to the next $5 increment; if that target is below $5, Hunch It uses up to $5; the result is capped by both wallet USDC and the user's `maxTradeSize`. If wallet USDC or max trade size is zero, no BUY proposal is created.
 
 Users can adjust the size on Proposal Detail. If the adjusted size exceeds `maxTradeSize`, a warning is shown but execution is not blocked.
 

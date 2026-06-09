@@ -1,7 +1,7 @@
 ---
 name: Hunch It
 version: alpha
-description: AI trading signals with one-tap execution for tokenized stocks & crypto on Solana. A warm, rounded, mobile-first design system built on an ivory canvas with electric chartreuse accents, soft pastel data colors, pill-shaped controls, and floating circular navigation.
+description: Vibe trades turned into disciplined proposals with AI analysts for xStocks and crypto on Solana. A warm, rounded, mobile-first design system built on an ivory canvas with electric chartreuse accents, soft pastel data colors, pill-shaped controls, and floating circular navigation.
 colors:
   background: '#F2EFE8'
   on-background: '#1A1C1E'
@@ -362,13 +362,13 @@ components:
 
 ## Brand & Style
 
-Hunch It is an AI trading signals platform with one-tap execution for tokenized stocks & crypto on Solana. The design language communicates **confidence, clarity, and accessibility** — essential qualities for an app that asks users to act on financial signals in real time.
+Hunch It helps Gen Z investors turn trade ideas from friends, creators, social feeds, or market moves into disciplined trade proposals using AI analysts they choose for their style. The design language communicates **confidence, clarity, and accessibility** for an app that asks users to review risk before acting on a trade idea.
 
 The visual identity is built on a deliberate tension between a warm, calming canvas and moments of high-energy electric chartreuse. The overall style is **organic-modern**: soft rounded forms, generous whitespace, and a restrained neutral palette that lets data visualizations and action surfaces become the focal points. The personality is optimistic and approachable — closer to a well-crafted consumer app than a traditional trading terminal.
 
-Where most trading interfaces lean into dark themes, dense data tables, and sharp geometry, Hunch It opts for a warm parchment-like ivory background and bubbly rounded shapes. The intent is to make signal-based trading feel calm, intuitive, and rewarding rather than intimidating. The interface should feel like a trusted companion whispering "here's your move," not a wall of blinking numbers.
+Where most trading interfaces lean into dark themes, dense data tables, and sharp geometry, Hunch It opts for a warm parchment-like ivory background and rounded shapes. The intent is to make proposal review feel calm, legible, and controlled rather than intimidating. The interface should feel like chosen AI analysts turning a rough idea into one clear proposal, not a wall of blinking numbers.
 
-The design system treats every screen as a vertical stack of rounded card modules floating on a warm canvas. The most important insight on any screen lives inside a bright chartreuse card or as a hero number in a white stat card. The UI avoids dense tables, thin dividers, and clinical dashboards.
+The design system treats every screen as a vertical stack of rounded modules on a warm canvas. The most important insight on any screen lives inside a bright chartreuse panel or as a hero number in a white stat card. The UI avoids dense tables, thin dividers, and clinical dashboards.
 
 ## Colors
 
@@ -402,10 +402,10 @@ The layout follows a **single-column card stack** optimized for mobile-first, on
 
 - **Screen Padding**: 20px horizontal padding from screen edges on all screens.
 - **Grid Rhythm**: A 4px base unit governs all dimensions. The most common increments are 8px (tight element gaps), 12px (within-card spacing), 16px (card internal padding), and 20px (card padding and section separation).
-- **Card Stacking**: Screens are composed of vertically stacked rounded card modules — each self-contained around a single data insight (signal overview, category breakdown, performance chart, financial goals). Cards are separated by 14px vertical gaps.
+- **Card Stacking**: Screens are composed of vertically stacked rounded card modules — each self-contained around a single proposal, analyst opinion, portfolio stat, order state, or chart. Cards are separated by 14px vertical gaps.
 - **Stat Pairs**: Key metrics appear in two-column layouts within white stat cards — e.g., "$54.00 / Total Budget" alongside "12 / Total Goal" — giving equal visual weight to complementary data points. A circular chartreuse arrow button sits at the far right as a detail-navigation affordance.
 - **Segmented Controls**: Filter pills ("Weekly / Monthly / Yearly", "All Categories / Automated / Manual") are laid out in horizontal rows within a pill-shaped container using equal distribution.
-- **Bottom Navigation**: A floating pill-shaped rail at the bottom of the viewport, containing 5 circular icon items. It overlaps page content as a soft, hovering object anchored to the safe area.
+- **Bottom Navigation**: A floating pill-shaped rail at the bottom of the viewport, containing 4 circular icon items: Home, Grill, Team, and Portfolio. It overlaps page content as a soft, hovering object anchored to the safe area.
 
 Avoid dense tables, thin dividers, or multi-column data grids. Group related data inside cards and use whitespace and card color for separation.
 
@@ -440,7 +440,7 @@ No sharp corners exist anywhere in the UI. The minimum radius is 4px; most inter
 
 ### Data Cards
 
-The primary organizational unit. Each card encapsulates a single data module (signal overview, category breakdown, performance stats, financial goals). White background on the warm canvas, 20px corner radius, 20px internal padding. Every data card includes a section icon (outlined, in a circular container), a bold title, and optional action icons (calendar, arrow) right-aligned in the header row.
+The primary organizational unit. Each card encapsulates one proposal, analyst opinion, portfolio stat, order state, or chart. White background on the warm canvas, 20px corner radius, 20px internal padding. Every data card includes a section icon when useful, a bold title, and optional action icons right-aligned in the header row.
 
 ### Chart Cards (Chartreuse)
 
@@ -464,7 +464,7 @@ Bars are rounded capsules (28px wide, `rounded-full`). Four data colors: chartre
 
 ### Bottom Navigation
 
-A floating white pill container with 5 equally-spaced circular icon targets. Active icon: filled charcoal circle with white icon. Inactive icons: transparent background with charcoal outlined icons. The rail uses `floating` shadow and sits above the home indicator area. Icons are monoline outlined style at 22px with 2px stroke width and rounded caps.
+A floating white pill container with 4 equally-spaced circular icon targets: Home, Grill, Team, and Portfolio. Active icon: filled charcoal circle with white icon. Inactive icons: transparent background with charcoal outlined icons. The rail uses `floating` shadow and sits above the home indicator area. Icons are monoline outlined style at 22px with 2px stroke width and rounded caps.
 
 ### Success Modal
 

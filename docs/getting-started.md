@@ -15,7 +15,7 @@ This guide walks you from a fresh clone to a running local instance. Local testi
 
 `pnpm dev` will start the daemon for you on macOS — `orb start` if OrbStack is installed, otherwise `open -a Docker`. On Linux it expects the docker daemon to already be running. If neither is reachable, it prints a hint and exits.
 
-For trading flows you also need a Solana RPC URL, Privy app, Gemini key for LLM proposals, and enough USDC/SOL to test safely. The local PostgreSQL is provided by `docker-compose.yml`; you do not have to install Postgres on the host.
+For trading flows you also need a Solana RPC URL, Privy app, Gemini key for LLM proposals, and enough USDC/SOL to test safely. Grill and `/dev-tools` can create proposals on demand; background market-watch proposals require `ENABLE_SIGNAL_LOOP=true`. The local PostgreSQL is provided by `docker-compose.yml`; you do not have to install Postgres on the host.
 
 ---
 
@@ -125,6 +125,7 @@ Fill in the root `.env` file. `pnpm dev` and `pnpm start` copy it to both app en
 | `PYTH_HERMES_URL`                                   | Live Pyth price endpoint                                                                                                    |
 | `PYTH_BENCHMARKS_URL`                               | Historical candle endpoint                                                                                                  |
 | `GEMINI_API_KEY`                                    | LLM analysis for the Signal Engine and `/dev-tools`                                                                         |
+| `ENABLE_SIGNAL_LOOP`                                | Enables background market-watch BUY proposal generation                                                                     |
 | `LLM_DAILY_USD_CAP`                                 | Daily LLM spend guardrail                                                                                                   |
 | `SIGNAL_INTERVAL_SECONDS`                           | Cheap asset price scan interval                                                                                             |
 | `BASE_ANALYSIS_BAR_CLOSE_SECONDS`                   | Candle bucket that can trigger a fresh Base Market Analysis                                                                 |
@@ -147,9 +148,10 @@ pnpm dev          # or `docker compose up --build -d` if you prefer Method A
 2. Confirm the embedded Solana wallet address.
 3. Create your mandate.
 4. Deposit USDC and a small amount of SOL for transaction fees.
-5. Wait for the Signal Engine to generate a BUY proposal, or use `/dev-tools` locally.
-6. Review the proposal and place a synthetic BUY trigger Order.
-7. When the BUY fills, verify TP/SL orders appear and the position becomes active.
+5. Choose an AI Trading Team, or keep the default team.
+6. Create a BUY proposal by grilling an outside trade idea, waiting for the Signal Engine when `ENABLE_SIGNAL_LOOP=true`, or using `/dev-tools` locally.
+7. Review the proposal and place a synthetic BUY trigger Order.
+8. When the BUY fills, verify TP/SL orders appear and the position becomes active.
 
 ---
 
@@ -178,7 +180,7 @@ pnpm dev          # or `docker compose up --build -d` if you prefer Method A
 
 ## Where to Read Next
 
-- [Product Overview](./product-overview.md) — what Hunch is trying to prove
+- [Product Overview](./product-overview.md) — what Hunch It is trying to prove
 - [Screens & Flows](./screens-and-flows.md) — the user-facing product flow
 - [Architecture](./architecture.md) — how the apps and services fit together
 - [Troubleshooting](./troubleshooting.md) — common local setup issues

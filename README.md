@@ -2,28 +2,51 @@
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-Mandate-driven AI trading proposals for xStocks and crypto on Solana.
+Gen Z already invests by vibe. Hunch It turns each vibe trade into a disciplined proposal.
 
-Users define a simple investment mandate, receive AI-assisted BUY proposals for xStocks, tokenized ETFs, and crypto assets, then either **tap to execute** when the price reaches the trigger or opt into **Auto-execute triggers**. The server-side `PositionLifecycle` module owns every state transition, automatically arms take-profit and stop-loss orders after entry, and runs the OCO close + sibling cancellation when an exit fires.
-
-> The execution model is **synthetic-trigger first**. Approve writes DB-only synthetic Orders; `apps/ws-server` watches Pyth. If the user's Privy wallet is delegated, ws-server executes the same Jupiter Ultra swap and emits `trade:filled` (ADR-0003). Otherwise it emits `trigger:hit` and the user signs after tapping Execute (ADR-0001). No external trigger API is part of the runtime.
+Hunch It helps Gen Z investors turn trade ideas from friends, creators, social feeds, or market moves into disciplined trade proposals using AI analysts they choose for their style.
 
 > Hunch It is experimental software and not financial advice. Use small real-fund test amounts only if you understand the risks.
 
+## Product Narrative
+
+Hunch It works in two ways:
+
+1. Users can bring trade ideas from friends, creators, or social feeds and have them vetted by AI analysts they choose.
+2. Users can choose AI analysts that watch the market and send new proposals.
+
+Both paths end in one disciplined proposal the user controls.
+
 ## What It Does
 
-- Turns market movement into clear BUY proposals tailored to a user's mandate and portfolio
-- Explains each proposal with: what changed, why this trade, and why it fits the mandate
+- Lets users choose an AI Trading Team of up to six AI Analysts
+- Vets user-supplied trade ideas in Grill and can turn them into one BUY proposal
+- Watches supported markets for new BUY proposals when the signal loop is enabled
+- Explains each proposal with thesis, timing, entry/trigger, sizing, TP/SL, and invalidation
 - Lets users adjust size, trigger price, take-profit, and stop-loss before placing an order
 - Tracks BUY orders, active positions, open TP/SL orders, and portfolio state
 - Uses automatic TP/SL placement after entry, with one-cancels-other behavior when an exit fills
 - Offers optional Auto-execute triggers through Privy wallet v2 signer access, which remains non-custodial and revocable from Settings
 
-## How It Works
+## Current Status
+
+Hunch It is an alpha PWA. The signed-in app currently has Home, Grill, Team, Portfolio, Position Detail, Proposal Detail, Settings, Withdraw, and a password-gated `/dev-tools` surface.
+
+The current product has two proposal sources:
+
+- **Grill proposals:** users bring a supported asset and a trade idea from a friend, creator, social feed, or market move. The selected AI Trading Team returns visible Analyst Opinions, then Hunch It can create one disciplined BUY proposal from the completed review.
+- **Market-watch proposals:** `apps/ws-server` can scan supported assets, build Base Market Analysis, and fan out BUY proposals to users. This path is opt-in through `ENABLE_SIGNAL_LOOP=true`; trigger monitoring stays on by default.
+
+Mandate setup is still required before the signed-in app is ready. In the current implementation, the Mandate provides sizing, max drawdown, holding-period, and market-focus constraints; the AI Trading Team lives alongside it as a user preference.
+
+## Execution Model
+
+The execution model is **synthetic-trigger first**. Approving a BUY proposal writes DB-only synthetic Orders; `apps/ws-server` watches Pyth as a wake-up band, then confirms triggerability with a fresh Jupiter Ultra executable quote. If the user's Privy wallet is delegated, ws-server executes the same Jupiter Ultra swap and emits `trade:filled` (ADR-0003). Otherwise it emits `trigger:hit` and the user signs after tapping Execute (ADR-0001). No external trigger API is part of the runtime.
 
 ```text
-Login → Mandate setup → Desk → Review BUY proposal → Approve (DB-only Order)
-  → ws-server detects price hit
+Login → Mandate setup → Team selection or default team → Desk / Grill
+  → Review BUY proposal → Approve (DB-only Order)
+  → ws-server detects executable trigger
     → delegated path: Auto-execute triggers fills through Jupiter Ultra → trade:filled
     → fallback path: toast → tap Execute (Jupiter Ultra swap)
   → Position ACTIVE + TP/SL Orders armed atomically
@@ -36,13 +59,14 @@ The app is built around proposals, not a manual trading terminal. All trade-stat
 ## Current Scope
 
 - **Base currency:** USDC on Solana
-- **Supported assets:** Jupiter-listed xStocks/tokenized ETFs plus `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
+- **Supported proposal assets:** `AAPLx`, `NVDAx`, `TSLAx`, `SPYx`, `QQQx`, `GOOGLx`, `METAx`, `wBTC`, `ETH`, `BNB`, `wXRP`, `TRX`, and `HYPE`; `SOL` is treated as wallet fee balance, not a proposal asset
 - **Wallet:** Privy auth with embedded Solana wallet support
 - **Execution:** synthetic-trigger Orders (DB-only) + Jupiter Ultra swap. Trigger fills are client-signed when the user taps Execute, or server-signed through opt-in Privy wallet v2 signer access when Auto-execute triggers is enabled. The shared `@hunch-it/execution` package owns delegated trigger execution; the server-side `PositionLifecycle` settles every fill atomically and uses `Order.txSignature @unique` for idempotent replay.
 - **Data:** Pyth live prices (ws-server poll loop) + Pyth historical bars, PostgreSQL via Prisma
+- **AI Analysts:** Team selection currently persists in browser local storage; Grill uses the selected analysts and falls back to the default team when none is provided.
 - **Signal engine:** standalone `ws-server` process. Default runtime starts the required `trigger-monitor`; `ENABLE_SIGNAL_LOOP`, `ENABLE_BACK_EVAL`, and `ENABLE_THESIS_MONITOR` are opt-in.
 
-See [docs/product-overview.md](docs/product-overview.md) for the full product scope.
+See [docs/product-overview.md](docs/product-overview.md) for the full product scope and [docs/narrative.md](docs/narrative.md) for the canonical public narrative.
 
 ## Quick Start
 
@@ -108,21 +132,21 @@ hunch-it/
 
 ## Scripts
 
-| Command                  | Description                                                                               |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| `pnpm dev`               | Sync root `.env`, auto-start docker postgres, generate Prisma client, run web + ws-server |
-| `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)                   |
-| `pnpm dev:web`           | Run the Next.js app only                                                                  |
-| `pnpm dev:ws`            | Run the ws-server only                                                                    |
-| `pnpm build`             | Build all workspaces                                                                      |
-| `pnpm typecheck`         | Type-check all workspaces                                                                 |
+| Command                  | Description                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------ |
+| `pnpm dev`               | Sync root `.env`, auto-start docker postgres, generate Prisma client, run web + ws-server  |
+| `pnpm dev:no-db`         | Same as `pnpm dev` but skip the postgres preflight (manage db yourself)                    |
+| `pnpm dev:web`           | Run the Next.js app only                                                                   |
+| `pnpm dev:ws`            | Run the ws-server only                                                                     |
+| `pnpm build`             | Build all workspaces                                                                       |
+| `pnpm typecheck`         | Type-check all workspaces                                                                  |
 | `pnpm db:up`             | Sync local env files, then run the postgres preflight only (start container, wait healthy) |
-| `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)                       |
-| `pnpm db:generate`       | Generate the Prisma client                                                                |
-| `pnpm db:push`           | Push the Prisma schema to the database                                                    |
-| `pnpm db:migrate`        | `prisma migrate dev` (interactive, creates a new migration)                               |
-| `pnpm db:migrate:deploy` | `prisma migrate deploy` (apply existing migrations, for prod-like flows)                  |
-| `pnpm db:studio`         | Open Prisma Studio                                                                        |
+| `pnpm db:down`           | `docker compose down` — stop postgres (and any compose services up)                        |
+| `pnpm db:generate`       | Generate the Prisma client                                                                 |
+| `pnpm db:push`           | Push the Prisma schema to the database                                                     |
+| `pnpm db:migrate`        | `prisma migrate dev` (interactive, creates a new migration)                                |
+| `pnpm db:migrate:deploy` | `prisma migrate deploy` (apply existing migrations, for prod-like flows)                   |
+| `pnpm db:studio`         | Open Prisma Studio                                                                         |
 
 ## Documentation
 
@@ -133,6 +157,7 @@ hunch-it/
 | [ADR-0003](docs/adr/0003-opt-in-delegated-execution.md)            | Opt-in Auto-execute triggers through Privy wallet v2 signer access          |
 | [CONTEXT.md](CONTEXT.md)                                           | Domain glossary used by reviews + future ADRs                               |
 | [Manual test core](docs/manual-test-core.md)                       | 10-step click-through that defines "the system works"                       |
+| [Narrative](docs/narrative.md)                                     | Canonical public product narrative                                          |
 | [Product Overview](docs/product-overview.md)                       | Product promise, scope, supported assets                                    |
 | [Getting Started](docs/getting-started.md)                         | Local setup, `/dev-tools`, live setup, development commands                 |
 | [Architecture](docs/architecture.md)                               | Monorepo layout, infrastructure, realtime design                            |

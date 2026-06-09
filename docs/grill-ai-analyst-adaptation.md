@@ -1,6 +1,6 @@
 # Grill AI Analyst adaptation
 
-Source map: `Fundamental_analysis_agent/docs/AGENTS.md` plus each task folder. Hunch does not mount the Python app. It ports only agents whose real data path can produce a meaningful Analyst Opinion for one supported Hunch asset using Hunch-native TypeScript and Pyth bars now.
+Source map: `Fundamental_analysis_agent/docs/AGENTS.md` plus each task folder. Hunch It does not mount the Python app. It ports only agents whose real data path can produce a meaningful Analyst Opinion for one supported Hunch It asset using Hunch-native TypeScript and Pyth bars now.
 
 ## Included analysts
 
