@@ -22,6 +22,7 @@ import {
   getRequiredGrillBarAssetIds,
   type GrillAnalysisResult,
 } from './analysis';
+import { consumeGrillAnalysisDraft } from './drafts';
 import { buildGrillProposalAnalysis } from './proposal-policy';
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
@@ -46,6 +47,13 @@ export const GrillRequestSchema = z.object({
 });
 
 type GrillRequest = z.infer<typeof GrillRequestSchema>;
+
+export class GrillAnalysisDraftRequiredError extends Error {
+  constructor() {
+    super('grill_analysis_required');
+    this.name = 'GrillAnalysisDraftRequiredError';
+  }
+}
 
 async function fetchDailyBars(assetId: string, days = 365): Promise<Bar[]> {
   return benchmarks.getDailyBars({ assetId, days });
@@ -80,6 +88,12 @@ export async function createGrillProposal(input: GrillRequest & { userId: string
   if (!user) throw new Error('user not found');
   if (!user.mandate) throw new Error('complete mandate before using Grill');
 
+  const result = consumeGrillAnalysisDraft({
+    userId: input.userId,
+    request: input,
+  });
+  if (!result) throw new GrillAnalysisDraftRequiredError();
+
   const priceMap = await getCurrentPriceSnapshots([input.assetId]);
   const latestSnap = priceMap.get(input.assetId) ?? null;
   if (!latestSnap) throw new Error(`No Pyth price for ${input.assetId}`);
@@ -88,7 +102,6 @@ export async function createGrillProposal(input: GrillRequest & { userId: string
     throw new Error(`Stale Pyth price for ${input.assetId}: ${freshness.reason}`);
   }
 
-  const result = await runGrillAnalysis(input);
   const analysis = buildGrillProposalAnalysis({
     result,
     latestPrice: latestSnap.price,

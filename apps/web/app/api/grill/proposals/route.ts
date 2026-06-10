@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { PythBenchmarkRequestError } from '@hunch-it/shared';
 import { requireAuth } from '@/lib/auth/context';
-import { GrillRequestSchema, createGrillProposal } from '@/lib/grill/server';
+import {
+  GrillAnalysisDraftRequiredError,
+  GrillRequestSchema,
+  createGrillProposal,
+} from '@/lib/grill/server';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const auth = await requireAuth(req);
@@ -24,6 +28,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof GrillAnalysisDraftRequiredError) {
+      return NextResponse.json(
+        {
+          error: 'grill_analysis_required',
+          message: 'Re-analyze this Grill Idea before creating a Proposal.',
+        },
+        { status: 409 },
+      );
+    }
     if (err instanceof PythBenchmarkRequestError) {
       console.warn('[grill] proposal market data temporarily unavailable', err);
       return NextResponse.json(

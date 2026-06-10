@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { PythBenchmarkRequestError } from '@hunch-it/shared';
 import { requireAuth } from '@/lib/auth/context';
+import { saveGrillAnalysisDraft } from '@/lib/grill/drafts';
 import { GrillRequestSchema, runGrillAnalysis } from '@/lib/grill/server';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -18,6 +19,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const analysis = await runGrillAnalysis(parsed.data);
+    saveGrillAnalysisDraft({
+      userId: auth.userId,
+      request: parsed.data,
+      analysis,
+    });
     return NextResponse.json({ analysis });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
