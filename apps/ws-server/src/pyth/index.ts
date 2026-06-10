@@ -1,42 +1,25 @@
 /**
  * Real Pyth Hermes integration. Replaces the Phase 1 sinusoidal stub.
  *
- * Hermes returns price + exponent; the human-readable price is `price * 10^expo`
- * where `expo` is negative (e.g. price=23012, expo=-2 → $230.12).
+ * Shared Pyth Latest Price owns feed lookup, request chunking, and Hermes
+ * price/exponent decoding. ws-server only supplies env + fetch.
  */
 
-import { HermesClient } from '@pythnetwork/hermes-client';
 import {
-  chunkPythLatestPriceFeedIds,
+  createPythLatestPriceClient,
   evaluateSignalDataFreshness,
   getSignalAssets,
-  requireAsset,
   type PriceSnapshot,
+  type PythLatestPriceFetch,
   type SignalDataFreshnessVerdict,
 } from '@hunch-it/shared';
 import { env } from '../env.js';
 
-let hermes: HermesClient | null = null;
-function getHermes(): HermesClient {
-  // HermesClient defaults to a 5s fetch timeout and explicitly skips its
-  // built-in retry on AbortError, so a single slow upstream response fails
-  // the whole cycle. Bumping to 10s catches the long tail of public-endpoint
-  // latency spikes; our caller already absorbs per-ticker errors and the
-  // next 60s tick retries naturally, so we don't layer on extra retry here.
-  if (!hermes) hermes = new HermesClient(env.PYTH_HERMES_URL, { timeout: 10_000 });
-  return hermes;
-}
-
-interface HermesParsedPriceUpdate {
-  id: string;
-  price?: { price: string | number; conf?: string | number; expo: number; publish_time: number };
-  ema_price?: { price: string | number; conf?: string | number; expo: number; publish_time: number };
-}
-
-function decode(price: string | number, expo: number): number {
-  const raw = typeof price === 'string' ? Number(price) : price;
-  return raw * 10 ** expo;
-}
+const latestPrices = createPythLatestPriceClient({
+  baseUrl: env.PYTH_HERMES_URL,
+  fetchImpl: fetch as unknown as PythLatestPriceFetch,
+  cacheMode: 'no-store',
+});
 
 /**
  * Fetches the latest snapshot for each given asset id. Throws if any feed ID
@@ -46,41 +29,7 @@ function decode(price: string | number, expo: number): number {
 export async function getLatestPrices(
   assetIds: readonly string[] = getSignalAssets().map((asset) => asset.assetId),
 ): Promise<Map<string, PriceSnapshot>> {
-  const feedIds = assetIds.map((assetId) => {
-    const asset = requireAsset(assetId);
-    if (!asset.pythFeedId) {
-      throw new Error(`[pyth] ${assetId} has no configured xStock/crypto feed id`);
-    }
-    return { assetId, id: asset.pythFeedId };
-  });
-  const ids = feedIds.map((f) => f.id);
-
-  const client = getHermes();
-  const byId = new Map<string, HermesParsedPriceUpdate>();
-  for (const chunk of chunkPythLatestPriceFeedIds(ids)) {
-    const update = (await client.getLatestPriceUpdates(chunk)) as {
-      parsed?: HermesParsedPriceUpdate[];
-    };
-    for (const p of update.parsed ?? []) {
-      // Hermes echoes ids without the 0x prefix; normalise.
-      const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
-      byId.set(id, p);
-    }
-  }
-
-  const out = new Map<string, PriceSnapshot>();
-  for (const { assetId, id } of feedIds) {
-    const parsed = byId.get(id);
-    if (!parsed?.price) continue;
-    const snap: PriceSnapshot = {
-      ticker: assetId,
-      price: decode(parsed.price.price, parsed.price.expo),
-      confidence: decode(parsed.price.conf ?? 0, parsed.price.expo),
-      publishTime: parsed.price.publish_time,
-    };
-    out.set(assetId, snap);
-  }
-  return out;
+  return latestPrices.getLatestPriceSnapshots(assetIds);
 }
 
 /** Convenience for single-ticker callers. */

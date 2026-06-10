@@ -78,6 +78,10 @@ Price and bar data keyed by xStock symbols such as `AAPLx`; one xStock-native so
 
 Historical OHLC bars for Hunch Tradable Assets from Pyth Benchmarks. Callers request bars by canonical `AssetId` and time window through the shared Pyth Benchmark Bars Module; provider symbol lookup, TradingView-shaped URL construction, response parsing, retry/backoff, throttling, and short-lived stale-cache fallback stay inside that Module. Signal Engine, Grill, charts, and dev-tools must not reimplement Pyth Benchmarks parsing.
 
+### Pyth Latest Prices
+
+Latest price snapshots for Hunch Tradable Assets from Pyth Hermes. Callers request snapshots by canonical `AssetId` through the shared Pyth Latest Prices Module; feed id lookup, public-endpoint request chunking, REST URL construction, Hermes response parsing, and exponent decoding stay inside that Module. Signal Engine, Grill, ws-server, Portfolio, and dev-tools must not reimplement Pyth latest-price parsing.
+
 ### Signal Data Freshness
 
 The asset-specific condition that the price data used to create a Proposal is current enough for that tradable asset, using the existing publish-time staleness check; for xStocks, there is no market-hours logic or equity-feed fallback.

@@ -159,6 +159,15 @@ export type {
 export {
   PYTH_LATEST_PRICE_FEED_IDS_PER_REQUEST,
   chunkPythLatestPriceFeedIds,
+  createPythLatestPriceClient,
+  PythLatestPriceRequestError,
+} from './pyth-latest-prices.js';
+export type {
+  CreatePythLatestPriceClientInput,
+  PythLatestPriceCacheMode,
+  PythLatestPriceClient,
+  PythLatestPriceFetch,
+  PythLatestPriceFetchResponse,
 } from './pyth-latest-prices.js';
 
 // ── Signal Engine boundary ──────────────────────────────────────────────
