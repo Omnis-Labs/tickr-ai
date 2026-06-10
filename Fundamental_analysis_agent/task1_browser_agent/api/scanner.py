@@ -148,28 +148,38 @@ async def _scan_ticker(tk: str, vix_map, tmap, tiers: dict[str, str]) -> ScanRow
     from task19_anomaly.schemas import AnomalySpec
     from task20_vix.pipeline.signals import make_want_long as t20_wl
     from task20_vix.schemas import VixSpec
-    from tools.divination_null_band import _control_signals, _listing
 
     sig: dict[str, bool | None] = {k: None for k, _, _ in AGENTS}
     err = None
-    ctrl_keys = {"T25 astrology": "T25", "T27 八字": "T27", "T35 Jyotiṣa": "T35"}
     try:
         prices = await asyncio.to_thread(fetch_prices, tk)
         latest = prices[-1].date
         start = max(prices[0].date, latest - timedelta(days=365 * 5))
         dates = [p.date for p in prices if p.date >= start]
-        listing = await asyncio.to_thread(_listing, tk, prices[0].date)
+        listing = prices[0].date          # first-available bar as the 'natal' date for the controls
 
         try: sig["T19"] = bool(t19_wl(AnomalySpec(entry_signal="near_52w_high"), prices)(latest))
         except Exception: pass  # noqa: BLE001,E701
         if vix_map:
             try: sig["T20"] = bool(t20_wl(VixSpec(entry_signal="vix_term_gate"), vix_map)(latest))
             except Exception: pass  # noqa: BLE001,E701
-        for system, sigs in _control_signals(listing, dates):
-            key = ctrl_keys.get(system)
-            if key and sigs:
-                try: sig[key] = bool(sigs[0][1](latest))
-                except Exception: pass  # noqa: BLE001,E701
+        # placebo controls — built directly from their own (deployed) packages, no tools/ dependency
+        try:
+            from task25_astro.pipeline import astro as _A
+            from task25_astro.schemas import AstroSpec
+            sig["T25"] = bool(_A.make_want_long(AstroSpec(entry_signal="avoid_mercury_retrograde"), _A.build_astro_state(dates, 6.0))(latest))
+        except Exception: pass  # noqa: BLE001,E701
+        try:
+            from task27_bazi.pipeline import bazi as _B
+            from task27_bazi.schemas import BaziSpec
+            fav = set(_B.strength_and_favourable(_B.four_pillars(listing))["favourable"])
+            sig["T27"] = bool(_B.make_want_long(BaziSpec(entry_signal="favorable_year"), fav)(latest))
+        except Exception: pass  # noqa: BLE001,E701
+        try:
+            from task35_jyotish.pipeline import jyotish as _JY
+            from task35_jyotish.schemas import JyotishSpec
+            sig["T35"] = bool(_JY.make_want_long(JyotishSpec(entry_signal="benefic_dasha"), listing)(latest))
+        except Exception: pass  # noqa: BLE001,E701
 
         cik = tmap.get(tk)
         if cik:
