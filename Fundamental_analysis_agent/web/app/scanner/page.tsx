@@ -169,7 +169,7 @@ export default function ScannerPage() {
           </div>
 
           <div className="border border-zinc-800 rounded-md p-4">
-            <h3 className="text-sm font-semibold text-zinc-200 mb-1">今日的「書」（建議組合）{dsrOnly && <span className="text-amber-400 text-xs ml-1">· DSR 過關濾鏡</span>}</h3>
+            <h3 className="text-sm font-semibold text-zinc-200 mb-1">今日的「書」<span className="text-zinc-500 font-normal">(trading book)</span> · 建議組合{dsrOnly && <span className="text-amber-400 text-xs ml-1">· DSR 過關濾鏡</span>}</h3>
             {tilt.length ? (
               <p className="text-sm text-zinc-300">傾向做多：{tilt.map((t) => <span key={t} className="text-emerald-400 font-medium mr-2">{t}</span>)}<span className="text-zinc-500">· 其餘資金 → 持有 SPY（市場地板）</span></p>
             ) : (
