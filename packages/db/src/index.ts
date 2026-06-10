@@ -1,6 +1,9 @@
 export { prisma, shutdownPrisma } from './client.js';
 export {
+  buildCreateBuyProposalForUserInput,
   buildBuyProposalCreateData,
+  buildProposalCreationMandate,
+  buildProposalCreationPositionImpact,
   createBuyProposalForUser,
 } from './lifecycle/proposal-creation.js';
 export {
@@ -9,10 +12,13 @@ export {
 } from './lifecycle/proposal-sizing.js';
 export type {
   BuyMarketAnalysis,
+  CreateBuyProposalForUserAdapterInput,
   CreateBuyProposalForUserInput,
   ProposalAnalysisIndicators,
   ProposalCreationMandate,
+  ProposalCreationMandateInput,
   ProposalCreationPositionImpact,
+  ProposalCreationPositionImpactInput,
 } from './lifecycle/proposal-creation.js';
 export type { ProposalSizingInput } from './lifecycle/proposal-sizing.js';
 export {

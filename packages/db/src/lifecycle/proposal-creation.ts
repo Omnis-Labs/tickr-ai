@@ -30,6 +30,26 @@ export interface ProposalCreationPositionImpact {
   verticalExposureUsd: number;
 }
 
+interface NumberLike {
+  toNumber(): number;
+}
+
+export interface ProposalCreationMandateInput {
+  holdingPeriod: string;
+  maxTradeSize?: NumberLike;
+  maxTradeSizeUsd?: number;
+  maxDrawdown?: NumberLike | number | null;
+}
+
+export interface ProposalCreationPositionImpactInput {
+  totalUsd: number;
+  cashUsd: number;
+  assetExposureUsd?: number;
+  verticalExposureUsd?: number;
+  tickerExposureUsd?: number;
+  sectorExposureUsd?: number;
+}
+
 export interface CreateBuyProposalForUserInput {
   userId: string;
   analysis: BuyMarketAnalysis;
@@ -43,6 +63,14 @@ export interface CreateBuyProposalForUserInput {
   rationalePrefix?: string;
 }
 
+export type CreateBuyProposalForUserAdapterInput = Omit<
+  CreateBuyProposalForUserInput,
+  'mandate' | 'positionImpact'
+> & {
+  mandate: ProposalCreationMandateInput;
+  positionImpact: ProposalCreationPositionImpactInput;
+};
+
 const HOLDING_PERIOD_TO_TTL_MIN: Record<string, number> = {
   '1-3 days': 30,
   '1-2 weeks': 90,
@@ -54,14 +82,53 @@ function roundPrice(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function numberFrom(value: NumberLike | number | null | undefined): number | null {
+  if (value == null) return null;
+  return typeof value === 'number' ? value : value.toNumber();
+}
+
+export function buildProposalCreationMandate(
+  mandate: ProposalCreationMandateInput,
+): ProposalCreationMandate {
+  const maxTradeSizeUsd = numberFrom(mandate.maxTradeSizeUsd ?? mandate.maxTradeSize);
+  if (maxTradeSizeUsd == null) {
+    throw new Error('proposal_creation_max_trade_size_required');
+  }
+
+  return {
+    holdingPeriod: mandate.holdingPeriod,
+    maxTradeSizeUsd,
+    maxDrawdown: numberFrom(mandate.maxDrawdown),
+  };
+}
+
+export function buildProposalCreationPositionImpact(
+  positionImpact: ProposalCreationPositionImpactInput,
+): ProposalCreationPositionImpact {
+  return {
+    totalUsd: positionImpact.totalUsd,
+    cashUsd: positionImpact.cashUsd,
+    assetExposureUsd: positionImpact.assetExposureUsd ?? positionImpact.tickerExposureUsd ?? 0,
+    verticalExposureUsd:
+      positionImpact.verticalExposureUsd ?? positionImpact.sectorExposureUsd ?? 0,
+  };
+}
+
+export function buildCreateBuyProposalForUserInput(
+  input: CreateBuyProposalForUserAdapterInput,
+): CreateBuyProposalForUserInput {
+  return {
+    ...input,
+    mandate: buildProposalCreationMandate(input.mandate),
+    positionImpact: buildProposalCreationPositionImpact(input.positionImpact),
+  };
+}
+
 function ttlMinutesForHoldingPeriod(holdingPeriod: string): number {
   return HOLDING_PERIOD_TO_TTL_MIN[holdingPeriod] ?? 60;
 }
 
-function buildPrices(input: {
-  analysis: BuyMarketAnalysis;
-  mandate: ProposalCreationMandate;
-}): {
+function buildPrices(input: { analysis: BuyMarketAnalysis; mandate: ProposalCreationMandate }): {
   triggerPrice: number;
   tpPrice: number;
   slPrice: number;
@@ -96,12 +163,10 @@ function buildPositionImpact(input: {
   positionImpact: ProposalCreationPositionImpact;
 }): Prisma.InputJsonObject {
   const totalUsd = input.positionImpact.totalUsd;
-  const weightBefore =
-    totalUsd > 0 ? input.positionImpact.assetExposureUsd / totalUsd : 0;
+  const weightBefore = totalUsd > 0 ? input.positionImpact.assetExposureUsd / totalUsd : 0;
   const weightAfter =
     totalUsd > 0 ? (input.positionImpact.assetExposureUsd + input.sizeUsd) / totalUsd : 0;
-  const sectorBefore =
-    totalUsd > 0 ? input.positionImpact.verticalExposureUsd / totalUsd : 0;
+  const sectorBefore = totalUsd > 0 ? input.positionImpact.verticalExposureUsd / totalUsd : 0;
   const sectorAfter =
     totalUsd > 0 ? (input.positionImpact.verticalExposureUsd + input.sizeUsd) / totalUsd : 0;
 

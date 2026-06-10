@@ -2,7 +2,11 @@ import 'server-only';
 
 import { GoogleGenAI, type GenerateContentResponse } from '@google/genai';
 import { z } from 'zod';
-import { createBuyProposalForUser, suggestBuyProposalSizeUsd } from '@hunch-it/db';
+import {
+  buildCreateBuyProposalForUserInput,
+  createBuyProposalForUser,
+  suggestBuyProposalSizeUsd,
+} from '@hunch-it/db';
 import { prepareInputAmount, requestUltraOrder } from '@hunch-it/execution';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
@@ -355,46 +359,45 @@ export async function createDevToolsProposal(input: {
     });
     if (latestActive) throw new ActiveDevToolsProposalError(latestActive.id);
 
-    const proposal = await createBuyProposalForUser(tx, {
-      userId: user.id,
-      analysis: buildBaseMarketAnalysis({
-        assetId: input.ticker,
-        action: 'BUY',
-        confidence,
-        rationale:
-          llm.parsed?.rationale ??
-          `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`,
-        whatChanged:
-          llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
-        whyThisTrade:
-          llm.parsed?.why_this_trade ??
-          `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
-        priceAtAnalysis: latestPrice,
-        suggestedTriggerPrice: llm.parsed?.trigger_price,
-        suggestedTakeProfitPrice: llm.parsed?.take_profit_price,
-        suggestedStopLossPrice: llm.parsed?.stop_loss_price,
-        indicators: {
-          rsi: indicators.rsi,
-          macd: indicators.macd,
-          ma20: indicators.ma20,
-          ma50: indicators.ma50,
+    const proposal = await createBuyProposalForUser(
+      tx,
+      buildCreateBuyProposalForUserInput({
+        userId: user.id,
+        analysis: buildBaseMarketAnalysis({
+          assetId: input.ticker,
+          action: 'BUY',
+          confidence,
+          rationale:
+            llm.parsed?.rationale ??
+            `Live Pyth test proposal for ${meta.displaySymbol} at $${latestPrice.toFixed(2)}.`,
+          whatChanged:
+            llm.parsed?.what_changed ?? 'Dev tools requested a live Pyth/Gemini test proposal.',
+          whyThisTrade:
+            llm.parsed?.why_this_trade ??
+            `Uses current price $${latestPrice.toFixed(2)}, RSI ${indicators.rsi.toFixed(1)}, and MA20 $${indicators.ma20.toFixed(2)}.`,
+          priceAtAnalysis: latestPrice,
+          suggestedTriggerPrice: llm.parsed?.trigger_price,
+          suggestedTakeProfitPrice: llm.parsed?.take_profit_price,
+          suggestedStopLossPrice: llm.parsed?.stop_loss_price,
+          indicators: {
+            rsi: indicators.rsi,
+            macd: indicators.macd,
+            ma20: indicators.ma20,
+            ma50: indicators.ma50,
+          },
+        }),
+        mandate,
+        positionImpact: {
+          totalUsd: availableUsdc,
+          cashUsd: availableUsdc,
+          assetExposureUsd: 0,
+          verticalExposureUsd: 0,
         },
+        origin: 'DEV_TOOLS',
+        now: createNow,
+        rationalePrefix: '[DEV_TOOLS] ',
       }),
-      mandate: {
-        holdingPeriod: mandate.holdingPeriod,
-        maxTradeSizeUsd: maxTradeSize,
-        maxDrawdown,
-      },
-      positionImpact: {
-        totalUsd: availableUsdc,
-        cashUsd: availableUsdc,
-        assetExposureUsd: 0,
-        verticalExposureUsd: 0,
-      },
-      origin: 'DEV_TOOLS',
-      now: createNow,
-      rationalePrefix: '[DEV_TOOLS] ',
-    });
+    );
     if (!proposal) throw new Error('dev_tools_proposal_not_actionable');
     return proposal;
   });

@@ -10,7 +10,7 @@
 // for different users (PRD §Per-user Signal Problem).
 
 import type { PrismaClient, Proposal } from '@hunch-it/db';
-import { createBuyProposalForUser } from '@hunch-it/db';
+import { buildCreateBuyProposalForUserInput, createBuyProposalForUser } from '@hunch-it/db';
 import type { Server as IoServer } from 'socket.io';
 import {
   WsServerEvents,
@@ -157,12 +157,6 @@ export async function generateProposalsForBaseAnalysis(
     if (!user.mandate) continue;
 
     try {
-      const mandate = user.mandate;
-      // Mandate.maxTradeSize / maxDrawdown are Prisma.Decimal; convert once
-      // for the local arithmetic. USD pennies of error are fine here.
-      const maxTradeSize = mandate.maxTradeSize.toNumber();
-      const maxDrawdown = mandate.maxDrawdown?.toNumber() ?? null;
-
       // Real positionImpact via on-chain balance read. Falls back to zeros
       // if the RPC call fails so a single user's RPC outage doesn't take
       // down the whole proposal generation tick. A zero-cash fallback means
@@ -175,19 +169,12 @@ export async function generateProposalsForBaseAnalysis(
       });
 
       const created = await createBuyProposalForUser(prisma, {
-        userId: user.id,
-        analysis: base,
-        mandate: {
-          holdingPeriod: mandate.holdingPeriod,
-          maxTradeSizeUsd: maxTradeSize,
-          maxDrawdown,
-        },
-        positionImpact: {
-          totalUsd: ctx.totalUsd,
-          cashUsd: ctx.cashUsd,
-          assetExposureUsd: ctx.tickerExposureUsd,
-          verticalExposureUsd: ctx.sectorExposureUsd,
-        },
+        ...buildCreateBuyProposalForUserInput({
+          userId: user.id,
+          analysis: base,
+          mandate: user.mandate,
+          positionImpact: ctx,
+        }),
       });
       if (!created) continue;
 

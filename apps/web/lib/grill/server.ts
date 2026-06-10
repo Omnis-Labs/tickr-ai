@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { z } from 'zod';
-import { createBuyProposalForUser } from '@hunch-it/db';
+import { buildCreateBuyProposalForUserInput, createBuyProposalForUser } from '@hunch-it/db';
 import {
   PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS,
   PYTH_BENCHMARKS_BASE,
@@ -115,34 +115,31 @@ export async function createGrillProposal(input: GrillRequest & { userId: string
     throwOnFailure: true,
   });
   const mandate = user.mandate;
-  const maxTradeSize = mandate.maxTradeSize.toNumber();
-  const maxDrawdown = mandate.maxDrawdown?.toNumber() ?? null;
 
   const proposal = await prisma.$transaction(async (tx) => {
     const now = new Date();
     await expireActiveProposals(tx, { userId: input.userId, origin: 'GRILL', now });
-    const created = await createBuyProposalForUser(tx, {
-      userId: input.userId,
-      analysis,
-      mandate: {
-        holdingPeriod: mandate.holdingPeriod,
-        maxTradeSizeUsd: maxTradeSize,
-        maxDrawdown,
-      },
-      positionImpact: {
-        totalUsd: availableUsdc,
-        cashUsd: availableUsdc,
-        assetExposureUsd: 0,
-        verticalExposureUsd: 0,
-      },
-      origin: 'GRILL',
-      originContext: {
-        grillIdea: result.idea,
-        analystIds: result.opinions.map((opinion) => opinion.analystId),
-      },
-      now,
-      rationalePrefix: '[Grill] ',
-    });
+    const created = await createBuyProposalForUser(
+      tx,
+      buildCreateBuyProposalForUserInput({
+        userId: input.userId,
+        analysis,
+        mandate,
+        positionImpact: {
+          totalUsd: availableUsdc,
+          cashUsd: availableUsdc,
+          assetExposureUsd: 0,
+          verticalExposureUsd: 0,
+        },
+        origin: 'GRILL',
+        originContext: {
+          grillIdea: result.idea,
+          analystIds: result.opinions.map((opinion) => opinion.analystId),
+        },
+        now,
+        rationalePrefix: '[Grill] ',
+      }),
+    );
     if (!created) throw new Error('grill_proposal_not_actionable');
     return created;
   });

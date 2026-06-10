@@ -92,7 +92,7 @@ The rule for when price movement or candle progression is meaningful enough to r
 
 ### ProposalCreation
 
-The `packages/db/src/lifecycle/proposal-creation.ts` Module that turns Base Market Analysis plus a Mandate and position-impact context into a persisted BUY Proposal. It owns sizing defaults, trigger / TP / SL derivation, expiry, reasoning, thesis tags, and Proposal row creation. Live signal generation and `/dev-tools` are adapters into this Module.
+The `packages/db/src/lifecycle/proposal-creation.ts` Module that turns Base Market Analysis plus a Mandate and position-impact context into a persisted BUY Proposal. It owns adapter input normalization, sizing defaults, trigger / TP / SL derivation, expiry, reasoning, thesis tags, and Proposal row creation. Live signal generation, Grill, and `/dev-tools` are adapters into this Module.
 
 ### Crypto
 
