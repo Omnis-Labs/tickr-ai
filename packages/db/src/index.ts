@@ -17,10 +17,12 @@ export type {
 export type { ProposalSizingInput } from './lifecycle/proposal-sizing.js';
 export {
   acceptBuyProposal,
+  cancelOpenOrder,
   cancelPendingBuy,
   claimOrderExecution,
   confirmBuyFill,
   confirmExitFill,
+  placeProtectionOrder,
   releaseOrderExecutionClaim,
   userCloseActive,
   replaceProtectionOrders,

@@ -25,9 +25,14 @@ class PositionRaceRollback extends Error {
 
 type Tx = Prisma.TransactionClient;
 type ExecutableOrderKind = 'BUY_TRIGGER' | 'TAKE_PROFIT' | 'STOP_LOSS';
+type ProtectionOrderKind = 'TAKE_PROFIT' | 'STOP_LOSS';
 
 function isExecutableOrderKind(kind: string): kind is ExecutableOrderKind {
   return kind === 'BUY_TRIGGER' || kind === 'TAKE_PROFIT' || kind === 'STOP_LOSS';
+}
+
+function isProtectionOrderKind(kind: string): kind is ProtectionOrderKind {
+  return kind === 'TAKE_PROFIT' || kind === 'STOP_LOSS';
 }
 
 function executionStateFor(kind: ExecutableOrderKind): {
@@ -185,6 +190,133 @@ export async function acceptBuyProposal(input: {
   });
 }
 
+export async function placeProtectionOrder(input: {
+  userId: string;
+  positionId: string;
+  kind: ProtectionOrderKind;
+  triggerPriceUsd: number;
+  tokenAmount: number;
+  slippageBps?: number | null;
+}): Promise<
+  LifecycleResult<{
+    orderId: string;
+    positionId: string;
+  }>
+> {
+  if (!(input.triggerPriceUsd > 0)) {
+    return { status: 'conflict', reason: 'invalid_trigger_price' };
+  }
+  if (!(input.tokenAmount > 0)) {
+    return { status: 'conflict', reason: 'invalid_token_amount' };
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const position = await tx.position.findUnique({
+      where: { id: input.positionId },
+      select: { id: true, userId: true, state: true },
+    });
+    if (!position || position.userId !== input.userId) {
+      return { status: 'conflict', reason: 'position_not_found' };
+    }
+    if (position.state !== 'ACTIVE' && position.state !== 'ENTERING') {
+      return {
+        status: 'conflict',
+        reason: `position_state_${position.state.toLowerCase()}`,
+      };
+    }
+
+    const order = await tx.order.create({
+      data: {
+        userId: input.userId,
+        positionId: input.positionId,
+        kind: input.kind,
+        side: 'SELL',
+        triggerPriceUsd: input.triggerPriceUsd,
+        sizeUsd: input.triggerPriceUsd * input.tokenAmount,
+        tokenAmount: input.tokenAmount,
+        status: 'OPEN',
+        jupiterOrderId: null,
+        slippageBps: input.slippageBps ?? null,
+      },
+    });
+
+    return {
+      status: 'success',
+      data: { orderId: order.id, positionId: input.positionId },
+    };
+  });
+}
+
+async function cancelPendingBuyTx(
+  tx: Tx,
+  input: { userId: string; orderId: string },
+): Promise<
+  LifecycleResult<{
+    orderId: string;
+    orderStatus: 'CANCELLED';
+    positionId: string;
+    positionStatus: 'CLOSED';
+  }>
+> {
+  const claimed = await tx.order.updateMany({
+    where: {
+      id: input.orderId,
+      userId: input.userId,
+      kind: 'BUY_TRIGGER',
+      status: 'OPEN',
+    },
+    data: { status: 'CANCELLED' },
+  });
+  if (claimed.count === 0) {
+    const existing = await tx.order.findUnique({
+      where: { id: input.orderId },
+      select: { id: true, userId: true, status: true, kind: true },
+    });
+    if (!existing || existing.userId !== input.userId) {
+      return { status: 'conflict', reason: 'order_not_found' };
+    }
+    return {
+      status: 'conflict',
+      reason: `order_${existing.kind.toLowerCase()}_${existing.status.toLowerCase()}`,
+    };
+  }
+
+  const order = await tx.order.findUniqueOrThrow({
+    where: { id: input.orderId },
+    select: { positionId: true },
+  });
+
+  const closedPos = await tx.position.updateMany({
+    where: {
+      id: order.positionId,
+      userId: input.userId,
+      state: 'BUY_PENDING',
+    },
+    data: {
+      state: 'CLOSED',
+      closedAt: new Date(),
+      closedReason: 'BUY_CANCELLED',
+      realizedPnl: 0,
+    },
+  });
+  if (closedPos.count === 0) {
+    throw new LifecycleInvariantError(
+      `cancelPendingBuy: BUY_TRIGGER ${input.orderId} cancelled but parent ` +
+        `Position ${order.positionId} was not BUY_PENDING`,
+    );
+  }
+
+  return {
+    status: 'success',
+    data: {
+      orderId: input.orderId,
+      orderStatus: 'CANCELLED',
+      positionId: order.positionId,
+      positionStatus: 'CLOSED',
+    },
+  };
+}
+
 export async function cancelPendingBuy(input: { userId: string; orderId: string }): Promise<
   LifecycleResult<{
     orderId: string;
@@ -193,53 +325,66 @@ export async function cancelPendingBuy(input: { userId: string; orderId: string 
     positionStatus: 'CLOSED';
   }>
 > {
+  return prisma.$transaction((tx) => cancelPendingBuyTx(tx, input));
+}
+
+export async function cancelOpenOrder(input: { userId: string; orderId: string }): Promise<
+  LifecycleResult<{
+    orderId: string;
+    orderStatus: 'CANCELLED';
+    positionId: string;
+    positionStatus?: 'CLOSED';
+  }>
+> {
   return prisma.$transaction(async (tx) => {
-    const claimed = await tx.order.updateMany({
+    const order = await tx.order.findUnique({
+      where: { id: input.orderId },
+      select: {
+        id: true,
+        userId: true,
+        kind: true,
+        status: true,
+        positionId: true,
+      },
+    });
+    if (!order || order.userId !== input.userId) {
+      return { status: 'conflict', reason: 'order_not_found' };
+    }
+
+    if (order.kind === 'BUY_TRIGGER') {
+      return cancelPendingBuyTx(tx, input);
+    }
+    if (!isProtectionOrderKind(order.kind)) {
+      return {
+        status: 'conflict',
+        reason: `order_kind_${order.kind.toLowerCase()}`,
+      };
+    }
+    if (order.status !== 'OPEN') {
+      return {
+        status: 'conflict',
+        reason: `order_${order.status.toLowerCase()}`,
+      };
+    }
+
+    const cancelled = await tx.order.updateMany({
       where: {
         id: input.orderId,
         userId: input.userId,
-        kind: 'BUY_TRIGGER',
+        kind: { in: ['TAKE_PROFIT', 'STOP_LOSS'] },
         status: 'OPEN',
       },
       data: { status: 'CANCELLED' },
     });
-    if (claimed.count === 0) {
-      const existing = await tx.order.findUnique({
+    if (cancelled.count === 0) {
+      const cur = await tx.order.findUnique({
         where: { id: input.orderId },
-        select: { id: true, userId: true, status: true, kind: true },
+        select: { status: true },
       });
-      if (!existing || existing.userId !== input.userId) {
-        return { status: 'conflict', reason: 'order_not_found' };
-      }
       return {
         status: 'conflict',
-        reason: `order_${existing.kind.toLowerCase()}_${existing.status.toLowerCase()}`,
+        reason: cur ? `order_${cur.status.toLowerCase()}` : 'order_not_found',
       };
-    }
-
-    const order = await tx.order.findUniqueOrThrow({
-      where: { id: input.orderId },
-      select: { positionId: true },
-    });
-
-    const closedPos = await tx.position.updateMany({
-      where: {
-        id: order.positionId,
-        userId: input.userId,
-        state: 'BUY_PENDING',
-      },
-      data: {
-        state: 'CLOSED',
-        closedAt: new Date(),
-        closedReason: 'BUY_CANCELLED',
-        realizedPnl: 0,
-      },
-    });
-    if (closedPos.count === 0) {
-      throw new LifecycleInvariantError(
-        `cancelPendingBuy: BUY_TRIGGER ${input.orderId} cancelled but parent ` +
-          `Position ${order.positionId} was not BUY_PENDING`,
-      );
     }
 
     return {
@@ -248,16 +393,12 @@ export async function cancelPendingBuy(input: { userId: string; orderId: string 
         orderId: input.orderId,
         orderStatus: 'CANCELLED',
         positionId: order.positionId,
-        positionStatus: 'CLOSED',
       },
     };
   });
 }
 
-export async function claimOrderExecution(input: {
-  userId: string;
-  orderId: string;
-}): Promise<
+export async function claimOrderExecution(input: { userId: string; orderId: string }): Promise<
   LifecycleResult<{
     orderId: string;
     positionId: string;

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { OrderKindSchema } from '@hunch-it/shared';
-import { acceptBuyProposal } from '@hunch-it/db';
+import { acceptBuyProposal, placeProtectionOrder } from '@hunch-it/db';
 import { prisma } from '@/lib/db';
 import { requireAuth, requireAuthOrUpsert } from '@/lib/auth/context';
 import { decimalsToNumbers } from '@/lib/db/decimal';
@@ -33,8 +33,8 @@ const PersistOrderSchema = z.object({
   tokenAmount: z.number().nullable().optional(),
   txSignature: z.string().nullable().optional(),
   slippageBps: z.number().int().nullable().optional(),
-  // For BUY trigger orders we also create a Position(BUY_PENDING) so subsequent
-  // TP/SL orders attach to the same row.
+  // For BUY trigger orders we also create a Position(BUY_PENDING). Exit legs
+  // are delegated to PositionLifecycle after the position exists.
   createPosition: z
     .object({
       mint: z.string(),
@@ -68,7 +68,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       p.createPosition.slPrice == null
     ) {
       return NextResponse.json(
-        { error: 'BUY_TRIGGER requires proposalId, createPosition with tpPrice/slPrice, triggerPriceUsd' },
+        {
+          error:
+            'BUY_TRIGGER requires proposalId, createPosition with tpPrice/slPrice, triggerPriceUsd',
+        },
         { status: 400 },
       );
     }
@@ -86,10 +89,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (result.status === 'conflict') {
       return NextResponse.json({ error: result.reason }, { status: 409 });
     }
-    const orderId =
-      result.status === 'success' ? result.data.orderId : result.orderId;
-    const positionId =
-      result.status === 'success' ? result.data.positionId : result.positionId;
+    const orderId = result.status === 'success' ? result.data.orderId : result.orderId;
+    const positionId = result.status === 'success' ? result.data.positionId : result.positionId;
     const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     return NextResponse.json({
       ok: true,
@@ -107,28 +108,48 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const pos = await prisma.position.findUnique({ where: { id: positionId } });
-  if (!pos || pos.userId !== ctx.userId) {
-    return NextResponse.json({ error: 'position not found' }, { status: 404 });
+  if (p.kind !== 'TAKE_PROFIT' && p.kind !== 'STOP_LOSS') {
+    return NextResponse.json(
+      { error: `cannot create order kind ${p.kind} via this route` },
+      { status: 400 },
+    );
+  }
+  if (p.side !== 'SELL') {
+    return NextResponse.json({ error: 'protection orders must be SELL orders' }, { status: 400 });
+  }
+  if (p.triggerPriceUsd == null || p.tokenAmount == null) {
+    return NextResponse.json(
+      { error: 'protection orders require triggerPriceUsd and tokenAmount' },
+      { status: 400 },
+    );
   }
 
-  const order = await prisma.order.create({
-    data: {
-      userId: ctx.userId,
-      positionId,
-      kind: p.kind,
-      side: p.side,
-      triggerPriceUsd: p.triggerPriceUsd,
-      sizeUsd: p.sizeUsd,
-      tokenAmount: p.tokenAmount ?? null,
-      status: 'OPEN',
-      jupiterOrderId: null,
-      txSignature: p.txSignature ?? null,
-      slippageBps: p.slippageBps ?? null,
-    },
+  const result = await placeProtectionOrder({
+    userId: ctx.userId,
+    positionId,
+    kind: p.kind,
+    triggerPriceUsd: p.triggerPriceUsd,
+    tokenAmount: p.tokenAmount,
+    slippageBps: p.slippageBps ?? null,
+  });
+  if (result.status === 'conflict') {
+    return NextResponse.json(
+      { error: result.reason },
+      { status: result.reason === 'position_not_found' ? 404 : 409 },
+    );
+  }
+
+  const orderId = result.status === 'success' ? result.data.orderId : result.orderId;
+  const order = await prisma.order.findUniqueOrThrow({
+    where: { id: orderId },
   });
 
-  return NextResponse.json({ ok: true, order: decimalsToNumbers(order), positionId });
+  return NextResponse.json({
+    ok: true,
+    duplicate: result.status === 'duplicate',
+    order: decimalsToNumbers(order),
+    positionId,
+  });
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
