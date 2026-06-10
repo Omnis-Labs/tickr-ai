@@ -7,6 +7,7 @@
 
 import { HermesClient } from '@pythnetwork/hermes-client';
 import {
+  chunkPythLatestPriceFeedIds,
   evaluateSignalDataFreshness,
   getSignalAssets,
   requireAsset,
@@ -55,15 +56,16 @@ export async function getLatestPrices(
   const ids = feedIds.map((f) => f.id);
 
   const client = getHermes();
-  const update = (await client.getLatestPriceUpdates(ids)) as {
-    parsed?: HermesParsedPriceUpdate[];
-  };
-
   const byId = new Map<string, HermesParsedPriceUpdate>();
-  for (const p of update.parsed ?? []) {
-    // Hermes echoes ids without the 0x prefix; normalise.
-    const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
-    byId.set(id, p);
+  for (const chunk of chunkPythLatestPriceFeedIds(ids)) {
+    const update = (await client.getLatestPriceUpdates(chunk)) as {
+      parsed?: HermesParsedPriceUpdate[];
+    };
+    for (const p of update.parsed ?? []) {
+      // Hermes echoes ids without the 0x prefix; normalise.
+      const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
+      byId.set(id, p);
+    }
   }
 
   const out = new Map<string, PriceSnapshot>();

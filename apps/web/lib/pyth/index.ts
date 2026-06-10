@@ -3,6 +3,8 @@
 
 import {
   PYTH_HERMES_DEFAULT_URL,
+  PYTH_LATEST_PRICE_FEED_IDS_PER_REQUEST,
+  chunkPythLatestPriceFeedIds,
   requireAsset,
   type PriceSnapshot,
 } from '@hunch-it/shared';
@@ -18,6 +20,7 @@ interface ParsedPrice {
 }
 
 const HERMES = process.env.PYTH_HERMES_URL ?? PYTH_HERMES_DEFAULT_URL;
+export { PYTH_LATEST_PRICE_FEED_IDS_PER_REQUEST, chunkPythLatestPriceFeedIds };
 
 function decode(price: string | number, expo: number): number {
   const raw = typeof price === 'string' ? Number(price) : price;
@@ -52,23 +55,25 @@ export async function getCurrentPriceSnapshots(
   }
   if (ids.length === 0) return new Map();
 
-  const params = ids.map((id) => `ids[]=${encodeURIComponent(id)}`).join('&');
-  const url = `${HERMES}/v2/updates/price/latest?${params}`;
-  const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
-  if (!res.ok) throw new Error(`Hermes failed: ${res.status} ${res.statusText}`);
-  const json = (await res.json()) as { parsed?: ParsedPrice[] };
-
   const out = new Map<string, PriceSnapshot>();
-  for (const p of json.parsed ?? []) {
-    const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
-    const assetId = idToAsset.get(id);
-    if (!assetId || !p.price) continue;
-    out.set(assetId, {
-      ticker: assetId,
-      price: decode(p.price.price, p.price.expo),
-      confidence: decode(p.price.conf ?? 0, p.price.expo),
-      publishTime: p.price.publish_time,
-    });
+  for (const chunk of chunkPythLatestPriceFeedIds(ids)) {
+    const params = chunk.map((id) => `ids[]=${encodeURIComponent(id)}`).join('&');
+    const url = `${HERMES}/v2/updates/price/latest?${params}`;
+    const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
+    if (!res.ok) throw new Error(`Hermes failed: ${res.status} ${res.statusText}`);
+    const json = (await res.json()) as { parsed?: ParsedPrice[] };
+
+    for (const p of json.parsed ?? []) {
+      const id = p.id.startsWith('0x') ? p.id : `0x${p.id}`;
+      const assetId = idToAsset.get(id);
+      if (!assetId || !p.price) continue;
+      out.set(assetId, {
+        ticker: assetId,
+        price: decode(p.price.price, p.price.expo),
+        confidence: decode(p.price.conf ?? 0, p.price.expo),
+        publishTime: p.price.publish_time,
+      });
+    }
   }
   return out;
 }

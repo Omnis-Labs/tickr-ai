@@ -176,7 +176,8 @@ Output:
 
 Proposal creation:
 
-- `POST /api/grill/proposals` reruns the Grill analysis server-side.
+- `POST /api/grill/proposals` consumes the short-lived Grill Analysis Draft from the completed review. If the draft is missing or expired, the user must re-run the review.
+- Fetches fresh Pyth latest price data before writing the Proposal.
 - Uses existing `ProposalCreation` and wallet-aware USDC sizing.
 - Writes `Proposal.origin = GRILL`.
 - Stores the original Grill Idea and selected analyst ids in `Proposal.originContext`.

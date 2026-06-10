@@ -111,11 +111,13 @@ Response `200`:
 }
 ```
 
+Response `503`: Pyth Benchmark market data is temporarily unavailable.
+
 ---
 
 **`POST /api/grill/proposals`** — Create one BUY Proposal from a Grill Idea.
 
-The server reruns Grill analysis, reads fresh Pyth price data and wallet USDC for sizing, then calls shared `ProposalCreation`. A supporting Analyst Opinion is preferred; if no analyst supports the idea, the proposal anchors on the strongest caution and marks the rationale as created anyway.
+The server consumes the short-lived Grill Analysis Draft produced by `POST /api/grill/analyze`, reads fresh Pyth latest price data and wallet USDC for sizing, then calls shared `ProposalCreation`. A supporting Analyst Opinion is preferred; if no analyst supports the idea, the proposal anchors on the strongest caution and marks the rationale as created anyway.
 
 Side effects:
 
@@ -137,7 +139,9 @@ Response `200`:
 }
 ```
 
-Response `400`: Invalid payload, missing Mandate, stale/missing Pyth price, missing USDC sizing data, or no actionable Grill analysis.
+Response `409`: Missing or expired Grill Analysis Draft; the client should re-run `POST /api/grill/analyze`.
+Response `503`: Pyth Benchmark market data is temporarily unavailable.
+Response `400`: Invalid payload, missing Mandate, stale/missing Pyth latest price, missing USDC sizing data, or no actionable Grill analysis.
 
 ---
 

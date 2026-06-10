@@ -155,6 +155,12 @@ export type {
   PythBenchmarkResolution,
 } from './pyth-benchmarks.js';
 
+// ── Pyth latest prices ──────────────────────────────────────────────────
+export {
+  PYTH_LATEST_PRICE_FEED_IDS_PER_REQUEST,
+  chunkPythLatestPriceFeedIds,
+} from './pyth-latest-prices.js';
+
 // ── Signal Engine boundary ──────────────────────────────────────────────
 export {
   baseMarketIndicatorsToSnapshot,

@@ -41,8 +41,10 @@ export default function GrillPage() {
       const body = (await res.json().catch(() => ({}))) as {
         analysis?: GrillAnalysisResult;
         error?: string;
+        message?: string;
       };
-      if (!res.ok || !body.analysis) throw new Error(body.error ?? `Grill failed (${res.status})`);
+      if (!res.ok || !body.analysis)
+        throw new Error(body.message ?? body.error ?? `Grill failed (${res.status})`);
       setAnalysis(body.analysis);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -64,9 +66,10 @@ export default function GrillPage() {
       const body = (await res.json().catch(() => ({}))) as {
         proposal?: { id: string };
         error?: string;
+        message?: string;
       };
       if (!res.ok || !body.proposal?.id)
-        throw new Error(body.error ?? `Proposal failed (${res.status})`);
+        throw new Error(body.message ?? body.error ?? `Proposal failed (${res.status})`);
       toast.success('Proposal created from Grill.');
       router.push(`/proposals/${body.proposal.id}`);
     } catch (err) {

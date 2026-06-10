@@ -35,6 +35,16 @@ test('Grill returns a Technical AI Analyst opinion through the public analysis i
   assert.match(result.opinions[0]?.riskProtection ?? '', /risk|stop|drawdown/i);
 });
 
+test('Default Grill team for a crypto asset requests only the asset and crypto benchmark bars', () => {
+  assert.deepEqual(getRequiredGrillBarAssetIds('wBTC'), ['wBTC', 'ETH']);
+  assert.deepEqual(getRequiredGrillBarAssetIds('ETH'), ['ETH', 'wBTC']);
+});
+
+test('Default Grill team for an xStock asset requests only the asset and xStock benchmark bars', () => {
+  assert.deepEqual(getRequiredGrillBarAssetIds('NVDAx'), ['NVDAx', 'SPYx']);
+  assert.deepEqual(getRequiredGrillBarAssetIds('SPYx'), ['SPYx', 'QQQx']);
+});
+
 test('Grill returns a Relative Strength AI Analyst opinion against benchmark bars', async () => {
   const assetBars = dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.9));
   const benchmarkBars = dailyBars(Array.from({ length: 280 }, (_, index) => 100 + index * 0.1));
