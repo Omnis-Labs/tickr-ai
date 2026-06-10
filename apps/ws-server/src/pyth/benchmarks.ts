@@ -1,4 +1,5 @@
 import {
+  PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS,
   createPythBenchmarkBarsClient,
   type Bar,
   type PythBenchmarkFetch,
@@ -11,9 +12,7 @@ export type BarResolution = PythBenchmarkIntradayResolution;
 const benchmarks = createPythBenchmarkBarsClient({
   baseUrl: env.PYTH_BENCHMARKS_URL,
   fetchImpl: fetch as unknown as PythBenchmarkFetch,
-  requestSpacingMs: 250,
-  cacheTtlMs: 60_000,
-  staleTtlMs: 15 * 60_000,
+  ...PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS,
 });
 
 export async function getBarsRange(

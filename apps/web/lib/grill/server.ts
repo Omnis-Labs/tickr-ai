@@ -3,6 +3,7 @@ import 'server-only';
 import { z } from 'zod';
 import { createBuyProposalForUser } from '@hunch-it/db';
 import {
+  PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS,
   PYTH_BENCHMARKS_BASE,
   createPythBenchmarkBarsClient,
   evaluateSignalDataFreshness,
@@ -28,9 +29,7 @@ const benchmarks = createPythBenchmarkBarsClient({
   baseUrl: BENCHMARKS,
   fetchImpl: fetch as unknown as PythBenchmarkFetch,
   cacheMode: 'no-store',
-  requestSpacingMs: 250,
-  cacheTtlMs: 15 * 60_000,
-  staleTtlMs: 6 * 60 * 60_000,
+  ...PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS,
 });
 const SIGNAL_ASSET_IDS = new Set(getSignalAssets().map((asset) => asset.assetId));
 const ANALYST_IDS = new Set(AI_ANALYST_CATALOG.map((analyst) => analyst.id));

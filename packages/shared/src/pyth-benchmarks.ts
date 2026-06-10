@@ -122,16 +122,38 @@ export interface CreatePythBenchmarkBarsClientInput {
   nowMs?: () => number;
 }
 
+export interface PythBenchmarkClientSettings {
+  requestSpacingMs: number;
+  cacheTtlMs: number;
+  staleTtlMs: number;
+}
+
 interface CacheEntry {
   bars: Bar[];
   expiresAtMs: number;
   staleUntilMs: number;
 }
 
+export const PYTH_BENCHMARK_PUBLIC_REQUEST_SPACING_MS = 1_000;
+export const PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS = {
+  requestSpacingMs: PYTH_BENCHMARK_PUBLIC_REQUEST_SPACING_MS,
+  cacheTtlMs: 60_000,
+  staleTtlMs: 15 * 60_000,
+} as const satisfies PythBenchmarkClientSettings;
+export const PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS =
+  PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS;
+export const PYTH_BENCHMARK_DEV_TOOLS_INTRADAY_CLIENT_SETTINGS =
+  PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS;
+export const PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS = {
+  requestSpacingMs: PYTH_BENCHMARK_PUBLIC_REQUEST_SPACING_MS,
+  cacheTtlMs: 6 * 60 * 60_000,
+  staleTtlMs: 24 * 60 * 60_000,
+} as const satisfies PythBenchmarkClientSettings;
+
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_STALE_TTL_MS = 15 * 60_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
-const DEFAULT_REQUEST_SPACING_MS = 1_000;
+const DEFAULT_REQUEST_SPACING_MS = PYTH_BENCHMARK_PUBLIC_REQUEST_SPACING_MS;
 const DEFAULT_RETRY_DELAY_MS = 500;
 const RATE_LIMIT_COOLDOWN_MS = 30_000;
 const MAX_RETRY_AFTER_MS = 2_500;

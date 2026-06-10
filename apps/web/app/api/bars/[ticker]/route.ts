@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS,
   PythBenchmarkRequestError,
   PYTH_BENCHMARKS_BASE,
   createPythBenchmarkBarsClient,
@@ -12,9 +13,7 @@ const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
 const benchmarks = createPythBenchmarkBarsClient({
   baseUrl: BENCHMARKS,
   fetchImpl: fetch as unknown as PythBenchmarkFetch,
-  requestSpacingMs: 250,
-  cacheTtlMs: 60_000,
-  staleTtlMs: 15 * 60_000,
+  ...PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS,
 });
 const RESOLUTIONS = new Set<PythBenchmarkIntradayResolution>(['1', '5', '15', '60']);
 

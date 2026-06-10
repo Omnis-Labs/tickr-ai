@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS,
+  PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS,
+  PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS,
   PythBenchmarkRequestError,
   clearPythBenchmarkBarsCacheForTests,
   createPythBenchmarkBarsClient,
@@ -35,6 +38,21 @@ const okBars = {
   l: [9, 10],
   c: [11, 12],
 };
+
+test('Pyth Benchmark caller settings keep Grill daily bars cached longer than intraday bars', () => {
+  assert.ok(
+    PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS.cacheTtlMs >
+      PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS.cacheTtlMs,
+  );
+  assert.ok(
+    PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS.staleTtlMs >
+      PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS.staleTtlMs,
+  );
+  assert.deepEqual(
+    PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS,
+    PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS,
+  );
+});
 
 test('PythBenchmarkBarsClient fetches recent bars by AssetId on a closed intraday window', async () => {
   clearPythBenchmarkBarsCacheForTests();

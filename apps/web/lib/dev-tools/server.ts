@@ -6,6 +6,7 @@ import { createBuyProposalForUser, suggestBuyProposalSizeUsd } from '@hunch-it/d
 import { prepareInputAmount, requestUltraOrder } from '@hunch-it/execution';
 import {
   MIN_ACTIONABLE_CONFIDENCE,
+  PYTH_BENCHMARK_DEV_TOOLS_INTRADAY_CLIENT_SETTINGS,
   PYTH_BENCHMARKS_BASE,
   buildBaseMarketAnalysis,
   createPythBenchmarkBarsClient,
@@ -68,9 +69,7 @@ const benchmarks = createPythBenchmarkBarsClient({
   baseUrl: BENCHMARKS,
   fetchImpl: fetch as unknown as PythBenchmarkFetch,
   cacheMode: 'no-store',
-  requestSpacingMs: 250,
-  cacheTtlMs: 60_000,
-  staleTtlMs: 15 * 60_000,
+  ...PYTH_BENCHMARK_DEV_TOOLS_INTRADAY_CLIENT_SETTINGS,
 });
 const GeminiProposalSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),

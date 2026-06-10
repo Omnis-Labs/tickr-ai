@@ -134,11 +134,20 @@ export { SIGNAL_DATA_MAX_AGE_SECONDS, evaluateSignalDataFreshness } from './sign
 export type { SignalDataFreshnessVerdict } from './signal-data.js';
 
 // ── Pyth Benchmarks bars ────────────────────────────────────────────────
-export { PythBenchmarkRequestError, createPythBenchmarkBarsClient } from './pyth-benchmarks.js';
+export {
+  PYTH_BENCHMARK_CHART_INTRADAY_CLIENT_SETTINGS,
+  PYTH_BENCHMARK_DEV_TOOLS_INTRADAY_CLIENT_SETTINGS,
+  PYTH_BENCHMARK_GRILL_DAILY_CLIENT_SETTINGS,
+  PYTH_BENCHMARK_PUBLIC_REQUEST_SPACING_MS,
+  PYTH_BENCHMARK_SIGNAL_INTRADAY_CLIENT_SETTINGS,
+  PythBenchmarkRequestError,
+  createPythBenchmarkBarsClient,
+} from './pyth-benchmarks.js';
 export type {
   CreatePythBenchmarkBarsClientInput,
   PythBenchmarkBarsClient,
   PythBenchmarkBarsRequestOptions,
+  PythBenchmarkClientSettings,
   PythBenchmarkCacheMode,
   PythBenchmarkFetch,
   PythBenchmarkFetchResponse,
