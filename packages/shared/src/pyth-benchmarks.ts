@@ -359,8 +359,9 @@ export function createPythBenchmarkBarsClient(
     },
     getDailyBars: (request) => {
       const nowUnix = Math.floor(nowMs() / 1000);
-      const toUnix = Math.floor(nowUnix / 3600) * 3600;
-      const fromUnix = toUnix - (request.days ?? 365) * 86_400;
+      const daySeconds = 86_400;
+      const toUnix = (Math.floor(nowUnix / daySeconds) + 1) * daySeconds;
+      const fromUnix = toUnix - (request.days ?? 365) * daySeconds;
       return fetchAssetBars({
         ...request,
         resolution: 'D',

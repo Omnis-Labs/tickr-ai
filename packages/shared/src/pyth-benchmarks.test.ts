@@ -63,6 +63,53 @@ test('PythBenchmarkBarsClient fetches recent bars by AssetId on a closed intrada
   assert.equal(bars.length, 2);
 });
 
+test('PythBenchmarkBarsClient reuses a same-day daily bars cache key', async () => {
+  clearPythBenchmarkBarsCacheForTests();
+  let now = Date.parse('2026-06-10T01:00:00.000Z');
+  const requestedUrls: string[] = [];
+  const fetchImpl: PythBenchmarkFetch = async (url) => {
+    requestedUrls.push(url);
+    return response({ ok: true, status: 200, body: okBars });
+  };
+
+  const client = createPythBenchmarkBarsClient({
+    baseUrl: 'https://benchmarks.pyth.network/',
+    fetchImpl,
+    cacheTtlMs: 24 * 60 * 60_000,
+    nowMs: () => now,
+  });
+
+  await client.getDailyBars({ assetId: 'NVDAx', days: 365 });
+  now = Date.parse('2026-06-10T23:00:00.000Z');
+  await client.getDailyBars({ assetId: 'NVDAx', days: 365 });
+
+  assert.equal(requestedUrls.length, 1);
+});
+
+test('PythBenchmarkBarsClient rolls daily bars cache keys on the next UTC day', async () => {
+  clearPythBenchmarkBarsCacheForTests();
+  let now = Date.parse('2026-06-10T23:00:00.000Z');
+  const requestedUrls: string[] = [];
+  const fetchImpl: PythBenchmarkFetch = async (url) => {
+    requestedUrls.push(url);
+    return response({ ok: true, status: 200, body: okBars });
+  };
+
+  const client = createPythBenchmarkBarsClient({
+    baseUrl: 'https://benchmarks.pyth.network/',
+    fetchImpl,
+    cacheTtlMs: 48 * 60 * 60_000,
+    nowMs: () => now,
+  });
+
+  await client.getDailyBars({ assetId: 'NVDAx', days: 365 });
+  now = Date.parse('2026-06-11T00:00:00.000Z');
+  await client.getDailyBars({ assetId: 'NVDAx', days: 365 });
+
+  assert.equal(requestedUrls.length, 2);
+  assert.notEqual(requestedUrls[0], requestedUrls[1]);
+});
+
 test('PythBenchmarkBarsClient retries a transient 429 and returns bars', async () => {
   clearPythBenchmarkBarsCacheForTests();
   const calls: string[] = [];
