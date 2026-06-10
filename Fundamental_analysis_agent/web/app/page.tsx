@@ -3,7 +3,7 @@ export default function HomePage() {
     <div className="space-y-10">
       <section>
         <h1 className="text-3xl font-semibold mb-2">
-          US-stock — Fundamental Analysis Agent
+          US-stock skilled-LLM Agents
         </h1>
         <p className="text-zinc-400 text-sm leading-relaxed max-w-3xl">
           Two systems, one repo. Production-grade discipline applied throughout:

@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import NavLinks from "./_nav";
 
 export const metadata: Metadata = {
-  title: "US-stock LLM Test",
+  title: "US-stock skilled-LLM Agents",
   description:
-    "Browser Agent (Task 1) + SEC 10-K Item Extractor (Task 2) + Strategy Lab (Task 3). US-stock fundamental analysis.",
+    "A suite of skilled LLM trading-research agents for US stocks — signals, fusion, an honest significance gate, and a market-floor scanner.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="sticky top-0 z-40 backdrop-blur bg-zinc-950/80 border-b border-zinc-800 px-6 py-3">
           <div className="max-w-6xl mx-auto flex items-center gap-6 text-sm">
             <a href="/" className="font-semibold text-zinc-100 shrink-0">
-              <span className="text-emerald-400">●</span> US-stock-llm-test
+              <span className="text-emerald-400">●</span> US-stock skilled-LLM Agents
             </a>
             <NavLinks />
             <div className="flex-1" />
@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="px-6 py-6 max-w-6xl mx-auto">{children}</main>
         <footer className="border-t border-zinc-900 px-6 py-4 mt-12">
           <div className="max-w-6xl mx-auto text-xs text-zinc-600 flex flex-wrap gap-4">
-            <span>US-stock Fundamental Analysis Agent</span>
+            <span>US-stock skilled-LLM Agents 2026</span>
             <span>·</span>
             <a href="/dashboard" className="hover:text-zinc-300">Dashboard</a>
             <span>·</span>
