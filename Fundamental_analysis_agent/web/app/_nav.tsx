@@ -99,6 +99,15 @@ export default function NavLinks() {
       )}
 
       <a
+        href="/scanner"
+        className={isActive("/scanner")
+          ? "text-zinc-100 border-b-2 border-emerald-400 -mb-px"
+          : "text-zinc-400 hover:text-zinc-100"}
+      >
+        Scanner
+      </a>
+
+      <a
         href="/dashboard"
         className={isActive("/dashboard")
           ? "text-zinc-100 border-b-2 border-emerald-400 -mb-px"

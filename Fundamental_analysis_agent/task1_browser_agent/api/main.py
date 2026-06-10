@@ -72,7 +72,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.13.2")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.14.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -114,6 +114,8 @@ app.include_router(task32_router)
 app.include_router(task33_router)
 app.include_router(task34_router)
 app.include_router(task35_router)
+from task1_browser_agent.api.scanner import router as scanner_router  # noqa: E402
+app.include_router(scanner_router)
 
 
 @app.on_event("startup")

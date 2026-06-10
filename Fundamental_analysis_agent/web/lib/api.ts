@@ -1727,3 +1727,22 @@ export interface Task35Job { job_id: string; ticker: string; status: JobStatus; 
 export const createJyotish = (t: string): Promise<Task35Job> => _create("/task35/jyotish", t);
 export const getJyotish = (id: string): Promise<Task35Job> => _get(`/task35/jyotish/${id}`);
 export const pollJyotish = _poll<Task35Job>(getJyotish);
+
+// ---- Scanner (selection + multi-agent collaboration) ----
+export interface ScanAgentMeta { key: string; label: string; kind: "real" | "market" | "placebo"; }
+export interface ScanRow { ticker: string; signals: Record<string, boolean | null>; real_bull: number; real_total: number; market_on: boolean | null; stance: string; error?: string | null; }
+export interface ScanResult { as_of: string; agents: ScanAgentMeta[]; rows: ScanRow[]; n_tickers: number; }
+export interface ScanJob { job_id: string; tickers: string[]; status: JobStatus; result: ScanResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export async function createScan(tickers: string[]): Promise<ScanJob> {
+  const res = await fetch(`${API_BASE}/scanner/scan`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tickers }),
+  });
+  if (!res.ok) {
+    let detail = ""; try { const b = await res.json(); detail = typeof b?.detail === "string" ? b.detail : ""; } catch { /* */ }
+    throw new Error(detail ? `${res.status} — ${detail}` : `scan failed: ${res.status}`);
+  }
+  return res.json();
+}
+export const getScan = (id: string): Promise<ScanJob> => _get(`/scanner/scan/${id}`);
+export const pollScan = _poll<ScanJob>(getScan);
