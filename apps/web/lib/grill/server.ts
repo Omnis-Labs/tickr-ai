@@ -16,11 +16,8 @@ import { decimalsToNumbers } from '@/lib/db/decimal';
 import { getCurrentPriceSnapshots } from '@/lib/pyth';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { AI_ANALYST_CATALOG, MAX_AI_TRADING_TEAM_SIZE } from './catalog';
-import {
-  analyzeGrillIdea,
-  getRequiredGrillBarAssetIds,
-  type GrillAnalysisResult,
-} from './analysis';
+import { analyzeGrillIdea, type GrillAnalysisResult } from './analysis';
+import { fetchRequiredGrillBars } from './bars';
 import { consumeGrillAnalysisDraft } from './drafts';
 import { buildGrillProposalAnalysis } from './proposal-policy';
 
@@ -59,11 +56,11 @@ async function fetchDailyBars(assetId: string, days = 365): Promise<Bar[]> {
 }
 
 export async function runGrillAnalysis(input: GrillRequest): Promise<GrillAnalysisResult> {
-  const requiredAssets = getRequiredGrillBarAssetIds(input.assetId, input.analystIds);
-  const barsByAssetId = new Map<string, Bar[]>();
-  for (const assetId of requiredAssets) {
-    barsByAssetId.set(assetId, await fetchDailyBars(assetId));
-  }
+  const barsByAssetId = await fetchRequiredGrillBars({
+    assetId: input.assetId,
+    analystIds: input.analystIds,
+    fetchDailyBars,
+  });
   return analyzeGrillIdea({
     assetId: input.assetId,
     idea: input.idea,

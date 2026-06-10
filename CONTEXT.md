@@ -76,7 +76,7 @@ Price and bar data keyed by xStock symbols such as `AAPLx`; one xStock-native so
 
 ### Pyth Benchmark Bars
 
-Historical OHLC bars for Hunch Tradable Assets from Pyth Benchmarks. Callers request bars by canonical `AssetId` and time window through the shared Pyth Benchmark Bars Module; provider symbol lookup, TradingView-shaped URL construction, response parsing, retry/backoff, throttling, and short-lived stale-cache fallback stay inside that Module. Signal Engine, Grill, charts, and dev-tools must not reimplement Pyth Benchmarks parsing.
+Historical OHLC bars for Hunch Tradable Assets from Pyth Benchmarks. Callers request bars by canonical `AssetId` and time window through the shared Pyth Benchmark Bars Module; provider symbol lookup, TradingView-shaped URL construction, response parsing, retry/backoff, throttling, and short-lived stale-cache fallback stay inside that Module. Grill may request several daily-bar series for one AI Trading Team analysis and should launch those required asset requests together while the shared client owns provider pacing. Signal Engine, Grill, charts, and dev-tools must not reimplement Pyth Benchmarks parsing.
 
 ### Pyth Latest Prices
 
