@@ -159,11 +159,13 @@ class CurvePoint(BaseModel):
     date: str
     book: float
     spy: float
+    hold: float          # equal-weight buy&hold of the same names (always-in reference)
 
 
 class BookMetrics(BaseModel):
     book_return_pct: float
     spy_return_pct: float
+    hold_return_pct: float
     alpha_pp: float
     sharpe: float
     max_dd_pct: float
@@ -211,9 +213,10 @@ async def get_backtest(job_id: str) -> BookJob:
     return job
 
 
-async def _name_path(tk: str, spy_dates: list, spy_ret: dict, tmap) -> tuple[list[float], float] | None:
-    """Per-name daily returns on the SPY date axis: hold the name when its credible agents
-    (T19 + T17) signal long as-of the prior close, else hold SPY. Returns (rets, in_name_frac)."""
+async def _name_path(tk: str, spy_dates: list, spy_ret: dict, tmap) -> tuple[list[float], list[float], float] | None:
+    """Per-name daily returns on the SPY date axis. Returns (idle_rets, hold_rets, in_name_frac):
+    idle = hold the name when its credible agents (T19+T17) signal long as-of the prior close, else
+    hold SPY; hold = always-in the name (buy&hold reference). SPY on days the name isn't tradable."""
     from task3_strategy.pipeline.prices import fetch_prices
     from task19_anomaly.pipeline.signals import make_want_long as t19_wl
     from task19_anomaly.schemas import AnomalySpec
@@ -243,21 +246,24 @@ async def _name_path(tk: str, spy_dates: list, spy_ret: dict, tmap) -> tuple[lis
         return bool(votes) and sum(votes) >= max(1, (len(votes) + 1) // 2)
 
     rets: list[float] = []
+    hold: list[float] = []
     in_name = 0
     prev_long = None
     for i in range(1, len(spy_dates)):
         d, dp = spy_dates[i], spy_dates[i - 1]
         if d in close and dp in close and close[dp]:
+            nret = close[d] / close[dp] - 1.0
+            hold.append(nret)                              # always-in the name (buy&hold)
             long = ens_long(dp)
-            r = (close[d] / close[dp] - 1.0) if long else spy_ret[d]
+            r = nret if long else spy_ret[d]
             if prev_long is not None and long != prev_long:
                 r -= _TXN
             rets.append(r); prev_long = long
             if long:
                 in_name += 1
         else:
-            rets.append(spy_ret[d]); prev_long = False     # name not tradable that day → hold SPY
-    return rets, (in_name / max(1, len(rets)))
+            rets.append(spy_ret[d]); hold.append(spy_ret[d]); prev_long = False   # not tradable → SPY
+    return rets, hold, (in_name / max(1, len(rets)))
 
 
 async def _book_backtest(tickers: list[str]) -> BookResult:
@@ -279,23 +285,26 @@ async def _book_backtest(tickers: list[str]) -> BookResult:
     if not good:
         raise RuntimeError("no tradable names in the book")
     n = len(sdates) - 1
-    in_fracs = [p[1] for _, p in good]
-    book_eq, spy_eq = 1.0, 1.0
+    in_fracs = [p[2] for _, p in good]
+    book_eq, spy_eq, hold_eq = 1.0, 1.0, 1.0
     daily, curve = [], []
     peak, mdd = 1.0, 0.0
     for i in range(n):
-        pr = sum(p[0][i] for _, p in good) / len(good)     # equal-weight book daily return
+        pr = sum(p[0][i] for _, p in good) / len(good)     # equal-weight book (idle=SPY) daily return
+        hr = sum(p[1][i] for _, p in good) / len(good)     # equal-weight buy&hold of the names
         sr = spy_ret[sdates[i + 1]]
-        book_eq *= (1 + pr); spy_eq *= (1 + sr); daily.append(pr)
+        book_eq *= (1 + pr); spy_eq *= (1 + sr); hold_eq *= (1 + hr); daily.append(pr)
         peak = max(peak, book_eq); mdd = min(mdd, book_eq / peak - 1)
         if i % max(1, n // 120) == 0 or i == n - 1:
-            curve.append(CurvePoint(date=sdates[i + 1].isoformat(), book=round(book_eq, 4), spy=round(spy_eq, 4)))
+            curve.append(CurvePoint(date=sdates[i + 1].isoformat(), book=round(book_eq, 4),
+                                    spy=round(spy_eq, 4), hold=round(hold_eq, 4)))
     import statistics as st
     sd = st.pstdev(daily) if len(daily) > 2 else 0.0
     sharpe = (st.mean(daily) / sd * math.sqrt(252)) if sd > 0 else 0.0
     return BookResult(
         names=[t for t, _ in good],
         metrics=BookMetrics(book_return_pct=round((book_eq - 1) * 100, 1), spy_return_pct=round((spy_eq - 1) * 100, 1),
+                            hold_return_pct=round((hold_eq - 1) * 100, 1),
                             alpha_pp=round((book_eq - spy_eq) * 100, 1), sharpe=round(sharpe, 2),
                             max_dd_pct=round(mdd * 100, 1), avg_in_name_pct=round(sum(in_fracs) / len(in_fracs) * 100, 0),
                             n_names=len(good), n_days=n),

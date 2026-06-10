@@ -80,11 +80,17 @@ A real agent is credible only if its **DSR > 0.95** (it beats the best-of-348 fl
 | T19 anomaly | 0.88 | 0.94 | 0.05 | — |
 | T18 events | 0.79 | 0.91 | 0.04 | — |
 | T17 quality | 0.74 | 0.90 | 0.03 | — |
+| T15 buyback ‡ | 0.71 | 0.89 | 0.03 | — |
 | T24 contagion | 0.62 | 0.86 | 0.02 | — |
 | T22 congress | 0.47 | 0.79 | 0.01 | — |
 | T21 ranker | 0.40 | 0.75 | 0.01 | — |
+| T11 fundtrend ‡ | 0.00 | 0.50 | 0.00 | — |
+| T6 insider ‡ | 0.00 | 0.50 | 0.00 | — |
 | T23 pairs | −0.54 | 0.18 | 0.00 | — |
-| | | | | **0 / 8** |
+| | | | | **0 / 11** |
+
+‡ T15/T11/T6 have no live-eval Sharpe; their median is taken from the 6-name tech panel
+(`tools/strategy_techpanel.py`) so they can be rated by the same DSR gate — they also fail to clear.
 
 ![PSR→DSR collapse](deflated_sharpe.svg)
 
@@ -102,7 +108,7 @@ The DSR gate is backed by two further tests so diligence can't poke the obvious 
 |---|---|---|
 | **Out-of-sample regime** ([oos_regime.md](oos_regime.md)) | Does the bar hold in a tape we didn't fit? | Placebo Sharpe p50 **flips +0.47 (bull) → −0.59 (2022 bear)**; alpha-vs-SPY flips **−58% → +5%**. The noise floor is regime-dependent — so the gate is re-estimated per regime, never hard-coded. |
 | **Prob. of Backtest Overfitting** ([pbo.md](pbo.md)) | Does the *selection* survive OOS? | Per-ticker timing **PBO = 0.52** (coin-flip → no timing skill). Pooled PBO looks better (0.18) only via NVDA name-persistence — a confound we identify and remove. |
-| **Deflated Sharpe** (above) | Is the Sharpe beyond the best of N flukes? | **0/8** agents clear DSR > 0.95. |
+| **Deflated Sharpe** (above) | Is the Sharpe beyond the best of N flukes? | **0/11** agents clear DSR > 0.95. |
 
 *Three independent overfitting lenses — selection bias (DSR), backtest-shopping (PBO), regime
 fragility (OOS) — all pointing the same way. That triangulation is the credibility.*

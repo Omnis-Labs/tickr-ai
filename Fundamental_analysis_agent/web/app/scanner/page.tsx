@@ -7,15 +7,16 @@ import { createScan, pollScan, ScanJob, ScanAgentMeta, ScanRow,
 function EquityMini({ curve }: { curve: ScanCurvePoint[] }) {
   if (curve.length < 2) return null;
   const W = 640, H = 160, P = 8;
-  const vals = curve.flatMap((c) => [c.book, c.spy]);
+  const vals = curve.flatMap((c) => [c.book, c.spy, c.hold]);
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const x = (i: number) => P + (i / (curve.length - 1)) * (W - 2 * P);
   const y = (v: number) => H - P - ((v - lo) / (hi - lo || 1)) * (H - 2 * P);
-  const path = (key: "book" | "spy") => curve.map((c, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(c[key]).toFixed(1)}`).join(" ");
+  const path = (key: "book" | "spy" | "hold") => curve.map((c, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(c[key]).toFixed(1)}`).join(" ");
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="book vs SPY equity">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="book vs SPY vs hold equity">
       <rect width={W} height={H} fill="#0a0a0b" />
       <line x1={P} y1={y(1)} x2={W - P} y2={y(1)} stroke="#27272a" strokeDasharray="3 3" />
+      <path d={path("hold")} fill="none" stroke="#60a5fa" strokeWidth={1.4} strokeDasharray="4 3" />
       <path d={path("spy")} fill="none" stroke="#71717a" strokeWidth={1.5} />
       <path d={path("book")} fill="none" stroke="#34d399" strokeWidth={2} />
     </svg>
@@ -189,15 +190,16 @@ export default function ScannerPage() {
               <div className="mt-3 border-t border-zinc-800 pt-3">
                 <p className="text-xs text-zinc-400 mb-2">回測：持有這些名字（僅在其可信 agent 當日有訊號時），其餘時間持有 SPY，等權、近 3 年、無未來函數。
                   <span className="text-zinc-500"> 在個股時間 {m.avg_in_name_pct}%。</span></p>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs mb-2">
-                  <div><div className="text-zinc-500">書報酬</div><div className={m.book_return_pct >= 0 ? "text-emerald-400" : "text-red-400"}>{m.book_return_pct}%</div></div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs mb-2">
+                  <div><div className="text-zinc-500">書（idle=SPY）</div><div className={m.book_return_pct >= 0 ? "text-emerald-400" : "text-red-400"}>{m.book_return_pct}%</div></div>
+                  <div><div className="text-zinc-500">抱整籃個股</div><div className="text-blue-400">{m.hold_return_pct}%</div></div>
                   <div><div className="text-zinc-500">SPY</div><div className="text-zinc-300">{m.spy_return_pct}%</div></div>
-                  <div><div className="text-zinc-500">贏 SPY</div><div className={m.alpha_pp >= 0 ? "text-emerald-400" : "text-amber-400"}>{m.alpha_pp >= 0 ? "+" : ""}{m.alpha_pp}pp</div></div>
+                  <div><div className="text-zinc-500">書贏 SPY</div><div className={m.alpha_pp >= 0 ? "text-emerald-400" : "text-amber-400"}>{m.alpha_pp >= 0 ? "+" : ""}{m.alpha_pp}pp</div></div>
                   <div><div className="text-zinc-500">Sharpe</div><div className="text-zinc-300">{m.sharpe}</div></div>
                   <div><div className="text-zinc-500">最大回撤</div><div className="text-zinc-300">{m.max_dd_pct}%</div></div>
                 </div>
                 <EquityMini curve={bt!.result!.curve} />
-                <p className="text-[10px] text-zinc-500 mt-1"><span className="text-emerald-400">━ 書</span>　<span className="text-zinc-500">━ SPY</span>　· 多頭裡通常 ≈ SPY（地板）＋訊號擇時的微調，不是保證 alpha。</p>
+                <p className="text-[10px] text-zinc-500 mt-1"><span className="text-emerald-400">━ 書（idle=SPY）</span>　<span className="text-blue-400">┄ 抱整籃個股</span>　<span className="text-zinc-500">━ SPY</span>　· 三條線一起看：擇時版（書）通常介於「整籃個股」與 SPY 之間——壓低回撤、讓掉部分上檔，不是保證 alpha。</p>
               </div>
             )}
             <div className="text-[11px] text-zinc-500 mt-3 leading-relaxed space-y-1">

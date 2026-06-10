@@ -492,7 +492,7 @@ divination-control null band (348 draws, 11 systems × 12 names):
    p50 = 0.47   p90 = 1.33   p95 = 1.42   p99 = 1.72   max = 1.95
 overlay — each real agent's MEDIAN single-name Sharpe across its committed eval cases:
    T17 0.74  T18 0.79  T19 0.88  T20 1.11  T21 0.40  T22 0.47  T23 −0.54  T24 0.62
-   control p95 = 1.42  →  0 / 8 clear it (though most sit above the control median 0.47)
+   control p95 = 1.42  →  0 / 11 clear it (though most sit above the control median 0.47)
 ```
 
 ![Divination-control null band — real agents vs 11 placebo systems](docs/analysis/divination_null_band.svg)

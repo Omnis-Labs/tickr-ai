@@ -46,6 +46,15 @@
 <line x1="383.625" y1="96" x2="383.625" y2="171" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
 <circle cx="383.625" cy="177" r="4" fill="#f87171"/>
 <text x="390.625" y="180" fill="#f87171" font-size="9.5">T24 contagion 0.62</text>
+<line x1="271.25" y1="96" x2="271.25" y2="120" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="271.25" cy="126" r="4" fill="#f87171"/>
+<text x="278.25" y="129" fill="#f87171" font-size="9.5">T6 insider 0.00</text>
+<line x1="271.25" y1="96" x2="271.25" y2="137" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="271.25" cy="143" r="4" fill="#f87171"/>
+<text x="278.25" y="146" fill="#f87171" font-size="9.5">T11 fundtrend 0.00</text>
+<line x1="400.84375" y1="96" x2="400.84375" y2="154" stroke="#f87171" stroke-width="0.6" stroke-dasharray="2 2"/>
+<circle cx="400.84375" cy="160" r="4" fill="#f87171"/>
+<text x="407.84375" y="163" fill="#f87171" font-size="9.5">T15 buyback 0.71</text>
 <circle cx="94" cy="192" r="4" fill="#34d399"/><text x="104" y="195" fill="#a1a1aa" font-size="9.5">clears control p95</text>
 <circle cx="240" cy="192" r="4" fill="#f87171"/><text x="250" y="195" fill="#a1a1aa" font-size="9.5">inside the band (≈ placebo)</text>
 <rect x="420" y="187" width="14" height="10" fill="#581c8740" stroke="#7e22ce"/><text x="440" y="195" fill="#a1a1aa" font-size="9.5">p50→p95 control band</text>

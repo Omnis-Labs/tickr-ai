@@ -462,6 +462,24 @@
       "sharpe_best": 1.05,
       "n_cases": 2,
       "clears_control_p95": false
+    },
+    "T6 insider": {
+      "sharpe_median": 0.0,
+      "sharpe_best": 0.0,
+      "n_cases": 6,
+      "clears_control_p95": false
+    },
+    "T11 fundtrend": {
+      "sharpe_median": 0.0,
+      "sharpe_best": 0.0,
+      "n_cases": 6,
+      "clears_control_p95": false
+    },
+    "T15 buyback": {
+      "sharpe_median": 0.715,
+      "sharpe_best": 0.715,
+      "n_cases": 6,
+      "clears_control_p95": false
     }
   }
 }

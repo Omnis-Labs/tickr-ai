@@ -191,7 +191,11 @@ _AGENT_LABELS = {
     "task17_quality": "T17 quality", "task18_events": "T18 events", "task19_anomaly": "T19 anomaly",
     "task20_vix": "T20 vix", "task21_ranker": "T21 ranker", "task22_congress": "T22 congress",
     "task23_pairs": "T23 pairs", "task24_contagion": "T24 contagion",
+    "task6_insider": "T6 insider", "task11_fundamentals_trend": "T11 fundtrend", "task15_buyback": "T15 buyback",
 }
+# agents with no usable eval-set Sharpe — fall back to MEDIAN single-name Sharpe from the 6-name
+# tech panel (tools/strategy_techpanel.py). Lets them graduate into the DSR overlay / scanner tiers.
+_TECHPANEL_SHARPE = {"T6 insider": 0.0, "T11 fundtrend": 0.0, "T15 buyback": 0.715}
 
 
 def _real_overlay(sharpe_thr: float) -> dict:
@@ -205,20 +209,23 @@ def _real_overlay(sharpe_thr: float) -> dict:
     out: dict = {}
     root = Path(__file__).resolve().parents[1]
     for pkg, name in _AGENT_LABELS.items():
+        med = best = None
+        n = 0
         rp = root / pkg / "eval" / "report.json"
-        if not rp.exists():
+        if rp.exists():
+            try:
+                cases = json.loads(rp.read_text()).get("cases", [])
+                sharpes = [s for s in (c.get("recorded", {}).get("sharpe") for c in cases) if isinstance(s, (int, float))]
+                if sharpes:
+                    med = statistics.median(sharpes); best = max(sharpes); n = len(sharpes)
+            except Exception:  # noqa: BLE001
+                pass
+        if med is None and name in _TECHPANEL_SHARPE:        # no eval Sharpe → tech-panel fallback
+            med = best = _TECHPANEL_SHARPE[name]; n = 6
+        if med is None:
             continue
-        try:
-            cases = json.loads(rp.read_text()).get("cases", [])
-            sharpes = [c.get("recorded", {}).get("sharpe") for c in cases]
-            sharpes = [s for s in sharpes if isinstance(s, (int, float))]
-            if not sharpes:
-                continue
-            med = statistics.median(sharpes)
-            out[name] = {"sharpe_median": round(med, 3), "sharpe_best": round(max(sharpes), 3),
-                         "n_cases": len(sharpes), "clears_control_p95": med > sharpe_thr}
-        except Exception:  # noqa: BLE001
-            continue
+        out[name] = {"sharpe_median": round(med, 3), "sharpe_best": round(best, 3),
+                     "n_cases": n, "clears_control_p95": med > sharpe_thr}
     return out
 
 

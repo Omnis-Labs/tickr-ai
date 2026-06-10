@@ -46,6 +46,14 @@
       "significant_dsr_0_95": false
     },
     {
+      "agent": "T15 buyback",
+      "sharpe_ann": 0.715,
+      "psr_vs_zero": 0.8915,
+      "dsr": 0.0279,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
       "agent": "T24 contagion",
       "sharpe_ann": 0.62,
       "psr_vs_zero": 0.8578,
@@ -70,6 +78,22 @@
       "significant_dsr_0_95": false
     },
     {
+      "agent": "T6 insider",
+      "sharpe_ann": 0.0,
+      "psr_vs_zero": 0.5,
+      "dsr": 0.0008,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
+      "agent": "T11 fundtrend",
+      "sharpe_ann": 0.0,
+      "psr_vs_zero": 0.5,
+      "dsr": 0.0008,
+      "beats_expected_max": false,
+      "significant_dsr_0_95": false
+    },
+    {
       "agent": "T23 pairs",
       "sharpe_ann": -0.54,
       "psr_vs_zero": 0.1755,
@@ -78,5 +102,5 @@
       "significant_dsr_0_95": false
     }
   ],
-  "interpretation": "Across 348 skill-less placebo trials the expected best Sharpe by luck alone is 1.82 (annualised). A real agent's edge is credible only if its Deflated Sharpe Ratio > 0.95 — i.e. it beats not the median fluke but the best-of-348 fluke. 0/8 agents clear it on median single-name Sharpe."
+  "interpretation": "Across 348 skill-less placebo trials the expected best Sharpe by luck alone is 1.82 (annualised). A real agent's edge is credible only if its Deflated Sharpe Ratio > 0.95 — i.e. it beats not the median fluke but the best-of-348 fluke. 0/11 agents clear it on median single-name Sharpe."
 }
