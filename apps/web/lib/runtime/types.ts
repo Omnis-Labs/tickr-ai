@@ -54,7 +54,7 @@ export interface Runtime {
     next: { tpPriceUsd: number | null; slPriceUsd: number | null };
   }): Promise<void>;
 
-  /** Cancel exits + market-sell + server persist. */
+  /** Market-sell + server settlement. The lifecycle cancels open exits atomically. */
   closePosition(args: {
     positionId: string;
     ticker?: string | null;

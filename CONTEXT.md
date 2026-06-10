@@ -114,7 +114,7 @@ A row in the `Order` table that the server tracks and later fills through delega
 - `BUY_TRIGGER` — wake when Pyth is at or below `triggerPriceUsd * 1.005`, then fire only when the fresh Ultra BUY executable price is at or below `triggerPriceUsd`.
 - `TAKE_PROFIT` — wake when Pyth is at or above `triggerPriceUsd * 0.995`, then fire only when the fresh Ultra SELL executable price is at or above `triggerPriceUsd`.
 - `STOP_LOSS` — wake when Pyth is at or below `triggerPriceUsd * 1.005`, then fire only when the fresh Ultra SELL executable price is at or below `triggerPriceUsd`.
-- `CLOSE_SWAP` — currently unused; reserved for future user-initiated market close.
+- `CLOSE_SWAP` — the filled synthetic Order written when a user-initiated market close settles, including SELL Proposal confirmation closes.
 
 Three durable statuses: `OPEN | FILLED | CANCELLED`. `PENDING` is a short-lived execution-claim status while the execution adapter is signing/submitting a triggered swap. The other enum values (`PARTIALLY_FILLED`, `EXPIRED`, `FAILED`) are residual in the frozen synthetic path.
 

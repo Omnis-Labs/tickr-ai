@@ -63,9 +63,9 @@ export function useCancelOrder() {
 
 interface ClosePositionArgs {
   positionId: string;
-  executionPrice: number | null;
-  tokenAmount: number | null;
-  txSignature: string | null;
+  executionPrice: number;
+  tokenAmount: number;
+  txSignature: string;
 }
 
 export function useClosePosition() {

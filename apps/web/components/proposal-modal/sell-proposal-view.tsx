@@ -29,8 +29,8 @@ interface SellProposalViewProps {
  * thinner than the BUY modal: there's no size / trigger / TP / SL to
  * edit because the user already holds the position. Two actions:
  *   - Skip: keep the position, mark Proposal SKIPPED
- *   - Confirm sell: cancel any open exit orders + market-sell via
- *     Jupiter Ultra + POST /api/proposals/[id]/sell-confirm
+ *   - Confirm sell: market-sell via Jupiter Ultra, then
+ *     POST /api/proposals/[id]/sell-confirm atomically cancels exits
  */
 export function SellProposalView({ proposal, onClose }: SellProposalViewProps) {
   const router = useRouter();

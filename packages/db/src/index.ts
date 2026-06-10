@@ -22,6 +22,7 @@ export {
   claimOrderExecution,
   confirmBuyFill,
   confirmExitFill,
+  confirmSellProposalClose,
   placeProtectionOrder,
   releaseOrderExecutionClaim,
   userCloseActive,

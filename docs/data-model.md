@@ -91,12 +91,12 @@ BUY_PENDING -> ACTIVE -> CLOSED
 
 Kinds:
 
-| Kind          | Meaning                                                      |
-| ------------- | ------------------------------------------------------------ |
-| `BUY_TRIGGER` | Fire when current price is within 0.5% of `triggerPriceUsd`. |
-| `TAKE_PROFIT` | Fire when current price is at or above `triggerPriceUsd`.    |
-| `STOP_LOSS`   | Fire when current price is at or below `triggerPriceUsd`.    |
-| `CLOSE_SWAP`  | Reserved for explicit close flows.                           |
+| Kind          | Meaning                                                                       |
+| ------------- | ----------------------------------------------------------------------------- |
+| `BUY_TRIGGER` | Fire when current price is within 0.5% of `triggerPriceUsd`.                  |
+| `TAKE_PROFIT` | Fire when current price is at or above `triggerPriceUsd`.                     |
+| `STOP_LOSS`   | Fire when current price is at or below `triggerPriceUsd`.                     |
+| `CLOSE_SWAP`  | Filled market-close settlement for manual closes and accepted SELL Proposals. |
 
 Statuses used in the frozen synthetic path:
 

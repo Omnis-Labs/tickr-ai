@@ -82,6 +82,16 @@ Response `404`: Proposal not found or not owned by user.
 
 ---
 
+**`POST /api/proposals/[id]/sell-confirm`** — Settle an accepted SELL proposal.
+
+Allowed only for an active SELL Proposal with a linked active Position. The browser first executes the Jupiter Ultra market sell, then posts the realized `{ txSignature, executionPrice, tokenAmount }`. `PositionLifecycle` atomically cancels open TP/SL exit Orders, writes `Order(kind = CLOSE_SWAP, status = FILLED)`, writes `Trade(source = USER_CLOSE, proposalId = id)`, closes the Position, and marks the Proposal `EXECUTED`.
+
+Response `200`: Closed Position plus `closeOrderId`, `cancelledExitOrderIds`, and `duplicate`.
+Response `404`: Proposal not found or not owned.
+Response `409`: Proposal expired/already handled, Position not active, or transaction signature conflict.
+
+---
+
 ### Grill
 
 **`POST /api/grill/analyze`** — Run the selected AI Trading Team against a Grill Idea.
@@ -275,22 +285,30 @@ Response `404`: Position not found or not owned.
 
 Allowed only when Position `state = ACTIVE`.
 
-The close flow uses the strict model: cancel TP, then cancel SL, then swap. Both cancels must succeed before the swap executes.
+The browser executes the Jupiter Ultra market sell first, then posts the realized `{ txSignature, executionPrice, tokenAmount }`. `PositionLifecycle` atomically cancels open TP/SL exit Orders, writes the filled `CLOSE_SWAP` Order, writes the `USER_CLOSE` Trade, and closes the Position.
 
-Request: `{}` (no body needed)
+Request:
+
+```json
+{
+  "txSignature": "base58",
+  "executionPrice": 201.25,
+  "tokenAmount": 1.5
+}
+```
+
 Response `200`:
 
 ```json
 {
   "position": { "id": "...", "state": "CLOSED", "realizedPnl": 43.25 },
-  "trade": { "id": "...", "source": "USER_CLOSE" },
-  "closeOrder": { "id": "...", "kind": "CLOSE_SWAP", "status": "FILLED" }
+  "closeOrderId": "...",
+  "cancelledExitOrderIds": ["..."],
+  "duplicate": false
 }
 ```
 
 Response `409`: Position not in closeable state.
-
-**Persistence**: Before executing the Jupiter Swap, create an `Order(kind = CLOSE_SWAP, side = SELL, status = PENDING)`. On swap success, set `status = FILLED` with `txSignature`, `executionPrice`, `filledAmount`. On failure, set `status = FAILED`.
 
 ---
 
@@ -529,19 +547,12 @@ When a TP or SL synthetic Order is executed and settled:
 5. Record a Trade with `source = TP_FILL` or `SL_FILL`, `proposalId` pointing to original BUY proposal
 6. Emit `order:filled` and `position:updated` to user
 
-### Close Position (User-initiated, strict model)
+### Close Position (User-initiated)
 
-1. Set Position `state = CLOSING`
-2. Cancel TP trigger order (must succeed)
-3. Cancel SL trigger order (must succeed)
-4. Create Order `(kind = CLOSE_SWAP, side = SELL, status = PENDING)`
-5. Execute Jupiter Swap at market price for full position
-6. Update CLOSE_SWAP Order: `status = FILLED`, set `txSignature`, `executionPrice`, `filledAmount`
-7. Update Position: calculate `realizedPnl`, `state = CLOSED`, `closedReason = USER_CLOSE`
-8. Record Trade with `source = USER_CLOSE`, `proposalId = null`
-
-If cancel fails: do NOT proceed to swap. Retry cancellation. Position stays `CLOSING`.
-If swap fails after both cancels succeed: Position stays `CLOSING` with no exit orders. Prompt user to retry swap.
+1. Browser executes Jupiter Ultra market sell for the Position's token amount.
+2. Browser posts `{ txSignature, executionPrice, tokenAmount }` to the close endpoint.
+3. Server cancels open TP/SL Orders, creates filled `CLOSE_SWAP`, updates Position `state = CLOSED`, and records `Trade(source = USER_CLOSE)` in one transaction.
+4. SELL Proposal confirmation uses the same lifecycle path with `Trade.proposalId` set and Proposal `status = EXECUTED`.
 
 ### Cancel BUY Pending Order
 

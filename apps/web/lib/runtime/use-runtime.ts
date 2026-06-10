@@ -6,12 +6,7 @@ import { emitDevDiagnostic } from '@/lib/dev-tools/client-diagnostics';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { readPortfolioSummaryEvidence } from '@/lib/portfolio/diagnostics';
-import type {
-  Runtime,
-  RuntimeCloseResult,
-  RuntimeExitSnapshot,
-  RuntimeMeta,
-} from './types';
+import type { Runtime, RuntimeCloseResult, RuntimeExitSnapshot, RuntimeMeta } from './types';
 import { closePositionDiagnosticResponse } from './close-position-diagnostics';
 
 /**
@@ -25,8 +20,7 @@ export function useRuntime(): Runtime {
 
   return useMemo<Runtime>(
     () => ({
-      cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> =>
-        cancelExits(positionId),
+      cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> => cancelExits(positionId),
       placeOcoExit: async ({
         positionId,
         walletAddress,
@@ -60,9 +54,6 @@ export function useRuntime(): Runtime {
         tokenAmount?: number | null;
         sellProposalId?: string;
       }): Promise<RuntimeCloseResult> => {
-        if (sellProposalId) {
-          await cancelExits(positionId);
-        }
         const sell =
           tokenAmount && tokenAmount > 0
             ? await swap({
@@ -81,6 +72,12 @@ export function useRuntime(): Runtime {
         const usdOut = Number(sell.outputAmount) / 1_000_000;
         const executionPrice = tokenAmt > 0 ? usdOut / tokenAmt : null;
         const txSignature = sell.exec.signature ?? null;
+        if (executionPrice == null) {
+          throw new Error('close swap did not return an execution price');
+        }
+        if (!txSignature) {
+          throw new Error('close swap did not return a transaction signature');
+        }
 
         const persistUrl = sellProposalId
           ? `/api/proposals/${sellProposalId}/sell-confirm`
@@ -99,9 +96,10 @@ export function useRuntime(): Runtime {
           const body = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(body.error ?? `close persist ${res.status}`);
         }
-        const settlementBody = (await res.json().catch(() => null)) as
-          | Record<string, unknown>
-          | null;
+        const settlementBody = (await res.json().catch(() => null)) as Record<
+          string,
+          unknown
+        > | null;
         const settlement = {
           closeOrderId:
             typeof settlementBody?.closeOrderId === 'string' ? settlementBody.closeOrderId : null,

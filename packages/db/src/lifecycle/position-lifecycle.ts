@@ -865,9 +865,176 @@ export async function confirmExitFill(input: {
   }
 }
 
+type CloseActivePositionInput = {
+  userId: string;
+  positionId: string;
+  txSignature: string;
+  executionPrice: number;
+  tokenAmount: number;
+  proposalId?: string | null;
+};
+
+type CloseActivePositionData = {
+  closeOrderId: string;
+  positionId: string;
+  positionStatus: 'CLOSED';
+  tradeId: string;
+  cancelledExitOrderIds: string[];
+};
+
+async function closeActivePositionTx(
+  tx: Tx,
+  input: CloseActivePositionInput,
+): Promise<LifecycleResult<CloseActivePositionData>> {
+  const existingByTx = await findOrderByTxSignature(tx, input.txSignature);
+  if (existingByTx) {
+    if (
+      existingByTx.userId === input.userId &&
+      existingByTx.positionId === input.positionId &&
+      existingByTx.kind === 'CLOSE_SWAP'
+    ) {
+      return {
+        status: 'duplicate',
+        orderId: existingByTx.id,
+        positionId: input.positionId,
+      };
+    }
+    return { status: 'conflict', reason: 'tx_signature_already_used' };
+  }
+
+  const claimed = await tx.position.updateMany({
+    where: {
+      id: input.positionId,
+      userId: input.userId,
+      state: 'ACTIVE',
+    },
+    data: {
+      state: 'CLOSED',
+      closedAt: new Date(),
+      closedReason: 'USER_CLOSE',
+    },
+  });
+  if (claimed.count === 0) {
+    const dup = await findOrderByTxSignature(tx, input.txSignature);
+    if (
+      dup &&
+      dup.userId === input.userId &&
+      dup.positionId === input.positionId &&
+      dup.kind === 'CLOSE_SWAP'
+    ) {
+      return {
+        status: 'duplicate',
+        orderId: dup.id,
+        positionId: input.positionId,
+      };
+    }
+    const pos = await tx.position.findUnique({
+      where: { id: input.positionId },
+      select: { id: true, userId: true, state: true },
+    });
+    if (!pos || pos.userId !== input.userId) {
+      return { status: 'conflict', reason: 'position_not_found' };
+    }
+    return {
+      status: 'conflict',
+      reason: `position_state_${pos.state.toLowerCase()}`,
+    };
+  }
+
+  const position = await tx.position.findUniqueOrThrow({
+    where: { id: input.positionId },
+    select: { ticker: true, entryPrice: true },
+  });
+
+  const realizedPnl = (input.executionPrice - position.entryPrice.toNumber()) * input.tokenAmount;
+  await tx.position.update({
+    where: { id: input.positionId },
+    data: { realizedPnl: new Prisma.Decimal(realizedPnl) },
+  });
+
+  const openExits = await tx.order.findMany({
+    where: {
+      positionId: input.positionId,
+      kind: { in: ['TAKE_PROFIT', 'STOP_LOSS'] },
+      status: 'OPEN',
+    },
+    select: { id: true },
+  });
+  if (openExits.length > 0) {
+    await tx.order.updateMany({
+      where: {
+        id: { in: openExits.map((o) => o.id) },
+        status: 'OPEN',
+      },
+      data: { status: 'CANCELLED' },
+    });
+  }
+
+  const closeOrder = await tx.order.create({
+    data: {
+      userId: input.userId,
+      positionId: input.positionId,
+      kind: 'CLOSE_SWAP',
+      side: 'SELL',
+      triggerPriceUsd: null,
+      sizeUsd: input.executionPrice * input.tokenAmount,
+      tokenAmount: input.tokenAmount,
+      status: 'FILLED',
+      jupiterOrderId: null,
+      txSignature: input.txSignature,
+      executionPrice: input.executionPrice,
+      filledAmount: input.tokenAmount,
+      filledAt: new Date(),
+    },
+  });
+
+  const trade = await tx.trade.create({
+    data: {
+      userId: input.userId,
+      positionId: input.positionId,
+      proposalId: input.proposalId ?? null,
+      ticker: position.ticker,
+      side: 'SELL',
+      source: 'USER_CLOSE',
+      actualSizeUsd: executedNotionalUsd(input),
+      executionPrice: input.executionPrice,
+      filledAmount: input.tokenAmount,
+      realizedPnl: new Prisma.Decimal(realizedPnl),
+    },
+  });
+
+  return {
+    status: 'success' as const,
+    data: {
+      closeOrderId: closeOrder.id,
+      positionId: input.positionId,
+      positionStatus: 'CLOSED' as const,
+      tradeId: trade.id,
+      cancelledExitOrderIds: openExits.map((o) => o.id),
+    },
+  };
+}
+
 export async function userCloseActive(input: {
   userId: string;
   positionId: string;
+  txSignature: string;
+  executionPrice: number;
+  tokenAmount: number;
+}): Promise<LifecycleResult<CloseActivePositionData>> {
+  try {
+    return await prisma.$transaction((tx) => closeActivePositionTx(tx, input));
+  } catch (err) {
+    if (isUniqueTxSignatureViolation(err)) {
+      return { status: 'conflict', reason: 'tx_signature_already_used' };
+    }
+    throw err;
+  }
+}
+
+export async function confirmSellProposalClose(input: {
+  userId: string;
+  proposalId: string;
   txSignature: string;
   executionPrice: number;
   tokenAmount: number;
@@ -878,135 +1045,84 @@ export async function userCloseActive(input: {
     positionStatus: 'CLOSED';
     tradeId: string;
     cancelledExitOrderIds: string[];
+    proposalId: string;
+    proposalStatus: 'EXECUTED';
   }>
 > {
   try {
     return await prisma.$transaction(async (tx) => {
-      const existingByTx = await findOrderByTxSignature(tx, input.txSignature);
-      if (existingByTx) {
+      const proposal = await tx.proposal.findUnique({
+        where: { id: input.proposalId },
+        select: {
+          id: true,
+          userId: true,
+          action: true,
+          status: true,
+          positionId: true,
+          expiresAt: true,
+        },
+      });
+
+      if (!proposal || proposal.userId !== input.userId) {
+        return { status: 'conflict', reason: 'proposal_not_found' };
+      }
+      if (proposal.action !== 'SELL') {
+        return {
+          status: 'conflict',
+          reason: `proposal_action_${proposal.action.toLowerCase()}`,
+        };
+      }
+      if (!proposal.positionId) {
+        return { status: 'conflict', reason: 'proposal_missing_position' };
+      }
+      if (proposal.status !== 'ACTIVE') {
+        const existingByTx = await findOrderByTxSignature(tx, input.txSignature);
         if (
+          proposal.status === 'EXECUTED' &&
+          existingByTx &&
           existingByTx.userId === input.userId &&
-          existingByTx.positionId === input.positionId &&
+          existingByTx.positionId === proposal.positionId &&
           existingByTx.kind === 'CLOSE_SWAP'
         ) {
           return {
             status: 'duplicate',
             orderId: existingByTx.id,
-            positionId: input.positionId,
+            positionId: proposal.positionId,
           };
-        }
-        return { status: 'conflict', reason: 'tx_signature_already_used' };
-      }
-
-      const claimed = await tx.position.updateMany({
-        where: {
-          id: input.positionId,
-          userId: input.userId,
-          state: 'ACTIVE',
-        },
-        data: {
-          state: 'CLOSED',
-          closedAt: new Date(),
-          closedReason: 'USER_CLOSE',
-        },
-      });
-      if (claimed.count === 0) {
-        const dup = await findOrderByTxSignature(tx, input.txSignature);
-        if (
-          dup &&
-          dup.userId === input.userId &&
-          dup.positionId === input.positionId &&
-          dup.kind === 'CLOSE_SWAP'
-        ) {
-          return {
-            status: 'duplicate',
-            orderId: dup.id,
-            positionId: input.positionId,
-          };
-        }
-        const pos = await tx.position.findUnique({
-          where: { id: input.positionId },
-          select: { id: true, userId: true, state: true },
-        });
-        if (!pos || pos.userId !== input.userId) {
-          return { status: 'conflict', reason: 'position_not_found' };
         }
         return {
           status: 'conflict',
-          reason: `position_state_${pos.state.toLowerCase()}`,
+          reason: `proposal_status_${proposal.status.toLowerCase()}`,
         };
       }
-
-      const position = await tx.position.findUniqueOrThrow({
-        where: { id: input.positionId },
-        select: { ticker: true, entryPrice: true },
-      });
-
-      const realizedPnl =
-        (input.executionPrice - position.entryPrice.toNumber()) * input.tokenAmount;
-      await tx.position.update({
-        where: { id: input.positionId },
-        data: { realizedPnl: new Prisma.Decimal(realizedPnl) },
-      });
-
-      const openExits = await tx.order.findMany({
-        where: {
-          positionId: input.positionId,
-          kind: { in: ['TAKE_PROFIT', 'STOP_LOSS'] },
-          status: 'OPEN',
-        },
-        select: { id: true },
-      });
-      if (openExits.length > 0) {
-        await tx.order.updateMany({
-          where: {
-            id: { in: openExits.map((o) => o.id) },
-            status: 'OPEN',
-          },
-          data: { status: 'CANCELLED' },
-        });
+      if (proposal.expiresAt <= new Date()) {
+        return { status: 'conflict', reason: 'proposal_expired' };
       }
 
-      const closeOrder = await tx.order.create({
-        data: {
-          userId: input.userId,
-          positionId: input.positionId,
-          kind: 'CLOSE_SWAP',
-          side: 'SELL',
-          triggerPriceUsd: null,
-          sizeUsd: input.executionPrice * input.tokenAmount,
-          tokenAmount: input.tokenAmount,
-          status: 'FILLED',
-          jupiterOrderId: null,
-          txSignature: input.txSignature,
-          executionPrice: input.executionPrice,
-          filledAmount: input.tokenAmount,
-          filledAt: new Date(),
-        },
+      const close = await closeActivePositionTx(tx, {
+        userId: input.userId,
+        positionId: proposal.positionId,
+        txSignature: input.txSignature,
+        executionPrice: input.executionPrice,
+        tokenAmount: input.tokenAmount,
+        proposalId: proposal.id,
+      });
+      if (close.status === 'conflict') return close;
+
+      await tx.proposal.update({
+        where: { id: proposal.id },
+        data: { status: 'EXECUTED' },
       });
 
-      const trade = await tx.trade.create({
-        data: {
-          userId: input.userId,
-          positionId: input.positionId,
-          ticker: position.ticker,
-          side: 'SELL',
-          source: 'USER_CLOSE',
-          actualSizeUsd: executedNotionalUsd(input),
-          executionPrice: input.executionPrice,
-          filledAmount: input.tokenAmount,
-          realizedPnl: new Prisma.Decimal(realizedPnl),
-        },
-      });
-
+      if (close.status === 'duplicate') {
+        return close;
+      }
       return {
-        status: 'success' as const,
+        status: 'success',
         data: {
-          closeOrderId: closeOrder.id,
-          positionId: input.positionId,
-          positionStatus: 'CLOSED' as const,
-          tradeId: trade.id,
-          cancelledExitOrderIds: openExits.map((o) => o.id),
+          ...close.data,
+          proposalId: proposal.id,
+          proposalStatus: 'EXECUTED',
         },
       };
     });

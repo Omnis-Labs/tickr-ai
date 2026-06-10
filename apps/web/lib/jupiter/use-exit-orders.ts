@@ -20,9 +20,8 @@ import { QK } from '@/lib/hooks/queries';
  *
  * Call sites:
  *   - Position Detail: handleConfirmExit (ENTERING → place OCO)
- *   - Position Detail: handleSubmitTpSl (Adjust → cancel + place OCO)
- *   - SellProposalView: cancelOpenExitOrders (cancel only)
- *   - useRuntime.closePosition: cancelExits before market sell
+ *   - Position Detail: handleSubmitTpSl (Adjust → replace OCO)
+ *   - useRuntime.cancelExits: explicit cancel-only flows
  */
 
 export interface ExitSnapshot {
