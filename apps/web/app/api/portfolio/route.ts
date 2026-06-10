@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireAuth } from '@/lib/auth/context';
-import { decimalsToNumbers } from '@/lib/db/decimal';
 import { readSolBalance, readUsdcBalance } from '@/lib/solana/usdc-balance';
 import { getCurrentPrices } from '@/lib/pyth';
-import { applyMarkPricesToPortfolioPositions } from '@/lib/portfolio/holdings';
-import type { PortfolioResponse } from '@/lib/hooks/queries';
+import { buildPortfolioResponse } from '@/lib/portfolio/summary';
 
 /**
  * GET /api/portfolio
@@ -52,57 +50,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     readSolBalance(auth.walletAddress, balanceReadOptions),
   ]);
 
-  // Realized PnL = sum of all SELL-side Trade.realizedPnl (BUY trades have
-  // realizedPnl=null; SELL legs carry the per-position outcome).
-  const realized = recentTrades.reduce((acc, t) => {
-    const v = t.realizedPnl == null ? 0 : t.realizedPnl.toNumber();
-    return acc + v;
-  }, 0);
-
-  const basePositions: PortfolioResponse['positions'] = openPositions.map((p) => {
-    const tokenAmount = p.tokenAmount.toNumber();
-    const entryPrice = p.entryPrice.toNumber();
-    const pendingSizeUsd = p.orders[0]?.sizeUsd.toNumber();
-    return {
-      id: p.id,
-      ticker: p.ticker,
-      tokenAmount,
-      avgCost: entryPrice,
-      markPrice: entryPrice,
-      pnl: 0,
-      pendingSizeUsd,
-      state: p.state,
-    };
-  });
-
-  const assetIds = Array.from(new Set(basePositions.map((p) => p.ticker)));
+  const assetIds = Array.from(new Set(openPositions.map((position) => position.ticker)));
   const markPrices =
     assetIds.length > 0
       ? await getCurrentPrices(assetIds).catch(() => new Map<string, number>())
       : new Map<string, number>();
-  const { positions, unrealized } = applyMarkPricesToPortfolioPositions(
-    basePositions,
-    markPrices,
+
+  return NextResponse.json(
+    buildPortfolioResponse({
+      positions: openPositions,
+      trades: recentTrades,
+      markPrices,
+      cashUsd,
+      solBalance,
+    }),
   );
-
-  const trades = recentTrades.map((t) => ({
-    id: t.id,
-    ticker: t.ticker,
-    side: t.side as 'BUY' | 'SELL',
-    amountUsd: t.actualSizeUsd.toNumber(),
-    tokenAmount: t.filledAmount?.toNumber() ?? 0,
-    executionPrice: t.executionPrice?.toNumber() ?? 0,
-    txSignature: '', // not stored on Trade; the originating Order has it
-    status: 'CONFIRMED',
-    realizedPnl: t.realizedPnl?.toNumber() ?? 0,
-    createdAt: t.createdAt.toISOString(),
-  }));
-
-  return NextResponse.json({
-    positions: decimalsToNumbers(positions),
-    trades,
-    pnl: { realized, unrealized },
-    cashUsd,
-    solBalance,
-  });
 }

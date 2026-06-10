@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { portfolioSummaryEvidence } from './diagnostics';
-import { buildPortfolioSummary, derivePortfolioSummary } from './summary';
+import { buildPortfolioResponse, buildPortfolioSummary, derivePortfolioSummary } from './summary';
+
+function decimal(value: number): { toNumber(): number } {
+  return { toNumber: () => value };
+}
 
 test('derivePortfolioSummary centralizes portfolio header math', () => {
   const summary = derivePortfolioSummary({
@@ -166,4 +170,87 @@ test('portfolioSummaryEvidence exposes the compact post-action diagnostic snapsh
     positionsValue: 20,
     totalValue: 25,
   });
+});
+
+test('buildPortfolioResponse centralizes API valuation from DB-shaped rows', () => {
+  const response = buildPortfolioResponse({
+    cashUsd: 25,
+    solBalance: 0.5,
+    markPrices: new Map([['HYPE', 12]]),
+    positions: [
+      {
+        id: 'position-1',
+        ticker: 'HYPE',
+        tokenAmount: decimal(2),
+        entryPrice: decimal(10),
+        state: 'ACTIVE',
+        orders: [{ sizeUsd: decimal(20) }],
+        firstEntryAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ],
+    trades: [
+      {
+        id: 'trade-1',
+        ticker: 'HYPE',
+        side: 'SELL',
+        actualSizeUsd: decimal(12),
+        filledAmount: decimal(1),
+        executionPrice: decimal(12),
+        realizedPnl: decimal(2),
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+      {
+        id: 'trade-2',
+        ticker: 'HYPE',
+        side: 'BUY',
+        actualSizeUsd: decimal(20),
+        filledAmount: decimal(2),
+        executionPrice: decimal(10),
+        realizedPnl: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ],
+  });
+
+  assert.deepEqual(response.positions, [
+    {
+      id: 'position-1',
+      ticker: 'HYPE',
+      tokenAmount: 2,
+      avgCost: 10,
+      markPrice: 12,
+      pnl: 4,
+      pendingSizeUsd: 20,
+      state: 'ACTIVE',
+    },
+  ]);
+  assert.deepEqual(response.pnl, { realized: 2, unrealized: 4 });
+  assert.equal(response.cashUsd, 25);
+  assert.equal(response.solBalance, 0.5);
+  assert.deepEqual(response.trades, [
+    {
+      id: 'trade-1',
+      ticker: 'HYPE',
+      side: 'SELL',
+      amountUsd: 12,
+      tokenAmount: 1,
+      executionPrice: 12,
+      txSignature: '',
+      status: 'CONFIRMED',
+      realizedPnl: 2,
+      createdAt: '2026-01-02T00:00:00.000Z',
+    },
+    {
+      id: 'trade-2',
+      ticker: 'HYPE',
+      side: 'BUY',
+      amountUsd: 20,
+      tokenAmount: 2,
+      executionPrice: 10,
+      txSignature: '',
+      status: 'CONFIRMED',
+      realizedPnl: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    },
+  ]);
 });
