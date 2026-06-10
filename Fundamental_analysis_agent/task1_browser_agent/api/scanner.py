@@ -36,6 +36,9 @@ AGENTS = [
     ("T19", "T19 · Price anomaly", "real"),
     ("T17", "T17 · Fundamental quality", "real"),
     ("T18", "T18 · Corporate events", "real"),
+    ("T11", "T11 · Fundamentals trend", "real"),
+    ("T15", "T15 · Buyback", "real"),
+    ("T6", "T6 · Insider (Form 4)", "real"),
     ("T22", "T22 · Congressional", "real"),
     ("T20", "T20 · VIX regime", "market"),
     ("T25", "T25 · Astrology", "placebo"),
@@ -138,8 +141,209 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "task": "scanner"}
 
 
+# ----------------------------------------------------------------------------
+# "Today's book" backtest — hold each picked name only when its credible agents
+# signal long (decided as-of each historical day, lookahead-free), else SPY;
+# equal-weight across the book. This is the idle=SPY product model, NOT a
+# hindsight static basket (which would be look-ahead biased).
+# ----------------------------------------------------------------------------
+_BT_YEARS = 3
+_TXN = 0.001
+
+
+class BookCreate(BaseModel):
+    tickers: list[str]
+
+
+class CurvePoint(BaseModel):
+    date: str
+    book: float
+    spy: float
+
+
+class BookMetrics(BaseModel):
+    book_return_pct: float
+    spy_return_pct: float
+    alpha_pp: float
+    sharpe: float
+    max_dd_pct: float
+    avg_in_name_pct: float
+    n_names: int
+    n_days: int
+
+
+class BookResult(BaseModel):
+    names: list[str]
+    metrics: BookMetrics
+    curve: list[CurvePoint]
+
+
+class BookJob(BaseModel):
+    job_id: str
+    tickers: list[str]
+    status: JobStatus
+    created_at: datetime
+    updated_at: datetime
+    result: BookResult | None = None
+    error_message: str | None = None
+
+
+_BOOK_JOBS: dict[str, BookJob] = {}
+
+
+@router.post("/backtest", response_model=BookJob)
+async def create_backtest(body: BookCreate) -> BookJob:
+    tickers = [t.strip().upper() for t in (body.tickers or []) if t.strip()][:12]
+    if not tickers:
+        raise HTTPException(400, "provide the book's tickers")
+    now = datetime.now(timezone.utc)
+    job = BookJob(job_id=uuid.uuid4().hex[:12], tickers=tickers, status=JobStatus.PENDING, created_at=now, updated_at=now)
+    _BOOK_JOBS[job.job_id] = job
+    asyncio.create_task(_run_backtest(job))
+    return job
+
+
+@router.get("/backtest/{job_id}", response_model=BookJob)
+async def get_backtest(job_id: str) -> BookJob:
+    job = _BOOK_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "backtest job not found")
+    return job
+
+
+async def _name_path(tk: str, spy_dates: list, spy_ret: dict, tmap) -> tuple[list[float], float] | None:
+    """Per-name daily returns on the SPY date axis: hold the name when its credible agents
+    (T19 + T17) signal long as-of the prior close, else hold SPY. Returns (rets, in_name_frac)."""
+    from task3_strategy.pipeline.prices import fetch_prices
+    from task19_anomaly.pipeline.signals import make_want_long as t19_wl
+    from task19_anomaly.schemas import AnomalySpec
+    try:
+        prices = await asyncio.to_thread(fetch_prices, tk)
+    except Exception:  # noqa: BLE001
+        return None
+    close = {p.date: p.close for p in prices}
+    wls = []
+    try: wls.append(t19_wl(AnomalySpec(entry_signal="near_52w_high"), prices))
+    except Exception: pass  # noqa: BLE001,E701
+    cik = tmap.get(tk)
+    if cik:
+        try:
+            from task17_quality.pipeline.factors import build_bundle, wants_long, fetch_companyfacts
+            from task17_quality.schemas import QualitySpec
+            bundle = build_bundle(await _wait(fetch_companyfacts(cik), 30))
+            spec = QualitySpec(entry_signal="composite_quality")
+            wls.append(lambda d, b=bundle, s=spec: wants_long(s, b, d))
+        except Exception: pass  # noqa: BLE001,E701
+
+    def ens_long(d) -> bool:
+        votes = []
+        for wl in wls:
+            try: votes.append(bool(wl(d)))
+            except Exception: votes.append(False)  # noqa: BLE001,E701
+        return bool(votes) and sum(votes) >= max(1, (len(votes) + 1) // 2)
+
+    rets: list[float] = []
+    in_name = 0
+    prev_long = None
+    for i in range(1, len(spy_dates)):
+        d, dp = spy_dates[i], spy_dates[i - 1]
+        if d in close and dp in close and close[dp]:
+            long = ens_long(dp)
+            r = (close[d] / close[dp] - 1.0) if long else spy_ret[d]
+            if prev_long is not None and long != prev_long:
+                r -= _TXN
+            rets.append(r); prev_long = long
+            if long:
+                in_name += 1
+        else:
+            rets.append(spy_ret[d]); prev_long = False     # name not tradable that day → hold SPY
+    return rets, (in_name / max(1, len(rets)))
+
+
+async def _book_backtest(tickers: list[str]) -> BookResult:
+    import math
+    from task3_strategy.pipeline.prices import fetch_prices
+    from task2_10k_extractor.eval.edgar_lookup import fetch_sec_ticker_map
+
+    spy = await asyncio.to_thread(fetch_prices, "SPY")
+    as_of = spy[-1].date
+    start = as_of - timedelta(days=365 * _BT_YEARS)
+    sdates = [p.date for p in spy if p.date >= start]
+    sclose = {p.date: p.close for p in spy}
+    spy_ret = {sdates[i]: sclose[sdates[i]] / sclose[sdates[i - 1]] - 1.0 for i in range(1, len(sdates))}
+    try: tmap = await fetch_sec_ticker_map()
+    except Exception: tmap = {}  # noqa: BLE001,E701
+
+    paths = await asyncio.gather(*[_name_path(tk, sdates, spy_ret, tmap) for tk in tickers])
+    good = [(tickers[i], p) for i, p in enumerate(paths) if p]
+    if not good:
+        raise RuntimeError("no tradable names in the book")
+    n = len(sdates) - 1
+    in_fracs = [p[1] for _, p in good]
+    book_eq, spy_eq = 1.0, 1.0
+    daily, curve = [], []
+    peak, mdd = 1.0, 0.0
+    for i in range(n):
+        pr = sum(p[0][i] for _, p in good) / len(good)     # equal-weight book daily return
+        sr = spy_ret[sdates[i + 1]]
+        book_eq *= (1 + pr); spy_eq *= (1 + sr); daily.append(pr)
+        peak = max(peak, book_eq); mdd = min(mdd, book_eq / peak - 1)
+        if i % max(1, n // 120) == 0 or i == n - 1:
+            curve.append(CurvePoint(date=sdates[i + 1].isoformat(), book=round(book_eq, 4), spy=round(spy_eq, 4)))
+    import statistics as st
+    sd = st.pstdev(daily) if len(daily) > 2 else 0.0
+    sharpe = (st.mean(daily) / sd * math.sqrt(252)) if sd > 0 else 0.0
+    return BookResult(
+        names=[t for t, _ in good],
+        metrics=BookMetrics(book_return_pct=round((book_eq - 1) * 100, 1), spy_return_pct=round((spy_eq - 1) * 100, 1),
+                            alpha_pp=round((book_eq - spy_eq) * 100, 1), sharpe=round(sharpe, 2),
+                            max_dd_pct=round(mdd * 100, 1), avg_in_name_pct=round(sum(in_fracs) / len(in_fracs) * 100, 0),
+                            n_names=len(good), n_days=n),
+        curve=curve)
+
+
+async def _run_backtest(job: BookJob) -> None:
+    job.status = JobStatus.RUNNING
+    job.updated_at = datetime.now(timezone.utc)
+    try:
+        job.result = await asyncio.wait_for(_book_backtest(job.tickers), timeout=_JOB_TIMEOUT_S)
+        job.status = JobStatus.SUCCEEDED
+    except asyncio.TimeoutError:
+        job.status = JobStatus.FAILED
+        job.error_message = "backtest timed out — try fewer names."
+    except Exception as e:  # noqa: BLE001
+        logger.exception("scanner_backtest_crashed", job_id=job.job_id, error=str(e))
+        job.status = JobStatus.FAILED
+        job.error_message = f"{type(e).__name__}: {e}"
+    finally:
+        job.updated_at = datetime.now(timezone.utc)
+
+
 async def _wait(coro, t):
     return await asyncio.wait_for(coro, timeout=t)
+
+
+def _last_in_market(ec) -> bool | None:
+    """For agents with no clean want_long(date): infer today's position from the backtest equity
+    curve — on the most recent bar the stock moved meaningfully, did the strategy capture it (long)
+    or sit flat (out)? A heuristic 'read the last position' adapter."""
+    for i in range(len(ec) - 1, 0, -1):
+        b0, b1 = ec[i - 1].benchmark, ec[i].benchmark
+        if b0 and b1:
+            br = b1 / b0 - 1.0
+            if abs(br) > 0.003:                       # day the stock actually moved (>0.3%)
+                s0, s1 = ec[i - 1].strategy, ec[i].strategy
+                sr = (s1 / s0 - 1.0) if s0 else 0.0
+                return abs(sr - br) < abs(br) * 0.5   # strategy tracked the move → currently long
+    return None
+
+
+def _bt_signal(run, *args, start) -> bool | None:
+    try:
+        bt = run(*args, start=start)
+        return _last_in_market(bt.equity_curve)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 async def _scan_ticker(tk: str, vix_map, tmap, tiers: dict[str, str]) -> ScanRow:
@@ -182,12 +386,37 @@ async def _scan_ticker(tk: str, vix_map, tmap, tiers: dict[str, str]) -> ScanRow
         except Exception: pass  # noqa: BLE001,E701
 
         cik = tmap.get(tk)
+        bt_start = max(prices[0].date, latest - timedelta(days=365 * 3))
         if cik:
-            try:  # T17 quality (SEC companyfacts)
-                from task17_quality.pipeline.factors import build_bundle, wants_long, fetch_companyfacts
-                from task17_quality.schemas import QualitySpec
-                bundle = build_bundle(await _wait(fetch_companyfacts(cik), 30))
-                sig["T17"] = bool(wants_long(QualitySpec(entry_signal="composite_quality"), bundle, latest))
+            cf = None
+            try:
+                from task17_quality.pipeline.factors import fetch_companyfacts
+                cf = await _wait(fetch_companyfacts(cik), 30)   # one companyfacts fetch, shared by T17/T15/T11
+            except Exception: cf = None  # noqa: BLE001,E701
+            if cf:
+                try:  # T17 quality — composite quality factor (clean want_long)
+                    from task17_quality.pipeline.factors import build_bundle, wants_long
+                    from task17_quality.schemas import QualitySpec
+                    sig["T17"] = bool(wants_long(QualitySpec(entry_signal="composite_quality"), build_bundle(cf), latest))
+                except Exception: pass  # noqa: BLE001,E701
+                try:  # T15 buyback — no clean want_long → read last backtest position
+                    from task15_buyback.pipeline.signals import extract_shares
+                    from task15_buyback.pipeline.backtest import run_buyback_backtest
+                    from task15_buyback.schemas import BuybackSpec
+                    sig["T15"] = _bt_signal(run_buyback_backtest, prices, extract_shares(cf), BuybackSpec(entry_signal="buyback"), start=bt_start)
+                except Exception: pass  # noqa: BLE001,E701
+                try:  # T11 fundamentals trend — read last backtest position
+                    from task11_fundamentals_trend.pipeline.companyfacts import extract_quarters
+                    from task11_fundamentals_trend.pipeline.backtest import run_fundtrend_backtest
+                    from task11_fundamentals_trend.schemas import FundTrendSpec
+                    sig["T11"] = _bt_signal(run_fundtrend_backtest, prices, extract_quarters(cf), FundTrendSpec(entry_signal="growth_and_margin"), start=bt_start)
+                except Exception: pass  # noqa: BLE001,E701
+            try:  # T6 insider — Form 4, read last backtest position
+                from task6_insider.pipeline.forms import fetch_form4_txns
+                from task6_insider.pipeline.backtest import run_insider_backtest
+                from task6_insider.schemas import InsiderSpec
+                txns, _nf, _cap = await _wait(fetch_form4_txns(cik, since=bt_start - timedelta(days=365), max_filings=60), 30)
+                sig["T6"] = _bt_signal(run_insider_backtest, prices, txns, InsiderSpec(entry_signal="cluster_buy"), start=bt_start)
             except Exception: pass  # noqa: BLE001,E701
             try:  # T18 events (LLM extract — best-effort, own timeout)
                 from task18_events.pipeline.events import fetch_events, make_want_long as t18_wl

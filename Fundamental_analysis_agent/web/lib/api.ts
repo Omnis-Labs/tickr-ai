@@ -1746,3 +1746,18 @@ export async function createScan(tickers: string[]): Promise<ScanJob> {
 }
 export const getScan = (id: string): Promise<ScanJob> => _get(`/scanner/scan/${id}`);
 export const pollScan = _poll<ScanJob>(getScan);
+
+// ---- Scanner: "today's book" idle=SPY backtest ----
+export interface ScanCurvePoint { date: string; book: number; spy: number; }
+export interface BookMetrics { book_return_pct: number; spy_return_pct: number; alpha_pp: number; sharpe: number; max_dd_pct: number; avg_in_name_pct: number; n_names: number; n_days: number; }
+export interface BookResult { names: string[]; metrics: BookMetrics; curve: ScanCurvePoint[]; }
+export interface BookJob { job_id: string; tickers: string[]; status: JobStatus; result: BookResult | null; error_message: string | null; created_at: string; updated_at: string; }
+export async function createBookBacktest(tickers: string[]): Promise<BookJob> {
+  const res = await fetch(`${API_BASE}/scanner/backtest`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tickers }),
+  });
+  if (!res.ok) throw new Error(`backtest failed: ${res.status}`);
+  return res.json();
+}
+export const getBookBacktest = (id: string): Promise<BookJob> => _get(`/scanner/backtest/${id}`);
+export const pollBookBacktest = _poll<BookJob>(getBookBacktest);

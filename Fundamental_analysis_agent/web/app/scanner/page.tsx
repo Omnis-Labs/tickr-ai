@@ -1,7 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { createScan, pollScan, ScanJob, ScanAgentMeta, ScanRow } from "@/lib/api";
+import { createScan, pollScan, ScanJob, ScanAgentMeta, ScanRow,
+  createBookBacktest, pollBookBacktest, BookJob, ScanCurvePoint } from "@/lib/api";
+
+function EquityMini({ curve }: { curve: ScanCurvePoint[] }) {
+  if (curve.length < 2) return null;
+  const W = 640, H = 160, P = 8;
+  const vals = curve.flatMap((c) => [c.book, c.spy]);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const x = (i: number) => P + (i / (curve.length - 1)) * (W - 2 * P);
+  const y = (v: number) => H - P - ((v - lo) / (hi - lo || 1)) * (H - 2 * P);
+  const path = (key: "book" | "spy") => curve.map((c, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(c[key]).toFixed(1)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="book vs SPY equity">
+      <rect width={W} height={H} fill="#0a0a0b" />
+      <line x1={P} y1={y(1)} x2={W - P} y2={y(1)} stroke="#27272a" strokeDasharray="3 3" />
+      <path d={path("spy")} fill="none" stroke="#71717a" strokeWidth={1.5} />
+      <path d={path("book")} fill="none" stroke="#34d399" strokeWidth={2} />
+    </svg>
+  );
+}
 
 const TIER_LABEL: Record<string, string> = { cleared: "DSR✓", credible: "PSR>0", weak: "弱", na: "n/a" };
 const TIER_HEAD: Record<string, string> = {
@@ -33,6 +52,9 @@ export default function ScannerPage() {
   const [err, setErr] = useState<string | null>(null);
   const [showPlacebo, setShowPlacebo] = useState(false);
   const [dsrOnly, setDsrOnly] = useState(false);   // count only DSR-cleared agents
+  const [bt, setBt] = useState<BookJob | null>(null);
+  const [btBusy, setBtBusy] = useState(false);
+  const [deployed, setDeployed] = useState(false);
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
@@ -58,6 +80,17 @@ export default function ScannerPage() {
     return row.stance;
   }
   const tilt = (r?.rows ?? []).filter((x) => stanceOf(x) === "傾向做多").map((x) => x.ticker);
+
+  async function backtestBook() {
+    if (!tilt.length) return;
+    setBtBusy(true); setBt(null); setDeployed(false);
+    try {
+      const j = await createBookBacktest(tilt);
+      setBt(j);
+      pollBookBacktest(j.job_id, (n) => { setBt(n); if (n.status !== "pending" && n.status !== "running") setBtBusy(false); });
+    } catch { setBtBusy(false); }
+  }
+  const m = bt?.result?.metrics;
 
   return (
     <div className="space-y-6">
@@ -141,9 +174,37 @@ export default function ScannerPage() {
             ) : (
               <p className="text-sm text-zinc-400">{dsrOnly ? "沒有 DSR 過關的 agent 給訊號 → " : "今天沒有名字有足夠把握 → "}<span className="text-zinc-200">全部持有 SPY</span>（first do no harm）。</p>
             )}
+
+            {tilt.length > 0 && (
+              <div className="flex items-center gap-2 mt-3">
+                <button onClick={backtestBook} disabled={btBusy}
+                  className="px-3 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50">{btBusy ? "回測中…" : "回測今日的書（近3年）"}</button>
+                <button onClick={() => setDeployed(true)}
+                  className="px-3 py-1.5 text-xs rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800">部署（paper）</button>
+                {deployed && <span className="text-[11px] text-amber-400">已存為 paper 組合 · 實盤需接券商（尚未啟用）</span>}
+              </div>
+            )}
+            {bt?.status === "failed" && <p className="text-red-400 text-xs mt-2">{bt.error_message}</p>}
+            {m && (
+              <div className="mt-3 border-t border-zinc-800 pt-3">
+                <p className="text-xs text-zinc-400 mb-2">回測：持有這些名字（僅在其可信 agent 當日有訊號時），其餘時間持有 SPY，等權、近 3 年、無未來函數。
+                  <span className="text-zinc-500"> 在個股時間 {m.avg_in_name_pct}%。</span></p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs mb-2">
+                  <div><div className="text-zinc-500">書報酬</div><div className={m.book_return_pct >= 0 ? "text-emerald-400" : "text-red-400"}>{m.book_return_pct}%</div></div>
+                  <div><div className="text-zinc-500">SPY</div><div className="text-zinc-300">{m.spy_return_pct}%</div></div>
+                  <div><div className="text-zinc-500">贏 SPY</div><div className={m.alpha_pp >= 0 ? "text-emerald-400" : "text-amber-400"}>{m.alpha_pp >= 0 ? "+" : ""}{m.alpha_pp}pp</div></div>
+                  <div><div className="text-zinc-500">Sharpe</div><div className="text-zinc-300">{m.sharpe}</div></div>
+                  <div><div className="text-zinc-500">最大回撤</div><div className="text-zinc-300">{m.max_dd_pct}%</div></div>
+                </div>
+                <EquityMini curve={bt!.result!.curve} />
+                <p className="text-[10px] text-zinc-500 mt-1"><span className="text-emerald-400">━ 書</span>　<span className="text-zinc-500">━ SPY</span>　· 多頭裡通常 ≈ SPY（地板）＋訊號擇時的微調，不是保證 alpha。</p>
+              </div>
+            )}
             <div className="text-[11px] text-zinc-500 mt-3 leading-relaxed space-y-1">
               <p><span className="text-emerald-400">●</span> DSR✓（通過多重檢定，全可信）　<span className="text-emerald-500">●</span> PSR&gt;0（Sharpe 可信、未過 DSR）　<span className="text-amber-500">●</span> 弱　<span className="text-purple-500">●</span> 對照組（占卜，理應無意義）</p>
-              <p>真 agent＝T19 價格異常、T17 品質、T18 事件、T22 國會；T20 為市場波動門。預設投票只算 DSR 層級 ≥ PSR&gt;0 的 agent；T22 目前是「弱」層、不計入。把「只算 DSR 過關」打開＝最嚴格的測謊機。</p>
+              <p>真 agent＝T19 價格異常、T17 品質、T18 事件、T11 基本面趨勢、T15 庫藏股、T6 內部人、T22 國會；T20 為市場波動門。
+                T11/T15/T6 無乾淨 want_long → 用「跑回測讀最後持倉」推今日訊號，且尚未做顯著性檢定（n/a 層）→ <strong>顯示但不投票</strong>。
+                預設投票只算 PSR&gt;0 以上（T19/T17/T18）；T22 是「弱」層、n/a 不計入。把「只算 DSR 過關」打開＝最嚴格的測謊機。</p>
             </div>
           </div>
         </div>

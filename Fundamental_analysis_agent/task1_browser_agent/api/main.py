@@ -72,7 +72,7 @@ logger = get_logger(__name__)
 
 settings = get_settings()
 
-app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.14.1")
+app = FastAPI(title="Fundamental Analysis Agent — Task 1-35 (24 signals + 11 placebo controls)", version="1.14.2")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
