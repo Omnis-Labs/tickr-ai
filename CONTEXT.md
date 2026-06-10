@@ -32,7 +32,7 @@ A user-selectable investment viewpoint with its own technique, data lens, and tr
 
 ### AI Analyst Catalog
 
-The set of AI Analysts Hunch exposes for the user to add to their AI Trading Team. The catalog may draw from existing research agents when their technique can be made to work on Hunch Tradable Assets and Hunch data sources; research agents that cannot produce reliable Analyst Opinions in the Hunch product context should stay out of the catalog until adapted.
+The set of AI Analysts Hunch exposes for the user to add to their AI Trading Team. `apps/web/lib/grill/catalog.ts` owns the catalog entries and team-selection rules; Grill analysis, the Team UI, and request validation are adapters into that Module. The catalog may draw from existing research agents when their technique can be made to work on Hunch Tradable Assets and Hunch data sources; research agents that cannot produce reliable Analyst Opinions in the Hunch product context should stay out of the catalog until adapted.
 
 ### AI Trading Team
 

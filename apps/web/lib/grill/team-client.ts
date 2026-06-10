@@ -5,19 +5,13 @@ import {
   AI_ANALYST_CATALOG,
   DEFAULT_AI_TRADING_TEAM_IDS,
   MAX_AI_TRADING_TEAM_SIZE,
-} from './analysis';
+  sanitizeAiTradingTeamIds,
+} from './catalog';
 
 const STORAGE_KEY = 'hunch.aiTradingTeam.v1';
-const analystIds = new Set(AI_ANALYST_CATALOG.map((analyst) => analyst.id));
 
 function sanitize(ids: readonly string[] | null | undefined): string[] {
-  const out: string[] = [];
-  for (const id of ids ?? []) {
-    if (!analystIds.has(id) || out.includes(id)) continue;
-    out.push(id);
-    if (out.length >= MAX_AI_TRADING_TEAM_SIZE) break;
-  }
-  return out.length > 0 ? out : [...DEFAULT_AI_TRADING_TEAM_IDS];
+  return sanitizeAiTradingTeamIds(ids);
 }
 
 function readStoredTeam(): string[] {

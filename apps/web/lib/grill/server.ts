@@ -15,9 +15,8 @@ import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
 import { getCurrentPriceSnapshots } from '@/lib/pyth';
 import { readUsdcBalance } from '@/lib/solana/usdc-balance';
+import { AI_ANALYST_CATALOG, MAX_AI_TRADING_TEAM_SIZE } from './catalog';
 import {
-  AI_ANALYST_CATALOG,
-  MAX_AI_TRADING_TEAM_SIZE,
   analyzeGrillIdea,
   getRequiredGrillBarAssetIds,
   type GrillAnalysisResult,

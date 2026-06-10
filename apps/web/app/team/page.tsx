@@ -2,7 +2,7 @@
 
 import { Check, RotateCcw } from 'lucide-react';
 import { TopAppBar } from '@/components/shell/top-app-bar';
-import { AI_ANALYST_CATALOG } from '@/lib/grill/analysis';
+import { AI_ANALYST_CATALOG } from '@/lib/grill/catalog';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
 import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
