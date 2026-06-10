@@ -1729,9 +1729,9 @@ export const getJyotish = (id: string): Promise<Task35Job> => _get(`/task35/jyot
 export const pollJyotish = _poll<Task35Job>(getJyotish);
 
 // ---- Scanner (selection + multi-agent collaboration) ----
-export interface ScanAgentMeta { key: string; label: string; kind: "real" | "market" | "placebo"; }
-export interface ScanRow { ticker: string; signals: Record<string, boolean | null>; real_bull: number; real_total: number; market_on: boolean | null; stance: string; error?: string | null; }
-export interface ScanResult { as_of: string; agents: ScanAgentMeta[]; rows: ScanRow[]; n_tickers: number; }
+export interface ScanAgentMeta { key: string; label: string; kind: "real" | "market" | "placebo"; tier: "cleared" | "credible" | "weak" | "na"; dsr: number | null; }
+export interface ScanRow { ticker: string; signals: Record<string, boolean | null>; real_bull: number; real_total: number; credible_bull: number; credible_total: number; cleared_bull: number; market_on: boolean | null; stance: string; error?: string | null; }
+export interface ScanResult { as_of: string; agents: ScanAgentMeta[]; rows: ScanRow[]; n_tickers: number; n_dsr_cleared: number; }
 export interface ScanJob { job_id: string; tickers: string[]; status: JobStatus; result: ScanResult | null; error_message: string | null; created_at: string; updated_at: string; }
 export async function createScan(tickers: string[]): Promise<ScanJob> {
   const res = await fetch(`${API_BASE}/scanner/scan`, {
