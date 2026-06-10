@@ -8,12 +8,14 @@ import {
   MIN_ACTIONABLE_CONFIDENCE,
   PYTH_BENCHMARKS_BASE,
   buildBaseMarketAnalysis,
+  createPythBenchmarkBarsClient,
   executableTriggerDecision,
   evaluateSignalDataFreshness,
   getUltraOrderProblem,
   requireAsset,
   triggerHitPayloadFromEvidence,
   type Bar,
+  type PythBenchmarkFetch,
   type TriggerHitPayload,
   type TriggerWakePayload,
 } from '@hunch-it/shared';
@@ -62,6 +64,14 @@ export interface DevToolsOrderRow {
 }
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
+const benchmarks = createPythBenchmarkBarsClient({
+  baseUrl: BENCHMARKS,
+  fetchImpl: fetch as unknown as PythBenchmarkFetch,
+  cacheMode: 'no-store',
+  requestSpacingMs: 250,
+  cacheTtlMs: 60_000,
+  staleTtlMs: 15 * 60_000,
+});
 const GeminiProposalSchema = z.object({
   confidence: z.number().min(0).max(1).optional(),
   rationale: z.string().max(700).optional(),
@@ -156,42 +166,8 @@ function formatBars(bars: Bar[]): string {
     .join('\n');
 }
 
-function pythSymbol(assetId: string): string {
-  const asset = requireAsset(assetId);
-  if (!asset.pythSymbol) throw new Error(`${assetId} has no Pyth symbol configured`);
-  return asset.pythSymbol;
-}
-
 async function fetchBars(assetId: string): Promise<Bar[]> {
-  const to = Math.floor(Date.now() / 1000);
-  const from = to - 24 * 60 * 60;
-  const url =
-    `${BENCHMARKS}/v1/shims/tradingview/history` +
-    `?symbol=${encodeURIComponent(pythSymbol(assetId))}` +
-    `&resolution=5&from=${from}&to=${to}`;
-
-  const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
-  if (!res.ok) throw new Error(`Pyth benchmarks failed: ${res.status} ${res.statusText}`);
-  const json = (await res.json()) as {
-    s: 'ok' | 'no_data' | 'error';
-    t?: number[];
-    o?: number[];
-    h?: number[];
-    l?: number[];
-    c?: number[];
-    errmsg?: string;
-  };
-  if (json.s === 'no_data' || !json.t) return [];
-  if (json.s !== 'ok' || !json.o || !json.h || !json.l || !json.c) {
-    throw new Error(`Pyth benchmarks: ${json.errmsg ?? json.s}`);
-  }
-  return json.t.map((time, i) => ({
-    time,
-    open: json.o![i] ?? 0,
-    high: json.h![i] ?? 0,
-    low: json.l![i] ?? 0,
-    close: json.c![i] ?? 0,
-  }));
+  return benchmarks.getRecentBars({ assetId, resolution: '5', hoursBack: 24 });
 }
 
 function buildGeminiPrompt(input: {

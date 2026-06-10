@@ -130,11 +130,21 @@ export {
 export type { Asset, AssetId, AssetKind, CryptoAssetId } from './assets.js';
 
 // ── Signal data freshness ────────────────────────────────────────────────
-export {
-  SIGNAL_DATA_MAX_AGE_SECONDS,
-  evaluateSignalDataFreshness,
-} from './signal-data.js';
+export { SIGNAL_DATA_MAX_AGE_SECONDS, evaluateSignalDataFreshness } from './signal-data.js';
 export type { SignalDataFreshnessVerdict } from './signal-data.js';
+
+// ── Pyth Benchmarks bars ────────────────────────────────────────────────
+export { PythBenchmarkRequestError, createPythBenchmarkBarsClient } from './pyth-benchmarks.js';
+export type {
+  CreatePythBenchmarkBarsClientInput,
+  PythBenchmarkBarsClient,
+  PythBenchmarkBarsRequestOptions,
+  PythBenchmarkCacheMode,
+  PythBenchmarkFetch,
+  PythBenchmarkFetchResponse,
+  PythBenchmarkIntradayResolution,
+  PythBenchmarkResolution,
+} from './pyth-benchmarks.js';
 
 // ── Signal Engine boundary ──────────────────────────────────────────────
 export {
@@ -149,17 +159,8 @@ export type {
 } from './signal-engine.js';
 
 // ── Thesis tags (BUY rationale ↔ SELL re-check) ──────────────────────────
-export {
-  THESIS_TAGS,
-  evaluateThesis,
-  extractThesisTags,
-  getThesisTag,
-} from './thesis.js';
-export type {
-  ThesisEvaluation,
-  ThesisIndicatorSnapshot,
-  ThesisTagDef,
-} from './thesis.js';
+export { THESIS_TAGS, evaluateThesis, extractThesisTags, getThesisTag } from './thesis.js';
+export type { ThesisEvaluation, ThesisIndicatorSnapshot, ThesisTagDef } from './thesis.js';
 
 // ── RPC helpers ──────────────────────────────────────────────────────────
 export { createRpcRoundRobin, parseRpcUrls } from './rpc.js';

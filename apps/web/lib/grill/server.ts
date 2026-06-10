@@ -4,10 +4,11 @@ import { z } from 'zod';
 import { createBuyProposalForUser } from '@hunch-it/db';
 import {
   PYTH_BENCHMARKS_BASE,
+  createPythBenchmarkBarsClient,
   evaluateSignalDataFreshness,
   getSignalAssets,
-  requireAsset,
   type Bar,
+  type PythBenchmarkFetch,
 } from '@hunch-it/shared';
 import { expireActiveProposals, prisma } from '@/lib/db';
 import { decimalsToNumbers } from '@/lib/db/decimal';
@@ -23,6 +24,14 @@ import {
 import { buildGrillProposalAnalysis } from './proposal-policy';
 
 const BENCHMARKS = process.env.PYTH_BENCHMARKS_URL ?? PYTH_BENCHMARKS_BASE;
+const benchmarks = createPythBenchmarkBarsClient({
+  baseUrl: BENCHMARKS,
+  fetchImpl: fetch as unknown as PythBenchmarkFetch,
+  cacheMode: 'no-store',
+  requestSpacingMs: 250,
+  cacheTtlMs: 15 * 60_000,
+  staleTtlMs: 6 * 60 * 60_000,
+});
 const SIGNAL_ASSET_IDS = new Set(getSignalAssets().map((asset) => asset.assetId));
 const ANALYST_IDS = new Set(AI_ANALYST_CATALOG.map((analyst) => analyst.id));
 
@@ -39,51 +48,16 @@ export const GrillRequestSchema = z.object({
 
 type GrillRequest = z.infer<typeof GrillRequestSchema>;
 
-interface TvResponse {
-  s: 'ok' | 'no_data' | 'error';
-  t?: number[];
-  o?: number[];
-  h?: number[];
-  l?: number[];
-  c?: number[];
-  errmsg?: string;
-}
-
 async function fetchDailyBars(assetId: string, days = 365): Promise<Bar[]> {
-  const asset = requireAsset(assetId);
-  if (!asset.pythSymbol) throw new Error(`${assetId} has no Pyth symbol configured`);
-  const to = Math.floor(Date.now() / 1000);
-  const from = to - days * 86_400;
-  const url =
-    `${BENCHMARKS}/v1/shims/tradingview/history` +
-    `?symbol=${encodeURIComponent(asset.pythSymbol)}` +
-    `&resolution=D&from=${from}&to=${to}`;
-
-  const res = await fetch(url, { headers: { accept: 'application/json' }, cache: 'no-store' });
-  if (!res.ok) throw new Error(`Pyth benchmarks failed for ${assetId}: ${res.status}`);
-  const json = (await res.json()) as TvResponse;
-  if (json.s === 'no_data') return [];
-  if (json.s !== 'ok' || !json.o || !json.h || !json.l || !json.c) {
-    throw new Error(`Pyth benchmarks failed for ${assetId}: ${json.errmsg ?? json.s}`);
-  }
-  if (!json.t) return [];
-  return json.t.map((time, index) => ({
-    time,
-    open: json.o![index] ?? 0,
-    high: json.h![index] ?? 0,
-    low: json.l![index] ?? 0,
-    close: json.c![index] ?? 0,
-  }));
+  return benchmarks.getDailyBars({ assetId, days });
 }
 
 export async function runGrillAnalysis(input: GrillRequest): Promise<GrillAnalysisResult> {
   const requiredAssets = getRequiredGrillBarAssetIds(input.assetId, input.analystIds);
   const barsByAssetId = new Map<string, Bar[]>();
-  await Promise.all(
-    requiredAssets.map(async (assetId) => {
-      barsByAssetId.set(assetId, await fetchDailyBars(assetId));
-    }),
-  );
+  for (const assetId of requiredAssets) {
+    barsByAssetId.set(assetId, await fetchDailyBars(assetId));
+  }
   return analyzeGrillIdea({
     assetId: input.assetId,
     idea: input.idea,

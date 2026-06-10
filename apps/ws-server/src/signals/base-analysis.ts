@@ -1,4 +1,5 @@
 import {
+  PythBenchmarkRequestError,
   SIGNAL_TTL_DEFAULT,
   buildBaseMarketAnalysis,
   type BaseMarketAnalysis,
@@ -56,7 +57,16 @@ export async function generateBaseMarketAnalysis(
     return null;
   }
 
-  const bars = await getHistoricalBars(assetId, '5', 24);
+  let bars: Awaited<ReturnType<typeof getHistoricalBars>>;
+  try {
+    bars = await getHistoricalBars(assetId, '5', 24);
+  } catch (err) {
+    if (err instanceof PythBenchmarkRequestError && err.rateLimited) {
+      console.warn(`[signal-engine] ${assetId} skipped: Pyth benchmarks rate-limited`);
+      return null;
+    }
+    throw err;
+  }
   if (bars.length < 50) {
     console.warn(`[signal-engine] ${assetId} insufficient bars (${bars.length} < 50)`);
     return null;
