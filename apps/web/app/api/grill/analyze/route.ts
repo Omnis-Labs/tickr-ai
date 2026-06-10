@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { PythBenchmarkRequestError } from '@hunch-it/shared';
 import { requireAuth } from '@/lib/auth/context';
 import { GrillRequestSchema, runGrillAnalysis } from '@/lib/grill/server';
 
@@ -20,6 +21,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ analysis });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof PythBenchmarkRequestError) {
+      console.warn('[grill] market data temporarily unavailable', err);
+      return NextResponse.json(
+        {
+          error: 'temporary_market_data_unavailable',
+          message: 'Market data is temporarily unavailable. Re-analyze in a moment.',
+        },
+        { status: 503 },
+      );
+    }
     console.warn('[grill] analysis failed', err);
     return NextResponse.json({ error: message }, { status: 400 });
   }

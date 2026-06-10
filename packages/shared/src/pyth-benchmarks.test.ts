@@ -110,6 +110,35 @@ test('PythBenchmarkBarsClient rolls daily bars cache keys on the next UTC day', 
   assert.notEqual(requestedUrls[0], requestedUrls[1]);
 });
 
+test('PythBenchmarkBarsClient paces concurrent history requests by default', async () => {
+  clearPythBenchmarkBarsCacheForTests();
+  let now = 0;
+  let callCount = 0;
+  const sleeps: number[] = [];
+  const fetchImpl: PythBenchmarkFetch = async () => {
+    callCount += 1;
+    return response({ ok: true, status: 200, body: okBars });
+  };
+
+  const client = createPythBenchmarkBarsClient({
+    baseUrl: 'https://benchmarks.pyth.network',
+    fetchImpl,
+    nowMs: () => now,
+    sleepMs: async (ms) => {
+      sleeps.push(ms);
+      now += ms;
+    },
+  });
+
+  await Promise.all([
+    client.getBarsRange({ assetId: 'NVDAx', resolution: '5', fromUnix: 0, toUnix: 600 }),
+    client.getBarsRange({ assetId: 'AAPLx', resolution: '5', fromUnix: 0, toUnix: 600 }),
+  ]);
+
+  assert.equal(callCount, 2);
+  assert.deepEqual(sleeps, [1_000]);
+});
+
 test('PythBenchmarkBarsClient retries a transient 429 and returns bars', async () => {
   clearPythBenchmarkBarsCacheForTests();
   const calls: string[] = [];
@@ -128,6 +157,7 @@ test('PythBenchmarkBarsClient retries a transient 429 and returns bars', async (
     sleepMs: async (ms) => {
       sleeps.push(ms);
     },
+    requestSpacingMs: 0,
   });
   const bars = await client.getBarsRange({
     assetId: 'NVDAx',
@@ -160,6 +190,41 @@ test('PythBenchmarkBarsClient reuses stale cached bars when a later call is rate
     cacheTtlMs: 10,
     staleTtlMs: 10_000,
     maxAttempts: 1,
+    requestSpacingMs: 0,
+    nowMs: () => now,
+  });
+  const request = {
+    assetId: 'TRX',
+    resolution: '5' as const,
+    fromUnix: 0,
+    toUnix: 600,
+  };
+
+  const freshBars = await client.getBarsRange(request);
+  now += 20;
+  const staleBars = await client.getBarsRange(request);
+
+  assert.equal(callCount, 2);
+  assert.deepEqual(staleBars, freshBars);
+});
+
+test('PythBenchmarkBarsClient reuses stale cached bars when a provider error occurs', async () => {
+  clearPythBenchmarkBarsCacheForTests();
+  let now = 1_000;
+  let callCount = 0;
+  const fetchImpl: PythBenchmarkFetch = async () => {
+    callCount += 1;
+    if (callCount === 1) return response({ ok: true, status: 200, body: okBars });
+    return response({ ok: false, status: 503, statusText: 'Service Unavailable' });
+  };
+
+  const client = createPythBenchmarkBarsClient({
+    baseUrl: 'https://benchmarks.pyth.network',
+    fetchImpl,
+    cacheTtlMs: 10,
+    staleTtlMs: 10_000,
+    maxAttempts: 1,
+    requestSpacingMs: 0,
     nowMs: () => now,
   });
   const request = {

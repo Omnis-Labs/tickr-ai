@@ -131,6 +131,7 @@ interface CacheEntry {
 const DEFAULT_CACHE_TTL_MS = 60_000;
 const DEFAULT_STALE_TTL_MS = 15 * 60_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_REQUEST_SPACING_MS = 1_000;
 const DEFAULT_RETRY_DELAY_MS = 500;
 const RATE_LIMIT_COOLDOWN_MS = 30_000;
 const MAX_RETRY_AFTER_MS = 2_500;
@@ -196,7 +197,7 @@ function rateLimitedError(input: FetchPythBenchmarkBarsInput): PythBenchmarkRequ
 }
 
 async function waitForRequestTurn(input: FetchPythBenchmarkBarsInput): Promise<void> {
-  const spacing = input.requestSpacingMs ?? 0;
+  const spacing = input.requestSpacingMs ?? DEFAULT_REQUEST_SPACING_MS;
   if (spacing <= 0) return;
 
   const now = (input.nowMs ?? Date.now)();
@@ -295,12 +296,7 @@ async function fetchPythBenchmarkBars(input: FetchPythBenchmarkBarsInput): Promi
       if (err instanceof PythBenchmarkRequestError && err.rateLimited) {
         rateLimitedUntilMs = Math.max(rateLimitedUntilMs, failedAt + RATE_LIMIT_COOLDOWN_MS);
       }
-      if (
-        fallback &&
-        fallback.staleUntilMs > failedAt &&
-        err instanceof PythBenchmarkRequestError &&
-        err.rateLimited
-      ) {
+      if (fallback && fallback.staleUntilMs > failedAt && err instanceof PythBenchmarkRequestError) {
         return fallback.bars;
       }
       throw err;

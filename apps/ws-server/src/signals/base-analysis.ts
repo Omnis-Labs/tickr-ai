@@ -61,8 +61,10 @@ export async function generateBaseMarketAnalysis(
   try {
     bars = await getHistoricalBars(assetId, '5', 24);
   } catch (err) {
-    if (err instanceof PythBenchmarkRequestError && err.rateLimited) {
-      console.warn(`[signal-engine] ${assetId} skipped: Pyth benchmarks rate-limited`);
+    if (err instanceof PythBenchmarkRequestError) {
+      console.warn(
+        `[signal-engine] ${assetId} skipped: Pyth benchmarks unavailable (${err.status ?? 'error'})`,
+      );
       return null;
     }
     throw err;
