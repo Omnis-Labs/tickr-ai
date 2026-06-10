@@ -6,10 +6,14 @@ export default function HomePage() {
           US-stock skilled-LLM Agents
         </h1>
         <p className="text-zinc-400 text-sm leading-relaxed max-w-3xl">
-          Two systems, one repo. Production-grade discipline applied throughout:
-          layered fallbacks, calibrated confidence, every LLM call cost-attributed
-          to a ledger, eval as a service (not a script), failure modes surfaced
-          rather than swallowed.
+          A suite of <span className="text-zinc-200">35 LLM agents</span> for US equities — 24 orthogonal
+          signal &amp; fusion agents (fundamentals, events, insider, VIX, congress…) plus{" "}
+          <span className="text-purple-400">11 placebo controls</span> as a built-in lie-detector.
+          Every backtest is lookahead-free and dual-benchmarked; an honest significance gate
+          (<span className="text-emerald-400">Deflated Sharpe</span>) separates skill from luck. The{" "}
+          <a href="/scanner" className="text-emerald-400 hover:underline">Scanner</a> turns it into one screen:
+          hold the market by default, tilt only on <em>credible</em> signals. Every LLM call is
+          cost-ledgered; eval is a service, not a script.
         </p>
       </section>
 
