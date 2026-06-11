@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import type { Holding } from '@/lib/portfolio/holdings';
+import { formatHoldingStateForDisplay } from '@/lib/portfolio/holding-labels';
 
 /**
  * Compact card-row holdings list. Caller hydrates `holdings[]` from
@@ -16,14 +17,6 @@ interface HoldingsListProps {
 }
 
 const MotionLink = motion(Link);
-
-function formatHoldingState(state: string): string {
-  if (state === 'BUY_PENDING') return 'Buy pending';
-  if (state === 'ENTERING') return 'Entering';
-  if (state === 'CLOSING') return 'Closing';
-  if (state === 'CLOSED') return 'Closed';
-  return 'Active';
-}
 
 export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
   if (isLoading) {
@@ -56,7 +49,7 @@ export function HoldingsList({ holdings, isLoading }: HoldingsListProps) {
     <div className="flex flex-col gap-3">
       {holdings.map((pos, i) => {
         const isPositive = pos.pnl >= 0;
-        const stateLabel = formatHoldingState(pos.state);
+        const stateLabel = formatHoldingStateForDisplay(pos.state);
         const showState = pos.state !== 'ACTIVE';
         return (
           <MotionLink
