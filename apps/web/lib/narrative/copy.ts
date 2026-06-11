@@ -31,7 +31,7 @@ export const appNarrativeCopy = {
   grillPlaceholder:
     'A creator says NVDAx has one more breakout after guidance. I worry I am late...',
   teamIntro:
-    'Choose AI analysts that fit your style. Each one watches different data sources and uses a different technique.',
+    'Choose up to six AI analysts. Grill uses them to challenge a trade idea before creating one proposal.',
   clearDesk: 'No pending proposals. Your AI analysts will send new ones when a setup is worth review.',
   readyForProposals:
     'Your USDC is available. AI analysts can send proposals when market setups fit your mandate.',
