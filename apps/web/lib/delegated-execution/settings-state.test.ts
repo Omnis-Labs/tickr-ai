@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  autoExecuteSecondaryActions,
   deriveAutoExecuteSettingsState,
   waitForDelegatedAccessRevocation,
   withDelegatedAccessTimeout,
@@ -129,6 +130,11 @@ test('Settings trusts server status over stale local delegated metadata', () => 
   assert.equal(state.grantActive, false);
   assert.equal(state.primaryAction, 'enable');
   assert.equal(state.statusLabel, 'Manual');
+});
+
+test('Settings secondary actions avoid a duplicate enable path', () => {
+  assert.deepEqual(autoExecuteSecondaryActions({ primaryAction: 'enable' }), ['check']);
+  assert.deepEqual(autoExecuteSecondaryActions({ primaryAction: 'disable' }), ['check', 'revoke']);
 });
 
 test('delegated access enable path times out with an actionable error', async () => {

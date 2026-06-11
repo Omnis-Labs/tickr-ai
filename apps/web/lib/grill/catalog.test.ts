@@ -37,3 +37,24 @@ test('sanitizeAiTradingTeamIds uses the default team for empty or invalid persis
   assert.deepEqual(sanitizeAiTradingTeamIds(['unknown']), DEFAULT_AI_TRADING_TEAM_IDS);
   assert.deepEqual(sanitizeAiTradingTeamIds(['technical', 'technical']), ['technical']);
 });
+
+test('AI Analyst catalog exposes plain selection copy without internal task labels', () => {
+  const [technical, relativeStrength, volatility] = AI_ANALYST_CATALOG;
+
+  assert.deepEqual(
+    [technical, relativeStrength, volatility].map((analyst) => analyst?.displayTag),
+    ['Trend', 'Momentum', 'Risk'],
+  );
+  assert.deepEqual(
+    [technical, relativeStrength, volatility].map((analyst) => analyst?.plainSummary),
+    [
+      'Reads price action and indicators to find cleaner entries.',
+      'Compares the asset with its benchmark to spot strength or weakness.',
+      'Checks whether the market is calm enough for the trade plan.',
+    ],
+  );
+  for (const analyst of AI_ANALYST_CATALOG) {
+    assert.doesNotMatch(analyst.displayTag, /^T\d+\b/);
+    assert.equal(analyst.plainSummary.trim().length > 0, true);
+  }
+});

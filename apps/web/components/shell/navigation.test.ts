@@ -9,7 +9,7 @@ import {
 test('app navigation exposes the primary signed-in surfaces', () => {
   assert.deepEqual(
     appNavigationItems.map((item) => item.name),
-    ['Home', 'Grill', 'Team', 'Portfolio'],
+    ['Home', 'Grill', 'Analysts', 'Portfolio'],
   );
 });
 

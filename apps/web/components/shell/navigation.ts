@@ -7,7 +7,7 @@ export interface AppNavigationItem {
 export const appNavigationItems: AppNavigationItem[] = [
   { name: 'Home', href: '/desk', icon: 'home' },
   { name: 'Grill', href: '/grill', icon: 'local_fire_department' },
-  { name: 'Team', href: '/team', icon: 'groups' },
+  { name: 'Analysts', href: '/team', icon: 'groups' },
   { name: 'Portfolio', href: '/portfolio', icon: 'account_balance_wallet' },
 ];
 
