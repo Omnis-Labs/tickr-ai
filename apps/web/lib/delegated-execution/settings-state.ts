@@ -28,6 +28,14 @@ export interface AutoExecuteSettingsState {
   primaryAction: 'enable' | 'disable';
 }
 
+export type AutoExecuteSecondaryAction = 'check' | 'revoke';
+
+export function autoExecuteSecondaryActions(input: {
+  primaryAction: AutoExecuteSettingsState['primaryAction'];
+}): AutoExecuteSecondaryAction[] {
+  return input.primaryAction === 'disable' ? ['check', 'revoke'] : ['check'];
+}
+
 export function deriveAutoExecuteSettingsState(input: {
   connected: boolean;
   loading: boolean;

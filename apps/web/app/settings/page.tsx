@@ -27,6 +27,7 @@ import {
 import { TopAppBar } from '@/components/shell/top-app-bar';
 import {
   STALE_SIGNER_ENV_ERROR,
+  autoExecuteSecondaryActions,
   delegatedAccessError,
   deriveAutoExecuteSettingsState,
   waitForDelegatedAccessRevocation,
@@ -304,6 +305,7 @@ function AutoExecuteTriggersCard() {
       status,
       clientDelegated,
     });
+  const secondaryActions = autoExecuteSecondaryActions({ primaryAction });
   const statusToneClass = {
     error: 'bg-error-container text-on-error-container',
     ready: 'bg-accent text-on-accent',
@@ -423,16 +425,18 @@ function AutoExecuteTriggersCard() {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void refreshStatus()}
-          disabled={!connected || loading || busy !== null}
-          className="inline-flex h-11 items-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary ring-1 ring-outline-variant transition-colors hover:bg-surface-container-high disabled:opacity-[0.38]"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          Check
-        </button>
-        {primaryAction === 'disable' ? (
+        {secondaryActions.includes('check') && (
+          <button
+            type="button"
+            onClick={() => void refreshStatus()}
+            disabled={!connected || loading || busy !== null}
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-surface-container-low px-4 text-label-md text-primary ring-1 ring-outline-variant transition-colors hover:bg-surface-container-high disabled:opacity-[0.38]"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Check
+          </button>
+        )}
+        {secondaryActions.includes('revoke') && (
           <button
             type="button"
             onClick={() => void handleDisable()}
@@ -445,20 +449,6 @@ function AutoExecuteTriggersCard() {
               <ShieldOff className="h-4 w-4" aria-hidden="true" />
             )}
             Revoke
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void handleEnable()}
-            disabled={toggleDisabled}
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-accent px-4 text-label-md text-on-accent shadow-micro transition-colors hover:bg-accent-bright disabled:opacity-[0.38]"
-          >
-            {busy === 'enable' ? (
-              <RefreshCw className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            )}
-            Enable
           </button>
         )}
       </div>
