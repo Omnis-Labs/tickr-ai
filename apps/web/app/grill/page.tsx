@@ -11,12 +11,14 @@ import { TopAppBar } from '@/components/shell/top-app-bar';
 import { Button } from '@/components/ui/button';
 import { useAuthedFetch } from '@/lib/auth/fetch';
 import type { GrillAnalysisResult } from '@/lib/grill/analysis';
+import { getHotGrillAssets } from '@/lib/grill/hot-assets';
 import { buildGrillProposalRequest } from '@/lib/grill/proposal-policy';
 import { useAiTradingTeam } from '@/lib/grill/team-client';
 import { appNarrativeCopy } from '@/lib/narrative/copy';
 import { cn } from '@/lib/utils';
 
 const assets = getSignalAssets();
+const hotAssets = getHotGrillAssets(assets);
 
 export default function GrillPage() {
   const router = useRouter();
@@ -118,9 +120,38 @@ export default function GrillPage() {
 
           <section className="rounded-lg bg-surface p-5 shadow-soft">
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-2">
-                <span className="text-label-md text-on-surface-variant">Asset</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="grill-asset" className="text-label-md text-on-surface-variant">
+                    Asset
+                  </label>
+                  <span className="text-label-sm text-on-surface-variant">Hot now</span>
+                </div>
+
+                <div className="flex flex-wrap gap-2" aria-label="Hot assets">
+                  {hotAssets.map((asset) => {
+                    const selected = asset.assetId === assetId;
+                    return (
+                      <button
+                        key={asset.assetId}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setAssetId(asset.assetId)}
+                        className={cn(
+                          'h-9 rounded-full px-3 text-label-md transition-colors',
+                          selected
+                            ? 'bg-primary text-on-primary'
+                            : 'bg-surface-container-low text-primary ring-1 ring-outline-variant hover:bg-surface-container-high',
+                        )}
+                      >
+                        {asset.hashtag}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <select
+                  id="grill-asset"
                   value={assetId}
                   onChange={(event) => setAssetId(event.target.value)}
                   className="h-12 rounded-full bg-surface-container px-4 text-label-lg text-primary outline-none ring-1 ring-outline-variant focus:ring-2 focus:ring-primary"
@@ -131,7 +162,7 @@ export default function GrillPage() {
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
 
               <label className="flex flex-col gap-2">
                 <span className="text-label-md text-on-surface-variant">Trade idea</span>
@@ -163,11 +194,7 @@ export default function GrillPage() {
         </div>
 
         {analysis && (
-          <GrillResultPanel
-            analysis={analysis}
-            busy={busy}
-            onCreateProposal={createProposal}
-          />
+          <GrillResultPanel analysis={analysis} busy={busy} onCreateProposal={createProposal} />
         )}
       </main>
     </>
